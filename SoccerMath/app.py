@@ -506,7 +506,13 @@ with tab1:
                     st.write("<br>", unsafe_allow_html=True)
                     if match.get('status') != "FINISHED": st.button("🔍", key=f"ex_{idx}", on_click=show_details, args=(h_api, a_api, m, camp_sel))
                 st.markdown("</div>", unsafe_allow_html=True)
-    else: st.info("👋 Sincronizza il campionato.")
+    else:
+        if not engine:
+            st.warning("⚠️ Database locale non trovato. Verifica che i file CSV siano presenti in `database/`.")
+        elif not API_KEY_DATA:
+            st.info("🔑 Inserisci l'API Key Football-Data nei Secrets e premi SINCRONIZZA.")
+        else:
+            st.info("👋 Premi SINCRONIZZA per caricare le partite del campionato selezionato.")
 
 with tab2:
     if st.button("🚀 Calcola Top 10", type="primary"):
