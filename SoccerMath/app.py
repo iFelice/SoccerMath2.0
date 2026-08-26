@@ -76,50 +76,40 @@ def calcola_stagione_calcolo(data_str):
         pass
     return "Sconosciuta"
 
-# --- GESTIONE TEMA & CSS ---
-theme = st.sidebar.select_slider("⚙️ TEMA", options=["LIGHT", "DARK"], value="LIGHT")
-if theme == "DARK":
-    bg, card, txt, border, stat_bg, lbl = "#0b0e11", "#161b22", "#ffffff", "#30363d", "#0d1117", "#58a6ff"
-else:
-    bg, card, txt, border, stat_bg, lbl = "#f0f2f5", "#ffffff", "#1a1d23", "#e0e4e9", "#f8f9fa", "#0056b3"
-
-st.markdown(f"""
+# --- CSS CUSTOM (solo elementi propri, NON sovrascrive il tema Streamlit) ---
+st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-    html, body, [data-testid="stApp"] {{ background-color: {bg} !important; color: {txt} !important; font-family: 'Inter', sans-serif; }}
-    [data-testid="stSidebarContent"] {{ padding-left: 20px !important; padding-right: 10px !important; }}
-    .stApp {{ background-color: {bg}; }}
-    
-    /* CSS Sicuro per Safari: Rimuovo il calc che crasha WebKit */
-    section[data-testid="stSidebar"] .stVerticalBlock {{ padding-left: 15px !important; }}
-    .main .block-container {{
+    html, body, [data-testid="stApp"] { font-family: 'Inter', sans-serif; }
+    [data-testid="stSidebarContent"] { padding-left: 20px !important; padding-right: 10px !important; }
+    .main .block-container {
         max-width: 100% !important; 
         padding-left: 0rem !important; 
         padding-right: 0rem !important; 
-    }}
-    [data-testid="stHeader"] {{ display: none !important; }}
+    }
+    [data-testid="stHeader"] { display: none !important; }
     
-               /* Banner personalizzato M4 (Proporzioni perfette) */
-    .safari-safe-banner {{ 
+    /* Banner personalizzato M4 */
+    .safari-safe-banner { 
         width: 100%; 
-        height: 0; /* L'altezza si adatta automaticamente */
-        padding-bottom: 35%; /* Proporzione esatta 1056/2496 (leggermente ridotta per eleganza) */
+        height: 0;
+        padding-bottom: 35%;
         background-image: url('https://github.com/iFelice/SoccerMath2.0/blob/main/SoccerMath/images/Banner%20soccermath2.0.png?raw=true'); 
-        background-size: 100% 100%; /* Evita qualsiasi sgranatura */
+        background-size: 100% 100%;
         background-position: center center; 
         margin-top: 0px !important; 
         margin-bottom: 20px;
         margin-left: -1rem; 
         margin-right: -1rem;
-    }}
+    }
 
-    .match-card {{ background-color: {card}; border-radius: 12px; padding: 3px; margin-bottom: 8px; border: 1px solid {border}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
-    .team-name {{ font-size: 19px; font-weight: 800; color: {txt}; text-transform: uppercase; }}
-    .label-header {{ color: {lbl}; font-size: 15px !important; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 5px; border-bottom: 2px solid {border}; padding-bottom: 3px; }}
-    .match-date {{ font-size: 13px; font-weight: 800; color: #3b82f6 !important; display: block; margin-top: 5px; }}
-    .stat-container {{ background-color: {stat_bg}; border: 1px solid {border}; border-radius: 8px; padding: 10px; text-align: center; height: 100%; }}
-    .top-mix-row {{ background-color: {card}; border: 1px solid {border}; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
-    .match-result {{ font-size: 18px; font-weight: 800; color: #28a745; margin-top: 5px; display: block; }}
+    .match-card { background-color: #ffffff; border-radius: 12px; padding: 3px; margin-bottom: 8px; border: 1px solid #e0e4e9; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .team-name { font-size: 19px; font-weight: 800; color: #1a1d23; text-transform: uppercase; }
+    .label-header { color: #0056b3; font-size: 15px !important; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 5px; border-bottom: 2px solid #e0e4e9; padding-bottom: 3px; }
+    .match-date { font-size: 13px; font-weight: 800; color: #3b82f6 !important; display: block; margin-top: 5px; }
+    .stat-container { background-color: #f8f9fa; border: 1px solid #e0e4e9; border-radius: 8px; padding: 10px; text-align: center; height: 100%; }
+    .top-mix-row { background-color: #ffffff; border: 1px solid #e0e4e9; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .match-result { font-size: 18px; font-weight: 800; color: #28a745; margin-top: 5px; display: block; }
 </style>
 """, unsafe_allow_html=True)
 
