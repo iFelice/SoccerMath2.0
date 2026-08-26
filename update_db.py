@@ -9,7 +9,7 @@ import pandas as pd
 import os
 from datetime import datetime
 
-API_KEY_DATA = "c299e4a676a54d48a642f20bca7f4480"
+from config import API_KEY_DATA  # oppure FOOTBALL_DATA_API_KEY
 
 # Mapping campionati
 CAMPIONATI = {
