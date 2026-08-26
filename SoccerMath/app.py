@@ -475,7 +475,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏟️ PARTITE", "🌟 TOP MIX", "⚡ 
 with tab1:
     if 'live_data' in st.session_state and st.session_state.live_data and g_sel is not None and engine:
         team_stats, avg_h, avg_a, _ = engine
-        matches = [m for m in st.session_state.live_data if m['matchday'] == g_sel]
+        matches = [m for m in st.session_state.live_data if int(m.get('matchday', 0)) == int(g_sel)]
         col_title, col_btn = st.columns([4, 1])
         with col_title: st.subheader(f"🏟️ {camp_sel.upper()} - GIORNATA {g_sel}")
         with col_btn:
@@ -493,9 +493,14 @@ with tab1:
                 with c1: st.markdown(f"<div class='stat-container'><span class='label-header'>1X2</span><div style='display:flex; justify-content:space-around'><div>1<br><b>{m['1']:.0%}</b></div><div>X<br><b>{m['X']:.0%}</b></div><div>2<br><b>{m['2']:.0%}</b></div></div></div>", unsafe_allow_html=True)
                 with c3: st.markdown(f"<div class='stat-container'><span class='label-header'>U/O 2.5</span><b>{m['u25']:.0%}</b> / <b>{(1-m['u25']):.0%}</b></div>", unsafe_allow_html=True)
                 with c5: st.markdown(f"<div class='stat-container'><span class='label-header'>GG/NG</span><b>{m['gg']:.0%}</b> / <b>{(1-m['gg']):.0%}</b></div>", unsafe_allow_html=True)
-                with c6: 
-                    st.write("<br>", unsafe_allow_html=True)
-                    if match.get('status') != "FINISHED": st.button("🔍", key=f"ex_{idx}", on_click=show_details, args=(h_api, a_api, m, camp_sel))
+                with c6:
+                    if match.get('status') == "FINISHED":
+                        gh = match["score"]["fullTime"]["home"]
+                        ga = match["score"]["fullTime"]["away"]
+                        st.markdown(f"<div style='text-align:center; color:#28a745; font-weight:800; font-size:18px;'>🏁<br>{gh}-{ga}</div>", unsafe_allow_html=True)
+                    else:
+                        st.write("<br>", unsafe_allow_html=True)
+                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, camp_sel))
                 st.markdown("</div>", unsafe_allow_html=True)
     else:
         if not engine:
