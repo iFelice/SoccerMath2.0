@@ -168,8 +168,9 @@ def estimate_xg_from_csv_matches(league_key, info):
                 pass
 
         result[t] = {
-            "xG_avg": round(float(xg_for), 3),
-            "xGA_avg": round(float(xg_against), 3)
+            "goals_avg": round(float(xg_for), 3),
+            "goals_against_avg": round(float(xg_against), 3),
+            "note": "fallback_from_goals_not_real_xg"
         }
 
     return result
