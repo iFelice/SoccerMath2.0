@@ -87,7 +87,8 @@ st.markdown("""
         padding-left: 0rem !important; 
         padding-right: 0rem !important; 
     }
-    [data-testid="stHeader"] { display: none !important; }
+     /* Header nascosto disabilitato: nasconde anche il toggle sidebar */
+    /* [data-testid="stHeader"] { display: none !important; } */
     
     /* Banner personalizzato M4 */
     .safari-safe-banner { 
