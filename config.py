@@ -52,7 +52,7 @@ def _get_secret(key: str, default: str = "") -> str:
 # ==========================================
 # 1. API KEYS E CREDENZIALI
 # ==========================================
-FOOTBALL_DATA_API_KEY = "c299e4a676a54d48a642f20bca7f4480"
+FOOTBALL_DATA_API_KEY = _get_secret("FOOTBALL_DATA_API_KEY", "")
 API_KEY_DATA = FOOTBALL_DATA_API_KEY  # Alias per retrocompatibilità
 
 ODDS_API_KEY = _get_secret("ODDS_API_KEY", _get_secret("API_KEY_ODDS", ""))
