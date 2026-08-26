@@ -1,0 +1,110 @@
+{
+  "Atalanta": {
+    "xG_avg": 1.61,
+    "xGA_avg": 1.04
+  },
+  "Bologna": {
+    "xG_avg": 1.304,
+    "xGA_avg": 1.043
+  },
+  "Cagliari": {
+    "xG_avg": 0.959,
+    "xGA_avg": 1.314
+  },
+  "Como": {
+    "xG_avg": 1.264,
+    "xGA_avg": 1.039
+  },
+  "Cremonese": {
+    "xG_avg": 0.757,
+    "xGA_avg": 1.384
+  },
+  "Empoli": {
+    "xG_avg": 0.917,
+    "xGA_avg": 1.436
+  },
+  "Fiorentina": {
+    "xG_avg": 1.343,
+    "xGA_avg": 1.079
+  },
+  "Frosinone": {
+    "xG_avg": 1.237,
+    "xGA_avg": 1.703
+  },
+  "Genoa": {
+    "xG_avg": 0.944,
+    "xGA_avg": 1.159
+  },
+  "Inter": {
+    "xG_avg": 1.826,
+    "xGA_avg": 0.883
+  },
+  "Juventus": {
+    "xG_avg": 1.387,
+    "xGA_avg": 0.866
+  },
+  "Lazio": {
+    "xG_avg": 1.337,
+    "xGA_avg": 1.008
+  },
+  "Lecce": {
+    "xG_avg": 0.813,
+    "xGA_avg": 1.317
+  },
+  "Milan": {
+    "xG_avg": 1.53,
+    "xGA_avg": 1.062
+  },
+  "Monza": {
+    "xG_avg": 0.97,
+    "xGA_avg": 1.57
+  },
+  "Napoli": {
+    "xG_avg": 1.477,
+    "xGA_avg": 0.815
+  },
+  "Parma": {
+    "xG_avg": 0.943,
+    "xGA_avg": 1.225
+  },
+  "Pisa": {
+    "xG_avg": 0.684,
+    "xGA_avg": 1.868
+  },
+  "Roma": {
+    "xG_avg": 1.356,
+    "xGA_avg": 0.972
+  },
+  "Salernitana": {
+    "xG_avg": 1.032,
+    "xGA_avg": 1.811
+  },
+  "Sampdoria": {
+    "xG_avg": 0.78,
+    "xGA_avg": 1.859
+  },
+  "Sassuolo": {
+    "xG_avg": 1.078,
+    "xGA_avg": 1.337
+  },
+  "Spezia": {
+    "xG_avg": 0.907,
+    "xGA_avg": 1.605
+  },
+  "Torino": {
+    "xG_avg": 0.987,
+    "xGA_avg": 1.162
+  },
+  "Udinese": {
+    "xG_avg": 1.056,
+    "xGA_avg": 1.251
+  },
+  "Venezia": {
+    "xG_avg": 0.943,
+    "xGA_avg": 1.517
+  },
+  "Verona": {
+    "xG_avg": 0.83,
+    "xGA_avg": 1.434
+  }
+}

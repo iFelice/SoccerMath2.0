@@ -1,0 +1,94 @@
+{
+  "Angers": {
+    "xG_avg": 0.793,
+    "xGA_avg": 1.283
+  },
+  "Auxerre": {
+    "xG_avg": 0.998,
+    "xGA_avg": 1.205
+  },
+  "Brest": {
+    "xG_avg": 1.129,
+    "xGA_avg": 1.32
+  },
+  "Le Havre": {
+    "xG_avg": 0.861,
+    "xGA_avg": 1.36
+  },
+  "Lens": {
+    "xG_avg": 1.361,
+    "xGA_avg": 0.926
+  },
+  "Lille": {
+    "xG_avg": 1.224,
+    "xGA_avg": 0.926
+  },
+  "Lorient": {
+    "xG_avg": 0.89,
+    "xGA_avg": 0.965
+  },
+  "Lyon": {
+    "xG_avg": 1.731,
+    "xGA_avg": 1.308
+  },
+  "Marseille": {
+    "xG_avg": 1.576,
+    "xGA_avg": 1.098
+  },
+  "Metz": {
+    "xG_avg": 0.668,
+    "xGA_avg": 1.414
+  },
+  "Monaco": {
+    "xG_avg": 1.401,
+    "xGA_avg": 1.168
+  },
+  "Montpellier": {
+    "xG_avg": 0.85,
+    "xGA_avg": 2.162
+  },
+  "Nantes": {
+    "xG_avg": 0.862,
+    "xGA_avg": 1.286
+  },
+  "Nice": {
+    "xG_avg": 1.257,
+    "xGA_avg": 1.226
+  },
+  "Olympique Lyon": {
+    "xG_avg": 1.559,
+    "xGA_avg": 1.176
+  },
+  "PSG": {
+    "xG_avg": 2.032,
+    "xGA_avg": 0.791
+  },
+  "Paris": {
+    "xG_avg": 0.965,
+    "xGA_avg": 1.129
+  },
+  "Reims": {
+    "xG_avg": 1.008,
+    "xGA_avg": 1.526
+  },
+  "Rennes": {
+    "xG_avg": 1.546,
+    "xGA_avg": 1.405
+  },
+  "St Etienne": {
+    "xG_avg": 1.144,
+    "xGA_avg": 2.168
+  },
+  "Stade Rennais": {
+    "xG_avg": 1.735,
+    "xGA_avg": 1.471
+  },
+  "Strasbourg": {
+    "xG_avg": 1.327,
+    "xGA_avg": 1.183
+  },
+  "Toulouse": {
+    "xG_avg": 1.149,
+    "xGA_avg": 1.08
+  }
+}
