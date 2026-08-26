@@ -422,18 +422,47 @@ with st.sidebar:
     with col_s1: do_sync = st.button("🔄 SINCRONIZZA", disabled=has_data)
     with col_s2: do_refresh = st.button("↺ Refresh")
     
-    if do_sync or do_refresh:
-        with st.spinner("Scaricando..."):
+   if do_sync or do_refresh:
+        if not API_KEY_DATA:
+            st.error("⚠️ Impossibile sincronizzare: API Key Football-Data mancante. Configurala nei Secrets.")
+        else:
+            with st.spinner("Scaricando dati da Football-Data..."):
+                try:
+                    resp = requests.get(
+                        f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/matches",
+                        headers={'X-Auth-Token': API_KEY_DATA},
+                        timeout=15
+                    )
+                    if resp.status_code == 200:
+                        st.session_state.live_data = resp.json().get('matches', [])
+                        st.session_state.live_camp = camp_sel
+                        st.success(f"✅ {len(st.session_state.live_data)} partite caricate!")
+                    elif resp.status_code == 401:
+                        st.error("🔴 Errore 401: API Key non valida o scaduta. Verifica su football-data.org.")
+                    elif resp.status_code == 429:
+                        st.error("🟠 Errore 429: troppe richieste. Aspetta 1 minuto e riprova.")
+                    else:
+                        st.error(f"Errore API ({resp.status_code}): {resp.text[:200]}")
+                except requests.exceptions.Timeout:
+                    st.error("⏱️ Timeout: il server Football-Data non risponde. Riprova tra qualche istante.")
+                except Exception as e:
+                    st.error(f"Errore imprevisto: {e}")
             try:
-                resp = requests.get(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/matches", headers={'X-Auth-Token': API_KEY_DATA})
-                if resp.status_code == 200: st.session_state.live_data = resp.json().get('matches', []); st.session_state.live_camp = camp_sel
-                else: st.error(f"Errore API ({resp.status_code})")
-            except Exception as e: st.error(f"Errore: {e}")
-            try:
-                stand_resp = requests.get(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/standings", headers={"X-Auth-Token": API_KEY_DATA})
+                stand_resp = requests.get(
+                    f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/standings",
+                    headers={"X-Auth-Token": API_KEY_DATA},
+                    timeout=15
+                )
                 if stand_resp.status_code == 200:
-                    st.session_state.classifica = {clean_name(r["team"].get("shortName") or r["team"].get("name")): {"pos": r["position"], "punti": r["points"], "pg": r["playedGames"], "gf": r["goalsFor"], "gs": r["goalsAgainst"]} for r in stand_resp.json().get("standings", [])[0].get("table", [])}
-            except: pass
+                    st.session_state.classifica = {
+                        clean_name(r["team"].get("shortName") or r["team"].get("name")): {
+                            "pos": r["position"], "punti": r["points"], "pg": r["playedGames"],
+                            "gf": r["goalsFor"], "gs": r["goalsAgainst"]
+                        }
+                        for r in stand_resp.json().get("standings", [])[0].get("table", [])
+                    }
+            except Exception:
+                pass
         
     if "live_data" in st.session_state and st.session_state.live_data:
         giornate = sorted(list(set([m['matchday'] for m in st.session_state.live_data])))
