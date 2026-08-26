@@ -78,7 +78,8 @@ st.markdown(f"""
     .stApp {{ background-color: {bg}; }}
     
     /* CSS Sicuro per Safari: Rimuovo il calc che crasha WebKit */
-        section[data-testid="stSidebar"] .stVerticalBlock {{ padding-left: 15px !important; }}
+    section[data-testid="stSidebar"] .stVerticalBlock {{ padding-left: 15px !important; }}
+    .main .block-container {{
         max-width: 100% !important; 
         padding-left: 0rem !important; 
         padding-right: 0rem !important; 
