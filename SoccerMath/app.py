@@ -397,8 +397,12 @@ def show_details(h, a, m, camp_sel="Serie A"):
             st.error(f"Errore AI: {e}")
             if match_id: save_prediction_entry(match_id, h, a, camp_sel, 0, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "")
 
-# Banner Safari-Safe (No calc)
+# Banner
 st.markdown("""<div class="safari-safe-banner"></div>""", unsafe_allow_html=True)
+
+# Avviso prominente se manca l'API Key
+if not API_KEY_DATA:
+    st.error("🔴 **FOOTBALL_DATA_API_KEY mancante!** Vai su Streamlit Cloud → **App Settings → Secrets** e aggiungi:\n```toml\nFOOTBALL_DATA_API_KEY = \"tua-chiave\"\n```")
 
 # --- SIDEBAR ---
 with st.sidebar:
