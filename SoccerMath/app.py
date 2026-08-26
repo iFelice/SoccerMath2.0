@@ -90,7 +90,7 @@ st.markdown(f"""
         width: 100%; 
         height: 0; /* L'altezza si adatta automaticamente */
         padding-bottom: 35%; /* Proporzione esatta 1056/2496 (leggermente ridotta per eleganza) */
-        background-image: url('https://drive.google.com/file/d/1rQGjb-44f_jKORG_At202wP6eJPSbIHt/view?usp=drive_link'); 
+        background-image: url('https://github.com/iFelice/SoccerMath2.0/blob/main/SoccerMath/images/Banner%20soccermath2.0.png?raw=true'); 
         background-size: 100% 100%; /* Evita qualsiasi sgranatura */
         background-position: center center; 
         margin-top: 0px !important; 
