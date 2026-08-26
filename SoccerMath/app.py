@@ -412,7 +412,7 @@ with st.sidebar:
     with col_s1: do_sync = st.button("🔄 SINCRONIZZA", disabled=has_data)
     with col_s2: do_refresh = st.button("↺ Refresh")
     
-   if do_sync or do_refresh:
+    if do_sync or do_refresh:
         if not API_KEY_DATA:
             st.error("⚠️ Impossibile sincronizzare: API Key Football-Data mancante. Configurala nei Secrets.")
         else:
