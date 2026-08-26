@@ -237,11 +237,19 @@ def get_league_engine(camp_key):
         stats[t] = {'att': att * (1 + (val/50000)), 'def': defe * (1 - (val/50000)), 'val': val}
     return stats, avg_h, avg_a, df
 
-def get_full_poisson(h_e, a_e):
-    h_p = [poisson.pmf(i, h_e) for i in range(8)]; a_p = [poisson.pmf(i, a_e) for i in range(8)]
+def get_full_poisson(h_e, a_e, max_goals=15):
+    h_p = [poisson.pmf(i, h_e) for i in range(max_goals)]
+    a_p = [poisson.pmf(i, a_e) for i in range(max_goals)]
     matrix = np.outer(h_p, a_p)
-    def get_u(limit): return sum([matrix[i,j] for i in range(8) for j in range(8) if i+j < limit])
-    return {"1": np.sum(np.tril(matrix, -1)), "X": np.sum(np.diag(matrix)), "2": np.sum(np.triu(matrix, 1)), "u25": get_u(2.5), "gg": (1-h_p[0])*(1-a_p[0])}
+    def get_u(limit):
+        return sum(matrix[i,j] for i in range(max_goals) for j in range(max_goals) if i+j < limit)
+    return {
+        "1": np.sum(np.tril(matrix, -1)),
+        "X": np.sum(np.diag(matrix)),
+        "2": np.sum(np.triu(matrix, 1)),
+        "u25": get_u(2.5),
+        "gg": (1-h_p[0])*(1-a_p[0])
+    }
 
 def calcola_segnali(risultati, infraset_giocate, infraset_programmate, stand, *args):
     mult_att, mult_def = 1.0, 1.0
