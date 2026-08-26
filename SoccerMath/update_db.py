@@ -14,11 +14,6 @@ import config
 from config import (
     CAMPIONATI_UPDATE_DB,
     DATABASE_DIR,
-    clean_name,
-)
-from config import (
-    CAMPIONATI_UPDATE_DB,
-    DATABASE_DIR,
     FOOTBALL_DATA_API_KEY,
     clean_name,
 )
