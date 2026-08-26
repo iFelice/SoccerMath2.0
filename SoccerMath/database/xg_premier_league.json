@@ -1,0 +1,110 @@
+{
+  "Arsenal": {
+    "xG_avg": 1.47,
+    "xGA_avg": 0.676
+  },
+  "Aston Villa": {
+    "xG_avg": 1.239,
+    "xGA_avg": 1.077
+  },
+  "Bournemouth": {
+    "xG_avg": 1.276,
+    "xGA_avg": 1.075
+  },
+  "Brentford": {
+    "xG_avg": 1.263,
+    "xGA_avg": 1.222
+  },
+  "Brighton": {
+    "xG_avg": 1.603,
+    "xGA_avg": 1.401
+  },
+  "Brighton Hove": {
+    "xG_avg": 1.368,
+    "xGA_avg": 1.211
+  },
+  "Burnley": {
+    "xG_avg": 0.683,
+    "xGA_avg": 1.213
+  },
+  "Chelsea": {
+    "xG_avg": 1.354,
+    "xGA_avg": 1.025
+  },
+  "Crystal Palace": {
+    "xG_avg": 1.038,
+    "xGA_avg": 1.071
+  },
+  "Everton": {
+    "xG_avg": 0.985,
+    "xGA_avg": 1.02
+  },
+  "Fulham": {
+    "xG_avg": 1.098,
+    "xGA_avg": 1.072
+  },
+  "Ipswich": {
+    "xG_avg": 0.996,
+    "xGA_avg": 2.022
+  },
+  "Leeds": {
+    "xG_avg": 1.353,
+    "xGA_avg": 1.587
+  },
+  "Leeds United": {
+    "xG_avg": 1.289,
+    "xGA_avg": 1.474
+  },
+  "Leicester": {
+    "xG_avg": 0.895,
+    "xGA_avg": 1.991
+  },
+  "Liverpool": {
+    "xG_avg": 1.557,
+    "xGA_avg": 1.001
+  },
+  "Man City": {
+    "xG_avg": 1.571,
+    "xGA_avg": 0.868
+  },
+  "Man United": {
+    "xG_avg": 1.255,
+    "xGA_avg": 1.089
+  },
+  "Newcastle": {
+    "xG_avg": 1.272,
+    "xGA_avg": 1.085
+  },
+  "Nott'm Forest": {
+    "xG_avg": 1.348,
+    "xGA_avg": 1.393
+  },
+  "Nottingham": {
+    "xG_avg": 1.263,
+    "xGA_avg": 1.342
+  },
+  "Southampton": {
+    "xG_avg": 0.784,
+    "xGA_avg": 2.22
+  },
+  "Sunderland": {
+    "xG_avg": 0.7,
+    "xGA_avg": 0.758
+  },
+  "Tottenham": {
+    "xG_avg": 1.19,
+    "xGA_avg": 1.292
+  },
+  "West Ham": {
+    "xG_avg": 0.996,
+    "xGA_avg": 1.343
+  },
+  "Wolverhampton": {
+    "xG_avg": 0.711,
+    "xGA_avg": 1.789
+  },
+  "Wolves": {
+    "xG_avg": 1.194,
+    "xGA_avg": 1.702
+  }
+}
