@@ -51,16 +51,29 @@ def format_date_italy(utc_date_str, fmt="%d/%m | %H:%M"):
         return "Data N/D"
 
 def calcola_stagione_calcolo(data_str):
-    if not data_str or data_str == "Data N/D": return "Sconosciuta"
+    if not data_str or data_str == "Data N/D": 
+        return "Sconosciuta"
     try:
         parts = data_str.split('/')
         if len(parts) >= 3:
             mese = int(parts[1])
-            anno = int(parts[2].split(' ')[0])
-            if mese >= 8: return f"{anno}/{anno+1}"
-            elif mese <= 5: return f"{anno-1}/{anno}"
-            else: return f"{anno-1}/{anno}"
-    except: pass
+            anno_str = parts[2].split(' ')[0].split('|')[0].strip()
+            anno = int(anno_str)
+        elif len(parts) == 2:
+            # Formato "dd/mm | HH:MM" senza anno → usa anno corrente
+            mese = int(parts[1].split('|')[0].strip())
+            anno = datetime.now(ITALY_TZ).year
+        else:
+            return "Sconosciuta"
+        
+        if mese >= 8: 
+            return f"{anno}/{anno+1}"
+        elif mese <= 5: 
+            return f"{anno-1}/{anno}"
+        else: 
+            return f"{anno-1}/{anno}"
+    except: 
+        pass
     return "Sconosciuta"
 
 # --- GESTIONE TEMA & CSS ---
