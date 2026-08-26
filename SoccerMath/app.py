@@ -456,7 +456,7 @@ with st.sidebar:
                 pass
         
     if "live_data" in st.session_state and st.session_state.live_data:
-        giornate = sorted(list(set([m['matchday'] for m in st.session_state.live_data])))
+        giornate = sorted(list(set([int(m.get('matchday', 0)) for m in st.session_state.live_data])))
         default_idx = 0
         now_utc = datetime.now(timezone.utc)
         for i, g in enumerate(giornate):
