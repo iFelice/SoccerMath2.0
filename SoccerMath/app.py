@@ -205,13 +205,13 @@ def get_league_engine(camp_key):
     prefix = LEAGUE_PREFIX_MAP.get(camp_key)
     if not prefix: return None
     dfs = []
-    for f in sorted(glob.glob(f"./database/{prefix}_20*.csv")):
+    for f in sorted(glob.glob(str(DATABASE_DIR / f"{prefix}_20*.csv"))):
         try: df_tmp = pd.read_csv(f, on_bad_lines='skip', low_memory=False); df_tmp['peso'] = 1.0; dfs.append(df_tmp)
         except: pass
-    for f in glob.glob(f"./database/{prefix}_Live.csv"):
+    for f in glob.glob(str(DATABASE_DIR / f"{prefix}_Live.csv")):
         try: df_tmp = pd.read_csv(f, on_bad_lines='skip', low_memory=False); df_tmp['peso'] = 4.0; dfs.append(df_tmp)
         except: pass
-    for f in glob.glob(f"./database/{prefix}.csv"):
+    for f in glob.glob(str(DATABASE_DIR / f"{prefix}.csv")):
         try: df_tmp = pd.read_csv(f, on_bad_lines='skip', low_memory=False); df_tmp['peso'] = 3.0; dfs.append(df_tmp)
         except: pass
     if not dfs: return None
