@@ -182,16 +182,20 @@ class EloEngine:
             margin = abs(fthg - ftag)
             margin_mult = calculate_goal_margin_multiplier(margin)
 
-            # Modulazione facoltativa basata su xG
-            xg_boost = 1.0
+            # Modulazione basata su xG: influenza l'expected_score, non il K
+            xg_adj = 0.0
             if xg_data and h_team in xg_data and a_team in xg_data:
-                # Efficienza xG
                 h_xg = xg_data[h_team].get("xG_avg", 1.3)
-                a_xg = xg_data[a_team].get("xG_avg", 1.3)
-                xg_diff = abs(h_xg - a_xg)
-                xg_boost = 1.0 + min(0.2, xg_diff * 0.05)
+                a_xg = xg_data[a_team].get("xGA_avg", 1.3)  # xGA dell'avversario = difesa
+                # Se casa segna più xG di quanto l'avversario subisce, è più forte dell'atteso
+                xg_adj = (h_xg - a_xg) * 0.15
 
-            k_eff = self.base_k * margin_mult * xg_boost
+            # Differenziale con fattore campo e aggiustamento xG
+            dr = r_h + self.home_adv - r_a + (xg_adj * 400)  # scala Elo: ~400 punti = 10x probabilità
+            expected_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
+            expected_a = 1.0 - expected_h
+
+            k_eff = self.base_k * margin_mult
 
             delta_h = k_eff * (s_h - expected_h)
             delta_a = k_eff * (s_a - expected_a)
