@@ -569,7 +569,7 @@ with tab1:
                         st.markdown(f"<div style='text-align:center; color:#28a745; font-weight:800; font-size:18px;'>🏁<br>{gh}-{ga}</div>", unsafe_allow_html=True)
                     else:
                         st.write("<br>", unsafe_allow_html=True)
-                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, camp_sel))
+                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, camp_sel, g_sel))
                 st.markdown("</div>", unsafe_allow_html=True)
     else:
         if not engine:
