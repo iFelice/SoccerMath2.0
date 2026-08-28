@@ -247,18 +247,52 @@ def get_league_engine(camp_key):
     if 'peso' not in df.columns: df['peso'] = 1.0
     avg_h = np.average(df['FTHG'].dropna(), weights=df.loc[df['FTHG'].notna(), 'peso'])
     avg_a = np.average(df['FTAG'].dropna(), weights=df.loc[df['FTAG'].notna(), 'peso'])
+    
+    # --- FATTORI FORMA (ultime 5 partite) ---
+    df_sorted = df.sort_values('Date')
+    form_factors = {}
+    for t in pd.concat([df['HomeClean'], df['AwayClean']]).unique():
+        t_matches = df_sorted[(df_sorted['HomeClean']==t) | (df_sorted['AwayClean']==t)].tail(5)
+        if len(t_matches) >= 3:
+            gf = gt = 0
+            for _, r in t_matches.iterrows():
+                if r['HomeClean'] == t:
+                    gf += r['FTHG']; gt += r['FTAG']
+                else:
+                    gf += r['FTAG']; gt += r['FTHG']
+            avg_glob = (avg_h + avg_a) / 2
+            form_factors[t] = {
+                'att': max(0.85, min(1.15, (gf / len(t_matches)) / max(avg_glob, 0.5))),
+                'def': max(0.85, min(1.15, (gt / len(t_matches)) / max(avg_glob, 0.5)))
+            }
+        else:
+            form_factors[t] = {'att': 1.0, 'def': 1.0}
+    
     xg_data = get_understat_xg(camp_key); mkt_values = get_market_values()
     league_xg = league_xga = None
-    if xg_data and len(xg_data) >= 10: league_xg = np.mean([v['xG_avg'] for v in xg_data.values()]); league_xga = np.mean([v['xGA_avg'] for v in xg_data.values()])
+    if xg_data and len(xg_data) >= 10: 
+        league_xg = np.mean([v['xG_avg'] for v in xg_data.values()])
+        league_xga = np.mean([v['xGA_avg'] for v in xg_data.values()])
     stats = {}
     for t in pd.concat([df['HomeClean'], df['AwayClean']]).unique():
         h_h = df[df['HomeClean']==t]; a_h = df[df['AwayClean']==t]
-        if xg_data and t in xg_data and league_xg and league_xga: att = xg_data[t]['xG_avg'] / league_xg; defe = xg_data[t]['xGA_avg'] / league_xga
+        if xg_data and t in xg_data and league_xg and league_xga: 
+            att = xg_data[t]['xG_avg'] / league_xg; defe = xg_data[t]['xGA_avg'] / league_xga
         else:
-            att_h = h_h['FTHG'].mean() / avg_h if not h_h.empty else 1.0; att_a = a_h['FTAG'].mean() / avg_a if not a_h.empty else 1.0
-            def_h = h_h['FTAG'].mean() / avg_a if not h_h.empty else 1.0; def_a = a_h['FTHG'].mean() / avg_h if not a_h.empty else 1.0
+            # Medie per-squadra ORA PESATE coerentemente con le medie globali
+            att_h = np.average(h_h['FTHG'].dropna(), weights=h_h.loc[h_h['FTHG'].notna(), 'peso']) / avg_h if not h_h.empty else 1.0
+            att_a = np.average(a_h['FTAG'].dropna(), weights=a_h.loc[a_h['FTAG'].notna(), 'peso']) / avg_a if not a_h.empty else 1.0
+            def_h = np.average(h_h['FTAG'].dropna(), weights=h_h.loc[h_h['FTAG'].notna(), 'peso']) / avg_a if not h_h.empty else 1.0
+            def_a = np.average(a_h['FTHG'].dropna(), weights=a_h.loc[a_h['FTHG'].notna(), 'peso']) / avg_h if not a_h.empty else 1.0
             att = (att_h + att_a) / 2; defe = (def_h + def_a) / 2
+        
+        # Applica fattore forma: se segna di più del solito, attacco sale; se subisce di più, difesa sale (e quindi l'avversario segna di più)
+        form = form_factors.get(t, {'att': 1.0, 'def': 1.0})
+        att = att * form['att']
+        defe = defe * form['def']
+        
         val = mkt_values.get(t, 50)
+        # Fattore mercato lasciato identico al codice originale (ha funzionato 13/16)
         stats[t] = {'att': att * (1 + (val/50000)), 'def': defe * (1 - (val/50000)), 'val': val}
     return stats, avg_h, avg_a, df
 
