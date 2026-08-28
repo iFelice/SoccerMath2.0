@@ -1,10 +1,6 @@
 """
 models/elo_engine.py - Motore di Calcolo Elo Rating Dinamico per M4-analist
-Implementa il modello Elo calibrato per il calcio con:
-- Fattore campo (Home Advantage)
-- Fattore K dinamico ponderato su margine gol ed xG
-- Calcolo probabilità d'esito 1X2 basato sul differenziale Elo
-- Generazione leaderboard e serie storiche
+...
 """
 
 import glob
