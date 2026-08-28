@@ -153,4 +153,116 @@ class EloEngine:
             st_a = self.team_stats[a_team]
             st_h["matches"] += 1
             st_a["matches"] += 1
-            st_h["
+            st_h["goals_for"] += fthg
+            st_h["goals_against"] += ftag
+            st_a["goals_for"] += ftag
+            st_a["goals_against"] += fthg
+            if s_h == 1.0:
+                st_h["wins"] += 1
+                st_a["losses"] += 1
+            elif s_h == 0.0:
+                st_h["losses"] += 1
+                st_a["wins"] += 1
+            else:
+                st_h["draws"] += 1
+                st_a["draws"] += 1
+            st_h["peak_elo"] = max(st_h["peak_elo"], new_r_h)
+            st_h["min_elo"] = min(st_h["min_elo"], new_r_h)
+            st_a["peak_elo"] = max(st_a["peak_elo"], new_r_a)
+            st_a["min_elo"] = min(st_a["min_elo"], new_r_a)
+
+            date_val = row["Date_Parsed"]
+            self.history[h_team].append({
+                "date": date_val, "opponent": a_team, "is_home": True,
+                "score": f"{fthg}-{ftag}",
+                "result": "V" if s_h == 1.0 else ("P" if s_h == 0.0 else "X"),
+                "elo_before": r_h, "elo_after": new_r_h, "delta": delta_h
+            })
+            self.history[a_team].append({
+                "date": date_val, "opponent": h_team, "is_home": False,
+                "score": f"{ftag}-{fthg}",
+                "result": "V" if s_a == 1.0 else ("P" if s_a == 0.0 else "X"),
+                "elo_before": r_a, "elo_after": new_r_a, "delta": delta_a
+            })
+        self.is_computed = True
+        return self.ratings
+
+    def get_leaderboard(self) -> pd.DataFrame:
+        if not self.is_computed:
+            self.compute_ratings()
+        rows = []
+        for team, rating in self.ratings.items():
+            stats = self.team_stats.get(team, {})
+            hist = self.history.get(team, [])
+            last_5 = hist[-5:] if hist else []
+            last_5_delta = sum(m["delta"] for m in last_5) if last_5 else 0.0
+            last_5_form = "".join([m["result"] for m in last_5]) if last_5 else "—"
+            rows.append({
+                "Squadra": team, "Elo Rating": round(rating, 1),
+                "PG": stats.get("matches", 0), "V": stats.get("wins", 0),
+                "N": stats.get("draws", 0), "P": stats.get("losses", 0),
+                "GF": stats.get("goals_for", 0), "GS": stats.get("goals_against", 0),
+                "DR": stats.get("goals_for", 0) - stats.get("goals_against", 0),
+                "Delta 5G": round(last_5_delta, 1), "Forma 5G": last_5_form,
+                "Peak Elo": round(stats.get("peak_elo", rating), 1),
+            })
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df = df.sort_values("Elo Rating", ascending=False).reset_index(drop=True)
+            df.index = df.index + 1
+            df.index.name = "Rank"
+        return df
+
+
+_ELO_ENGINES_CACHE: Dict[str, EloEngine] = {}
+
+
+def get_elo_engine(league_name: str) -> EloEngine:
+    if league_name not in _ELO_ENGINES_CACHE:
+        engine = EloEngine(league_name)
+        engine.compute_ratings()
+        _ELO_ENGINES_CACHE[league_name] = engine
+    return _ELO_ENGINES_CACHE[league_name]
+
+
+def get_current_elo(league_name: str) -> Dict[str, float]:
+    engine = get_elo_engine(league_name)
+    return {team: round(score, 1) for team, score in engine.ratings.items()}
+
+
+def get_elo_leaderboard(league_name: str) -> pd.DataFrame:
+    engine = get_elo_engine(league_name)
+    return engine.get_leaderboard()
+
+
+def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:
+    engine = get_elo_engine(league_name)
+    h_cl = clean_name(home_team)
+    a_cl = clean_name(away_team)
+    r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)
+    r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)
+    dr = r_h + engine.home_adv - r_a
+    e_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
+    e_a = 1.0 - e_h
+    p_draw = 0.27 * math.exp(-((dr / 320.0) ** 2))
+    p_draw = max(0.06, min(0.34, p_draw))
+    p_home = (1.0 - p_draw) * e_h
+    p_away = (1.0 - p_draw) * e_a
+    total = p_home + p_draw + p_away
+    return {
+        "1": round(p_home / total, 4),
+        "X": round(p_draw / total, 4),
+        "2": round(p_away / total, 4),
+        "elo_home": round(r_h, 1), "elo_away": round(r_a, 1),
+        "elo_diff": round(dr, 1), "home_adv": engine.home_adv,
+        "expected_score_home": round(e_h, 4), "expected_score_away": round(e_a, 4),
+    }
+
+
+def get_team_elo_history(team_name: str, league_name: str) -> pd.DataFrame:
+    engine = get_elo_engine(league_name)
+    t_cl = clean_name(team_name)
+    hist = engine.history.get(t_cl, [])
+    if not hist:
+        return pd.DataFrame()
+    return pd.DataFrame(hist)
