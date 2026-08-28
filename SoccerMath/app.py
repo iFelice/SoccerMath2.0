@@ -417,7 +417,7 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
 
     if not groq_client:
         st.error("⚠️ Billy (Groq) non configurato. Devi creare il file .env come spiegato!")
-        if match_id: save_prediction_entry(match_id, h, a, camp_sel, 0, match_date_str, f"{mercato_top} - Fallback", [], round(prob_top*100, 1), ""); st.success("Salvato Poisson base.")
+        save_prediction_entry(match_id, h, a, camp_sel, 0, match_date_str, pronostico_trovato, [], 0, ""); st.success("Salvato Poisson base.")
         return
 
     with st.spinner("Billy sta analizzando..."):
