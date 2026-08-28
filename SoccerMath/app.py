@@ -450,12 +450,54 @@ def fetch_and_calc_top_mix():
             matches = [m for m in r.json().get('matches', []) if m['matchday'] == sorted(set([m['matchday'] for m in r.json().get('matches', [])]))[0]]
         except: continue
         for match in matches:
-            h, a = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
-            h_s, a_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0}), team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
+            h = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?')
+            a = match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
+            h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})
+            a_s = team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
+            
+            # Poisson
             m_poisson = get_full_poisson(h_s["att"] * a_s["def"] * avg_h, a_s["att"] * h_s["def"] * avg_a)
-            mercati = {f"Vittoria {h}": m_poisson["1"], "Pareggio": m_poisson["X"], f"Vittoria {a}": m_poisson["2"], "Over 2.5": 1 - m_poisson["u25"], "Under 2.5": m_poisson["u25"], "GG": m_poisson["gg"], "NG": 1 - m_poisson["gg"]}
+            mercati = {
+                f"Vittoria {h}": m_poisson["1"], "Pareggio": m_poisson["X"], f"Vittoria {a}": m_poisson["2"],
+                "Over 2.5": 1 - m_poisson["u25"], "Under 2.5": m_poisson["u25"],
+                "GG": m_poisson["gg"], "NG": 1 - m_poisson["gg"]
+            }
             best_mkt = max(mercati, key=mercati.get)
-            all_preds.append({"league": league, "giornata": match['matchday'], "home": h, "away": a, "match_id": match.get("id"), "utcDate": match['utcDate'], "market": best_mkt, "prob": mercati[best_mkt], "prob_val": round(mercati[best_mkt] * 100, 1)})
+            poisson_prob = mercati[best_mkt]
+            
+            # Elo agreement (solo per 1X2)
+            elo_prob = poisson_prob  # fallback
+            try:
+                elo_p = predict_elo_probs(h, a, league)
+                if best_mkt == f"Vittoria {h}":
+                    elo_prob = elo_p["1"]
+                elif best_mkt == f"Vittoria {a}":
+                    elo_prob = elo_p["2"]
+                elif best_mkt == "Pareggio":
+                    elo_prob = elo_p["X"]
+            except:
+                pass
+            
+            # Confidence = media tra Poisson ed Elo (se Elo è vicino, conferma; se lontano, penalizza)
+            # Per mercati O/U e GG dove Elo non esiste, usiamo solo Poisson ma richiediamo soglia più alta
+            if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"]:
+                confidence = poisson_prob
+                min_conf = 0.60
+            else:
+                # Per 1X2: media armonica pesata (Elo ha peso 40%, Poisson 60%)
+                confidence = 0.6 * poisson_prob + 0.4 * elo_prob
+                min_conf = 0.55
+            
+            # Filtro qualità: confidence minima e nessun disaccordo estremo
+            if confidence >= min_conf and abs(poisson_prob - elo_prob) < 0.25:
+                all_preds.append({
+                    "league": league, "giornata": match['matchday'],
+                    "home": h, "away": a, "match_id": match.get("id"),
+                    "utcDate": match['utcDate'], "market": best_mkt,
+                    "prob": confidence, "prob_val": round(confidence * 100, 1),
+                    "poisson": round(poisson_prob * 100, 1),
+                    "elo": round(elo_prob * 100, 1)
+                })
         time.sleep(6.5)
     return sorted(all_preds, key=lambda x: x['prob'], reverse=True)[:10], missing
 
