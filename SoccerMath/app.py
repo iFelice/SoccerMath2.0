@@ -7,6 +7,8 @@ import requests
 import glob
 import re
 import time
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 from scipy.stats import poisson
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
