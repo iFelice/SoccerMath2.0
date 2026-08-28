@@ -55,9 +55,9 @@ class EloEngine:
     dei rating Elo per un campionato o cross-campionato.
     """
 
-    def __init__(self, league_name: str, home_adv: float = HOME_ADVANTAGE, base_k: float = BASE_K_FACTOR):
+    def __init__(self, league_name: str, home_adv: float = None, base_k: float = BASE_K_FACTOR):
         self.league_name = league_name
-        self.home_adv = home_adv
+        self.home_adv = home_adv if home_adv is not None else LEAGUE_HOME_ADVANTAGE.get(league_name, HOME_ADVANTAGE)
         self.base_k = base_k
         self.ratings: Dict[str, float] = {}
         self.history: Dict[str, List[dict]] = {}
@@ -163,13 +163,8 @@ class EloEngine:
             except Exception:
                 fthg, ftag = 0, 0
 
-            r_h = self.ratings.get(h_team, DEFAULT_INITIAL_RATING)
+                        r_h = self.ratings.get(h_team, DEFAULT_INITIAL_RATING)
             r_a = self.ratings.get(a_team, DEFAULT_INITIAL_RATING)
-
-            # Differenziale con fattore campo
-            dr = r_h + self.home_adv - r_a
-            expected_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
-            expected_a = 1.0 - expected_h
 
             # Punteggio effettivo
             if ftr == "H" or fthg > ftag:
@@ -183,16 +178,17 @@ class EloEngine:
             margin = abs(fthg - ftag)
             margin_mult = calculate_goal_margin_multiplier(margin)
 
-            # Modulazione basata su xG: influenza l'expected_score, non il K
+            # Modulazione basata su xG
             xg_adj = 0.0
             if xg_data and h_team in xg_data and a_team in xg_data:
                 h_xg = xg_data[h_team].get("xG_avg", 1.3)
-                a_xg = xg_data[a_team].get("xGA_avg", 1.3)  # xGA dell'avversario = difesa
-                # Se casa segna più xG di quanto l'avversario subisce, è più forte dell'atteso
+                a_xg = xg_data[a_team].get("xGA_avg", 1.3)
                 xg_adj = (h_xg - a_xg) * 0.15
 
-            # Differenziale con fattore campo e aggiustamento xG
-            dr = r_h + self.home_adv - r_a + (xg_adj * 400)  # scala Elo: ~400 punti = 10x probabilità
+            # Differenziale Elo UNICO (rimosso calcolo doppio)
+            # Cap xG a ±100 punti Elo per evitare sovrareazioni su partite anomale
+            xg_elo_boost = max(-100, min(100, xg_adj * 400))
+            dr = r_h + self.home_adv - r_a + xg_elo_boost
             expected_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
             expected_a = 1.0 - expected_h
 
