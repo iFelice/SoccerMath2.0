@@ -362,10 +362,13 @@ def get_league_engine(camp_key):
         att = att * form['att']
         defe = defe * form['def']
         
-        val = mkt_values.get(t, 50)
+                val = mkt_values.get(t, 50)
+        # Fattore mercato logaritmico: big (+20%), medie (+5%), piccole (-7%), neopromosse (-15%)
+        mkt_factor = 1 + (np.log10(max(val, 10)) - 2.0) / 4
+        mkt_factor = max(0.85, min(1.25, mkt_factor))
         stats[t] = {
-            'att': att * (1 + (val/50000)), 
-            'def': defe * (1 - (val/50000)), 
+            'att': att * mkt_factor,
+            'def': defe / mkt_factor,
             'val': val
         }
     return stats, avg_h, avg_a, df
