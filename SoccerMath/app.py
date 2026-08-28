@@ -407,7 +407,7 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
     return salvate
 
 @st.dialog("STRATEGIC ANALYSIS", width="large")
-def show_details(h, a, m, camp_sel="Serie A"):
+def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
     match_id, match_date_str = None, ""
     for mx in st.session_state.get("live_data", []):
         if clean_name(h) in clean_name(mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name","")):
