@@ -135,15 +135,45 @@ def save_predictions(preds):
     os.makedirs("database", exist_ok=True)
     with open(PREDICTIONS_FILE, "w", encoding="utf-8") as f: json.dump({"data": preds}, f, ensure_ascii=False, indent=2)
 
-def standardizza_mercato(testo):
+import re  # già presente negli import di app.py, ma assicurati che ci sia
+
+def standardizza_mercato(testo, home=None, away=None):
+    if not testo:
+        return "ALTRO"
     t = testo.lower()
-    if "under 2.5" in t or "under2.5" in t: return "UNDER_2.5"
-    if "over 2.5" in t or "over2.5" in t: return "OVER_2.5"
-    if "gg" in t or "goal/goal" in t: return "GG"
-    if "ng" in t or "no goal" in t: return "NG"
-    if "pareggio" in t or "draw" in t or " x " in t: return "X"
-    if "vittoria" in t or "vince" in t or "1 -" in t: return "1"
-    if "2 -" in t: return "2"
+    
+    # Under/Over 2.5 (match esatto, con o senza spazio)
+    if re.search(r'\bunder\s*2\.5\b', t): return "UNDER_2.5"
+    if re.search(r'\bover\s*2\.5\b', t): return "OVER_2.5"
+    
+    # Goal/No Goal (\b = word boundary, evita "sugg" → "gg")
+    if re.search(r'\bgg\b|\bgoal/goal\b|\bboth teams to score\b|\bbtts\b', t): return "GG"
+    if re.search(r'\bng\b|\bno goal\b|\bno goals\b', t): return "NG"
+    
+    # Pareggio
+    if re.search(r'\bpareggio\b|\bdraw\b|\bmatch nul\b', t): return "X"
+    
+    # Vittoria casa (1) o trasferta (2) — disambigua con i nomi squadra
+    if home and away:
+        h_clean = clean_name(home).lower()
+        a_clean = clean_name(away).lower()
+        
+        # Se il testo menziona il nome della squadra di casa + parola "vittoria/vince"
+        if h_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b', t):
+            return "1"
+        # Se il testo menziona il nome della squadra in trasferta + parola "vittoria/vince"
+        if a_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b', t):
+            return "2"
+    
+    # Fallback esplicito per pattern numerici
+    if re.search(r'\b1\b.*\b(casa|home)\b|\b(casa|home)\b.*\b1\b', t): return "1"
+    if re.search(r'\b2\b.*\b(trasferta|away)\b|\b(trasferta|away)\b.*\b2\b', t): return "2"
+    
+    # Se c'è solo un numero isolato all'inizio/fine
+    if re.search(r'^\s*1\b', t) and not re.search(r'\b2\b', t): return "1"
+    if re.search(r'^\s*2\b', t) and not re.search(r'\b1\b', t): return "2"
+    if re.search(r'^\s*x\b', t): return "X"
+    
     return "ALTRO"
 
 def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi):
@@ -152,7 +182,7 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     stagione_reale = calcola_stagione_calcolo(match_date)
     preds.append({
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
-        "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": standardizza_mercato(pronostico),
+        "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": standardizza_mercato(pronostico, h, a),
         "top3": top3, "prob_sicuro": prob, "risultati_attesi": ris_attesi,
         "risultato_reale": None, "esito": "⏳", "tipo": "Top Mix" if "Top Mix" in pronostico else "Analisi", 
         "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M")
