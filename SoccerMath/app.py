@@ -623,7 +623,10 @@ with tab5:
         df_preds['stagione'] = df_preds['data'].apply(calcola_stagione_calcolo)
 
         f_col1, f_col2, f_col3 = st.columns(3)
-        with f_col1: filter_camp = st.selectbox("Campionato", ["Tutti"] + list(LEAGUES_CONFIG.keys()))
+        with f_col1:
+            camp_options = ["Tutti"] + list(LEAGUES_CONFIG.keys())
+            default_camp_idx = camp_options.index(camp_sel) if camp_sel in camp_options else 0
+            filter_camp = st.selectbox("Campionato", camp_options, index=default_camp_idx)
         with f_col2: filter_status = st.selectbox("Esito", ["Tutti", "In Attesa (⏳)", "Vinte (✅)", "Perse (❌)"])
         with f_col3: 
             stagioni_reali = sorted(df_preds['stagione'].unique().tolist(), reverse=True)
