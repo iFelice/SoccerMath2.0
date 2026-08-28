@@ -19,6 +19,7 @@ LEAGUES = {
     "premier_league": {"id": 9, "season": 2025},
     "la_liga": {"id": 12, "season": 2025},
     "bundesliga": {"id": 20, "season": 2025},
+    "ligue_1": {"id": 13, "season": 2025},
 }
 
 # Mappatura nomi Understat -> Nomi usati dalla tua App
