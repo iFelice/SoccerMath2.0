@@ -52,7 +52,16 @@ NAME_MAP = {
     "Union Berlin": "Union Berlin", "Borussia Mönchengladbach": "Monchengladbach",
     "1. FSV Mainz 05": "Mainz", "SV Werder Bremen": "Werder Bremen", "FC Augsburg": "Augsburg",
     "1. FC Heidenheim 1846": "Heidenheim", "VfL Bochum": "Bochum", "FC St. Pauli": "St. Pauli",
-    "Holstein Kiel": "Holstein Kiel"
+    "Holstein Kiel": "Holstein Kiel",
+
+    # Ligue 1
+    "Paris Saint-Germain": "PSG", "AS Monaco": "Monaco", "Monaco": "Monaco",
+    "Olympique de Marseille": "Marseille", "Olympique Lyonnais": "Lyon",
+    "Lille OSC": "Lille", "Lille": "Lille", "Stade Rennais FC": "Rennes",
+    "OGC Nice": "Nice", "RC Lens": "Lens", "RC Strasbourg Alsace": "Strasbourg",
+    "Stade de Reims": "Reims", "Stade Brestois 29": "Brest", "Toulouse FC": "Toulouse",
+    "Montpellier HSC": "Montpellier", "FC Nantes": "Nantes", "AJ Auxerre": "Auxerre",
+    "AS Saint-Étienne": "Saint-Etienne", "Angers SCO": "Angers", "Le Havre AC": "Le Havre"
 }
 
 def fetch_xg_understat(league_key, league_id, season):
