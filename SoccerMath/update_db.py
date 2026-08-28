@@ -98,7 +98,8 @@ def matches_to_df(matches):
                 "HTR": htr,
                 "Matchday": matchday,
             })
-        except Exception:
+        except Exception as e:
+            logging.warning(f"Errore conversione match: {e}")
             continue
 
     return pd.DataFrame(rows)
