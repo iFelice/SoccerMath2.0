@@ -12,6 +12,7 @@ LEAGUE_FILE_MAP = {
     "Premier League": "database/xg_premier_league.json",
     "La Liga":        "database/xg_la_liga.json",
     "Bundesliga":     "database/xg_bundesliga.json",
+    "Ligue 1":        "database/xg_ligue_1.json",
 }
 
 
