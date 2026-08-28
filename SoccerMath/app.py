@@ -236,8 +236,7 @@ def aggiorna_risultati_reali(api_key):
             if r.status_code != 200:
                 continue
             risultati_api = {m["id"]: m for m in r.json().get("matches", [])}
-       except Exception as e:
-            logging.warning(f"Errore aggiornamento {camp}: {e}")
+       except:
             continue
         for p in camp_pending:
             m_id = p.get("match_id")
