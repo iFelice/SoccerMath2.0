@@ -1,9 +1,0 @@
-streamlit
-pandas
-requests
-numpy
-scipy
-groq
-duckduckgo_search
-beautifulsoup4
-lxml
