@@ -82,7 +82,16 @@ BASE_DIR = Path(__file__).resolve().parent
 DATABASE_DIR = BASE_DIR / "database"
 PREDICTIONS_FILE = str(DATABASE_DIR / "predictions.json")
 
-
+# ==========================================
+# 4b. HOME ADVANTAGE ELO PER CAMPIONATO
+# ==========================================
+LEAGUE_HOME_ADVANTAGE = {
+    "Serie A": 55.0,
+    "Premier League": 60.0,
+    "La Liga": 58.0,
+    "Bundesliga": 70.0,
+    "Ligue 1": 56.0,
+}
 # ==========================================
 # 4. CONFIGURAZIONE CAMPIONATI
 # ==========================================
