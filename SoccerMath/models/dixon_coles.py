@@ -90,6 +90,11 @@ class DixonColesEngine:
         max_date = df["Date_Parsed"].max()
         days_diff = (max_date - df["Date_Parsed"]).dt.days.values
         weights = np.exp(-self.xi * days_diff)
+        
+        # BOOST FORMA RECENTE: partite ultimi 60 giorni pesano +30%
+        # Serve a catturare cambi allenatore, mercato, infortuni chiave
+        recent_boost = np.where(days_diff <= 60, 1.3, 1.0)
+        weights *= recent_boost
 
         home_indices = df["HomeClean"].map(self.team_idx).values
         away_indices = df["AwayClean"].map(self.team_idx).values
