@@ -451,7 +451,7 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
                     break
             
             if match_id and pronostico_trovato:
-                save_prediction_entry(match_id, h, a, camp_sel, 0, match_date_str, pronostico_trovato, [], 0, "")
+                save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, pronostico_trovato, [], 0, "")
                 st.success("✅ Salvato Billy!")
         except Exception as e:
             st.error(f"Errore AI: {e}")
