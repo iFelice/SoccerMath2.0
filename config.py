@@ -87,6 +87,16 @@ PREDICTIONS_FILE = str(DATABASE_DIR / "predictions.json")
 # 4. CONFIGURAZIONE CAMPIONATI
 # ==========================================
 # Supporto a 5 campionati: Serie A, Premier League, La Liga, Bundesliga, Ligue 1
+# ==========================================
+# 4b. HOME ADVANTAGE ELO PER CAMPIONATO
+# ==========================================
+LEAGUE_HOME_ADVANTAGE = {
+    "Serie A": 55.0,
+    "Premier League": 60.0,
+    "La Liga": 58.0,
+    "Bundesliga": 70.0,
+    "Ligue 1": 56.0,
+}
 LEAGUES_CONFIG = {
     "Serie A": {
         "code": "SA",
