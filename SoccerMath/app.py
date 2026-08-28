@@ -237,7 +237,7 @@ def aggiorna_risultati_reali(api_key):
                 continue
             risultati_api = {m["id"]: m for m in r.json().get("matches", [])}
        except:
-            continue
+           continue
         for p in camp_pending:
             m_id = p.get("match_id")
             if not m_id or m_id not in risultati_api:
