@@ -31,7 +31,7 @@ def get_understat_xg(league_name):
             return data
         return None
     except Exception as e:
-        print(f"Errore lettura xG da file: {e}")
+        logging.error(f"Errore lettura xG da file {file_path}: {e}")
         return None
 
 
