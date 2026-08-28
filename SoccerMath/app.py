@@ -522,8 +522,25 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
                     pronostico_trovato = rs.replace("PRONOSTICO SICURO:", "").replace("PRONOSTICO SICURO :", "").strip()
                     break
             
+            # --- VALUE BET CALCULATOR ---
+            st.divider()
+            st.subheader("💰 Value Bet Check")
+            col_q, col_ev = st.columns(2)
+            with col_q:
+                quota_book = st.number_input("Quota Bookmaker", min_value=1.01, max_value=50.0, value=2.00, step=0.05, key=f"qb_{match_id}")
+            prob_modello = max(p1, pX, p2)  # probabilità del pronostico principale
+            ev = (prob_modello * quota_book) - 1
+            with col_ev:
+                st.metric("EV (Expected Value)", f"{ev:.2%}")
+                if ev > 0.05:
+                    st.success("✅ VALUE BET FORTE")
+                elif ev > 0:
+                    st.info("🟡 Margine positivo")
+                else:
+                    st.error("❌ Nessun valore")
+            
             if match_id and pronostico_trovato:
-                save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, pronostico_trovato, [], 0, "")
+                save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, pronostico_trovato, [], round(prob_modello*100, 1), "")
                 st.success("✅ Salvato Billy!")
         except Exception as e:
             st.error(f"Errore AI: {e}")
