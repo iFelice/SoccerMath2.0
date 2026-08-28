@@ -6,6 +6,8 @@ Interfaccia invariata: get_understat_xg(league_name) → {nome: {xG_avg, xGA_avg
 
 import json
 import os
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 LEAGUE_FILE_MAP = {
     "Serie A":        "database/xg_serie_a.json",
