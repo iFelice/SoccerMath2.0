@@ -165,38 +165,110 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     save_predictions(preds)
 
 def aggiorna_risultati_reali(api_key):
-    preds = load_predictions(); aggiornate = 0
-    pending = [p for p in preds if p.get("esito") in [None, "⏳"] and p.get("campionato") and p.get("giornata")]
-    if not pending: return 0, 0
+    preds = load_predictions()
+    aggiornate = 0
+    # FIX: is not None invece di truthiness, così giornata=0 non viene esclusa
+    pending = [p for p in preds if p.get("esito") in [None, "⏳"] and p.get("campionato") is not None and p.get("giornata") is not None]
+    if not pending:
+        return 0, 0
     from collections import defaultdict
     grouped = defaultdict(list)
-    for p in pending: grouped[(p["campionato"], p["giornata"])].append(p)
+    for p in pending:
+        grouped[(p["campionato"], p["giornata"])].append(p)
+    
+    # --- FIX GIORNATA 0: chiamata diretta per match_id ---
+    for camp in list(LEAGUES_CONFIG.keys()):
+        zero_day_preds = grouped.pop((camp, 0), [])
+        for p in zero_day_preds:
+            m_id = p.get("match_id")
+            if not m_id:
+                continue
+            try:
+                r = requests.get(
+                    f"https://api.football-data.org/v4/matches/{m_id}",
+                    headers={"X-Auth-Token": api_key},
+                    timeout=10
+                )
+                if r.status_code != 200:
+                    continue
+                match = r.json()
+                gh = match["score"]["fullTime"]["home"]
+                ga = match["score"]["fullTime"]["away"]
+                if gh is None:
+                    continue
+                p["risultato_reale"] = f"{gh}-{ga}"
+                tot = gh + ga
+                m = p.get("mercato_standard", "").upper()
+                if m == "UNDER_2.5":
+                    p["esito"] = "✅" if tot < 3 else "❌"
+                elif m == "OVER_2.5":
+                    p["esito"] = "✅" if tot > 2 else "❌"
+                elif m == "GG":
+                    p["esito"] = "✅" if gh > 0 and ga > 0 else "❌"
+                elif m == "NG":
+                    p["esito"] = "✅" if gh == 0 or ga == 0 else "❌"
+                elif m == "X":
+                    p["esito"] = "✅" if gh == ga else "❌"
+                elif m == "1":
+                    p["esito"] = "✅" if gh > ga else "❌"
+                elif m == "2":
+                    p["esito"] = "✅" if ga > gh else "❌"
+                else:
+                    p["esito"] = "⏳"
+                aggiornate += 1
+            except:
+                pass
+    
+    # --- Loop normale per giornata > 0 ---
     for (camp, giornata), camp_pending in grouped.items():
         comp = LEAGUE_CODE_MAP.get(camp)
-        if not comp: continue
+        if not comp:
+            continue
         try:
-            r = requests.get(f"https://api.football-data.org/v4/competitions/{comp}/matches", headers={"X-Auth-Token": api_key}, params={"matchday": giornata, "status": "FINISHED"})
-            if r.status_code != 200: continue
+            r = requests.get(
+                f"https://api.football-data.org/v4/competitions/{comp}/matches",
+                headers={"X-Auth-Token": api_key},
+                params={"matchday": giornata, "status": "FINISHED"},
+                timeout=15
+            )
+            if r.status_code != 200:
+                continue
             risultati_api = {m["id"]: m for m in r.json().get("matches", [])}
-        except: continue
+        except:
+            continue
         for p in camp_pending:
             m_id = p.get("match_id")
-            if not m_id or m_id not in risultati_api: p["esito"] = "⏳"; continue
+            if not m_id or m_id not in risultati_api:
+                p["esito"] = "⏳"
+                continue
             match = risultati_api[m_id]
-            gh, ga = match["score"]["fullTime"]["home"], match["score"]["fullTime"]["away"]
-            if gh is None: continue
+            gh = match["score"]["fullTime"]["home"]
+            ga = match["score"]["fullTime"]["away"]
+            if gh is None:
+                continue
             p["risultato_reale"] = f"{gh}-{ga}"
-            tot = gh + ga; m = p.get("mercato_standard", "").upper()
-            if m == "UNDER_2.5": p["esito"] = "✅" if tot < 3 else "❌"
-            elif m == "OVER_2.5": p["esito"] = "✅" if tot > 2 else "❌"
-            elif m == "GG": p["esito"] = "✅" if gh > 0 and ga > 0 else "❌"
-            elif m == "NG": p["esito"] = "✅" if gh == 0 or ga == 0 else "❌"
-            elif m == "X": p["esito"] = "✅" if gh == ga else "❌"
-            elif m == "1": p["esito"] = "✅" if gh > ga else "❌"
-            elif m == "2": p["esito"] = "✅" if ga > gh else "❌"
-            else: p["esito"] = "⏳"
+            tot = gh + ga
+            m = p.get("mercato_standard", "").upper()
+            if m == "UNDER_2.5":
+                p["esito"] = "✅" if tot < 3 else "❌"
+            elif m == "OVER_2.5":
+                p["esito"] = "✅" if tot > 2 else "❌"
+            elif m == "GG":
+                p["esito"] = "✅" if gh > 0 and ga > 0 else "❌"
+            elif m == "NG":
+                p["esito"] = "✅" if gh == 0 or ga == 0 else "❌"
+            elif m == "X":
+                p["esito"] = "✅" if gh == ga else "❌"
+            elif m == "1":
+                p["esito"] = "✅" if gh > ga else "❌"
+            elif m == "2":
+                p["esito"] = "✅" if ga > gh else "❌"
+            else:
+                p["esito"] = "⏳"
             aggiornate += 1
-    if aggiornate > 0: save_predictions(preds)
+    
+    if aggiornate > 0:
+        save_predictions(preds)
     return aggiornate, len(pending)
 
 # --- MOTORI LOGICI ---
