@@ -275,21 +275,21 @@ def get_league_engine(camp_key):
     dfs = []
     for f in sorted(glob.glob(str(DATABASE_DIR / f"{prefix}_20*.csv"))):
         try: 
-            df_tmp = pd.read_csv(f, on_bad_lines='skip', low_memory=False)
+            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
             df_tmp['peso'] = 1.0
             dfs.append(df_tmp)
         except Exception as e: 
             logging.warning(f"Errore lettura CSV {f}: {e}")
     for f in glob.glob(str(DATABASE_DIR / f"{prefix}_Live.csv")):
         try: 
-            df_tmp = pd.read_csv(f, on_bad_lines='skip', low_memory=False)
+            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
             df_tmp['peso'] = 1.0
             dfs.append(df_tmp)
         except Exception as e: 
             logging.warning(f"Errore lettura CSV {f}: {e}")
     for f in glob.glob(str(DATABASE_DIR / f"{prefix}.csv")):
         try: 
-            df_tmp = pd.read_csv(f, on_bad_lines='skip', low_memory=False)
+            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
             df_tmp['peso'] = 1.0
             dfs.append(df_tmp)
         except Exception as e: 

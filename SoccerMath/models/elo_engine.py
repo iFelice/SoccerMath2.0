@@ -72,7 +72,7 @@ class EloEngine:
         dfs = []
         for f in files:
             try:
-                df_tmp = pd.read_csv(f, on_bad_lines="skip", low_memory=False)
+                df_tmp = pd.read_csv(f, on_bad_lines="warn", low_memory=False)
                 if not df_tmp.empty and "HomeTeam" in df_tmp.columns and "AwayTeam" in df_tmp.columns:
                     dfs.append(df_tmp)
             except Exception:
