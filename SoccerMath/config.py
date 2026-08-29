@@ -193,6 +193,52 @@ LEAGUE_PREFIX_MAP.update({info["short_name"]: info["db_prefix"] for info in LEAG
 
 
 # ==========================================
+# 4c. FILE DATABASE DI UN CAMPIONATO
+# ==========================================
+def get_league_config(camp_key: str) -> dict:
+    """Ritrova la config di un campionato da nome esteso, short_name o db_prefix."""
+    if camp_key in LEAGUES_CONFIG:
+        return LEAGUES_CONFIG[camp_key]
+    for info in LEAGUES_CONFIG.values():
+        if camp_key in (info.get("short_name"), info.get("db_prefix"), info.get("name")):
+            return info
+    return {}
+
+
+def get_league_db_files(camp_key: str) -> list:
+    """
+    Elenca i CSV locali di un campionato in ordine di priorita crescente:
+    il file piu' avanti nella lista vince sui duplicati (drop_duplicates keep='last'),
+    quindi gli storici < base < live (il live e' quello aggiornato da GitHub Actions).
+
+    Si cercano sia i pattern derivati dal prefisso (Premier_2024.csv, Premier_Live.csv,
+    Premier.csv) sia i percorsi dichiarati in LEAGUES_CONFIG, perche' alcuni file
+    hanno un nome non derivabile dal db_prefix: e' il caso di PremierLeague.csv,
+    che con prefisso 'Premier' altrimenti non verrebbe mai letto.
+    """
+    info = get_league_config(camp_key)
+    if not info:
+        return []
+    prefix = info.get("db_prefix") or info.get("short_name") or ""
+
+    groups = [
+        sorted(str(p) for p in DATABASE_DIR.glob(f"{prefix}_20*.csv")),   # stagioni storiche
+        [str(DATABASE_DIR / f"{prefix}.csv")],                             # base (pattern)
+        [str(info["base_csv"])] if info.get("base_csv") else [],           # base (config)
+        [str(DATABASE_DIR / f"{prefix}_Live.csv")],                        # live (pattern)
+        [str(info["live_csv"])] if info.get("live_csv") else [],           # live (config)
+    ]
+
+    files, seen = [], set()
+    for group in groups:
+        for f in group:
+            if f not in seen and os.path.exists(f):
+                seen.add(f)
+                files.append(f)
+    return files
+
+
+# ==========================================
 # 5. VALORI DI MERCATO DELLE SQUADRE
 # ==========================================
 MARKET_VALUES = {

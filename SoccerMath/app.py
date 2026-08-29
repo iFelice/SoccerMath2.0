@@ -36,7 +36,7 @@ from models.backtest import run_backtest, compare_models_backtest, detect_value_
 from config import (
     FOOTBALL_DATA_API_KEY, GROQ_API_KEY, ODDS_API_KEY, JSONBIN_API_KEY, JSONBIN_BIN_ID,
     PREDICTIONS_FILE, LEAGUES_CONFIG, LEAGUE_CODE_MAP, LEAGUE_PREFIX_MAP, CURRENT_SEASON, clean_name, DATABASE_DIR,
-    LEAGUE_HOME_ADVANTAGE,
+    LEAGUE_HOME_ADVANTAGE, get_league_db_files,
 )
 
 API_KEY_ODDS = ODDS_API_KEY
@@ -308,46 +308,37 @@ def aggiorna_risultati_reali(api_key):
 # --- MOTORI LOGICI ---
 @st.cache_data(ttl=3600)
 def get_league_engine(camp_key):
-    prefix = LEAGUE_PREFIX_MAP.get(camp_key)
-    if not prefix: 
+    # I file (storici + base + live) vengono risolti in config: solo il pattern
+    # "{prefix}.csv" lasciava fuori, ad esempio, PremierLeague.csv.
+    files = get_league_db_files(camp_key)
+    if not files:
         return None
     dfs = []
-    for f in sorted(glob.glob(str(DATABASE_DIR / f"{prefix}_20*.csv"))):
-        try: 
+    for f in files:
+        try:
             df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
-            df_tmp['peso'] = 1.0
             dfs.append(df_tmp)
-        except Exception as e: 
+        except Exception as e:
             logging.warning(f"Errore lettura CSV {f}: {e}")
-    for f in glob.glob(str(DATABASE_DIR / f"{prefix}_Live.csv")):
-        try: 
-            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
-            df_tmp['peso'] = 1.0
-            dfs.append(df_tmp)
-        except Exception as e: 
-            logging.warning(f"Errore lettura CSV {f}: {e}")
-    for f in glob.glob(str(DATABASE_DIR / f"{prefix}.csv")):
-        try: 
-            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
-            df_tmp['peso'] = 1.0
-            dfs.append(df_tmp)
-        except Exception as e: 
-            logging.warning(f"Errore lettura CSV {f}: {e}")
-    if not dfs: 
+    if not dfs:
         return None
     df = pd.concat(dfs, ignore_index=True)
+    if 'peso' not in df.columns:
+        df['peso'] = 1.0
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
-    df = df.dropna(subset=['HomeTeam', 'AwayTeam', 'FTR']).sort_values('Date')
+    df = df.dropna(subset=['HomeTeam', 'AwayTeam', 'FTR']).sort_values('Date', kind='stable')
     df['HomeClean'] = df['HomeTeam'].apply(clean_name)
     df['AwayClean'] = df['AwayTeam'].apply(clean_name)
-    if 'peso' not in df.columns: 
-        df['peso'] = 1.0
+    # Le partite gia' chiuse sono presenti sia nel file base sia in *_Live (es. 54
+    # righe su Ligue 1): senza deduplica gol medi e forma verrebbero doppi.
+    # keep='last' fa vincere il Live, che e' il file aggiornato da GitHub Actions.
+    df = df.drop_duplicates(subset=['Date', 'HomeClean', 'AwayClean'], keep='last').reset_index(drop=True)
     
     avg_h = np.average(df['FTHG'].dropna(), weights=df.loc[df['FTHG'].notna(), 'peso'])
     avg_a = np.average(df['FTAG'].dropna(), weights=df.loc[df['FTAG'].notna(), 'peso'])
     
     # --- FATTORI FORMA (ultime 5 partite) ---
-    df_sorted = df.sort_values('Date')
+    df_sorted = df.sort_values('Date', kind='stable')
     form_factors = {}
     for t in pd.concat([df['HomeClean'], df['AwayClean']]).unique():
         t_matches = df_sorted[(df_sorted['HomeClean']==t) | (df_sorted['AwayClean']==t)].tail(5)
@@ -413,6 +404,8 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
     Backtest walk-forward sul database storico locale.
     Per ogni finestra temporale usa SOLO le partite precedenti (no leakage) per
     stimare i parametri Poisson e la griglia Elo, poi predice le partite successive.
+    Le partite testate sono le ULTIME max_test (max_test=None = tutte), così il
+    giudizio sui modelli riguarda la forma recente e non stagioni di 3 anni fa.
     Dixon-Coles è escluso volutamente per velocità.
     """
     prefix = LEAGUE_PREFIX_MAP.get(camp_key)
@@ -423,17 +416,14 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
     # le maschere booleane per squadra costerebbero una copia gigante del frame.
     required_cols = ['Date', 'HomeTeam', 'AwayTeam', 'FTR', 'FTHG', 'FTAG']
     dfs = []
-    for pattern in [f"{prefix}_20*.csv", f"{prefix}_Live.csv", f"{prefix}.csv"]:
-        # sorted(): glob restituisce i file in ordine dipendente dal filesystem;
-        # senza ordinamento il backtest potrebbe cambiare risultato a parita' di dati.
-        for f in sorted(glob.glob(str(DATABASE_DIR / pattern))):
-            try:
-                df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
-                if not all(c in df_tmp.columns for c in required_cols):
-                    continue
-                dfs.append(df_tmp[required_cols].copy())
-            except Exception:
-                pass
+    for f in get_league_db_files(camp_key):
+        try:
+            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
+            if not all(c in df_tmp.columns for c in required_cols):
+                continue
+            dfs.append(df_tmp[required_cols].copy())
+        except Exception:
+            pass
     if not dfs:
         return pd.DataFrame()
 
@@ -441,6 +431,7 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
     df['FTHG'] = pd.to_numeric(df['FTHG'], errors='coerce')
     df['FTAG'] = pd.to_numeric(df['FTAG'], errors='coerce')
+    # sort stabile: a pari data (tipico di una giornata) l'ordine resta quello dei file
     df = df.dropna(subset=['Date', 'HomeTeam', 'AwayTeam', 'FTR', 'FTHG', 'FTAG']).sort_values('Date', kind='stable')
     df['HomeClean'] = df['HomeTeam'].apply(clean_name)
     df['AwayClean'] = df['AwayTeam'].apply(clean_name)
@@ -451,32 +442,42 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
     if n < min_train + 10:
         return pd.DataFrame()
 
+    # Finestra out-of-sample: le partite più recenti. Con min_train=30, step=5 e
+    # max_test=300 si valutano ~60 riaddestramenti sugli ultimi 300 incontri.
+    start = min(n, max(min_train, n - max_test)) if max_test else min_train
+
     results = []
     mapping_ftr = {'H': '1', 'D': 'X', 'A': '2'}
     home_adv = LEAGUE_HOME_ADVANTAGE.get(camp_key, 65.0)
 
-    for i in range(min_train, min(n, max_test), step):
+    for i in range(start, n, step):
         train = df.iloc[:i]
         test = df.iloc[i:min(i+step, n)]
 
         # Guardie minime: medie gol di lega non devono poter andare a zero
         avg_h = max(float(train['FTHG'].mean()), 0.1)
         avg_a = max(float(train['FTAG'].mean()), 0.1)
+
+        # Forze attacco/difesa: groupby invece di una maschera per squadra
+        # (equivalente a mean() su un frame senza NaN, ma ~40x piu' veloce)
+        home_gf = train.groupby('HomeClean')['FTHG'].mean()
+        home_ga = train.groupby('HomeClean')['FTAG'].mean()
+        away_gf = train.groupby('AwayClean')['FTAG'].mean()
+        away_ga = train.groupby('AwayClean')['FTHG'].mean()
         stats = {}
         for t in pd.concat([train['HomeClean'], train['AwayClean']]).unique():
-            h_h = train[train['HomeClean']==t]
-            a_h = train[train['AwayClean']==t]
-            att_h = h_h['FTHG'].mean() / avg_h if not h_h.empty else 1.0
-            att_a = a_h['FTAG'].mean() / avg_a if not a_h.empty else 1.0
-            def_h = h_h['FTAG'].mean() / avg_a if not h_h.empty else 1.0
-            def_a = a_h['FTHG'].mean() / avg_h if not a_h.empty else 1.0
-            stats[t] = {'att': (att_h + att_a)/2, 'def': (def_h + def_a)/2}
+            att_h = home_gf[t] if t in home_gf.index else avg_h
+            def_h = home_ga[t] if t in home_ga.index else avg_a
+            att_a = away_gf[t] if t in away_gf.index else avg_a
+            def_a = away_ga[t] if t in away_ga.index else avg_h
+            stats[t] = {'att': (att_h / avg_h + att_a / avg_a) / 2,
+                        'def': (def_h / avg_a + def_a / avg_h) / 2}
 
+        # Elo ricostruito in ordine cronologico sul solo train
         elo_ratings = {}
-        for _, row in train.iterrows():
-            h, a = row['HomeClean'], row['AwayClean']
-            fthg, ftag = int(row['FTHG']), int(row['FTAG'])
-            ftr = str(row['FTR']).strip().upper()
+        for row in train.itertuples(index=False):
+            h, a = row.HomeClean, row.AwayClean
+            ftr = str(row.FTR).strip().upper()
             r_h = elo_ratings.get(h, 1500.0)
             r_a = elo_ratings.get(a, 1500.0)
             dr = r_h + home_adv - r_a
@@ -486,10 +487,10 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
             elo_ratings[h] = r_h + k * (s_h - e_h)
             elo_ratings[a] = r_a + k * ((1-s_h) - (1-e_h))
 
-        for _, row in test.iterrows():
-            h, a = row['HomeClean'], row['AwayClean']
-            fthg, ftag = int(row['FTHG']), int(row['FTAG'])
-            real = mapping_ftr.get(str(row['FTR']).strip().upper(), 'X')
+        for row in test.itertuples(index=False):
+            h, a = row.HomeClean, row.AwayClean
+            fthg, ftag = int(row.FTHG), int(row.FTAG)
+            real = mapping_ftr.get(str(row.FTR).strip().upper(), 'X')
 
             hs = stats.get(h, {'att': 1.0, 'def': 1.0})
             as_ = stats.get(a, {'att': 1.0, 'def': 1.0})
@@ -511,7 +512,7 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
             gg_real = 'GG' if fthg > 0 and ftag > 0 else 'NG'
 
             results.append({
-                'date': row['Date'], 'home': h, 'away': a, 'real_1x2': real,
+                'date': row.Date, 'home': h, 'away': a, 'real_1x2': real,
                 'poisson_1x2': pois_pred, 'poisson_ok': pois_pred == real,
                 'elo_1x2': elo_pred, 'elo_ok': elo_pred == real,
                 'real_uo': u25_real, 'poisson_uo': 'UNDER_2.5' if m_p['u25'] > 0.5 else 'OVER_2.5',
@@ -1009,7 +1010,8 @@ with tab3:
 
 with tab4:
     st.subheader("📊 Backtest Storico (Walk-Forward)")
-    st.caption("Simula Poisson ed Elo su partite già giocate usando SOLO i dati precedenti. Dixon-Coles è escluso per velocità.")
+    st.caption("Simula Poisson ed Elo sulle partite già giocate usando SOLO i dati precedenti "
+               "(le ~300 più recenti, riaddestrate ogni 5 giornate). Dixon-Coles è escluso per velocità.")
 
     if st.button("🚀 Avvia Backtest", type="primary"):
         with st.spinner("Calcolo in corso... può richiedere 1-2 minuti"):

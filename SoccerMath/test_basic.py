@@ -77,6 +77,57 @@ class TestDixonColes(unittest.TestCase):
         self.assertAlmostEqual(total, 1.0, places=2)
 
 
+class TestLeagueDbFiles(unittest.TestCase):
+    """get_league_db_files() deve includere i file il cui nome non deriva dal prefisso."""
+
+    def test_premier_legge_premierleague_csv(self):
+        from config import get_league_db_files
+        files = [os.path.basename(f) for f in get_league_db_files("Premier League")]
+        self.assertIn("PremierLeague.csv", files,
+                      "PremierLeague.csv non viene risolto: prefisso 'Premier' != nome file")
+        self.assertIn("Premier_Live.csv", files)
+
+    def test_tutti_i_file_esistono(self):
+        from config import get_league_db_files
+        for league in LEAGUES_CONFIG:
+            files = get_league_db_files(league)
+            self.assertTrue(files, f"nessun CSV trovato per {league}")
+            for f in files:
+                self.assertTrue(os.path.exists(f), f"file fantasma: {f}")
+
+    def test_live_ultimo_cosi_vince_sui_duplicati(self):
+        from config import get_league_db_files
+        for league in LEAGUES_CONFIG:
+            files = [os.path.basename(f) for f in get_league_db_files(league)]
+            live = [f for f in files if "Live" in f]
+            if live:
+                self.assertEqual(files[-1], live[-1],
+                                 f"{league}: il file live deve stare in coda (keep='last')")
+
+    def test_alias_e_lega_inesistente(self):
+        from config import get_league_db_files
+        self.assertEqual(get_league_db_files("SerieA"), get_league_db_files("Serie A"))
+        self.assertEqual(get_league_db_files("Fantacalcio"), [])
+
+
+class TestLeagueEngineDedupe(unittest.TestCase):
+    """get_league_engine() non deve contare due volte le partite base + Live."""
+
+    def test_nessuna_partita_duplicata(self):
+        import pandas as pd
+        from app import get_league_engine
+        for league in LEAGUES_CONFIG:
+            engine = get_league_engine(league)
+            if not engine:
+                continue
+            df = engine[3]
+            dup = df.duplicated(subset=["Date", "HomeClean", "AwayClean"]).sum()
+            self.assertEqual(int(dup), 0, f"{league}: {dup} partite conteggiate due volte")
+            self.assertGreater(len(df), 100, f"{league}: dataset troppo piccolo ({len(df)})")
+            # le medie gol di lega devono essere valori plausibili, non gonfiati
+            self.assertTrue(0.8 < float(df["FTHG"].mean()) < 2.5, f"{league}: avg home goals {df['FTHG'].mean():.2f}")
+
+
 class TestHistoricalBacktest(unittest.TestCase):
     """Copre run_historical_backtest (walk-forward Poisson vs Elo) usato nel tab BACKTEST."""
 
@@ -96,6 +147,24 @@ class TestHistoricalBacktest(unittest.TestCase):
         self.assertTrue(attese.issubset(set(self.df.columns)),
                         f"colonne mancanti: {attese - set(self.df.columns)}")
 
+    def test_si_testano_le_partite_recenti(self):
+        # max_test deve tagliare la CODA (partiti più recenti), non la testa:
+        # la finestra da 50 match e' la coda della finestra 'tutto il dataset'.
+        import pandas as pd
+        full = run_historical_backtest("Serie A", min_train=30, step=5, max_test=None)
+        win = run_historical_backtest("Serie A", min_train=30, step=5, max_test=50)
+        cols = ["date", "home", "away", "real_1x2", "poisson_1x2", "elo_1x2"]
+        self.assertEqual(len(win), 50)
+        pd.testing.assert_frame_equal(
+            win[cols].reset_index(drop=True),
+            full.tail(len(win))[cols].reset_index(drop=True),
+        )
+        self.assertLess(len(win), len(full), "con max_test il numero di partite testate cala")
+
+    def test_finestra_non_oltre_max_test(self):
+        self.assertLessEqual(len(self.df), 300)
+        self.assertGreaterEqual(len(self.df), 250)
+
     def test_valori_nei_domini_giusti(self):
         self.assertTrue(self.df["real_1x2"].isin(["1", "X", "2"]).all())
         self.assertTrue(self.df["poisson_1x2"].isin(["1", "X", "2"]).all())
@@ -108,6 +177,10 @@ class TestHistoricalBacktest(unittest.TestCase):
     def test_flag_coerenti(self):
         self.assertTrue((self.df["poisson_ok"] == (self.df["poisson_1x2"] == self.df["real_1x2"])).all())
         self.assertTrue((self.df["elo_ok"] == (self.df["elo_1x2"] == self.df["real_1x2"])).all())
+
+    def test_dates_in_ordine(self):
+        self.assertTrue(self.df["date"].is_monotonic_increasing,
+                        "le partite testate devono essere in ordine cronologico")
 
     def test_nessun_nan(self):
         self.assertFalse(self.df.isna().any().any(), "il backtest non deve produrre valori mancanti")
@@ -127,6 +200,11 @@ class TestHistoricalBacktest(unittest.TestCase):
 
     def test_dati_troppo_pochi(self):
         self.assertTrue(run_historical_backtest("Serie A", min_train=250000).empty)
+
+    def test_ogni_lega_supportata_produce_righe(self):
+        for league in LEAGUES_CONFIG:
+            df = run_historical_backtest(league)
+            self.assertFalse(df.empty, f"backtest vuoto per {league}")
 
 
 if __name__ == "__main__":
