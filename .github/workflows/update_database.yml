@@ -8,7 +8,6 @@ on:
 permissions:
   contents: write
 
-# una run alla volta: due push contemporanei sui Live.csv andrebbero in conflitto
 concurrency:
   group: update-database
   cancel-in-progress: false
@@ -19,57 +18,66 @@ jobs:
     defaults:
       run:
         working-directory: SoccerMath
-
+    
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      # Fallisce subito (e in modo leggibile) se la chiave non e' configurata:
-      # senza questo controllo update_db.py stampa un warning e chiude con 0,
-      # quindi l'action resta verde senza aggiornare nulla.
+      
       - name: Check API key
-        env:
-          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
         run: |
-          if [ -z "$FOOTBALL_DATA_API_KEY" ]; then
-            echo "::error::FOOTBALL_DATA_API_KEY non presente tra i Secrets del repo (Settings -> Secrets and variables -> Actions)."
+          if [ -z "${{ secrets.FOOTBALL_DATA_API_KEY }}" ]; then
+            echo "::error::FOOTBALL_DATA_API_KEY mancante. Aggiungila in Settings → Secrets."
             exit 1
           fi
-          echo "FOOTBALL_DATA_API_KEY configurata ($(printf '%s' "$FOOTBALL_DATA_API_KEY" | wc -c) caratteri)."
-
+          echo "API key presente."
+      
       - name: Update live database
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
-        run: |
-          set -o pipefail   # senza, l'exit code di python verrebbe mascherato da tee
-          python update_db.py | tee -a "$GITHUB_STEP_SUMMARY"
-
-      # Understat blocca spesso gli IP dei runner: il passo resta tollerante,
-      # ma ora viene eseguito (senza di questo i database/xg_*.json invecchiano
-      # per sempre e l'app usa xG di stagioni passate).
-      - name: Update xG (Understat)
+        run: python update_db.py
+      
+      - name: Update xG
         continue-on-error: true
+        run: python update_xg.py
+      
+      - name: Commit e push (con retry se main si muove)
+        working-directory: ${{ github.workspace }}
         run: |
-          set -o pipefail
-          python update_xg.py | tee -a "$GITHUB_STEP_SUMMARY"
-
-      - name: Commit and push
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Auto-update live data"
-          # i pattern sono relativi alla root del repo ( gli step 'uses' non
-          # ereditano defaults.run.working-directory )
-          file_pattern: "SoccerMath/database/*_Live.csv SoccerMath/database/xg_*.json"
-          status_options: "--untracked-files=no"
+          set -uo pipefail
+          BRANCH="${{ github.ref_name }}"
+          git config --global user.name "M4 Bot"
+          git config --global user.email "action@github.com"
+          git add -A -- 'SoccerMath/database/*_Live.csv' 'SoccerMath/database/xg_*.json'
+          if git diff --cached --quiet; then
+            echo "Nessun cambiamento: niente da committare."
+            exit 0
+          fi
+          git commit -m "Auto-update live data $(date -u +%Y-%m-%dT%H:%M)Z"
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:$BRANCH"; then
+              echo "Push ok."
+              exit 0
+            fi
+            echo "Push rifiutato (main avanti): rebase e riprovo ($i/4)"
+            git fetch -q origin "$BRANCH"
+            if ! git rebase -q "origin/$BRANCH"; then
+              git rebase --abort
+              echo "::error::Conflitto sui CSV, serve intervento manuale"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+          echo "::error::Push non riuscito dopo 4 tentativi"
+          exit 1
