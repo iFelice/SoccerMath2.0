@@ -5,3 +5,12 @@ backgroundColor = "#f0f2f5"
 secondaryBackgroundColor = "#ffffff"
 textColor = "#1a1d23"
 font = "sans serif"
+
+# Variante scura (Streamlit >= 1.50): senza questa tabella l'app resterebbe
+# sempre chiara e il toggle "Segui tema sistema" non avrebbe effetto.
+# Le opzioni non definite qui ereditano dai valori [theme] sopra.
+[theme.dark]
+primaryColor = "#66a3ff"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#fafafa"

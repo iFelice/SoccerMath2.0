@@ -4,6 +4,7 @@ Gestione di segreti, campionati, stagioni, valori di mercato e mappature squadre
 """
 
 import os
+from datetime import datetime
 from pathlib import Path
 
 # Tentativo di caricamento .env con python-dotenv; fallback se non installato
@@ -66,9 +67,27 @@ JSONBIN_BIN_ID = _get_secret("JSONBIN_BIN_ID", "")
 # ==========================================
 # 2. GESTIONE STAGIONI
 # ==========================================
-# Stagione corrente di default: 2026/2027 (anno inizio: 2026)
-CURRENT_SEASON = os.getenv("M4_CURRENT_SEASON", "2026/2027")
-CURRENT_SEASON_START_YEAR = int(os.getenv("M4_CURRENT_SEASON_START_YEAR", "2026"))
+def get_current_season_start_year(now=None) -> int:
+    """
+    Anno di inizio della stagione corrente, derivato automaticamente dalla data.
+    La stagione va da agosto a giugno: da luglio in poi si passa alla stagione
+    dell'anno in corso (es. luglio 2027 -> stagione 2027/2028).
+    Override manuale possibile con la variabile d'ambiente M4_CURRENT_SEASON_START_YEAR.
+    """
+    env_val = os.getenv("M4_CURRENT_SEASON_START_YEAR", "").strip()
+    if env_val:
+        try:
+            return int(env_val)
+        except ValueError:
+            pass  # valore ambienete non valido: si usa il calcolo automatico
+    t = now or datetime.now()
+    return t.year if t.month >= 7 else t.year - 1
+
+# Stagione corrente: derivata automaticamente dalla data (ago 2026 -> 2026/2027;
+# da luglio 2027 -> 2027/2028), cosi' rollover e update non richiedono interventi manuali.
+# M4_CURRENT_SEASON / M4_CURRENT_SEASON_START_YEAR consentono di forzarla se necessario.
+CURRENT_SEASON_START_YEAR = get_current_season_start_year()
+CURRENT_SEASON = os.getenv("M4_CURRENT_SEASON") or f"{CURRENT_SEASON_START_YEAR}/{CURRENT_SEASON_START_YEAR + 1}"
 
 # Stagioni storiche supportate
 HISTORICAL_SEASONS = ["2025/2026", "2024/2025", "2023/2024", "2022/2023"]
