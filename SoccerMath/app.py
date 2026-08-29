@@ -638,10 +638,21 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
             # --- VALUE BET CALCULATOR ---
             st.divider()
             st.subheader("💰 Value Bet Check")
+            
+            # Determina probabilità del mercato effettivo pronosticato
+            mkt_std = standardizza_mercato(pronostico_trovato, h, a) if pronostico_trovato else ""
+            if mkt_std == "1": prob_modello = p1
+            elif mkt_std == "X": prob_modello = pX
+            elif mkt_std == "2": prob_modello = p2
+            elif mkt_std == "UNDER_2.5": prob_modello = m_adj['u25']
+            elif mkt_std == "OVER_2.5": prob_modello = 1 - m_adj['u25']
+            elif mkt_std == "GG": prob_modello = m_adj['gg']
+            elif mkt_std == "NG": prob_modello = 1 - m_adj['gg']
+            else: prob_modello = max(p1, pX, p2)
+            
             col_q, col_ev = st.columns(2)
             with col_q:
                 quota_book = st.number_input("Quota Bookmaker", min_value=1.01, max_value=50.0, value=2.00, step=0.05, key=f"qb_{match_id}")
-            prob_modello = max(p1, pX, p2)  # probabilità del pronostico principale
             ev = (prob_modello * quota_book) - 1
             with col_ev:
                 st.metric("EV (Expected Value)", f"{ev:.2%}")
@@ -651,13 +662,6 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
                     st.info("🟡 Margine positivo")
                 else:
                     st.error("❌ Nessun valore")
-            
-            if match_id and pronostico_trovato:
-                save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, pronostico_trovato, [], round(prob_modello*100, 1), "")
-                st.success("✅ Salvato Billy!")
-        except Exception as e:
-            st.error(f"Errore AI: {e}")
-            if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "")
 
 # Banner
 st.markdown("""<div class="safari-safe-banner"></div>""", unsafe_allow_html=True)
