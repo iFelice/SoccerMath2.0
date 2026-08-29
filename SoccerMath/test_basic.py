@@ -11,7 +11,7 @@ import unittest
 from config import clean_name, LEAGUES_CONFIG, LEAGUE_HOME_ADVANTAGE
 from models.elo_engine import predict_elo_probs
 from models.dixon_coles import DixonColesEngine
-from app import get_full_poisson
+from app import get_full_poisson, run_historical_backtest
 
 
 class TestCleanName(unittest.TestCase):
@@ -75,6 +75,58 @@ class TestDixonColes(unittest.TestCase):
         self.assertGreater(res["mu"], 0)
         total = res["1"] + res["X"] + res["2"]
         self.assertAlmostEqual(total, 1.0, places=2)
+
+
+class TestHistoricalBacktest(unittest.TestCase):
+    """Copre run_historical_backtest (walk-forward Poisson vs Elo) usato nel tab BACKTEST."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.df = run_historical_backtest("Serie A")
+
+    def test_torna_un_dataframe(self):
+        import pandas as pd
+        self.assertIsInstance(self.df, pd.DataFrame)
+        self.assertFalse(self.df.empty, "con i CSV storici in repo il backtest non deve essere vuoto")
+
+    def test_colonne_attese(self):
+        attese = {"date", "home", "away", "real_1x2", "poisson_1x2", "poisson_ok", "elo_1x2",
+                  "elo_ok", "real_uo", "poisson_uo", "poisson_uo_ok", "real_gg", "poisson_gg",
+                  "poisson_gg_ok"}
+        self.assertTrue(attese.issubset(set(self.df.columns)),
+                        f"colonne mancanti: {attese - set(self.df.columns)}")
+
+    def test_valori_nei_domini_giusti(self):
+        self.assertTrue(self.df["real_1x2"].isin(["1", "X", "2"]).all())
+        self.assertTrue(self.df["poisson_1x2"].isin(["1", "X", "2"]).all())
+        self.assertTrue(self.df["elo_1x2"].isin(["1", "X", "2"]).all())
+        self.assertTrue(self.df["real_uo"].isin(["UNDER_2.5", "OVER_2.5"]).all())
+        self.assertTrue(self.df["poisson_uo"].isin(["UNDER_2.5", "OVER_2.5"]).all())
+        self.assertTrue(self.df["real_gg"].isin(["GG", "NG"]).all())
+        self.assertTrue(self.df["poisson_gg"].isin(["GG", "NG"]).all())
+
+    def test_flag_coerenti(self):
+        self.assertTrue((self.df["poisson_ok"] == (self.df["poisson_1x2"] == self.df["real_1x2"])).all())
+        self.assertTrue((self.df["elo_ok"] == (self.df["elo_1x2"] == self.df["real_1x2"])).all())
+
+    def test_nessun_nan(self):
+        self.assertFalse(self.df.isna().any().any(), "il backtest non deve produrre valori mancanti")
+
+    def test_non_sembra_il_tifo_della_domenicale(self):
+        # Un modello rotto tende al caso: 1X2 sopra 40% e bidirezionale sotto il 90%
+        self.assertGreater(self.df["poisson_ok"].mean(), 0.40)
+        self.assertLess(self.df["poisson_ok"].mean(), 0.90)
+
+    def test_cache_restuisce_lo_stesso_output(self):
+        again = run_historical_backtest("Serie A")
+        self.assertEqual(len(self.df), len(again))
+        self.assertTrue(self.df.equals(again))
+
+    def test_lega_sconosciuta(self):
+        self.assertTrue(run_historical_backtest("Liga Fantasma").empty)
+
+    def test_dati_troppo_pochi(self):
+        self.assertTrue(run_historical_backtest("Serie A", min_train=250000).empty)
 
 
 if __name__ == "__main__":
