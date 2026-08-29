@@ -89,7 +89,7 @@ st.markdown("""
     
     /* Banner: aspect-ratio evita margini negativi pericolosi */
     .safari-safe-banner { 
-        width: 100%; 
+        width: 150%; 
         aspect-ratio: 1056 / 2496;
         max-height: 220px;
         background-image: url('https://github.com/iFelice/SoccerMath2.0/blob/main/SoccerMath/images/Banner%20soccermath2.0.png?raw=true'); 
