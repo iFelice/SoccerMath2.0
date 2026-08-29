@@ -96,7 +96,7 @@ st.markdown("""
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center center; 
-        margin-bottom: 20px;
+        margin-bottom: 50px;
     }
 
     .match-card { background-color: #ffffff; border-radius: 12px; padding: 3px; margin-bottom: 8px; border: 1px solid #e0e4e9; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
