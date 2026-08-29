@@ -178,7 +178,7 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     stagione_reale = calcola_stagione_calcolo(match_date)
     preds.append({
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
-        "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": standardizza_mercato(pronostico),
+        "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": standardizza_mercato(pronostico, h, a),
         "top3": top3, "prob_sicuro": prob, "risultati_attesi": ris_attesi,
         "risultato_reale": None, "esito": "⏳", "tipo": "Top Mix" if "Top Mix" in pronostico else "Analisi", 
         "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M")
