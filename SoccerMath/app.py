@@ -56,14 +56,15 @@ def calcola_stagione_calcolo(data_str):
     if not data_str or data_str == "Data N/D": 
         return "Sconosciuta"
     try:
+        # Estrai mese e anno da vari formati: "dd/mm/YYYY HH:MM", "dd/mm | HH:MM", "dd/mm/YYYY"
         parts = data_str.split('/')
         if len(parts) >= 3:
             mese = int(parts[1])
             anno_str = parts[2].split(' ')[0].split('|')[0].strip()
             anno = int(anno_str)
         elif len(parts) == 2:
-            # Formato "dd/mm | HH:MM" senza anno → usa anno corrente
-            mese = int(parts[1].split('|')[0].strip())
+            mese_str = parts[1].split('|')[0].split(' ')[0].strip()
+            mese = int(mese_str)
             anno = datetime.now(ITALY_TZ).year
         else:
             return "Sconosciuta"
@@ -73,10 +74,11 @@ def calcola_stagione_calcolo(data_str):
         elif mese <= 5: 
             return f"{anno-1}/{anno}"
         else: 
+            # Giugno-luglio: periodo di mercato/estate, assegna alla stagione appena conclusa
             return f"{anno-1}/{anno}"
-    except: 
-        pass
-    return "Sconosciuta"
+    except Exception as e:
+        logging.warning(f"Errore calcolo stagione per '{data_str}': {e}")
+        return "Sconosciuta"
 
 # --- CSS CUSTOM (solo elementi propri, NON sovrascrive il tema Streamlit) ---
 st.markdown("""
@@ -274,7 +276,7 @@ def aggiorna_risultati_reali(api_key):
     return aggiornate, len(pending)
 
 # --- MOTORI LOGICI ---
-@st.cache_data
+@st.cache_data(ttl=3600)
 def get_league_engine(camp_key):
     prefix = LEAGUE_PREFIX_MAP.get(camp_key)
     if not prefix: 
@@ -413,7 +415,9 @@ def get_ultimi_risultati_fd(team_id, camp_sel, n=5):
             esito = "V" if (is_home and winner == "HOME_TEAM") or (not is_home and winner == "AWAY_TEAM") else ("X" if winner == "DRAW" else "P")
             risultati.append(f"{match['homeTeam'].get('shortName','?')} {gh}-{ga} {match['awayTeam'].get('shortName','?')} ({esito})")
         return risultati
-    except: return []
+    except Exception as e:
+        logging.warning(f"Errore ultimi risultati team {team_id}: {e}")
+        return []
 
 @st.cache_data(ttl=3600)
 def get_infraset_data(team_id, camp_code, match_date_str, now_utc_str):
@@ -426,20 +430,63 @@ def get_infraset_data(team_id, camp_code, match_date_str, now_utc_str):
                 dt = datetime.fromisoformat(m["utcDate"].replace("Z", "+00:00"))
                 if window_start <= dt < match_date: giocate.append(f"{dt.strftime('%d/%m')} {m.get('competition',{}).get('name','')}: {m['score']['fullTime'].get('home')}-{m['score']['fullTime'].get('away')}")
             except: pass
-    except: pass
+    except Exception as e:
+        logging.warning(f"Errore infraset team {team_id}: {e}")
+        pass
     return giocate, programmate
+
+def _match_team_name(target_clean, api_name):
+    """Match robusto tra nome target pulito e nome API. Evita falsi positivi parziali."""
+    if not target_clean or not api_name:
+        return False
+    api_clean = clean_name(api_name)
+    if target_clean.lower() == api_clean.lower():
+        return True
+    # Contenimento con word boundary: es. "Roma" matcha "AS Roma" ma NON "Bromley"
+    t = target_clean.lower()
+    a = api_clean.lower()
+    if t in a:
+        idx = a.find(t)
+        before = idx == 0 or a[idx - 1] == ' '
+        after = idx + len(t) == len(a) or a[idx + len(t)] == ' '
+        return before and after
+    if a in t:
+        idx = t.find(a)
+        before = idx == 0 or t[idx - 1] == ' '
+        after = idx + len(a) == len(t) or t[idx + len(a)] == ' '
+        return before and after
+    return False
 
 def get_contesto_partita(h, a, camp_sel):
     h_id, a_id = get_team_fd_id(h, camp_sel), get_team_fd_id(a, camp_sel)
-    contesto = {"h_risultati": get_ultimi_risultati_fd(h_id, camp_sel) if h_id else [], "a_risultati": get_ultimi_risultati_fd(a_id, camp_sel) if a_id else [], "h_infortunati": [], "a_infortunati": [], "h_infraset": [], "a_infraset": [], "h_infraset_prog": [], "a_infraset_prog": []}
-    camp_code = LEAGUE_CODE_MAP.get(camp_sel, "SA"); match_date = datetime.now(timezone.utc); match_id_found = None
+    contesto = {
+        "h_risultati": get_ultimi_risultati_fd(h_id, camp_sel) if h_id else [],
+        "a_risultati": get_ultimi_risultati_fd(a_id, camp_sel) if a_id else [],
+        "h_infortunati": [], "a_infortunati": [],
+        "h_infraset": [], "a_infraset": [],
+        "h_infraset_prog": [], "a_infraset_prog": []
+    }
+    camp_code = LEAGUE_CODE_MAP.get(camp_sel, "SA")
+    match_date = datetime.now(timezone.utc)
+    match_id_found = None
+    h_clean = clean_name(h)
     for mx in st.session_state.get("live_data", []):
-        if clean_name(h) in clean_name(mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name", "")):
-            try: match_date = datetime.fromisoformat(mx["utcDate"].replace("Z", "+00:00")); match_id_found = mx["id"]
-            except: pass
+        api_home = mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name", "")
+        if _match_team_name(h_clean, api_home):
+            try:
+                match_date = datetime.fromisoformat(mx["utcDate"].replace("Z", "+00:00"))
+                match_id_found = mx["id"]
+            except Exception:
+                pass
             break
-    if h_id: contesto["h_infraset"], contesto["h_infraset_prog"] = get_infraset_data(h_id, camp_code, match_date.isoformat(), datetime.now(timezone.utc).isoformat())
-    if a_id: contesto["a_infraset"], contesto["a_infraset_prog"] = get_infraset_data(a_id, camp_code, match_date.isoformat(), datetime.now(timezone.utc).isoformat())
+    if h_id:
+        contesto["h_infraset"], contesto["h_infraset_prog"] = get_infraset_data(
+            h_id, camp_code, match_date.isoformat(), datetime.now(timezone.utc).isoformat()
+        )
+    if a_id:
+        contesto["a_infraset"], contesto["a_infraset_prog"] = get_infraset_data(
+            a_id, camp_code, match_date.isoformat(), datetime.now(timezone.utc).isoformat()
+        )
     return contesto, match_id_found
 
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top 10...")
@@ -453,7 +500,9 @@ def fetch_and_calc_top_mix():
             r = requests.get(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches", headers={'X-Auth-Token': API_KEY_DATA}, params={"status": "TIMED,SCHEDULED"})
             if r.status_code != 200: continue
             matches = [m for m in r.json().get('matches', []) if m['matchday'] == sorted(set([m['matchday'] for m in r.json().get('matches', [])]))[0]]
-        except: continue
+        except Exception as e:
+            logging.warning(f"Errore fetch Top Mix {league}: {e}")
+            continue
         for match in matches:
             h = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?')
             a = match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
