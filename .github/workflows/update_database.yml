@@ -37,10 +37,7 @@ jobs:
         run: python update_db.py
       
       - name: Commit and push
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add database/*_Live.csv
-          git diff --cached --quiet || git commit -m "Auto-update live data [$(date +%Y-%m-%d)]"
-          git pull --rebase origin main
-          git push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-update live data"
+          file_pattern: "SoccerMath/database/*_Live.csv"
