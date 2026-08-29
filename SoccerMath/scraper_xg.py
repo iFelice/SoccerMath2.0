@@ -36,17 +36,5 @@ def get_understat_xg(league_name):
 
 
 def get_market_values():
-    return {
-        "Inter": 600, "Milan": 550, "Juventus": 500, "Napoli": 450, "Atalanta": 400,
-        "Roma": 350, "Lazio": 300, "Fiorentina": 250, "Bologna": 200, "Torino": 180,
-        "Monza": 120, "Genoa": 110, "Lecce": 80, "Verona": 75, "Udinese": 90,
-        "Cagliari": 70, "Empoli": 65, "Parma": 60, "Como": 55, "Venezia": 50,
-        "Cremonese": 45,
-        "Man City": 900, "Arsenal": 850, "Liverpool": 900, "Chelsea": 750,
-        "Man United": 600, "Tottenham": 500, "Newcastle": 450, "Aston Villa": 400,
-        "West Ham": 300, "Brighton": 280,
-        "Real Madrid": 1100, "Barcelona": 1000, "Atletico Madrid": 700,
-        "Athletic Club": 350, "Villarreal": 300,
-        "Bayern": 900, "Leverkusen": 600, "Dortmund": 550, "Leipzig": 450,
-        "Frankfurt": 300,
-    }
+    from config import get_market_values as _cfg_mkt
+    return _cfg_mkt()
