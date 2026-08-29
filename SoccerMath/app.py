@@ -790,7 +790,7 @@ RISPONDI IN ITALIANO. Sii diretto e concreto, niente frasi generiche."""
             
             testo = res.choices[0].message.content.replace("**", "").replace("*", "")
             # Mostra SEMPRE il testo di Billy
-            st.markdown(f"<div style='color:#1a1a1a; font-size:15px; line-height:1.6;'>{testo}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color: var(--st-text-color, var(--text-color, #1a1a1a)); font-size:15px; line-height:1.6;'>{testo}</div>", unsafe_allow_html=True)
             
             # Cerca di salvare nel registro in modo flessibile
             pronostico_trovato = ""
@@ -887,7 +887,40 @@ with st.sidebar:
                 st.info(answer)
     elif chat_msg and not groq_client:
         st.error("Billy non è configurato. Aggiungi GROQ_API_KEY nei Secrets.")
-    
+
+    # --- TEMA ---
+    st.divider()
+    follow_system = st.toggle("🌓 Segui tema sistema", value=True, key="follow_system_toggle",
+                              help="Attivo = si adatta al tema del dispositivo. Disattivo = forza modalità chiara.")
+    if not follow_system:
+        # Modalità chiara forzata. NB: sovrascrive SIA le variabili --st-* (Streamlit >= 1.50)
+        # SIA quelle legacy, perché il CSS custom dell'app usa prima i prefissi --st-*:
+        # senza questo override, le card resterebbero scure anche a tema scuro attivo.
+        st.markdown("""
+        <style>
+            :root {
+                color-scheme: light;
+                --background-color: #ffffff !important;
+                --secondary-background-color: #f0f2f6 !important;
+                --text-color: #31333F !important;
+                --primary-color: #0056b3 !important;
+                --st-background-color: #ffffff !important;
+                --st-secondary-background-color: #f0f2f6 !important;
+                --st-text-color: #31333F !important;
+                --st-primary-color: #0056b3 !important;
+            }
+            .stApp { background-color: #ffffff !important; color: #31333F !important; }
+            [data-testid="stHeader"] { background-color: #ffffff !important; }
+            .stSidebar, [data-testid="stSidebar"] { background-color: #f0f2f6 !important; }
+            .stButton button { background-color: #ffffff !important; color: #31333F !important; border: 1px solid #d1d5db !important; }
+            .stTextInput input { background-color: #ffffff !important; color: #31333F !important; }
+            .stSelectbox div[data-baseweb="select"], .stSelectbox div[data-baseweb="select"] > div { background-color: #ffffff !important; color: #31333F !important; }
+            .match-card { background-color: #ffffff !important; border: 1px solid #e0e4e9 !important; }
+            .stat-container { background-color: #f8f9fa !important; border: 1px solid #e0e4e9 !important; }
+            .top-mix-row { background-color: #ffffff !important; border: 1px solid #e0e4e9 !important; }
+        </style>
+        """, unsafe_allow_html=True)
+
     if do_sync or do_refresh:
         if not API_KEY_DATA:
             st.error("⚠️ Impossibile sincronizzare: API Key Football-Data mancante. Configurala nei Secrets.")
