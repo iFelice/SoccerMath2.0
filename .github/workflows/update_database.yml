@@ -42,4 +42,5 @@ jobs:
           git config --local user.name "GitHub Action"
           git add database/*_Live.csv
           git diff --cached --quiet || git commit -m "Auto-update live data [$(date +%Y-%m-%d)]"
+          git pull --rebase origin main
           git push
