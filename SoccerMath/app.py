@@ -86,26 +86,17 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
     html, body, [data-testid="stApp"] { font-family: 'Inter', sans-serif; }
     [data-testid="stSidebarContent"] { padding-left: 20px !important; padding-right: 10px !important; }
-    .main .block-container {
-        max-width: 100% !important; 
-        padding-left: 0rem !important; 
-        padding-right: 0rem !important; 
-    }
-     /* Header nascosto disabilitato: nasconde anche il toggle sidebar */
-    /* [data-testid="stHeader"] { display: none !important; } */
     
-    /* Banner personalizzato M4 */
+    /* Banner: aspect-ratio evita margini negativi pericolosi */
     .safari-safe-banner { 
         width: 100%; 
-        height: 0;
-        padding-bottom: 35%;
+        aspect-ratio: 1056 / 2496;
+        max-height: 220px;
         background-image: url('https://github.com/iFelice/SoccerMath2.0/blob/main/SoccerMath/images/Banner%20soccermath2.0.png?raw=true'); 
-        background-size: 100% 100%;
+        background-size: contain;
+        background-repeat: no-repeat;
         background-position: center center; 
-        margin-top: 0px !important; 
         margin-bottom: 20px;
-        margin-left: -1rem; 
-        margin-right: -1rem;
     }
 
     .match-card { background-color: #ffffff; border-radius: 12px; padding: 3px; margin-bottom: 8px; border: 1px solid #e0e4e9; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
