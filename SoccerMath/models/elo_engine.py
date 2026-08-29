@@ -2,9 +2,7 @@
 models/elo_engine.py - Motore di Calcolo Elo Rating Dinamico per M4-analist
 """
 
-import glob
 import math
-import os
 from datetime import datetime
 from typing import Dict, List
 
@@ -18,6 +16,7 @@ from config import (
     LEAGUE_PREFIX_MAP,
     LEAGUE_HOME_ADVANTAGE,
     clean_name,
+    get_league_db_files,
     get_market_values,
 )
 from scraper_xg import get_understat_xg
@@ -52,18 +51,9 @@ class EloEngine:
         self.matches_df = pd.DataFrame()
 
     def _get_league_files(self) -> List[str]:
-        prefix = LEAGUE_PREFIX_MAP.get(self.league_name)
-        if not prefix:
-            return []
-        pattern_storici = str(DATABASE_DIR / f"{prefix}_20*.csv")
-        file_live = str(DATABASE_DIR / f"{prefix}_Live.csv")
-        file_base = str(DATABASE_DIR / f"{prefix}.csv")
-        files = sorted(glob.glob(pattern_storici))
-        if os.path.exists(file_base) and file_base not in files:
-            files.append(file_base)
-        if os.path.exists(file_live) and file_live not in files:
-            files.append(file_live)
-        return files
+        # Risoluzione centralizzata in config: include anche i file il cui nome non
+        # deriva dal db_prefix (es. PremierLeague.csv con prefisso 'Premier').
+        return get_league_db_files(self.league_name)
 
     def load_and_preprocess_matches(self) -> pd.DataFrame:
         files = self._get_league_files()
@@ -73,7 +63,10 @@ class EloEngine:
         for f in files:
             try:
                 df_tmp = pd.read_csv(f, on_bad_lines="warn", low_memory=False)
-                if not df_tmp.empty and "HomeTeam" in df_tmp.columns and "AwayTeam" in df_tmp.columns:
+                # servono tutte e 4 le colonne usate sotto: un CSV parziale farebbe
+                # KeyError su df["Date"]/df["FTR"] a valle
+                needed = {"HomeTeam", "AwayTeam", "FTR", "Date"}
+                if not df_tmp.empty and needed.issubset(df_tmp.columns):
                     dfs.append(df_tmp)
             except Exception:
                 continue

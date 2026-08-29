@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import numpy as np
 import os
+import math
 import requests
 import glob
 import re
@@ -35,6 +36,7 @@ from models.backtest import run_backtest, compare_models_backtest, detect_value_
 from config import (
     FOOTBALL_DATA_API_KEY, GROQ_API_KEY, ODDS_API_KEY, JSONBIN_API_KEY, JSONBIN_BIN_ID,
     PREDICTIONS_FILE, LEAGUES_CONFIG, LEAGUE_CODE_MAP, LEAGUE_PREFIX_MAP, CURRENT_SEASON, clean_name, DATABASE_DIR,
+    LEAGUE_HOME_ADVANTAGE, get_league_db_files,
 )
 
 API_KEY_ODDS = ODDS_API_KEY
@@ -53,7 +55,8 @@ def format_date_italy(utc_date_str, fmt="%d/%m | %H:%M"):
         return "Data N/D"
 
 def calcola_stagione_calcolo(data_str):
-    if not data_str or data_str == "Data N/D": 
+    if not data_str or data_str == "Data N/D" or not isinstance(data_str, str):
+        # isinstance: le righe del registro senza campo 'data' arrivano come NaN
         return "Sconosciuta"
     try:
         # Estrai mese e anno da vari formati: "dd/mm/YYYY HH:MM", "dd/mm | HH:MM", "dd/mm/YYYY"
@@ -81,6 +84,9 @@ def calcola_stagione_calcolo(data_str):
         return "Sconosciuta"
 
 # --- CSS CUSTOM (solo elementi propri, NON sovrascrive il tema Streamlit) ---
+# Nota: i colori usano le variabili CSS del tema Streamlit con fallback annidato,
+# così l'interfaccia si adatta automaticamente a tema chiaro/scuro su più versioni
+# (Streamlit >= 1.50 usa i prefissi --st-*, le versioni precedenti solo i nomi brevi).
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
@@ -91,7 +97,7 @@ st.markdown("""
     .safari-safe-banner { 
         width: 100%; 
         aspect-ratio: 1056 / 2496;
-        max-height: 600px;
+        max-height: 220px;
         background-image: url('https://github.com/iFelice/SoccerMath2.0/blob/main/SoccerMath/images/Banner%20soccermath2.0.png?raw=true'); 
         background-size: contain;
         background-repeat: no-repeat;
@@ -99,12 +105,19 @@ st.markdown("""
         margin-bottom: 5px;
     }
 
-    .match-card { background-color: #ffffff; border-radius: 12px; padding: 3px; margin-bottom: 8px; border: 1px solid #e0e4e9; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .team-name { font-size: 19px; font-weight: 800; color: #1a1d23; text-transform: uppercase; }
-    .label-header { color: #0056b3; font-size: 15px !important; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 5px; border-bottom: 2px solid #e0e4e9; padding-bottom: 3px; }
-    .match-date { font-size: 13px; font-weight: 800; color: #3b82f6 !important; display: block; margin-top: 5px; }
-    .stat-container { background-color: #f8f9fa; border: 1px solid #e0e4e9; border-radius: 8px; padding: 10px; text-align: center; height: 100%; }
-    .top-mix-row { background-color: #ffffff; border: 1px solid #e0e4e9; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .match-card { 
+        background-color: var(--st-secondary-background-color, var(--secondary-background-color, #ffffff)); 
+        border-radius: 12px; 
+        padding: 3px; 
+        margin-bottom: 8px; 
+        border: 1px solid rgba(128,128,128,0.2); 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+    }
+    .team-name { font-size: 19px; font-weight: 800; color: var(--st-text-color, var(--text-color, inherit)); text-transform: uppercase; }
+    .label-header { color: var(--st-primary-color, var(--primary-color, #0056b3)); font-size: 15px !important; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 5px; border-bottom: 2px solid rgba(128,128,128,0.2); padding-bottom: 3px; }
+    .match-date { font-size: 13px; font-weight: 800; color: var(--st-primary-color, var(--primary-color, #3b82f6)) !important; display: block; margin-top: 5px; }
+    .stat-container { background-color: var(--st-secondary-background-color, var(--secondary-background-color, #f8f9fa)); border: 1px solid rgba(128,128,128,0.2); border-radius: 8px; padding: 10px; text-align: center; height: 100%; }
+    .top-mix-row { background-color: var(--st-secondary-background-color, var(--secondary-background-color, #ffffff)); border: 1px solid rgba(128,128,128,0.2); border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
     .match-result { font-size: 18px; font-weight: 800; color: #28a745; margin-top: 5px; display: block; }
 </style>
 """, unsafe_allow_html=True)
@@ -295,46 +308,37 @@ def aggiorna_risultati_reali(api_key):
 # --- MOTORI LOGICI ---
 @st.cache_data(ttl=3600)
 def get_league_engine(camp_key):
-    prefix = LEAGUE_PREFIX_MAP.get(camp_key)
-    if not prefix: 
+    # I file (storici + base + live) vengono risolti in config: solo il pattern
+    # "{prefix}.csv" lasciava fuori, ad esempio, PremierLeague.csv.
+    files = get_league_db_files(camp_key)
+    if not files:
         return None
     dfs = []
-    for f in sorted(glob.glob(str(DATABASE_DIR / f"{prefix}_20*.csv"))):
-        try: 
+    for f in files:
+        try:
             df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
-            df_tmp['peso'] = 1.0
             dfs.append(df_tmp)
-        except Exception as e: 
+        except Exception as e:
             logging.warning(f"Errore lettura CSV {f}: {e}")
-    for f in glob.glob(str(DATABASE_DIR / f"{prefix}_Live.csv")):
-        try: 
-            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
-            df_tmp['peso'] = 1.0
-            dfs.append(df_tmp)
-        except Exception as e: 
-            logging.warning(f"Errore lettura CSV {f}: {e}")
-    for f in glob.glob(str(DATABASE_DIR / f"{prefix}.csv")):
-        try: 
-            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
-            df_tmp['peso'] = 1.0
-            dfs.append(df_tmp)
-        except Exception as e: 
-            logging.warning(f"Errore lettura CSV {f}: {e}")
-    if not dfs: 
+    if not dfs:
         return None
     df = pd.concat(dfs, ignore_index=True)
+    if 'peso' not in df.columns:
+        df['peso'] = 1.0
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
-    df = df.dropna(subset=['HomeTeam', 'AwayTeam', 'FTR']).sort_values('Date')
+    df = df.dropna(subset=['HomeTeam', 'AwayTeam', 'FTR']).sort_values('Date', kind='stable')
     df['HomeClean'] = df['HomeTeam'].apply(clean_name)
     df['AwayClean'] = df['AwayTeam'].apply(clean_name)
-    if 'peso' not in df.columns: 
-        df['peso'] = 1.0
+    # Le partite gia' chiuse sono presenti sia nel file base sia in *_Live (es. 54
+    # righe su Ligue 1): senza deduplica gol medi e forma verrebbero doppi.
+    # keep='last' fa vincere il Live, che e' il file aggiornato da GitHub Actions.
+    df = df.drop_duplicates(subset=['Date', 'HomeClean', 'AwayClean'], keep='last').reset_index(drop=True)
     
     avg_h = np.average(df['FTHG'].dropna(), weights=df.loc[df['FTHG'].notna(), 'peso'])
     avg_a = np.average(df['FTAG'].dropna(), weights=df.loc[df['FTAG'].notna(), 'peso'])
     
     # --- FATTORI FORMA (ultime 5 partite) ---
-    df_sorted = df.sort_values('Date')
+    df_sorted = df.sort_values('Date', kind='stable')
     form_factors = {}
     for t in pd.concat([df['HomeClean'], df['AwayClean']]).unique():
         t_matches = df_sorted[(df_sorted['HomeClean']==t) | (df_sorted['AwayClean']==t)].tail(5)
@@ -393,6 +397,132 @@ def get_league_engine(camp_key):
             'val': val
         }
     return stats, avg_h, avg_a, df
+
+@st.cache_data(ttl=86400, show_spinner="Backtest storico in corso...")
+def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
+    """
+    Backtest walk-forward sul database storico locale.
+    Per ogni finestra temporale usa SOLO le partite precedenti (no leakage) per
+    stimare i parametri Poisson e la griglia Elo, poi predice le partite successive.
+    Le partite testate sono le ULTIME max_test (max_test=None = tutte), così il
+    giudizio sui modelli riguarda la forma recente e non stagioni di 3 anni fa.
+    Dixon-Coles è escluso volutamente per velocità.
+    """
+    prefix = LEAGUE_PREFIX_MAP.get(camp_key)
+    if not prefix:
+        return pd.DataFrame()
+
+    # Teniamo solo le colonne necessarie: i CSV football-data ne hanno >100 e
+    # le maschere booleane per squadra costerebbero una copia gigante del frame.
+    required_cols = ['Date', 'HomeTeam', 'AwayTeam', 'FTR', 'FTHG', 'FTAG']
+    dfs = []
+    for f in get_league_db_files(camp_key):
+        try:
+            df_tmp = pd.read_csv(f, on_bad_lines='warn', low_memory=False)
+            if not all(c in df_tmp.columns for c in required_cols):
+                continue
+            dfs.append(df_tmp[required_cols].copy())
+        except Exception:
+            pass
+    if not dfs:
+        return pd.DataFrame()
+
+    df = pd.concat(dfs, ignore_index=True)
+    df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+    df['FTHG'] = pd.to_numeric(df['FTHG'], errors='coerce')
+    df['FTAG'] = pd.to_numeric(df['FTAG'], errors='coerce')
+    # sort stabile: a pari data (tipico di una giornata) l'ordine resta quello dei file
+    df = df.dropna(subset=['Date', 'HomeTeam', 'AwayTeam', 'FTR', 'FTHG', 'FTAG']).sort_values('Date', kind='stable')
+    df['HomeClean'] = df['HomeTeam'].apply(clean_name)
+    df['AwayClean'] = df['AwayTeam'].apply(clean_name)
+    df = df[(df['HomeClean'] != "") & (df['AwayClean'] != "")]
+    df = df.drop_duplicates(subset=['Date', 'HomeClean', 'AwayClean'], keep='last').reset_index(drop=True)
+
+    n = len(df)
+    if n < min_train + 10:
+        return pd.DataFrame()
+
+    # Finestra out-of-sample: le partite più recenti. Con min_train=30, step=5 e
+    # max_test=300 si valutano ~60 riaddestramenti sugli ultimi 300 incontri.
+    start = min(n, max(min_train, n - max_test)) if max_test else min_train
+
+    results = []
+    mapping_ftr = {'H': '1', 'D': 'X', 'A': '2'}
+    home_adv = LEAGUE_HOME_ADVANTAGE.get(camp_key, 65.0)
+
+    for i in range(start, n, step):
+        train = df.iloc[:i]
+        test = df.iloc[i:min(i+step, n)]
+
+        # Guardie minime: medie gol di lega non devono poter andare a zero
+        avg_h = max(float(train['FTHG'].mean()), 0.1)
+        avg_a = max(float(train['FTAG'].mean()), 0.1)
+
+        # Forze attacco/difesa: groupby invece di una maschera per squadra
+        # (equivalente a mean() su un frame senza NaN, ma ~40x piu' veloce)
+        home_gf = train.groupby('HomeClean')['FTHG'].mean()
+        home_ga = train.groupby('HomeClean')['FTAG'].mean()
+        away_gf = train.groupby('AwayClean')['FTAG'].mean()
+        away_ga = train.groupby('AwayClean')['FTHG'].mean()
+        stats = {}
+        for t in pd.concat([train['HomeClean'], train['AwayClean']]).unique():
+            att_h = home_gf[t] if t in home_gf.index else avg_h
+            def_h = home_ga[t] if t in home_ga.index else avg_a
+            att_a = away_gf[t] if t in away_gf.index else avg_a
+            def_a = away_ga[t] if t in away_ga.index else avg_h
+            stats[t] = {'att': (att_h / avg_h + att_a / avg_a) / 2,
+                        'def': (def_h / avg_a + def_a / avg_h) / 2}
+
+        # Elo ricostruito in ordine cronologico sul solo train
+        elo_ratings = {}
+        for row in train.itertuples(index=False):
+            h, a = row.HomeClean, row.AwayClean
+            ftr = str(row.FTR).strip().upper()
+            r_h = elo_ratings.get(h, 1500.0)
+            r_a = elo_ratings.get(a, 1500.0)
+            dr = r_h + home_adv - r_a
+            e_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
+            s_h = 1.0 if ftr == 'H' else (0.0 if ftr == 'A' else 0.5)
+            k = 24.0
+            elo_ratings[h] = r_h + k * (s_h - e_h)
+            elo_ratings[a] = r_a + k * ((1-s_h) - (1-e_h))
+
+        for row in test.itertuples(index=False):
+            h, a = row.HomeClean, row.AwayClean
+            fthg, ftag = int(row.FTHG), int(row.FTAG)
+            real = mapping_ftr.get(str(row.FTR).strip().upper(), 'X')
+
+            hs = stats.get(h, {'att': 1.0, 'def': 1.0})
+            as_ = stats.get(a, {'att': 1.0, 'def': 1.0})
+            m_p = get_full_poisson(hs['att'] * as_['def'] * avg_h, as_['att'] * hs['def'] * avg_a)
+            pois_pred = max([('1', m_p['1']), ('X', m_p['X']), ('2', m_p['2'])], key=lambda x: x[1])[0]
+
+            r_h = elo_ratings.get(h, 1500.0)
+            r_a = elo_ratings.get(a, 1500.0)
+            dr = r_h + home_adv - r_a
+            e_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
+            p_draw = 0.27 * math.exp(-((dr / 320.0) ** 2))
+            p_draw = max(0.06, min(0.34, p_draw))
+            p_home = (1.0 - p_draw) * e_h
+            p_away = (1.0 - p_draw) * (1.0 - e_h)
+            elo_pred = max([('1', p_home), ('X', p_draw), ('2', p_away)], key=lambda x: x[1])[0]
+
+            tot = fthg + ftag
+            u25_real = 'UNDER_2.5' if tot < 3 else 'OVER_2.5'
+            gg_real = 'GG' if fthg > 0 and ftag > 0 else 'NG'
+
+            results.append({
+                'date': row.Date, 'home': h, 'away': a, 'real_1x2': real,
+                'poisson_1x2': pois_pred, 'poisson_ok': pois_pred == real,
+                'elo_1x2': elo_pred, 'elo_ok': elo_pred == real,
+                'real_uo': u25_real, 'poisson_uo': 'UNDER_2.5' if m_p['u25'] > 0.5 else 'OVER_2.5',
+                'poisson_uo_ok': ('UNDER_2.5' if m_p['u25'] > 0.5 else 'OVER_2.5') == u25_real,
+                'real_gg': gg_real, 'poisson_gg': 'GG' if m_p['gg'] > 0.5 else 'NG',
+                'poisson_gg_ok': ('GG' if m_p['gg'] > 0.5 else 'NG') == gg_real,
+            })
+
+    return pd.DataFrame(results)
+
 
 def get_full_poisson(h_e, a_e, max_goals=15):
     h_p = [poisson.pmf(i, h_e) for i in range(max_goals)]
@@ -618,10 +748,45 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
             else: h_exp, a_exp = 1.3, 1.1
             m_adj = get_full_poisson(h_exp, a_exp)
             p1, pX, p2 = m_adj['1'], m_adj['X'], m_adj['2']
-            
-            prompt = f"""Sei Billy Walters. Analizza {h} vs {a}. POISSON(1:{p1:.1%} X:{pX:.1%} 2:{p2:.1%}). RISPONDI COSI': PRONOSTICO SICURO: "[mercato] - [%] - [motivo]" """
-            try: res = groq_client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}], max_tokens=500)
-            except: res = groq_client.chat.completions.create(model="qwen/qwen3.6-27b", messages=[{"role": "user", "content": prompt}], max_tokens=500)
+
+            # --- CONTESTO PER IL PROMPT (Elo, classifica, forma recente) ---
+            # Il prompt ragionato ha bisogno di questi dati: senza di essi un
+            # NameError verrebbe inghiottito dal try/except e Billy non risponderebbe.
+            try:
+                elo_p = predict_elo_probs(h, a, camp_sel)
+            except Exception as e:
+                logging.warning(f"Elo non disponibile per {h} vs {a}: {e}")
+                elo_p = {'1': p1, 'X': pX, '2': p2, 'elo_diff': 0.0}
+            classifica = st.session_state.get("classifica", {}) or {}
+            h_pos = classifica.get(clean_name(h), {}).get("pos", "N/D")
+            a_pos = classifica.get(clean_name(a), {}).get("pos", "N/D")
+            h_ris = contesto.get("h_risultati", [])
+            a_ris = contesto.get("a_risultati", [])
+
+            prompt = f"""Sei Billy Walters, esperto di betting con 40 anni di esperienza. Analizza {h} vs {a} ({camp_sel}).
+
+DATI QUANTITATIVI DEI MODELLI:
+- Poisson: 1={p1:.1%} | X={pX:.1%} | 2={p2:.1%}
+- Elo: 1={elo_p['1']:.1%} | X={elo_p['X']:.1%} | 2={elo_p['2']:.1%} (diff Elo={elo_p['elo_diff']:.0f})
+- Classifica attuale: {h} è {h_pos}° in classifica, {a} è {a_pos}°
+- Ultimi 5 risultati {h}: {', '.join(h_ris[-5:]) if h_ris else 'N/D'}
+- Ultimi 5 risultati {a}: {', '.join(a_ris[-5:]) if a_ris else 'N/D'}
+
+COMPITO:
+1. Confronta le probabilità dei modelli con la forma recente e la posizione in classifica.
+2. Se i dati quantitativi e la forma recente sono in forte disaccordo, spiega quale fattore prevale e perché.
+3. Considera eventuali fattori esterni (fatica da infraset, derby, calo di forma).
+4. Dai UN SOLO pronostico principale nel formato esatto:
+   PRONOSTICO SICURO: "[Mercato] - [Probabilità%] - [Motivo in 1 riga]"
+
+RISPONDI IN ITALIANO. Sii diretto e concreto, niente frasi generiche."""
+
+            # max_tokens più alto: il prompt ragionato produce una risposta più lunga e
+            # la riga PRONOSTICO SICURO è in coda -> con 500 token veniva tagliata via.
+            try: res = groq_client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}], max_tokens=900)
+            except Exception as e_model:
+                logging.warning(f"Modello primario non disponibile ({e_model}); fallback qwen")
+                res = groq_client.chat.completions.create(model="qwen/qwen3.6-27b", messages=[{"role": "user", "content": prompt}], max_tokens=900)
             
             testo = res.choices[0].message.content.replace("**", "").replace("*", "")
             # Mostra SEMPRE il testo di Billy
@@ -630,9 +795,11 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
             # Cerca di salvare nel registro in modo flessibile
             pronostico_trovato = ""
             for riga in testo.split("\n"):
-                rs = riga.strip()
+                rs = riga.strip().lstrip("#>-* ").strip()
                 if "PRONOSTICO SICURO" in rs.upper():
                     pronostico_trovato = rs.replace("PRONOSTICO SICURO:", "").replace("PRONOSTICO SICURO :", "").strip()
+                    # Billy a volte avvolge il pronostico in virgolette: vanno tolte
+                    pronostico_trovato = pronostico_trovato.strip(' "\'`')
                     break
             
             # --- VALUE BET CALCULATOR ---
@@ -687,9 +854,39 @@ with st.sidebar:
     camp_sel = st.selectbox("CAMPIONATO", list(LEAGUES_CONFIG.keys()))
     camp_cached = st.session_state.get("live_camp", None)
     has_data = bool("live_data" in st.session_state and st.session_state.get("live_data") and camp_cached == camp_sel)
-    col_s1, col_s2 = st.columns([2, 1])
-    with col_s1: do_sync = st.button("🔄 SINCRONIZZA", disabled=has_data)
-    with col_s2: do_refresh = st.button("↺ Refresh")
+
+    do_sync = st.button("🔄 SINCRONIZZA", disabled=has_data, use_container_width=True)
+    do_refresh = st.button("↺ Refresh", use_container_width=True)
+
+    # --- CHAT BILLY ---
+    st.divider()
+    st.subheader("💬 Chiedi a Billy")
+    chat_msg = st.text_input("Scrivi qui...", placeholder="Es: Chi vince Milan-Inter?", key="billy_chat_input", label_visibility="collapsed")
+    if st.button("Invia", use_container_width=True, key="billy_chat_send") and chat_msg and groq_client:
+        with st.spinner("Billy pensa..."):
+            try:
+                chat_res = groq_client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[{"role": "user", "content": f"Sei Billy Walters, esperto di betting. Rispondi in italiano, breve e concreto. Domanda: {chat_msg}"}],
+                    max_tokens=400,
+                    temperature=0.5
+                )
+                # teniamo la risposta in session_state: così non sparisce alla
+                # prima interazione successiva (click su un tab, un filtro, ecc.)
+                st.session_state["billy_chat_answer"] = (chat_msg, chat_res.choices[0].message.content)
+            except Exception as e:
+                st.session_state["billy_chat_answer"] = (chat_msg, f"__ERR__{e}")
+    if "billy_chat_answer" in st.session_state:
+        asked, answer = st.session_state["billy_chat_answer"]
+        answer = answer or "(nessuna risposta dal modello)"
+        with st.container():
+            st.caption(f"💭 {asked}")
+            if answer.startswith("__ERR__"):
+                st.error(f"Errore chat: {answer[7:]}")
+            else:
+                st.info(answer)
+    elif chat_msg and not groq_client:
+        st.error("Billy non è configurato. Aggiungi GROQ_API_KEY nei Secrets.")
     
     if do_sync or do_refresh:
         if not API_KEY_DATA:
@@ -812,9 +1009,59 @@ with tab3:
             st.markdown(f"<div style='background:#30363d; height:24px; display:flex; overflow:hidden; margin-top:10px; border-radius:8px;'><div style='width:{sp['1']*100}%; background:#28a745; text-align:center; color:white; font-size:12px; font-weight:700; line-height:24px;'>1: {sp['1']:.0%}</div><div style='width:{sp['X']*100}%; background:#ffc107; text-align:center; color:black; font-size:12px; font-weight:700; line-height:24px;'>X: {sp['X']:.0%}</div><div style='width:{sp['2']*100}%; background:#dc3545; text-align:center; color:white; font-size:12px; font-weight:700; line-height:24px;'>2: {sp['2']:.0%}</div></div>", unsafe_allow_html=True)
 
 with tab4:
-    st.subheader("📊 Backtest Engine")
-    st.info("🛠️ Il modulo Backtest è temporaneamente disabilitato. Il file `models/backtest.py` richiede un aggiornamento interno per gestire i nuovi nomi dei file CSV storici (es. SerieA_2023.csv). Le altre funzioni (Pronostici, Elo, Registro) sono pienamente operative.")
-    # Ho rimosso il bottone per evitare che l'app crashi su un file che non possiamo modificare ora
+    st.subheader("📊 Backtest Storico (Walk-Forward)")
+    st.caption("Simula Poisson ed Elo sulle partite già giocate usando SOLO i dati precedenti "
+               "(le ~300 più recenti, riaddestrate ogni 5 giornate). Dixon-Coles è escluso per velocità.")
+
+    if st.button("🚀 Avvia Backtest", type="primary"):
+        with st.spinner("Calcolo in corso... può richiedere 1-2 minuti"):
+            df_back = run_historical_backtest(camp_sel)
+        st.session_state["backtest_df"] = df_back
+        st.session_state["backtest_camp"] = camp_sel
+
+    # Il risultato viene tenuto in session_state così non sparisce al primo
+    # rerun (click su un altro tab, cambio filtro, sincronizzazione, ecc.)
+    if "backtest_df" in st.session_state and st.session_state.get("backtest_camp") != camp_sel:
+        st.info("🔄 Campionato cambiato: premi di nuovo 'Avvia Backtest' per ricalcolare.")
+    elif "backtest_df" in st.session_state and st.session_state.get("backtest_camp") == camp_sel:
+        df_back = st.session_state["backtest_df"].copy()
+        if df_back.empty:
+            st.warning("Dati insufficienti per il backtest (servono almeno 40 partite storiche).")
+        else:
+            n = len(df_back)
+            pois_wr = df_back['poisson_ok'].mean() * 100
+            elo_wr = df_back['elo_ok'].mean() * 100
+            uo_wr = df_back['poisson_uo_ok'].mean() * 100
+            gg_wr = df_back['poisson_gg_ok'].mean() * 100
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Partite testate", n)
+            c2.metric("Poisson 1X2", f"{pois_wr:.1f}%")
+            c3.metric("Elo 1X2", f"{elo_wr:.1f}%")
+            c4.metric("Poisson U/O + GG", f"{(uo_wr+gg_wr)/2:.1f}%")
+
+            st.divider()
+            comp_data = []
+            for mkt in ['1X2', 'Under/Over 2.5', 'GG/NG']:
+                if mkt == '1X2':
+                    comp_data.append({"Mercato": mkt, "Poisson": f"{pois_wr:.1f}%", "Elo": f"{elo_wr:.1f}%"})
+                elif mkt == 'Under/Over 2.5':
+                    comp_data.append({"Mercato": mkt, "Poisson": f"{uo_wr:.1f}%", "Elo": "N/D"})
+                else:
+                    comp_data.append({"Mercato": mkt, "Poisson": f"{gg_wr:.1f}%", "Elo": "N/D"})
+            st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+            st.caption(f"Baseline (punto di riferimento): 1X2 ~45%, Under/Over e GG/NG ~50%. "
+                       f"Con {n} partite il campione è ancora rumoroso: sotto ~150 considera i valori come indicativi.")
+
+            df_back['cum_pois'] = df_back['poisson_ok'].expanding().mean() * 100
+            df_back['cum_elo'] = df_back['elo_ok'].expanding().mean() * 100
+            st.line_chart(df_back[['cum_pois', 'cum_elo']].rename(columns={'cum_pois': 'Poisson 1X2', 'cum_elo': 'Elo 1X2'}))
+
+            with st.expander("Vedi ultimi 20 risultati"):
+                df_show = df_back[['date', 'home', 'away', 'real_1x2', 'poisson_1x2', 'elo_1x2', 'real_uo', 'poisson_uo', 'real_gg', 'poisson_gg']].tail(20).copy()
+                df_show['date'] = pd.to_datetime(df_show['date']).dt.strftime('%d/%m/%Y')
+                st.dataframe(df_show, use_container_width=True, hide_index=True)
+
 
 # --- TAB 5 REGISTRO ---
 with tab5:
@@ -834,12 +1081,13 @@ with tab5:
         f_col1, f_col2, f_col3 = st.columns(3)
         with f_col1:
             camp_options = ["Tutti"] + list(LEAGUES_CONFIG.keys())
-            default_camp_idx = camp_options.index(camp_sel) if camp_sel in camp_options else 0
-            filter_camp = st.selectbox("Campionato", camp_options, index=default_camp_idx)
-        with f_col2: filter_status = st.selectbox("Esito", ["Tutti", "In Attesa (⏳)", "Vinte (✅)", "Perse (❌)"])
+            filter_camp = st.selectbox("Campionato", camp_options, index=0)
+        with f_col2: 
+            filter_status = st.selectbox("Esito", ["Tutti", "In Attesa (⏳)", "Vinte (✅)", "Perse (❌)"])
         with f_col3: 
             stagioni_reali = sorted(df_preds['stagione'].unique().tolist(), reverse=True)
-            filter_stagione = st.selectbox("Stagione", ["Tutti"] + stagioni_reali)
+            default_stagione_idx = 1 if len(stagioni_reali) > 0 else 0
+            filter_stagione = st.selectbox("Stagione", ["Tutti"] + stagioni_reali, index=default_stagione_idx)
             
         if filter_camp != "Tutti": df_preds = df_preds[df_preds["campionato"] == filter_camp]
         if filter_status == "In Attesa (⏳)": df_preds = df_preds[df_preds["esito"].isin(["⏳", None])]

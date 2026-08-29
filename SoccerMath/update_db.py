@@ -5,6 +5,7 @@ Oppure schedulalo con cron o GitHub Actions.
 """
 
 import os
+import sys
 from datetime import datetime
 import pandas as pd
 import requests
@@ -24,11 +25,18 @@ from config import (
 CAMPIONATI = CAMPIONATI_UPDATE_DB
 API_KEY_DATA = FOOTBALL_DATA_API_KEY
 
+# Errori che impediscono davvero l'aggiornamento (chiave assente, HTTP != 200,
+# rete). fetch_matches() risponde [] anche per un semplice "nessuna partita",
+# quindi senza questo contatore un job con la secret rotta chiuderebbe con 0
+# restando VERDE senza aggiornare nulla.
+_FETCH_ERRORS = []
+
 
 def fetch_matches(comp_id, season=None):
     api_key = config.FOOTBALL_DATA_API_KEY
     if not api_key:
         print("  [ATTENZIONE] FOOTBALL_DATA_API_KEY non configurata.")
+        _FETCH_ERRORS.append(f"{comp_id}: FOOTBALL_DATA_API_KEY non configurata")
         return []
 
     url = f"https://api.football-data.org/v4/competitions/{comp_id}/matches"
@@ -42,12 +50,14 @@ def fetch_matches(comp_id, season=None):
         print("STATUS CODE:", r.status_code)
         if r.status_code != 200:
             print("RISPOSTA API:", r.text)
+            _FETCH_ERRORS.append(f"{comp_id}: HTTP {r.status_code}")
             return []
         matches = r.json().get("matches", [])
         print("DATI RICEVUTI:", len(matches))
         return matches
     except Exception as e:
         print(f"  Errore fetch {comp_id}: {e}")
+        _FETCH_ERRORS.append(f"{comp_id}: {e}")
         return []
 
 
@@ -123,21 +133,31 @@ def update_live_csv(camp_name, comp_id, live_path=None):
         return
 
     # Se esiste il file, merge evitando duplicati
+    def _write(frame, path, nota):
+        # "Date" e' una stringa gg/mm/aaaa: un ordinamento alfabetico la tratterebbe
+        # come testo (01/02/2026 prima di 02/09/2025), mescolando le stagioni.
+        ordine = pd.to_datetime(frame["Date"], dayfirst=True, errors="coerce")
+        frame = frame.assign(_ord=ordine).sort_values("_ord", kind="stable").drop(columns="_ord")
+        frame.to_csv(path, index=False)
+        print(f"  {nota}: {os.path.basename(path)} ({len(frame)} partite, "
+              f"{pd.to_datetime(frame['Date'], dayfirst=True, errors='coerce').min():%d/%m/%Y} -> "
+              f"{pd.to_datetime(frame['Date'], dayfirst=True, errors='coerce').max():%d/%m/%Y})")
+
     if os.path.exists(live_path):
         try:
             df_old = pd.read_csv(live_path, on_bad_lines="skip", low_memory=False)
             # Unisci e rimuovi duplicati basandosi su Date+HomeTeam+AwayTeam
             df_merged = pd.concat([df_old, df_new], ignore_index=True)
+            prima_merge = len(df_merged)
             df_merged = df_merged.drop_duplicates(subset=["Date", "HomeTeam", "AwayTeam"], keep="last")
-            df_merged = df_merged.sort_values("Date")
-            df_merged.to_csv(live_path, index=False)
-            print(f"  Aggiornato: {live_path} ({len(df_new)} partite nuove, {len(df_merged)} totali)")
+            _write(df_merged, live_path, f"Aggiornato (+{len(df_merged) - len(df_old)} nuove, "
+                                        f"{prima_merge - len(df_merged)} duplicati sovrascritti)")
         except Exception as e:
             print(f"  Errore merge {camp_name}: {e}")
-            df_new.to_csv(live_path, index=False)
+            _FETCH_ERRORS.append(f"{comp_id}: errore merge su {live_path}: {e}")
+            _write(df_new, live_path, "Ricreato")
     else:
-        df_new.to_csv(live_path, index=False)
-        print(f"  Creato: {live_path} ({len(df_new)} partite)")
+        _write(df_new, live_path, "Creato")
 
 
 def main():
@@ -148,6 +168,11 @@ def main():
         update_live_csv(camp_key, info["id"], info.get("live_path"))
 
     print("\n=== COMPLETATO ===")
+    if _FETCH_ERRORS:
+        print("\n[ERRORE] aggiornamenti non completati:")
+        for errore in _FETCH_ERRORS:
+            print(f"  - {errore}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
