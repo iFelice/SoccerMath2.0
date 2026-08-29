@@ -42,6 +42,9 @@ jobs:
             exit 1
           fi
           echo "API key presente."
+          
+      - name: Archivia stagione precedente (rollover)
+        run: python season_rollover.py
       
       - name: Update live database
         env:
@@ -59,7 +62,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           git config --global user.name "M4 Bot"
           git config --global user.email "action@github.com"
-          git add -A -- 'SoccerMath/database/*_Live.csv' 'SoccerMath/database/xg_*.json'
+          git add -A -- 'SoccerMath/database/*.csv' 'SoccerMath/database/xg_*.json'
           if git diff --cached --quiet; then
             echo "Nessun cambiamento: niente da committare."
             exit 0
