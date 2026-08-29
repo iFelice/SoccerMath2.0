@@ -83,8 +83,10 @@ class TestLeagueDbFiles(unittest.TestCase):
     def test_premier_legge_premierleague_csv(self):
         from config import get_league_db_files
         files = [os.path.basename(f) for f in get_league_db_files("Premier League")]
-        self.assertIn("PremierLeague.csv", files,
-                      "PremierLeague.csv non viene risolto: prefisso 'Premier' != nome file")
+        # Dalla stagione 2026/27 PremierLeague.csv e' stato rinominato in Premier_2024.csv:
+        # il resolver deve trovare gli archivi stagionali <Prefix>_<anno>.csv + il Live.
+        self.assertTrue(any(f.startswith("Premier_20") and f.endswith(".csv") for f in files),
+                      "nessun archivo stagionale Premier_20xx risolto dal prefisso 'Premier'")
         self.assertIn("Premier_Live.csv", files)
 
     def test_tutti_i_file_esistono(self):
