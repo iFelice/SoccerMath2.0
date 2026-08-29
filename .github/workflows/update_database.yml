@@ -1,43 +1,40 @@
-name: Aggiorna Database
+name: Update Database
 
 on:
   schedule:
-    # Ogni martedi e venerdi alle 07:00 ora italiana (06:00 UTC)
-    - cron: '0 6 * * 2'
-    - cron: '0 6 * * 5'
-  # Permette anche esecuzione manuale dalla tab Actions su GitHub
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
-  update-database:
+  update:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: SoccerMath
+    
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Python
+      
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Installa dipendenze
-        run: pip install requests pandas lxml html5lib beautifulsoup4
-
-      - name: Esegui update_db.py
-        run: python update_db.py
-
-      - name: Esegui update_xg.py
-        continue-on-error: true
-        run: python update_xg.py
-
-      - name: Commit e push aggiornamenti
+      
+      - name: Install dependencies
         run: |
-          git config --global user.name "M4 Bot"
-          git config --global user.email "bot@m4analist.com"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Update live database
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: python update_db.py
+      
+      - name: Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add database/*_Live.csv
-          git add database/xg_*.json 2>/dev/null || true
-          git diff --staged --quiet || git commit -m "Auto-update database $(date +'%d/%m/%Y')"
+          git diff --cached --quiet || git commit -m "Auto-update live data [$(date +%Y-%m-%d)]"
           git push
