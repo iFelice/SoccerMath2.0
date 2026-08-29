@@ -662,6 +662,9 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
                     st.info("🟡 Margine positivo")
                 else:
                     st.error("❌ Nessun valore")
+                    except Exception as e:
+            st.error(f"Errore AI: {e}")
+            if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "")
 
 # Banner
 st.markdown("""<div class="safari-safe-banner"></div>""", unsafe_allow_html=True)
