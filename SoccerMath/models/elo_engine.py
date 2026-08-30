@@ -126,8 +126,10 @@ class EloEngine:
             xg_adj = 0.0
             if xg_data and h_team in xg_data and a_team in xg_data:
                 h_xg = xg_data[h_team].get("xG_avg", 1.3)
-                a_xg = xg_data[a_team].get("xGA_avg", 1.3)
-                xg_adj = (h_xg - a_xg) * 0.15
+                h_xga = xg_data[h_team].get("xGA_avg", 1.3)
+                a_xg = xg_data[a_team].get("xG_avg", 1.3)
+                a_xga = xg_data[a_team].get("xGA_avg", 1.3)
+                xg_adj = ((h_xg - h_xga) - (a_xg - a_xga)) * 0.15
 
             xg_elo_boost = max(-100, min(100, xg_adj * 400))
             dr = r_h + self.home_adv - r_a + xg_elo_boost
