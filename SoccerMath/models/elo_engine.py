@@ -72,14 +72,14 @@ class EloEngine:
                 continue
         if not dfs:
             return pd.DataFrame()
-        df = pd.concat(dfs, ignore_index=True)
+        df = pd.concat(dfs, ignore_index=True).copy()
         df = df.dropna(subset=["HomeTeam", "AwayTeam", "FTR"])
         df["HomeClean"] = df["HomeTeam"].apply(clean_name)
         df["AwayClean"] = df["AwayTeam"].apply(clean_name)
         df["Date_Parsed"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
         df = df.dropna(subset=["Date_Parsed"])
         df = df.drop_duplicates(subset=["Date_Parsed", "HomeClean", "AwayClean"], keep="last")
-        df = df.sort_values("Date_Parsed").reset_index(drop=True)
+        df = df.sort_values("Date_Parsed").reset_index(drop=True).copy()
         self.matches_df = df
         return df
 
