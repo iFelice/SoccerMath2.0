@@ -84,15 +84,36 @@ def calcola_stagione_calcolo(data_str):
         return "Sconosciuta"
 
 # --- CSS CUSTOM (solo elementi propri, NON sovrascrive il tema Streamlit) ---
-# Nota: i colori usano le variabili CSS del tema Streamlit con fallback annidato,
-# così l'interfaccia si adatta automaticamente a tema chiaro/scuro su più versioni
-# (Streamlit >= 1.50 usa i prefissi --st-*, le versioni precedenti solo i nomi brevi).
+# IMPORTANTE: le versioni recenti di Streamlit NON espongono a livello globale
+# le variabili CSS del tema (--st-* o i vecchi --background-color/--text-color).
+# Affidarsi a quelle variabili faceva cadere le card sul fallback bianco #ffffff
+# in DARK mode (caselle bianche con testo bianco). Usiamo quindi variabili
+# PROPRIE (--sm-*) e una media query sul tema di sistema: Streamlit segue già
+# il sistema grazie a [theme.dark] nel config.toml, quindi i due restano allineati.
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
     html, body, [data-testid="stApp"] { font-family: 'Inter', sans-serif; }
     [data-testid="stSidebarContent"] { padding-left: 20px !important; padding-right: 10px !important; }
-    
+
+    /* Variabili tema custom: valori chiari di default, scuri in dark mode */
+    :root {
+        --sm-card-bg: #ffffff;
+        --sm-card-text: #1a1d23;
+        --sm-card-border: rgba(128,128,128,0.2);
+        --sm-accent: #0056b3;
+        --sm-muted-bg: #f8f9fa;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --sm-card-bg: #262730;
+            --sm-card-text: #fafafa;
+            --sm-card-border: rgba(255,255,255,0.12);
+            --sm-accent: #66a3ff;
+            --sm-muted-bg: #1c1e26;
+        }
+    }
+
     /* Banner: aspect-ratio evita margini negativi pericolosi */
     .safari-safe-banner { 
         width: 100%; 
@@ -106,18 +127,19 @@ st.markdown("""
     }
 
     .match-card { 
-        background-color: var(--st-secondary-background-color, var(--secondary-background-color, #ffffff)); 
+        background-color: var(--sm-card-bg); 
+        color: var(--sm-card-text);
         border-radius: 12px; 
         padding: 3px; 
         margin-bottom: 8px; 
-        border: 1px solid rgba(128,128,128,0.2); 
+        border: 1px solid var(--sm-card-border); 
         box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
     }
-    .team-name { font-size: 19px; font-weight: 800; color: var(--st-text-color, var(--text-color, inherit)); text-transform: uppercase; }
-    .label-header { color: var(--st-primary-color, var(--primary-color, #0056b3)); font-size: 15px !important; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 5px; border-bottom: 2px solid rgba(128,128,128,0.2); padding-bottom: 3px; }
-    .match-date { font-size: 13px; font-weight: 800; color: var(--st-primary-color, var(--primary-color, #3b82f6)) !important; display: block; margin-top: 5px; }
-    .stat-container { background-color: var(--st-secondary-background-color, var(--secondary-background-color, #f8f9fa)); border: 1px solid rgba(128,128,128,0.2); border-radius: 8px; padding: 10px; text-align: center; height: 100%; }
-    .top-mix-row { background-color: var(--st-secondary-background-color, var(--secondary-background-color, #ffffff)); border: 1px solid rgba(128,128,128,0.2); border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .team-name { font-size: 19px; font-weight: 800; color: var(--sm-card-text); text-transform: uppercase; }
+    .label-header { color: var(--sm-accent); font-size: 15px !important; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 5px; border-bottom: 2px solid var(--sm-card-border); padding-bottom: 3px; }
+    .match-date { font-size: 13px; font-weight: 800; color: var(--sm-accent) !important; display: block; margin-top: 5px; }
+    .stat-container { background-color: var(--sm-muted-bg); color: var(--sm-card-text); border: 1px solid var(--sm-card-border); border-radius: 8px; padding: 10px; text-align: center; height: 100%; }
+    .top-mix-row { background-color: var(--sm-card-bg); color: var(--sm-card-text); border: 1px solid var(--sm-card-border); border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
     .match-result { font-size: 18px; font-weight: 800; color: #28a745; margin-top: 5px; display: block; }
 </style>
 """, unsafe_allow_html=True)
@@ -790,7 +812,7 @@ RISPONDI IN ITALIANO. Sii diretto e concreto, niente frasi generiche."""
             
             testo = res.choices[0].message.content.replace("**", "").replace("*", "")
             # Mostra SEMPRE il testo di Billy
-            st.markdown(f"<div style='color: var(--st-text-color, var(--text-color, #1a1a1a)); font-size:15px; line-height:1.6;'>{testo}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color: var(--sm-card-text, #1a1a1a); font-size:15px; line-height:1.6;'>{testo}</div>", unsafe_allow_html=True)
             
             # Cerca di salvare nel registro in modo flessibile
             pronostico_trovato = ""
@@ -855,14 +877,14 @@ with st.sidebar:
     camp_cached = st.session_state.get("live_camp", None)
     has_data = bool("live_data" in st.session_state and st.session_state.get("live_data") and camp_cached == camp_sel)
 
-    do_sync = st.button("🔄 SINCRONIZZA", disabled=has_data, use_container_width=True)
-    do_refresh = st.button("↺ Refresh", use_container_width=True)
+    do_sync = st.button("🔄 SINCRONIZZA", disabled=has_data, width="stretch")
+    do_refresh = st.button("↺ Refresh", width="stretch")
 
     # --- CHAT BILLY ---
     st.divider()
     st.subheader("💬 Chiedi a Billy")
     chat_msg = st.text_input("Scrivi qui...", placeholder="Es: Chi vince Milan-Inter?", key="billy_chat_input", label_visibility="collapsed")
-    if st.button("Invia", use_container_width=True, key="billy_chat_send") and chat_msg and groq_client:
+    if st.button("Invia", width="stretch", key="billy_chat_send") and chat_msg and groq_client:
         with st.spinner("Billy pensa..."):
             try:
                 chat_res = groq_client.chat.completions.create(
@@ -893,31 +915,63 @@ with st.sidebar:
     follow_system = st.toggle("🌓 Segui tema sistema", value=True, key="follow_system_toggle",
                               help="Attivo = si adatta al tema del dispositivo. Disattivo = forza modalità chiara.")
     if not follow_system:
-        # Modalità chiara forzata. NB: sovrascrive SIA le variabili --st-* (Streamlit >= 1.50)
-        # SIA quelle legacy, perché il CSS custom dell'app usa prima i prefissi --st-*:
-        # senza questo override, le card resterebbero scure anche a tema scuro attivo.
+        # Modalità chiara forzata. Streamlit resta internamente in dark (se il sistema
+        # è dark), quindi NON basta toccare le variabili: il testo nativo (markdown,
+        # metriche, widget) ha colori iniettati via Emotion. Qui forziamo in modo
+        # esplicito sfondi CHIARI e testi SCURI con !important, sia per gli elementi
+        # custom sia per i componenti Streamlit, per evitare testo bianco su bianco.
         st.markdown("""
         <style>
             :root {
                 color-scheme: light;
-                --background-color: #ffffff !important;
-                --secondary-background-color: #f0f2f6 !important;
-                --text-color: #31333F !important;
-                --primary-color: #0056b3 !important;
-                --st-background-color: #ffffff !important;
-                --st-secondary-background-color: #f0f2f6 !important;
-                --st-text-color: #31333F !important;
-                --st-primary-color: #0056b3 !important;
+                --sm-card-bg: #ffffff !important;
+                --sm-card-text: #1a1d23 !important;
+                --sm-card-border: rgba(128,128,128,0.2) !important;
+                --sm-accent: #0056b3 !important;
+                --sm-muted-bg: #f8f9fa !important;
             }
-            .stApp { background-color: #ffffff !important; color: #31333F !important; }
-            [data-testid="stHeader"] { background-color: #ffffff !important; }
-            .stSidebar, [data-testid="stSidebar"] { background-color: #f0f2f6 !important; }
-            .stButton button { background-color: #ffffff !important; color: #31333F !important; border: 1px solid #d1d5db !important; }
-            .stTextInput input { background-color: #ffffff !important; color: #31333F !important; }
-            .stSelectbox div[data-baseweb="select"], .stSelectbox div[data-baseweb="select"] > div { background-color: #ffffff !important; color: #31333F !important; }
-            .match-card { background-color: #ffffff !important; border: 1px solid #e0e4e9 !important; }
-            .stat-container { background-color: #f8f9fa !important; border: 1px solid #e0e4e9 !important; }
-            .top-mix-row { background-color: #ffffff !important; border: 1px solid #e0e4e9 !important; }
+            /* Sfondo pagina, header e toolbar */
+            body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stToolbar"] {
+                background-color: #ffffff !important;
+                color: #1a1d23 !important;
+            }
+            [data-testid="stDecoration"] { background-color: #ffffff !important; }
+            /* Sidebar */
+            .stSidebar, [data-testid="stSidebar"], [data-testid="stSidebarContent"] {
+                background-color: #f0f2f6 !important;
+                color: #1a1d23 !important;
+            }
+            /* Testo generico: markdown (card incluse), titoli, caption, label */
+            [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p,
+            [data-testid="stMarkdownContainer"] li { color: #1a1d23 !important; }
+            h1, h2, h3, h4, h5, h6 { color: #1a1d23 !important; }
+            [data-testid="stCaptionContainer"] { color: #555555 !important; }
+            label { color: #1a1d23 !important; }
+            /* Widget di input */
+            .stButton button { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #d1d5db !important; }
+            .stTextInput input, .stTextArea textarea { background-color: #ffffff !important; color: #1a1d23 !important; }
+            .stSelectbox div[data-baseweb="select"], .stSelectbox div[data-baseweb="select"] > div,
+            .stMultiSelect div[data-baseweb="select"] { background-color: #ffffff !important; color: #1a1d23 !important; }
+            .stSelectbox [data-baseweb="popover"] *, .stMultiSelect [data-baseweb="popover"] * { color: #1a1d23 !important; background-color: #ffffff !important; }
+            /* Tab */
+            .stTabs [data-baseweb="tab-list"] { background-color: #ffffff !important; }
+            .stTabs [data-baseweb="tab"] { color: #1a1d23 !important; }
+            .stTabs [aria-selected="true"] { color: #0056b3 !important; }
+            /* Metriche (registro e backtest): valore ed etichetta ben visibili */
+            [data-testid="stMetricValue"] { color: #1a1d23 !important; }
+            [data-testid="stMetricLabel"] { color: #555555 !important; }
+            [data-testid="stMetricDelta"] { color: #0056b3 !important; }
+            /* Expander e toggle */
+            [data-testid="stExpander"] { background-color: #f8f9fa !important; color: #1a1d23 !important; }
+            [data-testid="stToggle"] label { color: #1a1d23 !important; }
+            /* Card custom: forzate a chiaro (il testo inline colorato, es. verde,
+               resta intatto perché qui non usiamo selettori universali) */
+            .match-card { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
+            .stat-container { background-color: #f8f9fa !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
+            .top-mix-row { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
+            .team-name { color: #1a1d23 !important; }
+            .label-header { color: #0056b3 !important; border-bottom: 2px solid #e0e4e9 !important; }
+            .match-date { color: #0056b3 !important; }
         </style>
         """, unsafe_allow_html=True)
 
@@ -1032,7 +1086,7 @@ with tab3:
     st.subheader(f"⚡ Elo - {camp_sel}")
     elo_df = get_elo_leaderboard(camp_sel)
     if not elo_df.empty:
-        st.dataframe(elo_df, use_container_width=True, height=400)
+        st.dataframe(elo_df, width="stretch", height=400)
         st.divider(); teams = sorted(elo_df["Squadra"].tolist())
         c1, c2 = st.columns(2)
         with c1: sh = st.selectbox("Casa", teams, key="sh")
@@ -1082,7 +1136,7 @@ with tab4:
                     comp_data.append({"Mercato": mkt, "Poisson": f"{uo_wr:.1f}%", "Elo": "N/D"})
                 else:
                     comp_data.append({"Mercato": mkt, "Poisson": f"{gg_wr:.1f}%", "Elo": "N/D"})
-            st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(comp_data), width="stretch", hide_index=True)
             st.caption(f"Baseline (punto di riferimento): 1X2 ~45%, Under/Over e GG/NG ~50%. "
                        f"Con {n} partite il campione è ancora rumoroso: sotto ~150 considera i valori come indicativi.")
 
@@ -1093,7 +1147,7 @@ with tab4:
             with st.expander("Vedi ultimi 20 risultati"):
                 df_show = df_back[['date', 'home', 'away', 'real_1x2', 'poisson_1x2', 'elo_1x2', 'real_uo', 'poisson_uo', 'real_gg', 'poisson_gg']].tail(20).copy()
                 df_show['date'] = pd.to_datetime(df_show['date']).dt.strftime('%d/%m/%Y')
-                st.dataframe(df_show, use_container_width=True, hide_index=True)
+                st.dataframe(df_show, width="stretch", hide_index=True)
 
 
 # --- TAB 5 REGISTRO ---
@@ -1128,14 +1182,22 @@ with tab5:
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
         
-        tot, vinte, perse = len(df_preds), len(df_preds[df_preds["esito"] == "✅"]), len(df_preds[df_preds["esito"] == "❌"])
+        tot = len(df_preds)
+        vinte = len(df_preds[df_preds["esito"] == "✅"])
+        perse = len(df_preds[df_preds["esito"] == "❌"])
+        attese = len(df_preds[df_preds["esito"].isin(["⏳", None])])
+        # La % di vittorie è veritiera solo sulle partite GIÀ DECISE (esclude le
+        # partite in attesa ⏳): includerle gonfierebbe/abbasserebbe la percentuale
+        # in modo fuorviante.
+        decise = vinte + perse
+        win_rate = (vinte / decise * 100) if decise > 0 else 0.0
         s1, s2, s3, s4 = st.columns(4)
         s1.metric("Totale", tot)
-        s2.metric("✅ Vinte", vinte, delta=f"{(vinte/tot*100) if tot > 0 else 0:.1f}%")
+        s2.metric("✅ Vinte", vinte, delta=f"{win_rate:.1f}%", help="Percentuale calcolata solo sulle partite decise (esclude quelle in attesa).")
         s3.metric("❌ Perse", perse)
-        s4.metric("⏳ Attesa", len(df_preds[df_preds["esito"] == "⏳"]))
+        s4.metric("⏳ Attesa", attese)
         
         # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
         df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
         
-        st.dataframe(df_display[["data", "stagione", "campionato", "home", "away", "mercato_standard", "prob_sicuro", "risultato_reale", "esito"]].sort_values(by="data", ascending=False), use_container_width=True, height=500)
+        st.dataframe(df_display[["data", "stagione", "campionato", "home", "away", "mercato_standard", "prob_sicuro", "risultato_reale", "esito"]].sort_values(by="data", ascending=False), width="stretch", height=500)
