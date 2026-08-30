@@ -165,7 +165,9 @@ def analyze_league(prefix, camp_key):
         rows_t1 = []
         for name, cols in [("Poisson", ("poisson_1", "poisson_X", "poisson_2")),
                             ("Elo", ("elo_1", "elo_X", "elo_2")),
-                            ("SoccerMath (0.6P+0.4Elo)", ("sm_1", "sm_X", "sm_2"))]:
+                            ("SoccerMath (0.6P+0.4Elo)", ("sm_1", "sm_X", "sm_2")),
+                            ("Elo (xG fix)", ("elo_fix_1", "elo_fix_X", "elo_fix_2")),
+                            ("SoccerMath (xG fix)", ("smfix_1", "smfix_X", "smfix_2"))]:
             brier, logloss = model_metrics_1x2(sub, cols)
             roi_res = simulate_roi_1x2(sub, cols, ("fair_b365_1", "fair_b365_X", "fair_b365_2"),
                                         ("B365H", "B365D", "B365A"))

@@ -21,6 +21,7 @@ Split temporale (identico a Serie A):
 """
 import os
 import sys
+import json
 import math
 import numpy as np
 import pandas as pd
@@ -47,6 +48,15 @@ LEAGUES = [
     ("Bundesliga", "Bundesliga"),
     ("Ligue1", "Ligue 1"),
 ]
+
+# file xG per lega (stessa fonte di models/elo_engine.py via scraper_xg.get_understat_xg)
+XG_FILES = {
+    "Serie A": "xg_serie_a.json",
+    "Premier League": "xg_premier_league.json",
+    "La Liga": "xg_la_liga.json",
+    "Bundesliga": "xg_bundesliga.json",
+    "Ligue 1": "xg_ligue_1.json",
+}
 
 
 def load_league(prefix):
@@ -114,6 +124,15 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
     train_cutoff = df[df["season"].isin(min_train_seasons)]["Date"].max()
     rows = []
     elo_ratings = {}
+    elo_ratings_fix = {}   # Elo parallelo con formula xG corretta (xg_adj_fix)
+
+    # Carica xG per la lega (stessa fonte JSON di models/elo_engine.py). Nessun
+    # accesso al motore: solo lettura del dato grezzo, formattato {nome: {xG_avg, xGA_avg}}.
+    xg_data = {}
+    xg_file = os.path.join(DB, XG_FILES.get(camp_key, ""))
+    if os.path.exists(xg_file):
+        with open(xg_file, "r", encoding="utf-8") as f:
+            xg_data = json.load(f) or {}
 
     # Elo va costruito incrementalmente in ordine cronologico su TUTTO lo storico
     # (identico a run_historical_backtest: ricalcolato di riga in riga, mai sul futuro)
@@ -122,6 +141,26 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
         ftr = str(row.FTR).strip().upper()
         r_h = elo_ratings.get(h, 1500.0)
         r_a = elo_ratings.get(a, 1500.0)
+        rf_h = elo_ratings_fix.get(h, 1500.0)
+        rf_a = elo_ratings_fix.get(a, 1500.0)
+
+        # --- xG: formula corretta da testare in parallelo (solo dentro lo script) ---
+        # h_xg   = attacco casa (xG_avg)
+        # h_xga  = difesa casa (xGA_avg)
+        # a_xg   = attacco ospite
+        # a_xga  = difesa ospite
+        # xg_adj_fix = ((att_h - dif_h) - (att_a - dif_a)) * 0.15
+        # (la produzione usa xg_adj = (h_xg - a_xga) * 0.15, strutturalmente asimmetrica)
+        xg_h = xg_data.get(h, {})
+        xg_a = xg_data.get(a, {})
+        h_xg = xg_h.get("xG_avg", 1.3)
+        h_xga = xg_h.get("xGA_avg", 1.3)
+        a_xg = xg_a.get("xG_avg", 1.3)
+        a_xga = xg_a.get("xGA_avg", 1.3)
+        xg_adj_fix = ((h_xg - h_xga) - (a_xg - a_xga)) * 0.15
+        xg_boost_fix = max(-100.0, min(100.0, xg_adj_fix * 400.0))  # stesso boost dell'engine
+        dr_fix = rf_h + home_adv - rf_a + xg_boost_fix
+        e_h_fix = 1.0 / (1.0 + 10.0 ** (-dr_fix / 400.0))
 
         if row.Date > train_cutoff:
             train = df.iloc[:idx]
@@ -150,6 +189,11 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
 
             sm_p = {k: 0.6 * m_p[k] + 0.4 * elo_p[k] for k in ("1", "X", "2")}  # ensemble app attuale
 
+            # Elo parallelo con formula xG corretta (stesso K-factor 24, stesso home advantage)
+            p_draw_fix = max(0.06, min(0.34, 0.27 * math.exp(-((dr_fix / 320.0) ** 2))))
+            elo_fix_p = {"1": (1 - p_draw_fix) * e_h_fix, "X": p_draw_fix, "2": (1 - p_draw_fix) * (1 - e_h_fix)}
+            sm_fix_p = {k: 0.6 * m_p[k] + 0.4 * elo_fix_p[k] for k in ("1", "X", "2")}  # ensemble con Elo xG-fix
+
             fair_b365 = devig_1x2(row.B365H, row.B365D, row.B365A)
             fair_avg = devig_1x2(row.AvgH, row.AvgD, row.AvgA)
             fair_uo_b365 = devig_2way(row["B365>2.5"], row["B365<2.5"])
@@ -167,6 +211,8 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
                 "poisson_o25": 1 - m_p["u25"], "poisson_gg": m_p["gg"],
                 "elo_1": elo_p["1"], "elo_X": elo_p["X"], "elo_2": elo_p["2"],
                 "sm_1": sm_p["1"], "sm_X": sm_p["X"], "sm_2": sm_p["2"],
+                "elo_fix_1": elo_fix_p["1"], "elo_fix_X": elo_fix_p["X"], "elo_fix_2": elo_fix_p["2"],
+                "smfix_1": sm_fix_p["1"], "smfix_X": sm_fix_p["X"], "smfix_2": sm_fix_p["2"],
                 "B365H": row.B365H, "B365D": row.B365D, "B365A": row.B365A,
                 "AvgH": row.AvgH, "AvgD": row.AvgD, "AvgA": row.AvgA,
                 "B365_o25": row["B365>2.5"], "B365_u25": row["B365<2.5"],
@@ -189,5 +235,9 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
         k = 24.0
         elo_ratings[h] = r_h + k * (s_h - e_h)
         elo_ratings[a] = r_a + k * ((1 - s_h) - (1 - e_h))
+
+        # Elo parallelo (xG fix): stesso K-factor, stesso home advantage
+        elo_ratings_fix[h] = rf_h + k * (s_h - e_h_fix)
+        elo_ratings_fix[a] = rf_a + k * ((1 - s_h) - (1 - e_h_fix))
 
     return pd.DataFrame(rows)
