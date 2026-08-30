@@ -33,7 +33,9 @@ def onehot_1x2(real_series):
 
 
 def model_metrics_1x2(df, prob_cols, real_col="real_1x2"):
-    """prob_cols = (col_1, col_X, col_2). Ritorna Brier, LogLoss."""
+    """prob_cols = (col_1, col_X, col_2). Ritorna Brier, LogLoss.
+    Salta le righe con probabilità mancanti (es. fit Dixon-Coles fallito)."""
+    df = df.dropna(subset=list(prob_cols))
     y_true = onehot_1x2(df[real_col])
     y_prob = df[list(prob_cols)].to_numpy(dtype=float)
     brier = calculate_brier_score(y_true, y_prob)
@@ -61,6 +63,8 @@ def simulate_roi_1x2(df, prob_cols, fair_cols, odd_cols, stake=STAKE, edge_min=E
         fair = {"1": row[f1], "X": row[fX], "2": row[f2]}
         odds = {"1": row[o1], "X": row[oX], "2": row[o2]}
         if any(pd.isna(v) for v in fair.values()):
+            continue
+        if any(pd.isna(v) for v in probs.values()):
             continue
         edge_by_out = {k: probs[k] - fair[k] for k in outcomes}
         best = max(edge_by_out, key=edge_by_out.get)
@@ -167,7 +171,8 @@ def analyze_league(prefix, camp_key):
                             ("Elo", ("elo_1", "elo_X", "elo_2")),
                             ("SoccerMath (0.6P+0.4Elo)", ("sm_1", "sm_X", "sm_2")),
                             ("Elo (xG fix)", ("elo_fix_1", "elo_fix_X", "elo_fix_2")),
-                            ("SoccerMath (xG fix)", ("smfix_1", "smfix_X", "smfix_2"))]:
+                            ("SoccerMath (xG fix)", ("smfix_1", "smfix_X", "smfix_2")),
+                            ("Dixon-Coles", ("dc_1", "dc_X", "dc_2"))]:
             brier, logloss = model_metrics_1x2(sub, cols)
             roi_res = simulate_roi_1x2(sub, cols, ("fair_b365_1", "fair_b365_X", "fair_b365_2"),
                                         ("B365H", "B365D", "B365A"))
