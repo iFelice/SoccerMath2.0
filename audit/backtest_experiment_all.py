@@ -31,7 +31,7 @@ from scipy.optimize import minimize
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_AUDIT_DIR)          # .../SoccerMath2.0
 sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
-from config import clean_name, LEAGUE_HOME_ADVANTAGE  # motore invariato, solo lettura
+from config import clean_name, LEAGUE_HOME_ADVANTAGE, MARKET_VALUES  # motore invariato, solo lettura
 from models.dixon_coles import DixonColesEngine, DEFAULT_XI  # sola lettura, non modificato
 
 DB = os.path.join(_REPO_ROOT, "SoccerMath", "database")
@@ -235,6 +235,20 @@ def dc_probabilities(params, camp_key, h, a):
         return None
 
 
+def market_factor(team):
+    """
+    Fattore valore di mercato, replicando ESATTAMENTE app.py::get_league_engine
+    (in sola lettura, non modificata). MARKET_VALUES letto da config, sola lettura.
+        val = MARKET_VALUES.get(team, 50)
+        mkt_factor = 1 + (log10(max(val, 10)) - 2.0) / 4
+        mkt_factor = max(0.85, min(1.25, mkt_factor))
+    """
+    val = MARKET_VALUES.get(team, 50)
+    mkt_factor = 1.0 + (math.log10(max(val, 10)) - 2.0) / 4.0
+    mkt_factor = max(0.85, min(1.25, mkt_factor))
+    return mkt_factor
+
+
 def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/24")):
     home_adv = LEAGUE_HOME_ADVANTAGE.get(camp_key, 65.0)
     train_cutoff = df[df["season"].isin(min_train_seasons)]["Date"].max()
@@ -314,6 +328,16 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
             elo_fix_p = {"1": (1 - p_draw_fix) * e_h_fix, "X": p_draw_fix, "2": (1 - p_draw_fix) * (1 - e_h_fix)}
             sm_fix_p = {k: 0.6 * m_p[k] + 0.4 * elo_fix_p[k] for k in ("1", "X", "2")}  # ensemble con Elo xG-fix
 
+            # --- Poisson con fattore valore di mercato (parallelo, formula esatta di app.py) ---
+            # att_con_mercato = att * mkt_factor ; def_con_mercato = defe / mkt_factor
+            mkt_h = market_factor(h)
+            mkt_a = market_factor(a)
+            h_exp_mkt = (hs["att"] * mkt_h) * (as_["def"] / mkt_a) * avg_h
+            a_exp_mkt = (as_["att"] * mkt_a) * (hs["def"] / mkt_h) * avg_a
+            poisson_mkt_p = get_full_poisson(h_exp_mkt, a_exp_mkt)
+            # ensemble 0.6*poisson_mkt + 0.4*elo_fix (riusa l'Elo xG-fix gia' validato)
+            sm_mkt_p = {k: 0.6 * poisson_mkt_p[k] + 0.4 * elo_fix_p[k] for k in ("1", "X", "2")}
+
             # --- Dixon-Coles: refit ogni DC_REFIT_EVERY partite, storico strettamente precedente ---
             dc_1 = dc_X = dc_2 = np.nan
             if dc_pred_count % DC_REFIT_EVERY == 0:
@@ -349,6 +373,8 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
                 "elo_fix_1": elo_fix_p["1"], "elo_fix_X": elo_fix_p["X"], "elo_fix_2": elo_fix_p["2"],
                 "smfix_1": sm_fix_p["1"], "smfix_X": sm_fix_p["X"], "smfix_2": sm_fix_p["2"],
                 "dc_1": dc_1, "dc_X": dc_X, "dc_2": dc_2,
+                "poisson_mkt_1": poisson_mkt_p["1"], "poisson_mkt_X": poisson_mkt_p["X"], "poisson_mkt_2": poisson_mkt_p["2"],
+                "sm_mkt_1": sm_mkt_p["1"], "sm_mkt_X": sm_mkt_p["X"], "sm_mkt_2": sm_mkt_p["2"],
                 "B365H": row.B365H, "B365D": row.B365D, "B365A": row.B365A,
                 "AvgH": row.AvgH, "AvgD": row.AvgD, "AvgA": row.AvgA,
                 "B365_o25": row["B365>2.5"], "B365_u25": row["B365<2.5"],

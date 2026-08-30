@@ -172,7 +172,9 @@ def analyze_league(prefix, camp_key):
                             ("SoccerMath (0.6P+0.4Elo)", ("sm_1", "sm_X", "sm_2")),
                             ("Elo (xG fix)", ("elo_fix_1", "elo_fix_X", "elo_fix_2")),
                             ("SoccerMath (xG fix)", ("smfix_1", "smfix_X", "smfix_2")),
-                            ("Dixon-Coles", ("dc_1", "dc_X", "dc_2"))]:
+                            ("Dixon-Coles", ("dc_1", "dc_X", "dc_2")),
+                            ("Poisson (+valore mercato)", ("poisson_mkt_1", "poisson_mkt_X", "poisson_mkt_2")),
+                            ("SoccerMath (xG fix + valore mercato)", ("sm_mkt_1", "sm_mkt_X", "sm_mkt_2"))]:
             brier, logloss = model_metrics_1x2(sub, cols)
             roi_res = simulate_roi_1x2(sub, cols, ("fair_b365_1", "fair_b365_X", "fair_b365_2"),
                                         ("B365H", "B365D", "B365A"))
