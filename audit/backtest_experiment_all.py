@@ -403,3 +403,16 @@ def run_walkforward(df, camp_key="Serie A", min_train_seasons=("2022/23", "2023/
         elo_ratings_fix[a] = rf_a + k * ((1 - s_h) - (1 - e_h_fix))
 
     return pd.DataFrame(rows)
+
+
+def run_market_value_old(df, camp_key="Serie A"):
+    """
+    Seconda run walk-forward con SOLO la stagione 2022/23 come training
+    (min_train_seasons=("2022/23",) invece di due stagioni): le previsioni
+    partono dalla 2023/24. Obiettivo: testare il fattore valore di mercato
+    (colonne poisson_mkt_* e sm_mkt_*) su una stagione piu' vecchia, dove i
+    valori di mercato attuali (statici, di oggi) sono piu' disallineati da
+    quelli reali dell'epoca. La run esistente con due stagioni di training
+    resta invariata.
+    """
+    return run_walkforward(df, camp_key=camp_key, min_train_seasons=("2022/23",))

@@ -1,0 +1,55 @@
+
+======================================================================
+SERIE A — 2023/24 (train 2022/23 soltanto)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) — stagione 2023/24 --
+                             Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                             Poisson  0.600    1.004    380      36.300          -11.830
+           Poisson (+valore mercato)  0.599    1.008    380      45.800           -9.410
+                 SoccerMath (xG fix)  0.598    1.002    380      29.200          -31.880
+SoccerMath (xG fix + valore mercato)  0.594    0.996    380      39.700          -18.920
+
+======================================================================
+PREMIER LEAGUE — 2023/24 (train 2022/23 soltanto)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) — stagione 2023/24 --
+                             Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                             Poisson  0.556    0.944    380      37.100          -15.180
+           Poisson (+valore mercato)  0.549    0.938    380      48.900           -3.850
+                 SoccerMath (xG fix)  0.555    0.941    380      29.700          -20.300
+SoccerMath (xG fix + valore mercato)  0.546    0.928    380      39.700           -8.580
+
+======================================================================
+LA LIGA — 2023/24 (train 2022/23 soltanto)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) — stagione 2023/24 --
+                             Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                             Poisson  0.575    0.965    380      39.500           -9.160
+           Poisson (+valore mercato)  0.573    0.962    380      43.200           -5.570
+                 SoccerMath (xG fix)  0.575    0.969    380      31.800          -23.090
+SoccerMath (xG fix + valore mercato)  0.571    0.961    380      39.500          -11.580
+
+======================================================================
+BUNDESLIGA — 2023/24 (train 2022/23 soltanto)  (N=306 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) — stagione 2023/24 --
+                             Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                             Poisson  0.599    1.002    306      34.600          -21.430
+           Poisson (+valore mercato)  0.596    1.003    306      45.100          -15.570
+                 SoccerMath (xG fix)  0.592    0.993    306      30.400          -13.670
+SoccerMath (xG fix + valore mercato)  0.585    0.983    306      35.300          -21.600
+
+======================================================================
+LIGUE 1 — 2023/24 (train 2022/23 soltanto)  (N=306 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) — stagione 2023/24 --
+                             Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                             Poisson  0.636    1.053    306      29.700          -15.740
+           Poisson (+valore mercato)  0.635    1.055    306      39.500          -12.200
+                 SoccerMath (xG fix)  0.631    1.047    306      24.200          -25.600
+SoccerMath (xG fix + valore mercato)  0.626    1.042    306      32.700          -21.990

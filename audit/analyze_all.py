@@ -21,7 +21,8 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 
 from models.backtest import calculate_brier_score, calculate_log_loss  # finalmente usate
 
-from backtest_experiment_all import load_league, run_walkforward, LEAGUES, STAKE, EDGE_MIN
+from backtest_experiment_all import (load_league, run_walkforward, run_market_value_old,
+                                     LEAGUES, STAKE, EDGE_MIN)
 
 pd.set_option("display.width", 140)
 pd.set_option("display.float_format", lambda x: f"{x:,.3f}")
@@ -220,9 +221,46 @@ def analyze_league(prefix, camp_key):
         print(calibration_table(test, "sm_1", target="1").to_string())
 
 
+def analyze_market_value_old(prefix, camp_key):
+    """
+    Seconda run con SOLO 2022/23 come training (min_train_seasons=("2022/23",)):
+    produce la Tabella 1 SOLO per la stagione 2023/24 (prima stagione predetta),
+    con le sole righe relative al fattore valore di mercato:
+      - Poisson
+      - Poisson (+valore mercato)
+      - SoccerMath (xG fix)
+      - SoccerMath (xG fix + valore mercato)
+    Stesso formato Brier/LogLoss/N.bet/Win rate/ROI vs B365 degli altri modelli.
+    """
+    df_all = load_league(prefix)
+    bt = run_market_value_old(df_all, camp_key=camp_key)
+
+    season = "2023/24"
+    sub = bt[bt["season"] == season]
+    print(f"\n{'='*70}\n{camp_key.upper()} — {season} (train 2022/23 soltanto)  (N={len(sub)} partite)\n{'='*70}")
+    if sub.empty:
+        print("Nessuna partita in questo periodo.")
+        return
+
+    rows_t1 = []
+    for name, cols in [("Poisson", ("poisson_1", "poisson_X", "poisson_2")),
+                        ("Poisson (+valore mercato)", ("poisson_mkt_1", "poisson_mkt_X", "poisson_mkt_2")),
+                        ("SoccerMath (xG fix)", ("smfix_1", "smfix_X", "smfix_2")),
+                        ("SoccerMath (xG fix + valore mercato)", ("sm_mkt_1", "sm_mkt_X", "sm_mkt_2"))]:
+        brier, logloss = model_metrics_1x2(sub, cols)
+        roi_res = simulate_roi_1x2(sub, cols, ("fair_b365_1", "fair_b365_X", "fair_b365_2"),
+                                    ("B365H", "B365D", "B365A"))
+        rows_t1.append({"Modello": name, "Brier": round(brier, 4), "LogLoss": round(logloss, 4),
+                         "N.bet": roi_res["n_bet"], "Win rate %": round(roi_res["win_rate"], 1),
+                         "ROI % (vs B365)": round(roi_res["roi"], 2)})
+    print("\n-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) — stagione 2023/24 --")
+    print(pd.DataFrame(rows_t1).to_string(index=False))
+
+
 def main():
     for prefix, camp_key in LEAGUES:
         analyze_league(prefix, camp_key)
+        analyze_market_value_old(prefix, camp_key)
 
 
 if __name__ == "__main__":
