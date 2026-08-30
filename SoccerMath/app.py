@@ -59,25 +59,25 @@ def calcola_stagione_calcolo(data_str):
         # isinstance: le righe del registro senza campo 'data' arrivano come NaN
         return "Sconosciuta"
     try:
-        # Estrai mese e anno da vari formati: "dd/mm/YYYY HH:MM", "dd/mm | HH:MM", "dd/mm/YYYY"
-        parts = data_str.split('/')
-        if len(parts) >= 3:
-            mese = int(parts[1])
-            anno_str = parts[2].split(' ')[0].split('|')[0].strip()
-            anno = int(anno_str)
-        elif len(parts) == 2:
-            mese_str = parts[1].split('|')[0].split(' ')[0].strip()
-            mese = int(mese_str)
-            anno = datetime.now(ITALY_TZ).year
+        if "-" in data_str and "/" not in data_str:
+            dt = datetime.fromisoformat(data_str.replace("Z", "+00:00"))
+            anno, mese = dt.year, dt.month
         else:
-            return "Sconosciuta"
+            parts = data_str.split('/')
+            if len(parts) >= 3:
+                mese = int(parts[1])
+                anno_str = parts[2].split(' ')[0].split('|')[0].strip()
+                anno = int(anno_str)
+            elif len(parts) == 2:
+                mese_str = parts[1].split('|')[0].split(' ')[0].strip()
+                mese = int(mese_str)
+                anno = datetime.now(ITALY_TZ).year
+            else:
+                return "Sconosciuta"
         
         if mese >= 8: 
             return f"{anno}/{anno+1}"
-        elif mese <= 5: 
-            return f"{anno-1}/{anno}"
         else: 
-            # Giugno-luglio: periodo di mercato/estate, assegna alla stagione appena conclusa
             return f"{anno-1}/{anno}"
     except Exception as e:
         logging.warning(f"Errore calcolo stagione per '{data_str}': {e}")
@@ -175,9 +175,18 @@ def standardizza_mercato(testo, home=None, away=None):
         return "ALTRO"
     t = testo.lower()
     
-    # Under/Over 2.5 (match esatto, con o senza spazio)
+    # Under/Over (con o senza spazio)
+    if re.search(r'\bunder\s*1\.5\b', t): return "UNDER_1.5"
+    if re.search(r'\bover\s*1\.5\b', t): return "OVER_1.5"
     if re.search(r'\bunder\s*2\.5\b', t): return "UNDER_2.5"
     if re.search(r'\bover\s*2\.5\b', t): return "OVER_2.5"
+    if re.search(r'\bunder\s*3\.5\b', t): return "UNDER_3.5"
+    if re.search(r'\bover\s*3\.5\b', t): return "OVER_3.5"
+    
+    # Doppia Chance
+    if re.search(r'\b1x\b|\b1/x\b|\bhome/draw\b', t): return "1X"
+    if re.search(r'\bx2\b|\bx/2\b|\bdraw/away\b', t): return "X2"
+    if re.search(r'\b12\b|\b1/2\b|\bhome/away\b', t): return "12"
     
     # Goal/No Goal (\b = word boundary, evita "sugg" → "gg")
     if re.search(r'\bgg\b|\bgoal/goal\b|\bboth teams to score\b|\bbtts\b', t): return "GG"
@@ -191,15 +200,13 @@ def standardizza_mercato(testo, home=None, away=None):
         h_clean = clean_name(home).lower()
         a_clean = clean_name(away).lower()
         
-        # Se il testo menziona il nome della squadra di casa + parola "vittoria/vince"
-        if h_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b', t):
+        if h_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b|\b1\b', t):
             return "1"
-        # Se il testo menziona il nome della squadra in trasferta + parola "vittoria/vince"
-        if a_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b', t):
+        if a_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b|\b2\b', t):
             return "2"
     
     # Fallback esplicito per pattern numerici
-    if re.search(r'\b1\b.*\b(casa|home)\b|\b(casa|home)\b.*\b1\b', t): return "1"
+    if re.search(r'\b1\b.*\b(casa|home|casalinga)\b|\b(casa|home|casalinga)\b.*\b1\b', t): return "1"
     if re.search(r'\b2\b.*\b(trasferta|away)\b|\b(trasferta|away)\b.*\b2\b', t): return "2"
     if re.search(r'^\s*1\b', t) and not re.search(r'\b2\b', t): return "1"
     if re.search(r'^\s*2\b', t) and not re.search(r'\b1\b', t): return "2"
@@ -255,22 +262,21 @@ def aggiorna_risultati_reali(api_key):
                 p["risultato_reale"] = f"{gh}-{ga}"
                 tot = gh + ga
                 m = p.get("mercato_standard", "").upper()
-                if m == "UNDER_2.5":
-                    p["esito"] = "✅" if tot < 3 else "❌"
-                elif m == "OVER_2.5":
-                    p["esito"] = "✅" if tot > 2 else "❌"
-                elif m == "GG":
-                    p["esito"] = "✅" if gh > 0 and ga > 0 else "❌"
-                elif m == "NG":
-                    p["esito"] = "✅" if gh == 0 or ga == 0 else "❌"
-                elif m == "X":
-                    p["esito"] = "✅" if gh == ga else "❌"
-                elif m == "1":
-                    p["esito"] = "✅" if gh > ga else "❌"
-                elif m == "2":
-                    p["esito"] = "✅" if ga > gh else "❌"
-                else:
-                    p["esito"] = "⏳"
+                if m == "UNDER_1.5": p["esito"] = "✅" if tot < 2 else "❌"
+                elif m == "OVER_1.5": p["esito"] = "✅" if tot > 1 else "❌"
+                elif m == "UNDER_2.5": p["esito"] = "✅" if tot < 3 else "❌"
+                elif m == "OVER_2.5": p["esito"] = "✅" if tot > 2 else "❌"
+                elif m == "UNDER_3.5": p["esito"] = "✅" if tot < 4 else "❌"
+                elif m == "OVER_3.5": p["esito"] = "✅" if tot > 3 else "❌"
+                elif m == "1X": p["esito"] = "✅" if gh >= ga else "❌"
+                elif m == "X2": p["esito"] = "✅" if ga >= gh else "❌"
+                elif m == "12": p["esito"] = "✅" if gh != ga else "❌"
+                elif m == "GG": p["esito"] = "✅" if gh > 0 and ga > 0 else "❌"
+                elif m == "NG": p["esito"] = "✅" if gh == 0 or ga == 0 else "❌"
+                elif m == "X": p["esito"] = "✅" if gh == ga else "❌"
+                elif m == "1": p["esito"] = "✅" if gh > ga else "❌"
+                elif m == "2": p["esito"] = "✅" if ga > gh else "❌"
+                else: p["esito"] = "⏳"
                 aggiornate += 1
             except:
                 pass
@@ -344,17 +350,14 @@ def get_league_engine(camp_key):
             logging.warning(f"Errore lettura CSV {f}: {e}")
     if not dfs:
         return None
-    df = pd.concat(dfs, ignore_index=True)
+    df = pd.concat(dfs, ignore_index=True).copy()
     if 'peso' not in df.columns:
         df['peso'] = 1.0
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['HomeTeam', 'AwayTeam', 'FTR']).sort_values('Date', kind='stable')
     df['HomeClean'] = df['HomeTeam'].apply(clean_name)
     df['AwayClean'] = df['AwayTeam'].apply(clean_name)
-    # Le partite gia' chiuse sono presenti sia nel file base sia in *_Live (es. 54
-    # righe su Ligue 1): senza deduplica gol medi e forma verrebbero doppi.
-    # keep='last' fa vincere il Live, che e' il file aggiornato da GitHub Actions.
-    df = df.drop_duplicates(subset=['Date', 'HomeClean', 'AwayClean'], keep='last').reset_index(drop=True)
+    df = df.drop_duplicates(subset=['Date', 'HomeClean', 'AwayClean'], keep='last').reset_index(drop=True).copy()
     
     avg_h = np.average(df['FTHG'].dropna(), weights=df.loc[df['FTHG'].notna(), 'peso'])
     avg_a = np.average(df['FTAG'].dropna(), weights=df.loc[df['FTAG'].notna(), 'peso'])
