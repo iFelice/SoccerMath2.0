@@ -1,0 +1,242 @@
+
+================================================================================
+SERIE A
+================================================================================
+
+-- VALIDATION 2024/25 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.2014  LogLoss=0.5927
+  SoccerMath (smfix_X):  Brier=0.2029  LogLoss=0.5957
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    43       25.600
+20-24%   63       22.200
+24-28%  110       24.500
+28-32%  123       31.700
+32-36%   36       38.900
+36-50%    5       60.000
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    76       22.400
+20-24%   81       23.500
+24-28%  181       29.800
+28-32%   42       42.900
+
+-- TEST 2025/26 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1914  LogLoss=0.5703
+  SoccerMath (smfix_X):  Brier=0.1915  LogLoss=0.5709
+
+-- TEST 2025/26 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    31       12.900
+20-24%   63       27.000
+24-28%  147       23.800
+28-32%  113       33.600
+32-36%   22       13.600
+36-50%    4       50.000
+
+-- TEST 2025/26 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    78       19.200
+20-24%   83       24.100
+24-28%  189       30.700
+28-32%   29       20.700
+32-36%    1        0.000
+
+================================================================================
+PREMIER LEAGUE
+================================================================================
+
+-- VALIDATION 2024/25 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1832  LogLoss=0.5508
+  SoccerMath (smfix_X):  Brier=0.1848  LogLoss=0.5562
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    87       21.800
+20-24%  143       21.700
+24-28%  126       31.000
+28-32%   21       14.300
+32-36%    2        0.000
+36-50%    1      100.000
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%   105       22.900
+20-24%  122       24.600
+24-28%  147       24.500
+28-32%    6       50.000
+
+-- TEST 2025/26 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1986  LogLoss=0.5861
+  SoccerMath (smfix_X):  Brier=0.2000  LogLoss=0.5905
+
+-- TEST 2025/26 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    41       22.000
+20-24%  102       27.500
+24-28%  175       26.300
+28-32%   52       36.500
+32-36%   10       20.000
+
+-- TEST 2025/26 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    78       24.400
+20-24%  116       25.900
+24-28%  167       29.300
+28-32%   19       31.600
+
+================================================================================
+LA LIGA
+================================================================================
+
+-- VALIDATION 2024/25 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1865  LogLoss=0.5563
+  SoccerMath (smfix_X):  Brier=0.1856  LogLoss=0.5539
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    65       10.800
+20-24%   86       25.600
+24-28%  110       30.000
+28-32%   88       30.700
+32-36%   28       25.000
+36-50%    3       33.300
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    72       12.500
+20-24%   77       29.900
+24-28%  158       24.100
+28-32%   72       36.100
+32-36%    1      100.000
+
+-- TEST 2025/26 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1800  LogLoss=0.5416
+  SoccerMath (smfix_X):  Brier=0.1791  LogLoss=0.5386
+
+-- TEST 2025/26 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    59        5.100
+20-24%   88       23.900
+24-28%  139       30.200
+28-32%   75       28.000
+32-36%   19       31.600
+
+-- TEST 2025/26 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    82        8.500
+20-24%   78       23.100
+24-28%  169       29.600
+28-32%   51       35.300
+
+================================================================================
+BUNDESLIGA
+================================================================================
+
+-- VALIDATION 2024/25 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1908  LogLoss=0.5729
+  SoccerMath (smfix_X):  Brier=0.1895  LogLoss=0.5690
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    56       26.800
+20-24%   73       26.000
+24-28%  108       21.300
+28-32%   43       32.600
+32-36%   21       23.800
+36-50%    5       20.000
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    89       21.300
+20-24%  109       30.300
+24-28%   98       23.500
+28-32%   10       20.000
+
+-- TEST 2025/26 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1840  LogLoss=0.5548
+  SoccerMath (smfix_X):  Brier=0.1830  LogLoss=0.5517
+
+-- TEST 2025/26 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    46       17.400
+20-24%   82       19.500
+24-28%  113       28.300
+28-32%   50       32.000
+32-36%   13       15.400
+36-50%    2       50.000
+
+-- TEST 2025/26 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    75       17.300
+20-24%   94       21.300
+24-28%  123       31.700
+28-32%   13       23.100
+32-36%    1        0.000
+
+================================================================================
+LIGUE 1
+================================================================================
+
+-- VALIDATION 2024/25 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1646  LogLoss=0.5118
+  SoccerMath (smfix_X):  Brier=0.1612  LogLoss=0.5034
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+           n  tasso_reale
+bucket                   
+0-20%     49       20.400
+20-24%    49       12.200
+24-28%   128       21.900
+28-32%    71       22.500
+32-36%     7       28.600
+36-50%     1        0.000
+50-101%    1        0.000
+
+-- VALIDATION 2024/25 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    71       12.700
+20-24%   83       21.700
+24-28%  143       23.100
+28-32%    8       25.000
+32-36%    1        0.000
+
+-- TEST 2025/26 — Brier/LogLoss binari su esito X (dc_X vs smfix_X) --
+  Dixon-Coles (dc_X):   Brier=0.1842  LogLoss=0.5545
+  SoccerMath (smfix_X):  Brier=0.1837  LogLoss=0.5529
+
+-- TEST 2025/26 — Calibrazione fine esito X: Dixon-Coles (dc_X) --
+          n  tasso_reale
+bucket                  
+0-20%    59       20.300
+20-24%  110       24.500
+24-28%  115       27.000
+28-32%   21       19.000
+32-36%    1      100.000
+
+-- TEST 2025/26 — Calibrazione fine esito X: SoccerMath (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    69       17.400
+20-24%   94       29.800
+24-28%  142       23.900
+28-32%    1      100.000
