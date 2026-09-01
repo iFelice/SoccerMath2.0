@@ -4,6 +4,27 @@ Campione: walk-forward no-leakage, VALIDATION 2024/25 + TEST 2025/26, 5 leghe.
 Modello Poisson (stesso calcolo di backtest_experiment_all.run_walkforward).
 
 
+## CORREZIONE — punto 3 (variabilità lambda vs gol) invalidato
+
+Il confronto std_gol_reali/std_lambda usato al punto 3 (rapporto 2.97-3.97) è un confronto statisticamente scorretto: per una mistura di Poisson, Var(gol totali) = media(lambda) + Var(lambda), non solo Var(lambda). Il grosso della varianza dei gol reali viene dal rumore di campionamento Poisson (media_lambda ~2.5-3.1 per partita), non dalle differenze tra squadre. Ricalcolo corretto (std previsto = sqrt(media_lambda + Var(lambda)) vs std gol osservato):
+
+| Lega | media_lambda | std_lambda | std previsto | std gol osservato | rapporto pred/obs |
+
+|---|---|---|---|---|---|
+
+| Serie A | 2.552 | 0.3995 | 1.647 | 1.5245 | 1.08 |
+
+| Premier League | 2.934 | 0.4151 | 1.762 | 1.5959 | 1.10 |
+
+| La Liga | 2.569 | 0.4980 | 1.678 | 1.5685 | 1.07 |
+
+| Bundesliga | 3.104 | 0.6038 | 1.862 | 1.7911 | 1.04 |
+
+| Ligue 1 | 2.835 | 0.4436 | 1.741 | 1.7614 | 0.99 |
+
+In tutte le 5 leghe il modello predice una varianza uguale o leggermente superiore a quella osservata, non inferiore. Nessuna evidenza di "compressione" delle stime di lambda da questa metrica. Di conseguenza: il test di audit/diagnose_lambda_compression.py (finestra rolling 38 partite) va riletto come tentativo di correggere un problema non dimostrato — coerente con il peggioramento di Brier/LogLoss osservato in 4/5 leghe. Punti 1, 2 e 4 della diagnosi originale (concentrazione probabilità, std vs mercato de-vig, reliability diagram) restano validi e non sono toccati da questa correzione.
+
+
 ## SERIE A
 
 **Istogramma Over 2.5 (poisson_o25)** (bin 0.05):
