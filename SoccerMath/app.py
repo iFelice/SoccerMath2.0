@@ -886,7 +886,7 @@ with st.sidebar:
     has_data = bool("live_data" in st.session_state and st.session_state.get("live_data") and camp_cached == camp_sel)
 
     do_sync = st.button("🔄 SINCRONIZZA", disabled=has_data, width="stretch")
-    do_refresh = st.button("↺ Refresh", width="stretch")
+    do_refresh = st.button("↺♾️ Refresh", width="stretch")
 
     # --- CHAT BILLY ---
     st.divider()
