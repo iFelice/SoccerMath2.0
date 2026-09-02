@@ -550,6 +550,11 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
 
 
 def get_full_poisson(h_e, a_e, max_goals=15):
+    # Clip dei lambda in ingresso al range validato in audit/ (log-spazio [-6, 3]).
+    # Evita lambda estremi mal calibrati (~0.17% delle partite) senza cambiare la
+    # logica di stima. Vedi audit/diagnose_mle_vs_baseline_clipped.py.
+    h_e = min(max(h_e, 0.002479), 20.0855)  # [exp(-6), exp(3)]
+    a_e = min(max(a_e, 0.002479), 20.0855)  # [exp(-6), exp(3)]
     h_p = [poisson.pmf(i, h_e) for i in range(max_goals)]
     a_p = [poisson.pmf(i, a_e) for i in range(max_goals)]
     matrix = np.outer(h_p, a_p)
