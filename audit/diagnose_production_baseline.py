@@ -30,6 +30,12 @@ Modelli confrontati:
      Poi clip lambda [exp(-6), exp(3)] in ingresso a get_full_poisson(). Rimuove il
      gonfiaggio sistematico della somma attesa negli scontri di fascia (1/M su attacco
      e M su difesa), senza alterare la frazione 1X2 del modello.
+  5. PROD_DC / PROD_NORM_DC (Alternativa 2: Dixon-Coles): gli stessi lambda di
+     PRODUZIONE ATTUALE / PRODUZIONE_NORM_SUM passano in build_matrix() che applica la
+     correzione bivariata tau(x,y,lambda_h,lambda_a,rho) di Dixon-Coles (1997) alle 4
+     celle basse (0-0,1-0,0-1,1-1) e rinormalizza la matrice a somma 1. rho e' stimato
+     con MLE (stessa funzione di diagnose_dixon_coles_rho.py) SOLO sul training
+     2022/23+2023/24, per ogni lega, usando i lambda della PRODUZIONE ATTUALE.
 
 Metriche (per modello, per lega e aggregato): Brier/LogLoss su 1X2, Over/Under 2.5,
 GG/NG; ROI e Win Rate su quota reale pre-match (Bet365 e Average) con edge > 0%.
@@ -50,6 +56,8 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 
 from backtest_experiment_all import (load_league, get_full_poisson, devig_1x2,
                                      devig_2way, LEAGUES, MARKET_VALUES)
+from diagnose_dixon_coles_rho import (build_matrix, market_probs_from_matrix,
+                                      estimate_rho)
 
 XG_FILES = {
     "Serie A": "xg_serie_a.json",
@@ -60,6 +68,7 @@ XG_FILES = {
 }
 DB = os.path.join(_REPO_ROOT, "SoccerMath", "database")
 SEASONS_EVAL = ("2024/25", "2025/26")
+TRAIN_SEASONS = ("2022/23", "2023/24")
 LAM_LO = math.exp(-6.0)   # 0.00247875
 LAM_HI = math.exp(3.0)    # 20.08554
 
@@ -95,8 +104,14 @@ def market_factor(val):
 
 
 def run_models(df, league, xg_data):
-    """Walk-forward no-leakage a passata singola. Ritorna DataFrame con prob. dei 3
-    modelli + real outcome + quote raw per le stagioni di eval."""
+    """Walk-forward no-leakage a passata singola. Ritorna DataFrame con prob. dei
+    modelli (audit, audit+clip, produzione, produzione_norm_sum, prod_dc,
+    prod_norm_dc) + real outcome + quote raw per le stagioni di eval.
+
+    rho Dixon-Coles viene stimato con MLE SOLO sulle stagioni di training
+    (2022/23+2023/24) precedenti alla validation, usando i lambda di
+    PRODUZIONE ATTUALE (stessa generazione no-leakage dell'eval), poi applicato
+    costante alle correzioni DC su validation+test."""
     use_xg_league = False
     xg_att = {}
     xg_def = {}
@@ -113,109 +128,125 @@ def run_models(df, league, xg_data):
     state = {}
     tot_hg = tot_ag = tot_n = 0.0
     rows = []
+    # campione di training per MLE di rho (lambda produzione, no-leakage)
+    train_lh, train_la, train_x, train_y = [], [], [], []
+    rho = 0.0
 
     def get(t):
         if t not in state:
             state[t] = TeamState()
         return state[t]
 
+    def clip(x):
+        return max(LAM_LO, min(LAM_HI, x))
+
     for _, row in df.iterrows():
         fthg = int(row.FTHG); ftag = int(row.FTAG)
         ftr = str(row.FTR).strip().upper()
+        h, a = row.HomeClean, row.AwayClean
+        sh = get(h); sa = get(a)
 
         avg_h = max(tot_hg / tot_n, 0.1) if tot_n else 0.1
         avg_a = max(tot_ag / tot_n, 0.1) if tot_n else 0.1
 
-        if row.season in SEASONS_EVAL:
-            h, a = row.HomeClean, row.AwayClean
-            sh = get(h); sa = get(a)
+        # --- rapporti combinati solo-gol (baseline audit) ---
+        att_h_r = (sh.hgf / sh.hgn) / avg_h if sh.hgn else 1.0
+        def_h_r = (sh.hga / sh.hgn) / avg_a if sh.hgn else 1.0
+        att_a_r = (sh.agf / sh.agn) / avg_a if sh.agn else 1.0
+        def_a_r = (sh.aga / sh.agn) / avg_h if sh.agn else 1.0
+        att2_h_r = (sa.hgf / sa.hgn) / avg_h if sa.hgn else 1.0
+        def2_h_r = (sa.hga / sa.hgn) / avg_a if sa.hgn else 1.0
+        att2_a_r = (sa.agf / sa.agn) / avg_a if sa.agn else 1.0
+        def2_a_r = (sa.aga / sa.agn) / avg_h if sa.agn else 1.0
 
-            # --- rapporti combinati solo-gol (baseline audit, come run_walkforward) ---
-            att_h_r = (sh.hgf / sh.hgn) / avg_h if sh.hgn else 1.0
-            def_h_r = (sh.hga / sh.hgn) / avg_a if sh.hgn else 1.0
-            att_a_r = (sh.agf / sh.agn) / avg_a if sh.agn else 1.0
-            def_a_r = (sh.aga / sh.agn) / avg_h if sh.agn else 1.0
-            att2_h_r = (sa.hgf / sa.hgn) / avg_h if sa.hgn else 1.0
-            def2_h_r = (sa.hga / sa.hgn) / avg_a if sa.hgn else 1.0
-            att2_a_r = (sa.agf / sa.agn) / avg_a if sa.agn else 1.0
-            def2_a_r = (sa.aga / sa.agn) / avg_h if sa.agn else 1.0
+        aud_att_h = (att_h_r + att_a_r) / 2.0
+        aud_def_h = (def_h_r + def_a_r) / 2.0
+        aud_att_a = (att2_h_r + att2_a_r) / 2.0
+        aud_def_a = (def2_h_r + def2_a_r) / 2.0
 
-            aud_att_h = (att_h_r + att_a_r) / 2.0
-            aud_def_h = (def_h_r + def_a_r) / 2.0
-            aud_att_a = (att2_h_r + att2_a_r) / 2.0
-            aud_def_a = (def2_h_r + def2_a_r) / 2.0
+        # --- forma ultime 5 ---
+        def form_fac(tstate):
+            if len(tstate.last5) < 3:
+                return 1.0, 1.0
+            n = len(tstate.last5)
+            gf = sum(x[0] for x in tstate.last5)
+            ga = sum(x[1] for x in tstate.last5)
+            avg_glob = (avg_h + avg_a) / 2.0
+            den = max(avg_glob, 0.5)
+            return max(0.85, min(1.15, (gf / n) / den)), \
+                   max(0.85, min(1.15, (ga / n) / den))
 
-            # --- forma ultime 5 ---
-            def form_fac(tstate):
-                if len(tstate.last5) < 3:
-                    return 1.0, 1.0
-                n = len(tstate.last5)
-                gf = sum(x[0] for x in tstate.last5)
-                ga = sum(x[1] for x in tstate.last5)
-                avg_glob = (avg_h + avg_a) / 2.0
-                den = max(avg_glob, 0.5)
-                return max(0.85, min(1.15, (gf / n) / den)), \
-                       max(0.85, min(1.15, (ga / n) / den))
+        form_att_h, form_def_h = form_fac(sh)
+        form_att_a, form_def_a = form_fac(sa)
+        mkt_h = market_factor(MARKET_VALUES.get(h, 50))
+        mkt_a = market_factor(MARKET_VALUES.get(a, 50))
 
-            form_att_h, form_def_h = form_fac(sh)
-            form_att_a, form_def_a = form_fac(sa)
-            mkt_h = market_factor(MARKET_VALUES.get(h, 50))
-            mkt_a = market_factor(MARKET_VALUES.get(a, 50))
+        # --- fonte primaria: xG stagionale, fallback gol (lato casa) ---
+        def prim_att(t, tstate):
+            if use_xg_league and t in xg_att:
+                return xg_att[t]
+            return (tstate.hgf / tstate.hgn) / avg_h if tstate.hgn else 1.0
 
-            # --- fonte primaria: xG stagionale, fallback gol (lato casa) ---
-            def prim_att(t, tstate):
-                if use_xg_league and t in xg_att:
-                    return xg_att[t]
-                return (tstate.hgf / tstate.hgn) / avg_h if tstate.hgn else 1.0
+        def prim_def(t, tstate):
+            if use_xg_league and t in xg_def:
+                return xg_def[t]
+            return (tstate.hga / tstate.hgn) / avg_a if tstate.hgn else 1.0
 
-            def prim_def(t, tstate):
-                if use_xg_league and t in xg_def:
-                    return xg_def[t]
-                return (tstate.hga / tstate.hgn) / avg_a if tstate.hgn else 1.0
+        p_att_h = prim_att(h, sh); p_def_h = prim_def(h, sh)
+        p_att_a = prim_att(a, sa); p_def_a = prim_def(a, sa)
 
-            p_att_h = prim_att(h, sh); p_def_h = prim_def(h, sh)
-            p_att_a = prim_att(a, sa); p_def_a = prim_def(a, sa)
+        prod_att_h = p_att_h * form_att_h * mkt_h
+        prod_def_h = p_def_h * form_def_h / mkt_h
+        prod_att_a = p_att_a * form_att_a * mkt_a
+        prod_def_a = p_def_a * form_def_a / mkt_a
 
-            prod_att_h = p_att_h * form_att_h * mkt_h
-            prod_def_h = p_def_h * form_def_h / mkt_h
-            prod_att_a = p_att_a * form_att_a * mkt_a
-            prod_def_a = p_def_a * form_def_a / mkt_a
+        # baseline solo-gol (AUDIT) e con clip lambda
+        lam_aud_h = aud_att_h * aud_def_a * avg_h
+        lam_aud_a = aud_att_a * aud_def_h * avg_a
+        lam_audc_h = clip(lam_aud_h); lam_audc_a = clip(lam_aud_a)
 
-            def clip(x):
-                return max(LAM_LO, min(LAM_HI, x))
+        # lambda mercato applicato (non clippati) -> PRODUZIONE
+        lam_prod_h_raw = prod_att_h * prod_def_a * avg_h
+        lam_prod_a_raw = prod_att_a * prod_def_h * avg_a
+        lam_prod_h = clip(lam_prod_h_raw)
+        lam_prod_a = clip(lam_prod_a_raw)
 
-            # baseline solo-gol (AUDIT) e con clip lambda
-            lam_aud_h = aud_att_h * aud_def_a * avg_h
-            lam_aud_a = aud_att_a * aud_def_h * avg_a
-            lam_audc_h = clip(lam_aud_h); lam_audc_a = clip(lam_aud_a)
+        # ---- PRODUZIONE_NORM_SUM (Alternativa 1: normalizzazione somma gol) ----
+        base_att_h = p_att_h * form_att_h          # senza * mkt_h
+        base_def_h = p_def_h * form_def_h          # senza / mkt_h
+        base_att_a = p_att_a * form_att_a
+        base_def_a = p_def_a * form_def_a
+        lam_base_h = base_att_h * base_def_a * avg_h
+        lam_base_a = base_att_a * base_def_h * avg_a
+        S = lam_base_h + lam_base_a                # somma attesa target
+        den = lam_prod_h_raw + lam_prod_a_raw
+        if den > 0:
+            lam_ns_h = S * lam_prod_h_raw / den    # riassegna la proporzione
+            lam_ns_a = S * lam_prod_a_raw / den
+        else:
+            lam_ns_h, lam_ns_a = lam_base_h, lam_base_a
+        lam_ns_h = clip(lam_ns_h); lam_ns_a = clip(lam_ns_a)
 
-            # lambda mercato applicato (non clippati) -> PRODUZIONE
-            lam_prod_h_raw = prod_att_h * prod_def_a * avg_h
-            lam_prod_a_raw = prod_att_a * prod_def_h * avg_a
-            lam_prod_h = clip(lam_prod_h_raw)
-            lam_prod_a = clip(lam_prod_a_raw)
-
-            # ---- PRODUZIONE_NORM_SUM (Alternativa 1: normalizzazione somma gol) ----
-            # lambda base SENZA fattore mercato (M=1), forma e xG invariati:
-            base_att_h = p_att_h * form_att_h          # senza * mkt_h
-            base_def_h = p_def_h * form_def_h          # senza / mkt_h
-            base_att_a = p_att_a * form_att_a
-            base_def_a = p_def_a * form_def_a
-            lam_base_h = base_att_h * base_def_a * avg_h
-            lam_base_a = base_att_a * base_def_h * avg_a
-            S = lam_base_h + lam_base_a                # somma attesa target
-            den = lam_prod_h_raw + lam_prod_a_raw
-            if den > 0:
-                lam_ns_h = S * lam_prod_h_raw / den    # riassegna la proporzione
-                lam_ns_a = S * lam_prod_a_raw / den
-            else:
-                lam_ns_h, lam_ns_a = lam_base_h, lam_base_a
-            lam_ns_h = clip(lam_ns_h); lam_ns_a = clip(lam_ns_a)
+        if row.season in TRAIN_SEASONS:
+            # training per MLE rho (lambda produzione attuale, clippati)
+            train_lh.append(lam_prod_h); train_la.append(lam_prod_a)
+            train_x.append(fthg); train_y.append(ftag)
+        elif row.season in SEASONS_EVAL:
+            # stima rho una sola volta: tutto il training (pre-eval) e'' gia'' visto
+            if train_lh:
+                tr = pd.DataFrame({"lambda_h": train_lh, "lambda_a": train_la,
+                                   "FTHG": train_x, "FTAG": train_y})
+                rho = estimate_rho(tr)
+                train_lh = []   # non ri-stimare alle righe eval successive
 
             m_aud = get_full_poisson(lam_aud_h, lam_aud_a)
             m_audc = get_full_poisson(lam_audc_h, lam_audc_a)
             m_prod = get_full_poisson(lam_prod_h, lam_prod_a)
             m_prodn = get_full_poisson(lam_ns_h, lam_ns_a)
+
+            # --- Dixon-Coles: matrice + tau su 4 celle basse, rinorm, con rho ---
+            mp_dc = market_probs_from_matrix(build_matrix(lam_prod_h, lam_prod_a, rho))
+            mp_dcn = market_probs_from_matrix(build_matrix(lam_ns_h, lam_ns_a, rho))
 
             real_1x2 = {"H": "1", "D": "X", "A": "2"}.get(ftr, "X")
             real_uo = "OVER" if (fthg + ftag) > 2.5 else "UNDER"
@@ -232,6 +263,11 @@ def run_models(df, league, xg_data):
                 "prod_po": 1 - m_prod["u25"], "prod_gg": m_prod["gg"],
                 "prodn_1": m_prodn["1"], "prodn_X": m_prodn["X"], "prodn_2": m_prodn["2"],
                 "prodn_po": 1 - m_prodn["u25"], "prodn_gg": m_prodn["gg"],
+                "proddc_1": mp_dc["1"], "proddc_X": mp_dc["X"], "proddc_2": mp_dc["2"],
+                "proddc_po": mp_dc["o25"], "proddc_gg": mp_dc["gg"],
+                "prodndc_1": mp_dcn["1"], "prodndc_X": mp_dcn["X"],
+                "prodndc_2": mp_dcn["2"], "prodndc_po": mp_dcn["o25"],
+                "prodndc_gg": mp_dcn["gg"],
                 "B365H": row.B365H, "B365D": row.B365D, "B365A": row.B365A,
                 "AvgH": row.AvgH, "AvgD": row.AvgD, "AvgA": row.AvgA,
                 "B365o": row["B365>2.5"], "B365u": row["B365<2.5"],
@@ -240,12 +276,10 @@ def run_models(df, league, xg_data):
 
         # aggiornamento stato dopo la previsione (no-leakage)
         tot_hg += fthg; tot_ag += ftag; tot_n += 1
-        h, a = row.HomeClean, row.AwayClean
         get(h).observe_home(fthg, ftag)
         get(a).observe_away(fthg, ftag)
 
     return pd.DataFrame(rows)
-
 
 # ---------------- metriche ----------------
 def brier_ll_1x2(df, cols):
@@ -344,7 +378,8 @@ def add_fair(rl):
 def build_section(name, rl):
     d = add_fair(rl)
     models = [("AUDIT solo-gol", "aud"), ("AUDIT + CLIP", "audc"),
-              ("PRODUZIONE ATTUALE", "prod"), ("PRODUZIONE_NORM_SUM", "prodn")]
+              ("PRODUZIONE ATTUALE", "prod"), ("PRODUZIONE_NORM_SUM", "prodn"),
+              ("PROD_DC", "proddc"), ("PROD_NORM_DC", "prodndc")]
     cal = []
     roi = []
     for mname, mp in models:
@@ -417,9 +452,10 @@ def main():
                  "AUDIT solo-gol | AUDIT+CLIP (lambda clip [exp(-6),exp(3)]) | "
                  "PRODUZIONE ATTUALE (xG stagionale primario + forma ult.5 [0.85,1.15] + "
                  "valore di mercato [0.85,1.25] + clip lambda) | "
-                 "PRODUZIONE_NORM_SUM (stessi input di PRODUZIONE ma somma attesa "
-                 "normalizzata: S = somma lambda senza mercato, riassegnata in "
-                 "proporzione ai lambda con mercato, poi clip lambda).")
+                 "PRODUZIONE_NORM_SUM (somma attesa normalizzata senza mercato) | "
+                 "PROD_DC / PROD_NORM_DC (come i due precedenti ma con correzione "
+                 "Dixon-Coles tau(x,y,rho) sulle 4 celle basse e rinormalizzazione; "
+                 "rho stimato via MLE solo su training 2022/23+2023/24 per lega).")
     lines.append("")
     lines.append("xG di produzione: snapshot stagionale statico da xg_<lega>.json "
                  "(stesso file letto da get_league_engine); applicato costante alle "
