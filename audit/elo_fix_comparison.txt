@@ -1,0 +1,445 @@
+
+======================================================================
+SERIE A — 2024/25 (validation)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.584    0.980    380      33.200          -17.410
+                     Elo  0.595    1.000    380      25.000          -25.350
+SoccerMath (0.6P+0.4Elo)  0.586    0.983    380      27.900          -24.430
+            Elo (xG fix)  0.594    0.999    380      25.800          -23.530
+     SoccerMath (xG fix)  0.586    0.983    380      29.200          -22.160
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.590 -24.430           380      -1,023.000
+Average Market         5.500 -26.230           380      -1,045.600
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.770 -11.050           380        -524.600
+Average Market         5.730 -11.860           380        -551.900
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2528   LogLoss: 0.6988
+
+======================================================================
+SERIE A — 2025/26 (test)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.593    0.992    380      36.600           -1.920
+                     Elo  0.601    1.009    380      27.100          -15.520
+SoccerMath (0.6P+0.4Elo)  0.594    0.995    380      33.700           -6.710
+            Elo (xG fix)  0.599    1.007    380      28.900          -10.600
+     SoccerMath (xG fix)  0.593    0.995    380      33.900           -6.280
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         5.640 -6.710           380        -669.100
+Average Market         5.520 -8.380           380        -672.800
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         5.160 -4.480           380        -246.700
+Average Market         5.070 -7.470           380        -312.000
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2489   LogLoss: 0.6913
+
+======================================================================
+SERIE A — 2026/27 (monitor)  (N=15 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.476    0.831      0       0.000            0.000
+                     Elo  0.453    0.794      0       0.000            0.000
+SoccerMath (0.6P+0.4Elo)  0.465    0.814      0       0.000            0.000
+            Elo (xG fix)  0.451    0.791      0       0.000            0.000
+     SoccerMath (xG fix)  0.464    0.813      0       0.000            0.000
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2269   LogLoss: 0.6460
+
+======================================================================
+Calibrazione dettagliata — SoccerMath, esito '1' (casa vince) — TEST 2025/26 — SERIE A
+======================================================================
+           n  tasso_reale
+bucket                   
+0-50%    247       28.700
+50-55%    30       50.000
+55-60%    27       40.700
+60-65%    25       68.000
+65-70%    18       61.100
+70-75%    20       70.000
+75-80%     7       57.100
+80-101%    6       83.300
+
+======================================================================
+PREMIER LEAGUE — 2024/25 (validation)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.597    0.996    380      36.600           -9.240
+                     Elo  0.593    0.995    380      26.600          -17.590
+SoccerMath (0.6P+0.4Elo)  0.591    0.990    380      32.400          -10.950
+            Elo (xG fix)  0.590    0.991    380      30.000          -12.350
+     SoccerMath (xG fix)  0.590    0.989    380      33.900           -8.870
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.580 -10.950           380        -620.200
+Average Market         5.520  -9.070           380        -551.700
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         5.180  3.690           380        -204.400
+Average Market         5.190  3.260           380        -175.500
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2472   LogLoss: 0.6877
+
+======================================================================
+PREMIER LEAGUE — 2025/26 (test)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.620    1.032    380      33.700          -11.650
+                     Elo  0.617    1.030    380      32.600           -1.560
+SoccerMath (0.6P+0.4Elo)  0.616    1.026    380      31.800          -12.800
+            Elo (xG fix)  0.617    1.030    380      32.600           -3.800
+     SoccerMath (xG fix)  0.616    1.026    380      32.100          -12.380
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.910 -12.800           380        -731.400
+Average Market         5.940 -12.720           380        -720.200
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         6.630  3.260           380        -167.700
+Average Market         6.550 -1.740           380        -186.700
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2461   LogLoss: 0.6854
+
+======================================================================
+PREMIER LEAGUE — 2026/27 (monitor)  (N=15 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.551    0.923      0       0.000            0.000
+                     Elo  0.613    1.021      0       0.000            0.000
+SoccerMath (0.6P+0.4Elo)  0.568    0.953      0       0.000            0.000
+            Elo (xG fix)  0.615    1.023      0       0.000            0.000
+     SoccerMath (xG fix)  0.569    0.954      0       0.000            0.000
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2807   LogLoss: 0.7560
+
+======================================================================
+Calibrazione dettagliata — SoccerMath, esito '1' (casa vince) — TEST 2025/26 — PREMIER LEAGUE
+======================================================================
+           n  tasso_reale
+bucket                   
+0-50%    250       34.400
+50-55%    38       42.100
+55-60%    22       54.500
+60-65%    20       60.000
+65-70%    25       72.000
+70-75%    12       66.700
+75-80%     6       66.700
+80-101%    7       85.700
+
+======================================================================
+LA LIGA — 2024/25 (validation)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.577    0.973    380      35.000          -10.200
+                     Elo  0.582    0.980    380      27.600           -7.680
+SoccerMath (0.6P+0.4Elo)  0.577    0.972    380      30.000           -8.650
+            Elo (xG fix)  0.580    0.977    380      27.600           -8.110
+     SoccerMath (xG fix)  0.576    0.971    380      30.500           -8.510
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         5.090 -8.650           380        -368.300
+Average Market         5.050 -5.520           380        -358.400
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         6.360 -12.070           380        -531.300
+Average Market         6.350 -11.990           380        -506.300
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2546   LogLoss: 0.7030
+
+======================================================================
+LA LIGA — 2025/26 (test)  (N=380 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.587    1.071    380      35.000          -16.590
+                     Elo  0.583    0.981    380      28.700          -19.020
+SoccerMath (0.6P+0.4Elo)  0.581    0.979    380      33.700          -14.580
+            Elo (xG fix)  0.582    0.979    380      28.900          -20.340
+     SoccerMath (xG fix)  0.581    0.979    380      35.300          -11.770
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.040 -14.580           380        -602.100
+Average Market         4.980 -17.740           380        -724.700
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         6.790 -1.010           380        -184.100
+Average Market         6.710  1.280           380        -173.200
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2541   LogLoss: 0.7022
+
+======================================================================
+LA LIGA — 2026/27 (monitor)  (N=25 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.627    1.024      0       0.000            0.000
+                     Elo  0.617    1.030      0       0.000            0.000
+SoccerMath (0.6P+0.4Elo)  0.607    1.012      0       0.000            0.000
+            Elo (xG fix)  0.596    1.001      0       0.000            0.000
+     SoccerMath (xG fix)  0.600    1.001      0       0.000            0.000
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2581   LogLoss: 0.7112
+
+======================================================================
+Calibrazione dettagliata — SoccerMath, esito '1' (casa vince) — TEST 2025/26 — LA LIGA
+======================================================================
+           n  tasso_reale
+bucket                   
+0-50%    250       37.200
+50-55%    35       62.900
+55-60%    25       56.000
+60-65%    20       70.000
+65-70%    15       80.000
+70-75%     8       87.500
+75-80%    18       88.900
+80-101%    9       88.900
+
+======================================================================
+BUNDESLIGA — 2024/25 (validation)  (N=306 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.614    1.028    306      29.700          -31.750
+                     Elo  0.621    1.036    306      23.900          -23.480
+SoccerMath (0.6P+0.4Elo)  0.613    1.024    306      27.100          -30.100
+            Elo (xG fix)  0.619    1.033    306      24.500          -24.860
+     SoccerMath (xG fix)  0.613    1.024    306      27.500          -34.800
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         4.800 -30.100           306        -940.500
+Average Market         4.780 -31.150           306        -973.900
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         6.610  0.580           306        -163.200
+Average Market         6.530 -1.560           306        -167.600
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2374   LogLoss: 0.7725
+
+======================================================================
+BUNDESLIGA — 2025/26 (test)  (N=306 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.578    1.081    306      38.600           -5.990
+                     Elo  0.578    0.977    306      32.400          -17.830
+SoccerMath (0.6P+0.4Elo)  0.575    0.973    306      35.900          -12.280
+            Elo (xG fix)  0.576    0.974    306      32.700          -20.150
+     SoccerMath (xG fix)  0.575    0.972    306      36.600          -11.310
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.350 -12.280           306        -484.600
+Average Market         5.240  -5.740           306        -302.000
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.730 -12.370           306        -455.100
+Average Market         5.640 -16.340           306        -562.600
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2498   LogLoss: 0.7976
+
+======================================================================
+BUNDESLIGA — 2026/27 (monitor)  (N=7 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.483    0.848      0       0.000            0.000
+                     Elo  0.502    0.872      0       0.000            0.000
+SoccerMath (0.6P+0.4Elo)  0.489    0.856      0       0.000            0.000
+            Elo (xG fix)  0.500    0.868      0       0.000            0.000
+     SoccerMath (xG fix)  0.488    0.854      0       0.000            0.000
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2338   LogLoss: 0.6587
+
+======================================================================
+Calibrazione dettagliata — SoccerMath, esito '1' (casa vince) — TEST 2025/26 — BUNDESLIGA
+======================================================================
+           n  tasso_reale
+bucket                   
+0-50%    192       29.200
+50-55%    32       62.500
+55-60%    20       40.000
+60-65%    20       80.000
+65-70%    13       92.300
+70-75%    13       76.900
+75-80%     6       83.300
+80-101%   10       70.000
+
+======================================================================
+LIGUE 1 — 2024/25 (validation)  (N=306 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.588    1.092    306      38.200           -4.160
+                     Elo  0.580    0.979    306      32.400            0.140
+SoccerMath (0.6P+0.4Elo)  0.580    0.978    306      33.000           -6.290
+            Elo (xG fix)  0.577    0.975    306      33.000            0.830
+     SoccerMath (xG fix)  0.580    0.977    306      34.000           -4.300
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         5.740 -6.290           306        -471.900
+Average Market         5.690 -6.470           306        -411.300
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         5.500 -5.000           306        -169.700
+Average Market         5.510 -2.560           306        -142.700
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2497   LogLoss: 0.6917
+
+======================================================================
+LIGUE 1 — 2025/26 (test)  (N=306 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.598    0.999    306      34.300           -9.550
+                     Elo  0.595    0.997    306      28.100          -11.850
+SoccerMath (0.6P+0.4Elo)  0.595    0.995    306      32.000           -6.690
+            Elo (xG fix)  0.594    0.997    306      29.400          -10.590
+     SoccerMath (xG fix)  0.595    0.995    306      32.700           -5.840
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         4.880 -6.690           306        -301.400
+Average Market         4.840 -8.560           306        -357.100
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. value bet  Max drawdown €
+          B365         5.280 -13.500           306        -530.200
+Average Market         5.280 -13.770           306        -543.700
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2505   LogLoss: 0.6945
+
+======================================================================
+LIGUE 1 — 2026/27 (monitor)  (N=15 partite)
+======================================================================
+
+-- Tabella 1: Accuratezza & ROI per modello (1X2, edge vs B365) --
+                 Modello  Brier  LogLoss  N.bet  Win rate %  ROI % (vs B365)
+                 Poisson  0.746    1.202      0       0.000            0.000
+                     Elo  0.726    1.185      0       0.000            0.000
+SoccerMath (0.6P+0.4Elo)  0.734    1.192      0       0.000            0.000
+            Elo (xG fix)  0.721    1.178      0       0.000            0.000
+     SoccerMath (xG fix)  0.733    1.190      0       0.000            0.000
+
+-- Tabella 2: SoccerMath completo — 1X2, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- Over/Under 2.5 (Poisson), B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. value bet  Max drawdown €
+          B365         0.000  0.000             0           0.000
+Average Market         0.000  0.000             0           0.000
+
+-- GG/NG: solo probabilita'/calibrazione (nessuna quota BTTS nel dataset) --
+Brier: 0.2699   LogLoss: 0.7345
+
+======================================================================
+Calibrazione dettagliata — SoccerMath, esito '1' (casa vince) — TEST 2025/26 — LIGUE 1
+======================================================================
+           n  tasso_reale
+bucket                   
+0-50%    194       39.200
+50-55%    30       33.300
+55-60%    22       59.100
+60-65%    20       65.000
+65-70%    19       68.400
+70-75%    11       72.700
+75-80%     4       50.000
+80-101%    6      100.000

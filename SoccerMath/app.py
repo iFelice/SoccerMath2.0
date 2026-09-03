@@ -416,9 +416,15 @@ def get_league_engine(camp_key):
         # Fattore mercato logaritmico: big (+20%), medie (+5%), piccole (-7%), neopromosse (-15%)
         mkt_factor = 1 + (np.log10(max(val, 10)) - 2.0) / 4
         mkt_factor = max(0.85, min(1.25, mkt_factor))
+        # Architettura a due teste: conservo sia i rapporti BASE (senza valore di
+        # mercato, M=1) sia quelli aggiustati dal fattore mercato. La testa 1X2
+        # usera' i lambda con mercato normalizzati alla somma base; la testa
+        # O/U2.5 e GG/NG usera' direttamente i lambda base senza distorsione.
         stats[t] = {
             'att': att * mkt_factor,
             'def': defe / mkt_factor,
+            'att0': att,          # base, M=1 (xG/gol + forma)
+            'def0': defe,         # base, M=1 (xG/gol + forma)
             'val': val
         }
     return stats, avg_h, avg_a, df
@@ -549,24 +555,89 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
     return pd.DataFrame(results)
 
 
-def get_full_poisson(h_e, a_e, max_goals=15):
-    # Clip dei lambda in ingresso al range validato in audit/ (log-spazio [-6, 3]).
-    # Evita lambda estremi mal calibrati (~0.17% delle partite) senza cambiare la
-    # logica di stima. Vedi audit/diagnose_mle_vs_baseline_clipped.py.
-    h_e = min(max(h_e, 0.002479), 20.0855)  # [exp(-6), exp(3)]
-    a_e = min(max(a_e, 0.002479), 20.0855)  # [exp(-6), exp(3)]
+def _clip_lambda(x):
+    """Clip dei lambda al range validato in audit/ (log-spazio [-6, 3])."""
+    return max(0.002479, min(20.0855, float(x)))  # [exp(-6), exp(3)]
+
+
+def _poisson_market(h_e, a_e, max_goals=15):
+    """Matrice congiunta Poisson su un singolo paio di lambda (clip interno).
+    Ritorna probabilita' 1/X/2, Under 1.5/2.5/3.5 e GG."""
+    h_e = _clip_lambda(h_e)
+    a_e = _clip_lambda(a_e)
     h_p = [poisson.pmf(i, h_e) for i in range(max_goals)]
     a_p = [poisson.pmf(i, a_e) for i in range(max_goals)]
     matrix = np.outer(h_p, a_p)
+
     def get_u(limit):
-        return sum(matrix[i,j] for i in range(max_goals) for j in range(max_goals) if i+j < limit)
+        return float(sum(matrix[i, j] for i in range(max_goals) for j in range(max_goals)
+                         if i + j < limit))
+
     return {
-        "1": np.sum(np.tril(matrix, -1)),
-        "X": np.sum(np.diag(matrix)),
-        "2": np.sum(np.triu(matrix, 1)),
+        "1": float(np.sum(np.tril(matrix, -1))),
+        "X": float(np.sum(np.diag(matrix))),
+        "2": float(np.sum(np.triu(matrix, 1))),
+        "u15": get_u(1.5),
         "u25": get_u(2.5),
-        "gg": (1-h_p[0])*(1-a_p[0])
+        "u35": get_u(3.5),
+        "gg": float((1 - h_p[0]) * (1 - a_p[0])),
     }
+
+
+def get_full_poisson(h_e, a_e, max_goals=15):
+    """Poisson a testa singola (clip interno). Mantenuto per retro-compatibilita':
+    backtest storico e' un confronto baseline senza mercato e resta invariato."""
+    return _poisson_market(h_e, a_e, max_goals)
+
+
+def _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a, max_goals=15):
+    """Architettura a due teste su lambda raw (senza clip).
+
+    Testa 1X2: i lambda con mercato vengono normalizzati vincolando la loro somma
+    alla somma attesa BASE S = base_h + base_a, mantenendone la proporzione
+    relativa (lambda_H* = S * mkt_H / (mkt_H + mkt_A)). Poi clip e matrice.
+    Testa O/U e GG/NG: si usano direttamente i lambda BASE (M=1, senza distorsione
+    del valore di mercato), con clip.
+    """
+    S = base_h + base_a
+    den = mkt_h + mkt_a
+    if den > 0:
+        norm_h = S * mkt_h / den
+        norm_a = S * mkt_a / den
+    else:
+        norm_h, norm_a = base_h, base_a
+    m1 = _poisson_market(norm_h, norm_a, max_goals)     # testa 1X2
+    m0 = _poisson_market(base_h, base_a, max_goals)     # testa Totali
+    return {
+        "1": m1["1"], "X": m1["X"], "2": m1["2"],
+        "u15": m0["u15"], "u25": m0["u25"], "u35": m0["u35"],
+        "gg": m0["gg"],
+    }
+
+
+def _stat_num(ts, key, default):
+    v = ts.get(key) if isinstance(ts, dict) else None
+    return v if isinstance(v, (int, float)) and v == v else default  # v==v esclude NaN
+
+
+def get_full_poisson_two_heads(hs, as_, avg_h, avg_a, max_goals=15):
+    """Wrapper di alto livello sui dizionari 'stats' del motore.
+
+    Ogni dizionario squadra deve avere att/def (aggiustati dal mercato) e
+    att0/def0 (base, M=1). Se att0/def0 mancano si ripiega su att/def (== modello
+    a testa singola equivalente, ma con normalizzazione della somma su se stessa).
+    """
+    hs = hs or {}
+    as_ = as_ or {}
+    att0_h = _stat_num(hs, "att0", _stat_num(hs, "att", 1.0))
+    def0_h = _stat_num(hs, "def0", _stat_num(hs, "def", 1.0))
+    att0_a = _stat_num(as_, "att0", _stat_num(as_, "att", 1.0))
+    def0_a = _stat_num(as_, "def0", _stat_num(as_, "def", 1.0))
+    mkt_h = _stat_num(hs, "att", 1.0) * _stat_num(as_, "def", 1.0) * avg_h
+    mkt_a = _stat_num(as_, "att", 1.0) * _stat_num(hs, "def", 1.0) * avg_a
+    base_h = att0_h * def0_a * avg_h
+    base_a = att0_a * def0_h * avg_a
+    return _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a, max_goals)
 
 def calcola_segnali(risultati, infraset_giocate, infraset_programmate, stand, *args):
     mult_att, mult_def = 1.0, 1.0
@@ -686,8 +757,8 @@ def fetch_and_calc_top_mix():
             h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})
             a_s = team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
             
-            # Poisson
-            m_poisson = get_full_poisson(h_s["att"] * a_s["def"] * avg_h, a_s["att"] * h_s["def"] * avg_a)
+            # Poisson a due teste: 1X2 da mercato normalizzato, O/U e GG da lambda base
+            m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
             mercati = {
                 f"Vittoria {h}": m_poisson["1"], "Pareggio": m_poisson["X"], f"Vittoria {a}": m_poisson["2"],
                 "Over 2.5": 1 - m_poisson["u25"], "Under 2.5": m_poisson["u25"],
@@ -741,7 +812,7 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             if not m_id: continue
             match_date_str = format_date_italy(match['utcDate'], "%d/%m/%Y %H:%M")
             h_s, a_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0}), team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
-            m = get_full_poisson(h_s["att"] * a_s["def"] * avg_h, a_s["att"] * h_s["def"] * avg_a)
+            m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
             mercati = {f"Vittoria {h}": m["1"], "Pareggio": m["X"], f"Vittoria {a}": m["2"], "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"], "GG": m["gg"], "NG": 1 - m["gg"]}
             best_mkt = max(mercati, key=mercati.get)
             pron = f"{best_mkt} - {mercati[best_mkt]:.0%} - Poisson Auto"
@@ -774,9 +845,17 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
             if engine_data:
                 ts, ah, aa, _ = engine_data
                 hs, as_ = ts.get(clean_name(h), {"att": 1.0, "def": 1.0}), ts.get(clean_name(a), {"att": 1.0, "def": 1.0})
-                h_exp, a_exp = hs["att"] * h_mult_att * as_["def"] * a_mult_def * ah, as_["att"] * a_mult_att * hs["def"] * h_mult_def * aa
-            else: h_exp, a_exp = 1.3, 1.1
-            m_adj = get_full_poisson(h_exp, a_exp)
+                # due teste: base (M=1) e con mercato, con i moltiplicatori infraset
+                att0_h = hs.get("att0", hs.get("att", 1.0)); def0_h = hs.get("def0", hs.get("def", 1.0))
+                att0_a = as_.get("att0", as_.get("att", 1.0)); def0_a = as_.get("def0", as_.get("def", 1.0))
+                mkt_h = hs.get("att", 1.0) * h_mult_att * as_.get("def", 1.0) * a_mult_def * ah
+                mkt_a = as_.get("att", 1.0) * a_mult_att * hs.get("def", 1.0) * h_mult_def * aa
+                base_h = att0_h * h_mult_att * def0_a * a_mult_def * ah
+                base_a = att0_a * a_mult_att * def0_h * h_mult_def * aa
+                m_adj = _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a)
+            else:
+                # fallback senza engine: testa singola neutra
+                m_adj = get_full_poisson(1.3, 1.1)
             p1, pX, p2 = m_adj['1'], m_adj['X'], m_adj['2']
 
             # --- CONTESTO PER IL PROMPT (Elo, classifica, forma recente) ---
@@ -1055,7 +1134,9 @@ with tab1:
         for idx, match in enumerate(matches):
             h_api, a_api = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
             dt = format_date_italy(match['utcDate'])
-            m = get_full_poisson((team_stats.get(clean_name(h_api), {'att': 1.0, 'def': 1.0})['att'] * team_stats.get(clean_name(a_api), {'att': 1.0, 'def': 1.0})['def'] * avg_h), (team_stats.get(clean_name(a_api), {'att': 1.0, 'def': 1.0})['att'] * team_stats.get(clean_name(h_api), {'att': 1.0, 'def': 1.0})['def'] * avg_a))
+            h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})
+            a_s = team_stats.get(clean_name(a_api), {"att": 1.0, "def": 1.0})
+            m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
             with st.container():
                 st.markdown('<div class="match-card">', unsafe_allow_html=True)
                 c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])

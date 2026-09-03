@@ -1,0 +1,161 @@
+
+================================================================================
+SERIE A  (val N=380, test N=380)
+================================================================================
+
+-- Esito X (binario) su TEST 2025/26: PRIMA vs DOPO --
+  PRIMA (smfix_X):    Brier=0.1915  LogLoss=0.5709
+  DOPO  (corrected):  Brier=0.1927  LogLoss=0.5736
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: PRIMA (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    78       19.200
+20-24%   83       24.100
+24-28%  189       30.700
+28-32%   29       20.700
+32-36%    1        0.000
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: DOPO (smfix_X_corrected) --
+          n  tasso_reale
+bucket                  
+24-28%   96       18.800
+28-32%  284       28.500
+
+-- 1X2 completo su TEST 2025/26, vs B365: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.593    0.995         5.660  -6.280     380      33.900
+corrected (DOPO)  0.596    0.997         5.350 -14.410     380      25.800
+
+-- 1X2 completo su TEST 2025/26, vs Average Market: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.593    0.995         5.550  -6.740     380      35.000
+corrected (DOPO)  0.596    0.997         5.190 -17.130     380      25.800
+
+================================================================================
+PREMIER LEAGUE  (val N=380, test N=380)
+================================================================================
+
+-- Esito X (binario) su TEST 2025/26: PRIMA vs DOPO --
+  PRIMA (smfix_X):    Brier=0.2000  LogLoss=0.5905
+  DOPO  (corrected):  Brier=0.1994  LogLoss=0.5884
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: PRIMA (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    78       24.400
+20-24%  116       25.900
+24-28%  167       29.300
+28-32%   19       31.600
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: DOPO (smfix_X_corrected) --
+          n  tasso_reale
+bucket                  
+20-24%   30       20.000
+24-28%  350       28.000
+
+-- 1X2 completo su TEST 2025/26, vs B365: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.616    1.026         5.920 -12.380     380      32.100
+corrected (DOPO)  0.615    1.024         6.020  -1.720     380      28.900
+
+-- 1X2 completo su TEST 2025/26, vs Average Market: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.616    1.026         5.950 -12.720     380      31.100
+corrected (DOPO)  0.615    1.024         5.960  -2.970     380      29.200
+
+================================================================================
+LA LIGA  (val N=380, test N=380)
+================================================================================
+
+-- Esito X (binario) su TEST 2025/26: PRIMA vs DOPO --
+  PRIMA (smfix_X):    Brier=0.1791  LogLoss=0.5386
+  DOPO  (corrected):  Brier=0.1832  LogLoss=0.5521
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: PRIMA (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    82        8.500
+20-24%   78       23.100
+24-28%  169       29.600
+28-32%   51       35.300
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: DOPO (smfix_X_corrected) --
+          n  tasso_reale
+bucket                  
+20-24%   41        7.300
+24-28%  339       26.500
+
+-- 1X2 completo su TEST 2025/26, vs B365: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.581    0.979         5.150 -11.770     380      35.300
+corrected (DOPO)  0.589    0.992         5.440 -22.730     380      26.600
+
+-- 1X2 completo su TEST 2025/26, vs Average Market: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.581    0.979         5.110 -18.850     380      33.700
+corrected (DOPO)  0.589    0.992         5.370 -20.660     380      27.100
+
+================================================================================
+BUNDESLIGA  (val N=306, test N=306)
+================================================================================
+
+-- Esito X (binario) su TEST 2025/26: PRIMA vs DOPO --
+  PRIMA (smfix_X):    Brier=0.1830  LogLoss=0.5517
+  DOPO  (corrected):  Brier=0.1848  LogLoss=0.5563
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: PRIMA (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    75       17.300
+20-24%   94       21.300
+24-28%  123       31.700
+28-32%   13       23.100
+32-36%    1        0.000
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: DOPO (smfix_X_corrected) --
+          n  tasso_reale
+bucket                  
+24-28%  306       24.500
+
+-- 1X2 completo su TEST 2025/26, vs B365: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.575    0.972         5.380 -11.310     306      36.600
+corrected (DOPO)  0.580    0.976         5.710  -7.150     306      29.700
+
+-- 1X2 completo su TEST 2025/26, vs Average Market: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %  ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.575    0.972         5.280 -8.460     306      36.900
+corrected (DOPO)  0.580    0.976         5.520 -9.080     306      30.400
+
+================================================================================
+LIGUE 1  (val N=306, test N=306)
+================================================================================
+
+-- Esito X (binario) su TEST 2025/26: PRIMA vs DOPO --
+  PRIMA (smfix_X):    Brier=0.1837  LogLoss=0.5529
+  DOPO  (corrected):  Brier=0.1866  LogLoss=0.5616
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: PRIMA (smfix_X) --
+          n  tasso_reale
+bucket                  
+0-20%    69       17.400
+20-24%   94       29.800
+24-28%  142       23.900
+28-32%    1      100.000
+
+-- Calibrazione fine sui pareggi su TEST 2025/26: DOPO (smfix_X_corrected) --
+          n  tasso_reale
+bucket                  
+0-20%    45       17.800
+20-24%  261       25.700
+
+-- 1X2 completo su TEST 2025/26, vs B365: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %  ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.595    0.995         4.880 -5.840     306      32.700
+corrected (DOPO)  0.600    1.004         6.590 -7.080     306      30.700
+
+-- 1X2 completo su TEST 2025/26, vs Average Market: PRIMA vs DOPO --
+            Prob  Brier  LogLoss  Edge medio %  ROI %  N. bet  Win rate %
+   smfix (PRIMA)  0.595    0.995         4.860 -6.440     306      33.300
+corrected (DOPO)  0.600    1.004         6.540 -4.430     306      33.000

@@ -1,0 +1,212 @@
+
+================================================================================
+SERIE A  (val N=380, test N=380)
+================================================================================
+
+-- Selezione calibratore su VALIDATION 2024/25 (Isotonic vs Platt) --
+  Esito 1: vincitore = isotonic  | Isotonic Brier=0.1939 LogLoss=0.5637  |  Platt Brier=0.2057 LogLoss=0.5988
+  Esito X: vincitore = isotonic  | Isotonic Brier=0.1951 LogLoss=0.5741  |  Platt Brier=0.2028 LogLoss=0.5953
+  Esito 2: vincitore = isotonic  | Isotonic Brier=0.1691 LogLoss=0.5045  |  Platt Brier=0.1805 LogLoss=0.5410
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs B365) --
+                Prob  Brier  LogLoss  Edge medio %  ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.593    0.995         5.660 -6.280     380      33.900
+sm_cal (ricalibrato)  0.596    1.243         8.050  3.270     380      43.200
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs Average Market) --
+                Prob  Brier  LogLoss  Edge medio %  ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.593    0.995         5.550 -6.740     380      35.000
+sm_cal (ricalibrato)  0.596    1.243         8.080  4.420     380      43.400
+
+-- Calibrazione esito '1' su TEST 2025/26: PRIMA (sm_fix_1) --
+           n  tasso_reale
+bucket                   
+0-50%    246       28.900
+50-55%    31       48.400
+55-60%    26       38.500
+60-65%    24       75.000
+65-70%    20       55.000
+70-75%    17       70.600
+75-80%    10       60.000
+80-101%    6       83.300
+
+-- Calibrazione esito '1' su TEST 2025/26: DOPO (sm_cal_1) --
+           n  tasso_reale
+bucket                   
+0-50%    233       28.300
+50-55%    15       33.300
+55-60%    65       47.700
+65-70%    34       64.700
+70-75%     3       33.300
+75-80%    18       83.300
+80-101%   12       66.700
+
+================================================================================
+PREMIER LEAGUE  (val N=380, test N=380)
+================================================================================
+
+-- Selezione calibratore su VALIDATION 2024/25 (Isotonic vs Platt) --
+  Esito 1: vincitore = isotonic  | Isotonic Brier=0.1964 LogLoss=0.5681  |  Platt Brier=0.2100 LogLoss=0.6075
+  Esito X: vincitore = isotonic  | Isotonic Brier=0.1783 LogLoss=0.5357  |  Platt Brier=0.1846 LogLoss=0.5558
+  Esito 2: vincitore = isotonic  | Isotonic Brier=0.1879 LogLoss=0.5527  |  Platt Brier=0.1987 LogLoss=0.5829
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs B365) --
+                Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.616    1.026         5.920 -12.380     380      32.100
+sm_cal (ricalibrato)  0.626    1.043         7.970  -0.470     380      34.700
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs Average Market) --
+                Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.616    1.026         5.950 -12.720     380      31.100
+sm_cal (ricalibrato)  0.626    1.043         7.900   0.630     380      35.500
+
+-- Calibrazione esito '1' su TEST 2025/26: PRIMA (sm_fix_1) --
+           n  tasso_reale
+bucket                   
+0-50%    250       34.400
+50-55%    38       42.100
+55-60%    21       52.400
+60-65%    21       61.900
+65-70%    24       70.800
+70-75%    13       69.200
+75-80%     5       60.000
+80-101%    8       87.500
+
+-- Calibrazione esito '1' su TEST 2025/26: DOPO (sm_cal_1) --
+           n  tasso_reale
+bucket                   
+0-50%    248       34.300
+50-55%    36       41.700
+55-60%    50       56.000
+60-65%    32       75.000
+65-70%     1        0.000
+75-80%     2       50.000
+80-101%   11       81.800
+
+================================================================================
+LA LIGA  (val N=380, test N=380)
+================================================================================
+
+-- Selezione calibratore su VALIDATION 2024/25 (Isotonic vs Platt) --
+  Esito 1: vincitore = isotonic  | Isotonic Brier=0.1971 LogLoss=0.5755  |  Platt Brier=0.2078 LogLoss=0.6044
+  Esito X: vincitore = isotonic  | Isotonic Brier=0.1800 LogLoss=0.5345  |  Platt Brier=0.1886 LogLoss=0.5641
+  Esito 2: vincitore = isotonic  | Isotonic Brier=0.1750 LogLoss=0.5228  |  Platt Brier=0.1877 LogLoss=0.5579
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs B365) --
+                Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.581    0.979         5.150 -11.770     380      35.300
+sm_cal (ricalibrato)  0.584    1.066         7.970   5.550     380      45.000
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs Average Market) --
+                Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.581    0.979         5.110 -18.850     380      33.700
+sm_cal (ricalibrato)  0.584    1.066         7.960   5.490     380      45.000
+
+-- Calibrazione esito '1' su TEST 2025/26: PRIMA (sm_fix_1) --
+           n  tasso_reale
+bucket                   
+0-50%    249       36.900
+50-55%    31       64.500
+55-60%    28       53.600
+60-65%    22       72.700
+65-70%    14       78.600
+70-75%     9       88.900
+75-80%    16       87.500
+80-101%   11       90.900
+
+-- Calibrazione esito '1' su TEST 2025/26: DOPO (sm_cal_1) --
+           n  tasso_reale
+bucket                   
+0-50%    261       38.300
+50-55%    32       56.200
+55-60%     8       62.500
+60-65%     5       40.000
+65-70%    23       73.900
+70-75%     5       80.000
+75-80%     7       85.700
+80-101%   39       87.200
+
+================================================================================
+BUNDESLIGA  (val N=306, test N=306)
+================================================================================
+
+-- Selezione calibratore su VALIDATION 2024/25 (Isotonic vs Platt) --
+  Esito 1: vincitore = isotonic  | Isotonic Brier=0.1921 LogLoss=0.5627  |  Platt Brier=0.2060 LogLoss=0.6000
+  Esito X: vincitore = isotonic  | Isotonic Brier=0.1844 LogLoss=0.5518  |  Platt Brier=0.1882 LogLoss=0.5638
+  Esito 2: vincitore = isotonic  | Isotonic Brier=0.2005 LogLoss=0.5800  |  Platt Brier=0.2139 LogLoss=0.6168
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs B365) --
+                Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.575    0.972         5.380 -11.310     306      36.600
+sm_cal (ricalibrato)  0.583    0.978         9.080  -1.760     306      34.000
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs Average Market) --
+                Prob  Brier  LogLoss  Edge medio %  ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.575    0.972         5.280 -8.460     306      36.900
+sm_cal (ricalibrato)  0.583    0.978         8.980 -0.960     306      34.300
+
+-- Calibrazione esito '1' su TEST 2025/26: PRIMA (sm_fix_1) --
+           n  tasso_reale
+bucket                   
+0-50%    191       28.800
+50-55%    31       61.300
+55-60%    20       50.000
+60-65%    21       71.400
+65-70%    14       92.900
+70-75%    13       76.900
+75-80%     7       85.700
+80-101%    9       66.700
+
+-- Calibrazione esito '1' su TEST 2025/26: DOPO (sm_cal_1) --
+           n  tasso_reale
+bucket                   
+0-50%    241       35.300
+50-55%     7       28.600
+55-60%    12       75.000
+60-65%    16       93.800
+65-70%     5       80.000
+70-75%     6       83.300
+80-101%   19       73.700
+
+================================================================================
+LIGUE 1  (val N=306, test N=306)
+================================================================================
+
+-- Selezione calibratore su VALIDATION 2024/25 (Isotonic vs Platt) --
+  Esito 1: vincitore = isotonic  | Isotonic Brier=0.2102 LogLoss=0.6044  |  Platt Brier=0.2229 LogLoss=0.6373
+  Esito X: vincitore = isotonic  | Isotonic Brier=0.1571 LogLoss=0.4898  |  Platt Brier=0.1614 LogLoss=0.5035
+  Esito 2: vincitore = isotonic  | Isotonic Brier=0.1871 LogLoss=0.5525  |  Platt Brier=0.2002 LogLoss=0.5869
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs B365) --
+                Prob  Brier  LogLoss  Edge medio %  ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.595    0.995         4.880 -5.840     306      32.700
+sm_cal (ricalibrato)  0.601    1.005         7.890 -7.850     306      38.600
+
+-- TEST 2025/26: Brier/LogLoss + ROI, non calibrato vs calibrato (vs Average Market) --
+                Prob  Brier  LogLoss  Edge medio %   ROI %  N. bet  Win rate %
+    sm_fix (non cal)  0.595    0.995         4.860  -6.440     306      33.300
+sm_cal (ricalibrato)  0.601    1.005         7.820 -10.080     306      38.600
+
+-- Calibrazione esito '1' su TEST 2025/26: PRIMA (sm_fix_1) --
+           n  tasso_reale
+bucket                   
+0-50%    194       39.200
+50-55%    30       33.300
+55-60%    22       59.100
+60-65%    20       65.000
+65-70%    19       68.400
+70-75%    10       70.000
+75-80%     5       60.000
+80-101%    6      100.000
+
+-- Calibrazione esito '1' su TEST 2025/26: DOPO (sm_cal_1) --
+           n  tasso_reale
+bucket                   
+0-50%    157       35.000
+50-55%    49       51.000
+55-60%    38       44.700
+60-65%     1      100.000
+65-70%     4      100.000
+70-75%    21       57.100
+75-80%    31       71.000
+80-101%    5      100.000

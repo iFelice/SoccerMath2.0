@@ -1,0 +1,280 @@
+
+================================================================================
+SERIE A
+================================================================================
+
+-- VALIDATION 2024/25 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2515  LogLoss=0.6968
+  Over 2.5 (poisson_o25) — media prob. dichiarata 46.7% vs tasso reale 48.2%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%    111       40.500      34.600
+40-45%    61       41.000      42.700
+45-50%    72       63.900      47.200
+50-55%    50       52.000      52.500
+55-60%    47       42.600      57.300
+60-101%   39       53.800      66.100
+
+[GG]
+  GG (poisson_gg): Brier=0.2528  LogLoss=0.6988
+  GG (poisson_gg) — media prob. dichiarata 46.8% vs tasso reale 51.6%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%    74       54.100      36.200
+40-45%   80       41.200      42.700
+45-50%   95       53.700      47.200
+50-55%   76       51.300      52.400
+55-60%   42       57.100      57.300
+60-101%  13       69.200      64.200
+
+-- TEST 2025/26 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2553  LogLoss=0.7043
+  Over 2.5 (poisson_o25) — media prob. dichiarata 46.3% vs tasso reale 45.8%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%    87       52.900      35.100
+40-45%   83       38.600      42.500
+45-50%   88       45.500      47.600
+50-55%   62       48.400      52.500
+55-60%   39       35.900      57.400
+60-101%  21       57.100      64.700
+
+[GG]
+  GG (poisson_gg): Brier=0.2489  LogLoss=0.6913
+  GG (poisson_gg) — media prob. dichiarata 46.6% vs tasso reale 45.3%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     55       47.300      36.700
+40-45%    96       42.700      42.800
+45-50%   114       38.600      47.400
+50-55%    79       51.900      52.300
+55-60%    33       54.500      56.900
+60-101%    3       66.700      61.300
+
+================================================================================
+PREMIER LEAGUE
+================================================================================
+
+-- VALIDATION 2024/25 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2420  LogLoss=0.6772
+  Over 2.5 (poisson_o25) — media prob. dichiarata 56.6% vs tasso reale 56.6%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     17       47.100      36.200
+40-45%    19       26.300      42.700
+45-50%    41       46.300      47.500
+50-55%    72       61.100      52.300
+55-60%    90       58.900      57.300
+60-101%  141       61.000      65.300
+
+[GG]
+  GG (poisson_gg): Brier=0.2472  LogLoss=0.6877
+  GG (poisson_gg) — media prob. dichiarata 53.9% vs tasso reale 57.4%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     10       60.000      36.900
+40-45%    29       55.200      42.800
+45-50%    61       50.800      47.800
+50-55%   107       57.000      52.600
+55-60%   106       60.400      57.600
+60-101%   67       59.700      63.200
+
+-- TEST 2025/26 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2487  LogLoss=0.6913
+  Over 2.5 (poisson_o25) — media prob. dichiarata 54.6% vs tasso reale 55.0%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     37       45.900      33.700
+40-45%    28       39.300      42.200
+45-50%    31       51.600      47.700
+50-55%    70       54.300      52.700
+55-60%   104       60.600      57.500
+60-101%  110       58.200      65.200
+
+[GG]
+  GG (poisson_gg): Brier=0.2461  LogLoss=0.6854
+  GG (poisson_gg) — media prob. dichiarata 53.8% vs tasso reale 56.1%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     15       46.700      34.600
+40-45%    33       54.500      42.600
+45-50%    47       48.900      47.300
+50-55%    93       54.800      52.800
+55-60%   122       59.800      57.400
+60-101%   70       58.600      62.800
+
+================================================================================
+LA LIGA
+================================================================================
+
+-- VALIDATION 2024/25 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2451  LogLoss=0.6831
+  Over 2.5 (poisson_o25) — media prob. dichiarata 45.9% vs tasso reale 48.7%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%    126       43.700      32.800
+40-45%    59       40.700      42.400
+45-50%    59       52.500      47.400
+50-55%    47       42.600      52.400
+55-60%    37       48.600      57.100
+60-101%   52       71.200      65.700
+
+[GG]
+  GG (poisson_gg): Brier=0.2546  LogLoss=0.7030
+  GG (poisson_gg) — media prob. dichiarata 46.0% vs tasso reale 54.2%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%    95       47.400      36.300
+40-45%   93       51.600      42.300
+45-50%   79       63.300      47.500
+50-55%   55       54.500      52.700
+55-60%   38       55.300      57.100
+60-101%  20       60.000      63.900
+
+-- TEST 2025/26 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2510  LogLoss=0.6953
+  Over 2.5 (poisson_o25) — media prob. dichiarata 47.5% vs tasso reale 50.0%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%    111       44.100      33.700
+40-45%    56       39.300      42.500
+45-50%    57       54.400      47.400
+50-55%    56       58.900      52.600
+55-60%    39       61.500      57.500
+60-101%   61       50.800      66.300
+
+[GG]
+  GG (poisson_gg): Brier=0.2541  LogLoss=0.7022
+  GG (poisson_gg) — media prob. dichiarata 47.1% vs tasso reale 56.6%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%    75       40.000      34.300
+40-45%   82       59.800      42.600
+45-50%   83       59.000      47.600
+50-55%   65       69.200      52.500
+55-60%   45       55.600      57.000
+60-101%  30       56.700      63.600
+
+================================================================================
+BUNDESLIGA
+================================================================================
+
+-- VALIDATION 2024/25 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2282  LogLoss=0.6479
+  Over 2.5 (poisson_o25) — media prob. dichiarata 60.6% vs tasso reale 59.8%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     25       24.000      32.400
+40-45%    12       41.700      42.700
+45-50%    17       52.900      47.100
+50-55%    25       56.000      53.400
+55-60%    46       71.700      57.500
+60-101%  181       64.100      68.700
+
+[GG]
+  GG (poisson_gg): Brier=0.2374  LogLoss=0.7725
+  GG (poisson_gg) — media prob. dichiarata 57.4% vs tasso reale 56.9%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     20       40.000      32.700
+40-45%    12       16.700      41.400
+45-50%    22       54.500      48.000
+50-55%    29       58.600      52.700
+55-60%    78       53.800      57.600
+60-101%  145       64.100      64.400
+
+-- TEST 2025/26 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2372  LogLoss=0.6659
+  Over 2.5 (poisson_o25) — media prob. dichiarata 56.8% vs tasso reale 63.7%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     32       56.200      33.600
+40-45%    18       44.400      42.000
+45-50%    26       69.200      47.500
+50-55%    42       66.700      52.700
+55-60%    54       66.700      57.900
+60-101%  134       64.900      67.000
+
+[GG]
+  GG (poisson_gg): Brier=0.2498  LogLoss=0.7976
+  GG (poisson_gg) — media prob. dichiarata 55.2% vs tasso reale 61.8%
+           n  tasso_reale  prob_media
+bucket                               
+0-40%     21       61.900      32.100
+40-45%    19       68.400      42.900
+45-50%    32       53.100      47.700
+50-55%    51       66.700      52.700
+55-60%    80       67.500      57.700
+60-101%  103       56.300      63.700
+
+================================================================================
+LIGUE 1
+================================================================================
+
+-- VALIDATION 2024/25 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2479  LogLoss=0.6893
+  Over 2.5 (poisson_o25) — media prob. dichiarata 52.2% vs tasso reale 55.6%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%    33       54.500      34.900
+40-45%   49       44.900      42.700
+45-50%   48       54.200      47.700
+50-55%   57       47.400      52.300
+55-60%   49       71.400      57.400
+60-101%  70       60.000      66.300
+
+[GG]
+  GG (poisson_gg): Brier=0.2497  LogLoss=0.6917
+  GG (poisson_gg) — media prob. dichiarata 50.8% vs tasso reale 56.9%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%    20       65.000      31.000
+40-45%   37       51.400      42.800
+45-50%   72       52.800      47.500
+50-55%   85       55.300      52.400
+55-60%   54       66.700      57.200
+60-101%  38       55.300      62.900
+
+-- TEST 2025/26 --
+
+[Over 2.5]
+  Over 2.5 (poisson_o25): Brier=0.2483  LogLoss=0.6904
+  Over 2.5 (poisson_o25) — media prob. dichiarata 54.2% vs tasso reale 52.6%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%    12       50.000      38.500
+40-45%   33       48.500      42.800
+45-50%   58       50.000      47.300
+50-55%   71       46.500      52.400
+55-60%   56       53.600      57.100
+60-101%  76       61.800      66.500
+
+[GG]
+  GG (poisson_gg): Brier=0.2505  LogLoss=0.6945
+  GG (poisson_gg) — media prob. dichiarata 53.3% vs tasso reale 50.7%
+          n  tasso_reale  prob_media
+bucket                              
+0-40%     5       60.000      38.000
+40-45%   25       40.000      43.300
+45-50%   67       49.300      47.800
+50-55%   95       46.300      52.500
+55-60%   73       56.200      57.600
+60-101%  41       58.500      64.500
