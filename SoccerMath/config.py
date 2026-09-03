@@ -380,6 +380,25 @@ TEAM_NAME_MAP = {
     "Le Havre AC": "Le Havre",
 }
 
+    # --- Fix identità Live vs storici (verificato contro i CSV reali, iFelice) ---
+    "Brighton Hove": "Brighton",
+    "Leeds United": "Leeds",
+    "Nottingham": "Nott'm Forest",
+    "Alavés": "Alaves",
+    "Athletic": "Ath Bilbao",
+    "Atleti": "Ath Madrid",
+    "Barça": "Barcelona",
+    "Espanyol": "Espanol",
+    "Rayo Vallecano": "Vallecano",
+    "Real Sociedad": "Sociedad",
+    "Bremen": "Werder Bremen",
+    "Frankfurt": "Ein Frankfurt",
+    "HSV": "Hamburg",
+    "Köln": "Koln",
+    "Schalke": "Schalke 04",
+    "Olympique Lyon": "Lyon",
+    "Stade Rennais": "Rennes",
+
 # Prefissi/suffissi comuni da rimuovere durante la pulizia del nome
 NAME_CLEAN_REPLACEMENTS = [
     "FC", "BC", "AC ", "AS ", "SSC ", "SS ", "AFC ", "SV ",
