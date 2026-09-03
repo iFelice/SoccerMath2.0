@@ -12,7 +12,7 @@ LEAGUES_MAP = {
 }
 
 # Stagioni 2024 e 2025
-SEASONS = [2024, 2025, 2026]
+SEASONS = [2022, 2023, 2024, 2025, 2026]
 
 def update_all_databases():
     output_dir = os.path.join('SoccerMath', 'database')
