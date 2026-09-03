@@ -336,11 +336,21 @@ TEAM_NAME_MAP = {
     "AFC Bournemouth": "Bournemouth",
     "Ipswich Town": "Ipswich",
     "Leicester City": "Leicester",
+    "Brighton Hove": "Brighton",
+    "Leeds United": "Leeds",
+    "Nottingham": "Nott'm Forest",
 
     # La Liga
     "Athletic Bilbao": "Athletic Club",
     "Deportivo Alaves": "Alaves",
     "Real Betis": "Betis",
+    "Alavés": "Alaves",
+    "Athletic": "Ath Bilbao",
+    "Atleti": "Ath Madrid",
+    "Barça": "Barcelona",
+    "Espanyol": "Espanol",
+    "Rayo Vallecano": "Vallecano",
+    "Real Sociedad": "Sociedad",
 
     # Bundesliga
     "Bayern Munich": "Bayern",
@@ -359,6 +369,11 @@ TEAM_NAME_MAP = {
     "VfL Bochum": "Bochum",
     "FC St. Pauli": "St. Pauli",
     "Borussia Mönchengladbach": "Monchengladbach",
+    "Bremen": "Werder Bremen",
+    "Frankfurt": "Ein Frankfurt",
+    "HSV": "Hamburg",
+    "Köln": "Koln",
+    "Schalke": "Schalke 04",
 
     # Ligue 1
     "Paris Saint-Germain": "PSG",
@@ -378,7 +393,9 @@ TEAM_NAME_MAP = {
     "AS Saint-Étienne": "Saint-Etienne",
     "Angers SCO": "Angers",
     "Le Havre AC": "Le Havre",
-}
+    "Olympique Lyon": "Lyon",
+    "Stade Rennais": "Rennes",
+}    
 
 # Prefissi/suffissi comuni da rimuovere durante la pulizia del nome
 NAME_CLEAN_REPLACEMENTS = [
