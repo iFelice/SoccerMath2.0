@@ -10,8 +10,8 @@ LEAGUES_MAP = {
     'FRA-Ligue 1': 'xG archivio ligue 1.json'
 }
 
-# Includiamo le stagioni dal 2022 al 2026
-SEASONS = [2022, 2023, 2024, 2025, 2026]
+# Formattazione corretta delle stagioni per soccerdata (dalla 2022/23 alla 2026/27)
+SEASONS = ['2223', '2324', '2425', '2526', '2627']
 
 def update_all_databases():
     output_dir = os.path.join('SoccerMath', 'database')
@@ -33,7 +33,7 @@ def update_all_databases():
     for sd_league, filename in LEAGUES_MAP.items():
         print(f"📥 Scaricamento dati per: {sd_league} (Stagioni: {SEASONS})...")
         try:
-            # no_cache=True garantisce che scarichi anche le nuove stagioni aggiunte
+            # no_cache=True per azzerare vecchie risposte salvate
             understat = sd.Understat(leagues=sd_league, seasons=SEASONS, no_cache=True)
             df = understat.read_schedule().reset_index()
 
