@@ -4,11 +4,7 @@ Walk-forward no-leakage (ogni partita usa solo i dati precedenti). Season: VALID
 
 xG di produzione: snapshot stagionale statico da xg_<lega>.json (stesso file letto da get_league_engine); applicato costante alle partite, come fa il motore di produzione a un dato istante.
 
-Nota metodologica: lo snapshot xG disponibile riflette la squadra ATTUALE. Applicandolo
-costante alle partite 2024/25 e 2025/26 si introduce un'informazione sui punti di forza
-delle rose odierne applicata a stagioni passate: i numeri di PRODUZIONE su queste
-stagioni vanno quindi letti come fedeli alla *struttura* del motore, ma l'eventuale
-edge/ROI in validation non va interpretato come edge out-of-sample reale.
+Nota metodologica: lo snapshot xG disponibile riflette la squadra ATTUALE. Applicandolo costante alle partite 2024/25 e 2025/26 si introduce un'informazione sui punti di forza delle rose odierne applicata a stagioni passate: i numeri di PRODUZIONE su queste stagioni vanno quindi letti come fedeli alla *struttura* del motore, ma l'eventuale edge/ROI in validation non va interpretato come edge out-of-sample reale.
 
 
 ## SERIE A  (VAL 380 + TEST 380 partite)
@@ -57,9 +53,9 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | 0.5965 | 0.9961 | 0.6200 | 1.0316 |
 | AUDIT + CLIP | O/U2.5 | 0.2420 | 0.6772 | 0.2487 | 0.6913 |
 | AUDIT + CLIP | GG/NG | 0.2472 | 0.6877 | 0.2461 | 0.6854 |
-| PRODUZIONE | 1X2 | 0.5846 | 0.9838 | 0.6320 | 1.0465 |
+| PRODUZIONE | 1X2 | 0.5846 | 0.9838 | 0.6245 | 1.0358 |
 | PRODUZIONE | O/U2.5 | 0.2518 | 0.7106 | 0.2717 | 0.7437 |
-| PRODUZIONE | GG/NG | 0.2552 | 0.7051 | 0.2673 | 0.7314 |
+| PRODUZIONE | GG/NG | 0.2552 | 0.7051 | 0.2664 | 0.7293 |
 
 ### ROI % / Win rate % (edge>0)  (V=2024/25, T=2025/26)
 
@@ -73,10 +69,10 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | Avg | 380 | 36.3 | -10.98 | 380 | 32.6 | -20.14 |
 | AUDIT + CLIP | O/U2.5 | B365 | 380 | 50.3 | 3.69 | 380 | 53.7 | 3.26 |
 | AUDIT + CLIP | O/U2.5 | Avg | 380 | 49.7 | 3.26 | 380 | 52.1 | -1.74 |
-| PRODUZIONE | 1X2 | B365 | 380 | 48.4 | 7.99 | 380 | 43.4 | 2.03 |
-| PRODUZIONE | 1X2 | Avg | 380 | 47.9 | 6.87 | 380 | 43.4 | 1.11 |
-| PRODUZIONE | O/U2.5 | B365 | 380 | 57.1 | 9.49 | 380 | 48.4 | -5.48 |
-| PRODUZIONE | O/U2.5 | Avg | 380 | 56.8 | 9.05 | 380 | 48.2 | -7.46 |
+| PRODUZIONE | 1X2 | B365 | 380 | 48.4 | 7.99 | 380 | 42.4 | 1.75 |
+| PRODUZIONE | 1X2 | Avg | 380 | 47.9 | 6.87 | 380 | 43.2 | 2.69 |
+| PRODUZIONE | O/U2.5 | B365 | 380 | 57.1 | 9.49 | 380 | 48.4 | -5.00 |
+| PRODUZIONE | O/U2.5 | Avg | 380 | 56.8 | 9.05 | 380 | 48.2 | -6.94 |
 
 
 ## LA LIGA  (VAL 380 + TEST 380 partite)
@@ -91,9 +87,9 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | 0.5766 | 0.9727 | 0.5866 | 1.0013 |
 | AUDIT + CLIP | O/U2.5 | 0.2451 | 0.6831 | 0.2511 | 0.6953 |
 | AUDIT + CLIP | GG/NG | 0.2546 | 0.7030 | 0.2541 | 0.7022 |
-| PRODUZIONE | 1X2 | 0.5695 | 0.9674 | 0.5868 | 0.9886 |
-| PRODUZIONE | O/U2.5 | 0.2483 | 0.6988 | 0.2554 | 0.7100 |
-| PRODUZIONE | GG/NG | 0.2760 | 0.7491 | 0.2798 | 0.7566 |
+| PRODUZIONE | 1X2 | 0.5666 | 0.9645 | 0.5942 | 1.0031 |
+| PRODUZIONE | O/U2.5 | 0.2496 | 0.7012 | 0.2571 | 0.7136 |
+| PRODUZIONE | GG/NG | 0.2758 | 0.7487 | 0.2795 | 0.7562 |
 
 ### ROI % / Win rate % (edge>0)  (V=2024/25, T=2025/26)
 
@@ -107,10 +103,10 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | Avg | 380 | 33.9 | -14.41 | 380 | 35.5 | -15.31 |
 | AUDIT + CLIP | O/U2.5 | B365 | 380 | 45.5 | -12.07 | 380 | 49.5 | -1.01 |
 | AUDIT + CLIP | O/U2.5 | Avg | 380 | 46.1 | -11.99 | 380 | 52.6 | 1.28 |
-| PRODUZIONE | 1X2 | B365 | 380 | 46.8 | 4.24 | 380 | 43.2 | -3.17 |
-| PRODUZIONE | 1X2 | Avg | 380 | 47.4 | 7.93 | 380 | 43.4 | -2.78 |
-| PRODUZIONE | O/U2.5 | B365 | 380 | 57.6 | 1.37 | 380 | 56.8 | 3.08 |
-| PRODUZIONE | O/U2.5 | Avg | 380 | 57.9 | 1.89 | 380 | 56.6 | 0.17 |
+| PRODUZIONE | 1X2 | B365 | 380 | 50.3 | 9.20 | 380 | 47.1 | -0.09 |
+| PRODUZIONE | 1X2 | Avg | 380 | 49.2 | 5.95 | 380 | 46.6 | -1.58 |
+| PRODUZIONE | O/U2.5 | B365 | 380 | 56.3 | -0.12 | 380 | 55.5 | 1.38 |
+| PRODUZIONE | O/U2.5 | Avg | 380 | 56.6 | 0.09 | 380 | 55.5 | -0.55 |
 
 
 ## BUNDESLIGA  (VAL 306 + TEST 306 partite)
@@ -125,9 +121,9 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | 0.6137 | 1.0279 | 0.5778 | 0.9928 |
 | AUDIT + CLIP | O/U2.5 | 0.2282 | 0.6479 | 0.2372 | 0.6659 |
 | AUDIT + CLIP | GG/NG | 0.2373 | 0.6800 | 0.2497 | 0.7051 |
-| PRODUZIONE | 1X2 | 0.6227 | 1.0474 | 0.5710 | 0.9733 |
-| PRODUZIONE | O/U2.5 | 0.2392 | 0.6735 | 0.2472 | 0.6845 |
-| PRODUZIONE | GG/NG | 0.2456 | 0.6855 | 0.2542 | 0.7024 |
+| PRODUZIONE | 1X2 | 0.6191 | 1.0415 | 0.5735 | 0.9774 |
+| PRODUZIONE | O/U2.5 | 0.2385 | 0.6712 | 0.2484 | 0.6882 |
+| PRODUZIONE | GG/NG | 0.2460 | 0.6863 | 0.2535 | 0.7009 |
 
 ### ROI % / Win rate % (edge>0)  (V=2024/25, T=2025/26)
 
@@ -141,10 +137,10 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | Avg | 306 | 29.4 | -30.50 | 306 | 40.2 | -2.80 |
 | AUDIT + CLIP | O/U2.5 | B365 | 306 | 56.5 | 0.58 | 306 | 46.1 | -12.37 |
 | AUDIT + CLIP | O/U2.5 | Avg | 306 | 55.6 | -1.56 | 306 | 45.1 | -16.34 |
-| PRODUZIONE | 1X2 | B365 | 306 | 43.1 | -13.85 | 306 | 49.7 | -3.38 |
-| PRODUZIONE | 1X2 | Avg | 306 | 45.1 | -8.64 | 306 | 50.3 | -1.58 |
-| PRODUZIONE | O/U2.5 | B365 | 306 | 54.6 | -0.56 | 306 | 48.7 | -11.86 |
-| PRODUZIONE | O/U2.5 | Avg | 306 | 54.6 | -1.22 | 306 | 48.0 | -14.14 |
+| PRODUZIONE | 1X2 | B365 | 306 | 44.1 | -11.85 | 306 | 51.0 | 0.96 |
+| PRODUZIONE | 1X2 | Avg | 306 | 45.8 | -7.72 | 306 | 51.0 | 1.09 |
+| PRODUZIONE | O/U2.5 | B365 | 306 | 56.2 | 2.12 | 306 | 48.7 | -10.45 |
+| PRODUZIONE | O/U2.5 | Avg | 306 | 55.2 | -0.06 | 306 | 47.7 | -13.98 |
 
 
 ## LIGUE 1  (VAL 306 + TEST 306 partite)
@@ -159,9 +155,9 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | 0.5881 | 1.0068 | 0.5984 | 0.9989 |
 | AUDIT + CLIP | O/U2.5 | 0.2479 | 0.6893 | 0.2483 | 0.6904 |
 | AUDIT + CLIP | GG/NG | 0.2497 | 0.6917 | 0.2505 | 0.6945 |
-| PRODUZIONE | 1X2 | 0.5697 | 0.9746 | 0.6014 | 1.0067 |
-| PRODUZIONE | O/U2.5 | 0.2531 | 0.7097 | 0.2503 | 0.6961 |
-| PRODUZIONE | GG/NG | 0.2636 | 0.7230 | 0.2617 | 0.7184 |
+| PRODUZIONE | 1X2 | 0.5692 | 0.9736 | 0.6012 | 1.0059 |
+| PRODUZIONE | O/U2.5 | 0.2530 | 0.7090 | 0.2505 | 0.6965 |
+| PRODUZIONE | GG/NG | 0.2636 | 0.7230 | 0.2616 | 0.7182 |
 
 ### ROI % / Win rate % (edge>0)  (V=2024/25, T=2025/26)
 
@@ -175,10 +171,10 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | Avg | 306 | 37.6 | -7.93 | 306 | 35.3 | -10.12 |
 | AUDIT + CLIP | O/U2.5 | B365 | 306 | 49.3 | -5.00 | 306 | 44.8 | -13.50 |
 | AUDIT + CLIP | O/U2.5 | Avg | 306 | 51.0 | -2.56 | 306 | 45.8 | -13.77 |
-| PRODUZIONE | 1X2 | B365 | 306 | 55.2 | 15.07 | 306 | 47.7 | -2.16 |
-| PRODUZIONE | 1X2 | Avg | 306 | 55.2 | 13.97 | 306 | 47.4 | -3.37 |
-| PRODUZIONE | O/U2.5 | B365 | 306 | 52.6 | -3.84 | 306 | 52.9 | 0.67 |
-| PRODUZIONE | O/U2.5 | Avg | 306 | 52.6 | -3.81 | 306 | 53.6 | 0.35 |
+| PRODUZIONE | 1X2 | B365 | 306 | 54.9 | 14.48 | 306 | 48.0 | -2.59 |
+| PRODUZIONE | 1X2 | Avg | 306 | 54.9 | 13.38 | 306 | 47.7 | -3.73 |
+| PRODUZIONE | O/U2.5 | B365 | 306 | 52.6 | -3.84 | 306 | 52.6 | 0.05 |
+| PRODUZIONE | O/U2.5 | Avg | 306 | 52.3 | -4.30 | 306 | 53.6 | 0.35 |
 
 
 ## AGGREGATO — 5 LEGHE  (VAL 1752 + TEST 1752 partite)
@@ -193,9 +189,9 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | 0.5910 | 0.9948 | 0.5957 | 1.0040 |
 | AUDIT + CLIP | O/U2.5 | 0.2434 | 0.6797 | 0.2486 | 0.6904 |
 | AUDIT + CLIP | GG/NG | 0.2488 | 0.6928 | 0.2498 | 0.6954 |
-| PRODUZIONE | 1X2 | 0.5837 | 0.9856 | 0.6001 | 1.0080 |
-| PRODUZIONE | O/U2.5 | 0.2498 | 0.7003 | 0.2583 | 0.7132 |
-| PRODUZIONE | GG/NG | 0.2605 | 0.7163 | 0.2640 | 0.7236 |
+| PRODUZIONE | 1X2 | 0.5823 | 0.9838 | 0.6005 | 1.0094 |
+| PRODUZIONE | O/U2.5 | 0.2499 | 0.7003 | 0.2589 | 0.7147 |
+| PRODUZIONE | GG/NG | 0.2605 | 0.7163 | 0.2636 | 0.7228 |
 
 ### ROI % / Win rate % (edge>0)  (V=2024/25, T=2025/26)
 
@@ -209,7 +205,7 @@ edge/ROI in validation non va interpretato come edge out-of-sample reale.
 | AUDIT + CLIP | 1X2 | Avg | 1752 | 34.4 | -15.57 | 1752 | 35.7 | -11.29 |
 | AUDIT + CLIP | O/U2.5 | B365 | 1752 | 49.8 | -4.98 | 1752 | 48.8 | -5.00 |
 | AUDIT + CLIP | O/U2.5 | Avg | 1752 | 49.8 | -5.19 | 1752 | 49.0 | -6.98 |
-| PRODUZIONE | 1X2 | B365 | 1752 | 48.4 | 3.20 | 1752 | 45.6 | -1.61 |
-| PRODUZIONE | 1X2 | Avg | 1752 | 48.6 | 4.18 | 1752 | 45.8 | -1.61 |
-| PRODUZIONE | O/U2.5 | B365 | 1752 | 54.1 | -0.90 | 1752 | 52.1 | -2.48 |
-| PRODUZIONE | O/U2.5 | Avg | 1752 | 54.2 | -0.75 | 1752 | 52.1 | -4.21 |
+| PRODUZIONE | 1X2 | B365 | 1752 | 49.3 | 4.53 | 1752 | 46.5 | -0.32 |
+| PRODUZIONE | 1X2 | Avg | 1752 | 49.0 | 3.80 | 1752 | 46.6 | -0.60 |
+| PRODUZIONE | O/U2.5 | B365 | 1752 | 54.1 | -0.75 | 1752 | 51.8 | -2.61 |
+| PRODUZIONE | O/U2.5 | Avg | 1752 | 54.0 | -1.03 | 1752 | 51.8 | -4.23 |

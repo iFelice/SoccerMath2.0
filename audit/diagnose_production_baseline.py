@@ -387,6 +387,13 @@ def main():
                  "(stesso file letto da get_league_engine); applicato costante alle "
                  "partite, come fa il motore di produzione a un dato istante.")
     lines.append("")
+    lines.append("Nota metodologica: lo snapshot xG disponibile riflette la squadra ATTUALE. "
+                 "Applicandolo costante alle partite 2024/25 e 2025/26 si introduce "
+                 "un'informazione sui punti di forza delle rose odierne applicata a "
+                 "stagioni passate: i numeri di PRODUZIONE su queste stagioni vanno quindi "
+                 "letti come fedeli alla *struttura* del motore, ma l'eventuale edge/ROI "
+                 "in validation non va interpretato come edge out-of-sample reale.")
+    lines.append("")
 
     for prefix, camp_key in LEAGUES:
         rl = league_results[camp_key]
