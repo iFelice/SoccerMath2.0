@@ -36,6 +36,13 @@ Modelli confrontati:
      celle basse (0-0,1-0,0-1,1-1) e rinormalizza la matrice a somma 1. rho e' stimato
      con MLE (stessa funzione di diagnose_dixon_coles_rho.py) SOLO sul training
      2022/23+2023/24, per ogni lega, usando i lambda della PRODUZIONE ATTUALE.
+  6. PRODUZIONE_DUE_TESTE (Alternativa 3: architettura a due teste): le probabilita'
+     1X2 vengono prese dal modello PRODUZIONE_NORM_SUM (xG + forma + mercato
+     normalizzato); le probabilita' Over/Under 2.5 e GG/NG vengono prese da una matrice
+     costruita con i lambda BASE senza fattore mercato (M=1, solo xG/gol storici +
+     forma/medie di lega).
+  7. PRODUZIONE_DUE_TESTE_DC: come DUE_TESTE, ma sulla sola testa Totali viene applicata
+     la correzione Dixon-Coles (rho MLE per lega) prima di ricavare O/U2.5 e GG/NG.
 
 Metriche (per modello, per lega e aggregato): Brier/LogLoss su 1X2, Over/Under 2.5,
 GG/NG; ROI e Win Rate su quota reale pre-match (Bet365 e Average) con edge > 0%.
@@ -248,6 +255,12 @@ def run_models(df, league, xg_data):
             mp_dc = market_probs_from_matrix(build_matrix(lam_prod_h, lam_prod_a, rho))
             mp_dcn = market_probs_from_matrix(build_matrix(lam_ns_h, lam_ns_a, rho))
 
+            # --- Testa Totali (O/U2.5 e GG/NG): lambda BASE senza fattore mercato
+            # (M=1, solo xG/gol + forma), clippati per la matrice ---
+            cb_h = clip(lam_base_h); cb_a = clip(lam_base_a)
+            m_base = get_full_poisson(cb_h, cb_a)
+            mp_bdc = market_probs_from_matrix(build_matrix(cb_h, cb_a, rho))
+
             real_1x2 = {"H": "1", "D": "X", "A": "2"}.get(ftr, "X")
             real_uo = "OVER" if (fthg + ftag) > 2.5 else "UNDER"
             real_gg = "GG" if fthg > 0 and ftag > 0 else "NG"
@@ -268,6 +281,13 @@ def run_models(df, league, xg_data):
                 "prodndc_1": mp_dcn["1"], "prodndc_X": mp_dcn["X"],
                 "prodndc_2": mp_dcn["2"], "prodndc_po": mp_dcn["o25"],
                 "prodndc_gg": mp_dcn["gg"],
+                # Due teste: 1X2 da NORM_SUM; O/U e GG/NG dalla testa BASE (M=1)
+                "duet_1": m_prodn["1"], "duet_X": m_prodn["X"], "duet_2": m_prodn["2"],
+                "duet_po": 1 - m_base["u25"], "duet_gg": m_base["gg"],
+                # Due teste + DC sulla sola testa Totali
+                "duetdc_1": m_prodn["1"], "duetdc_X": m_prodn["X"],
+                "duetdc_2": m_prodn["2"], "duetdc_po": mp_bdc["o25"],
+                "duetdc_gg": mp_bdc["gg"],
                 "B365H": row.B365H, "B365D": row.B365D, "B365A": row.B365A,
                 "AvgH": row.AvgH, "AvgD": row.AvgD, "AvgA": row.AvgA,
                 "B365o": row["B365>2.5"], "B365u": row["B365<2.5"],
@@ -379,7 +399,9 @@ def build_section(name, rl):
     d = add_fair(rl)
     models = [("AUDIT solo-gol", "aud"), ("AUDIT + CLIP", "audc"),
               ("PRODUZIONE ATTUALE", "prod"), ("PRODUZIONE_NORM_SUM", "prodn"),
-              ("PROD_DC", "proddc"), ("PROD_NORM_DC", "prodndc")]
+              ("PROD_DC", "proddc"), ("PROD_NORM_DC", "prodndc"),
+              ("PRODUZIONE_DUE_TESTE", "duet"),
+              ("PRODUZIONE_DUE_TESTE_DC", "duetdc")]
     cal = []
     roi = []
     for mname, mp in models:
@@ -428,6 +450,54 @@ def build_section(name, rl):
     return cal, roi
 
 
+def build_ranking(d):
+    """Sintesi comparativa AGGREGATA (tutte le alternative) ordinata per Brier 1X2 V.
+    Ritorna (righe_markdown, raccomandazione). d deve avere gia' le colonne fair+modelli."""
+    models = [("AUDIT solo-gol", "aud"), ("AUDIT + CLIP", "audc"),
+              ("PRODUZIONE ATTUALE", "prod"), ("PRODUZIONE_NORM_SUM", "prodn"),
+              ("PROD_DC", "proddc"), ("PROD_NORM_DC", "prodndc"),
+              ("PRODUZIONE_DUE_TESTE", "duet"),
+              ("PRODUZIONE_DUE_TESTE_DC", "duetdc")]
+    rows = []
+    for name, mp in models:
+        dV = d[d["season"] == "2024/25"]
+        dT = d[d["season"] == "2025/26"]
+        b1V, _ = brier_ll_1x2(dV, (f"{mp}_1", f"{mp}_X", f"{mp}_2"))
+        b1T, _ = brier_ll_1x2(dT, (f"{mp}_1", f"{mp}_X", f"{mp}_2"))
+        bOV, _ = brier_ll_bin(dV, f"{mp}_po", "real_uo", "OVER")
+        bOT, _ = brier_ll_bin(dT, f"{mp}_po", "real_uo", "OVER")
+        bGV, _ = brier_ll_bin(dV, f"{mp}_gg", "real_gg", "GG")
+        bGT, _ = brier_ll_bin(dT, f"{mp}_gg", "real_gg", "GG")
+        r1V = roi_1x2(dV, (f"{mp}_1", f"{mp}_X", f"{mp}_2"),
+                      ("fair_b365_1", "fair_b365_X", "fair_b365_2"),
+                      ("B365H", "B365D", "B365A"))[2]
+        r1T = roi_1x2(dT, (f"{mp}_1", f"{mp}_X", f"{mp}_2"),
+                      ("fair_b365_1", "fair_b365_X", "fair_b365_2"),
+                      ("B365H", "B365D", "B365A"))[2]
+        rows.append([name, b1V, b1T, bOV, bOT, bGV, bGT, r1V, r1T])
+    rows.sort(key=lambda r: r[1])  # per Brier 1X2 V
+    lines = []
+    lines.append("| Modello | Brier 1X2 V | Brier 1X2 T | Brier O/U V | Brier O/U T | "
+                 "Brier GG V | Brier GG T | ROI 1X2 V% | ROI 1X2 T% |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
+    for r in rows:
+        lines.append(f"| {r[0]} | {r[1]:.4f} | {r[2]:.4f} | {r[3]:.4f} | {r[4]:.4f} | "
+                     f"{r[5]:.4f} | {r[6]:.4f} | {r[7]:.2f} | {r[8]:.2f} |")
+
+    # raccomandazione ingegneristica basata sui numeri dell'AGGREGATO
+    best1 = min(rows, key=lambda r: (r[1], r[7]))            # 1X2: Brier V poi ROI V
+    bestou = min(rows, key=lambda r: (r[3], r[5]))           # O/U: Brier V
+    bestgg = min(rows, key=lambda r: (r[5], r[3]))           # GG: Brier V
+    rec = (f"Su AGGREGATO (3.504 partite): miglior 1X2 = {best1[0]} "
+           f"(Brier V {best1[1]:.4f}, ROI 1X2 V {best1[7]:+.2f}%); "
+           f"miglior O/U2.5 = {bestou[0]} (Brier V {bestou[3]:.4f}); "
+           f"miglior GG/NG = {bestgg[0]} (Brier V {bestgg[5]:.4f}). "
+           f"Se un unico modello domina su 1X2, O/U e GG si puo' implementare in "
+           f"SoccerMath/app.py; altrimenti adottare l'architettura a due teste "
+           f"(1X2 da NORM_SUM, Totali da base senza mercato).")
+    return lines, rec
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     league_results = {}
@@ -455,7 +525,10 @@ def main():
                  "PRODUZIONE_NORM_SUM (somma attesa normalizzata senza mercato) | "
                  "PROD_DC / PROD_NORM_DC (come i due precedenti ma con correzione "
                  "Dixon-Coles tau(x,y,rho) sulle 4 celle basse e rinormalizzazione; "
-                 "rho stimato via MLE solo su training 2022/23+2023/24 per lega).")
+                 "rho stimato via MLE solo su training 2022/23+2023/24 per lega) | "
+                 "PRODUZIONE_DUE_TESTE (1X2 da NORM_SUM, O/U2.5 e GG/NG da lambda base "
+                 "senza mercato M=1) e PRODUZIONE_DUE_TESTE_DC (idem + Dixon-Coles solo "
+                 "sulla testa Totali).")
     lines.append("")
     lines.append("xG di produzione: snapshot stagionale statico da xg_<lega>.json "
                  "(stesso file letto da get_league_engine); applicato costante alle "
@@ -505,6 +578,20 @@ def main():
     lines.append("| Modello | Mercato | Quota | N V | WR V | ROI V | N T | WR T | ROI T |")
     lines.append("|---|---|---|---|---|---|---|---|---|")
     lines.extend(roiA)
+    lines.append("")
+
+    dA = add_fair(agg_all)
+    rank_lines, rec = build_ranking(dA)
+    lines.append("\n## SINTESI — CLASSIFICA COMPARATIVA (AGGREGATO 5 LEGHE)")
+    lines.append("")
+    lines.append("Ranking delle alternative per Brier 1X2 Validation; per ogni modello "
+                 "sono riportati anche O/U2.5, GG/NG e ROI 1X2 (Bet365).")
+    lines.append("")
+    lines.extend(rank_lines)
+    lines.append("")
+    lines.append("### Raccomandazione ingegneristica per SoccerMath/app.py")
+    lines.append("")
+    lines.append(rec)
     lines.append("")
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
