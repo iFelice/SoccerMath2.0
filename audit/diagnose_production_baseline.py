@@ -21,6 +21,15 @@ Modelli confrontati:
        - forma ultime 5 partite (clip [0.85, 1.15]).
        - fattore valore di mercato logaritmico (MARKET_VALUES, clip [0.85, 1.25]).
        - clip lambda [exp(-6), exp(3)] in ingresso a get_full_poisson().
+  4. PRODUZIONE_NORM_SUM (Alternativa 1: normalizzazione della somma gol): stessi input
+     della PRODUZIONE, ma dopo il calcolo i lambda con mercato lambda_H^mkt/lambda_A^mkt
+     vengono riassegnati in proporzione su una somma attesa target
+     S = lambda_H^base + lambda_A^base (con M=1, forma/xG invariati):
+       lambda_H* = S * lambda_H^mkt / (lambda_H^mkt + lambda_A^mkt)
+       lambda_A* = S * lambda_A^mkt / (lambda_H^mkt + lambda_A^mkt)
+     Poi clip lambda [exp(-6), exp(3)] in ingresso a get_full_poisson(). Rimuove il
+     gonfiaggio sistematico della somma attesa negli scontri di fascia (1/M su attacco
+     e M su difesa), senza alterare la frazione 1X2 del modello.
 
 Metriche (per modello, per lega e aggregato): Brier/LogLoss su 1X2, Over/Under 2.5,
 GG/NG; ROI e Win Rate su quota reale pre-match (Bet365 e Average) con edge > 0%.
@@ -175,15 +184,38 @@ def run_models(df, league, xg_data):
             def clip(x):
                 return max(LAM_LO, min(LAM_HI, x))
 
+            # baseline solo-gol (AUDIT) e con clip lambda
             lam_aud_h = aud_att_h * aud_def_a * avg_h
             lam_aud_a = aud_att_a * aud_def_h * avg_a
             lam_audc_h = clip(lam_aud_h); lam_audc_a = clip(lam_aud_a)
-            lam_prod_h = clip(prod_att_h * prod_def_a * avg_h)
-            lam_prod_a = clip(prod_att_a * prod_def_h * avg_a)
+
+            # lambda mercato applicato (non clippati) -> PRODUZIONE
+            lam_prod_h_raw = prod_att_h * prod_def_a * avg_h
+            lam_prod_a_raw = prod_att_a * prod_def_h * avg_a
+            lam_prod_h = clip(lam_prod_h_raw)
+            lam_prod_a = clip(lam_prod_a_raw)
+
+            # ---- PRODUZIONE_NORM_SUM (Alternativa 1: normalizzazione somma gol) ----
+            # lambda base SENZA fattore mercato (M=1), forma e xG invariati:
+            base_att_h = p_att_h * form_att_h          # senza * mkt_h
+            base_def_h = p_def_h * form_def_h          # senza / mkt_h
+            base_att_a = p_att_a * form_att_a
+            base_def_a = p_def_a * form_def_a
+            lam_base_h = base_att_h * base_def_a * avg_h
+            lam_base_a = base_att_a * base_def_h * avg_a
+            S = lam_base_h + lam_base_a                # somma attesa target
+            den = lam_prod_h_raw + lam_prod_a_raw
+            if den > 0:
+                lam_ns_h = S * lam_prod_h_raw / den    # riassegna la proporzione
+                lam_ns_a = S * lam_prod_a_raw / den
+            else:
+                lam_ns_h, lam_ns_a = lam_base_h, lam_base_a
+            lam_ns_h = clip(lam_ns_h); lam_ns_a = clip(lam_ns_a)
 
             m_aud = get_full_poisson(lam_aud_h, lam_aud_a)
             m_audc = get_full_poisson(lam_audc_h, lam_audc_a)
             m_prod = get_full_poisson(lam_prod_h, lam_prod_a)
+            m_prodn = get_full_poisson(lam_ns_h, lam_ns_a)
 
             real_1x2 = {"H": "1", "D": "X", "A": "2"}.get(ftr, "X")
             real_uo = "OVER" if (fthg + ftag) > 2.5 else "UNDER"
@@ -198,6 +230,8 @@ def run_models(df, league, xg_data):
                 "audc_po": 1 - m_audc["u25"], "audc_gg": m_audc["gg"],
                 "prod_1": m_prod["1"], "prod_X": m_prod["X"], "prod_2": m_prod["2"],
                 "prod_po": 1 - m_prod["u25"], "prod_gg": m_prod["gg"],
+                "prodn_1": m_prodn["1"], "prodn_X": m_prodn["X"], "prodn_2": m_prodn["2"],
+                "prodn_po": 1 - m_prodn["u25"], "prodn_gg": m_prodn["gg"],
                 "B365H": row.B365H, "B365D": row.B365D, "B365A": row.B365A,
                 "AvgH": row.AvgH, "AvgD": row.AvgD, "AvgA": row.AvgA,
                 "B365o": row["B365>2.5"], "B365u": row["B365<2.5"],
@@ -309,7 +343,8 @@ def add_fair(rl):
 
 def build_section(name, rl):
     d = add_fair(rl)
-    models = [("AUDIT solo-gol", "aud"), ("AUDIT + CLIP", "audc"), ("PRODUZIONE", "prod")]
+    models = [("AUDIT solo-gol", "aud"), ("AUDIT + CLIP", "audc"),
+              ("PRODUZIONE ATTUALE", "prod"), ("PRODUZIONE_NORM_SUM", "prodn")]
     cal = []
     roi = []
     for mname, mp in models:
@@ -380,8 +415,11 @@ def main():
     lines.append("Walk-forward no-leakage (ogni partita usa solo i dati precedenti). "
                  "Season: VALIDATION 2024/25 e TEST 2025/26. Modelli: "
                  "AUDIT solo-gol | AUDIT+CLIP (lambda clip [exp(-6),exp(3)]) | "
-                 "PRODUZIONE (xG stagionale primario + forma ult.5 [0.85,1.15] + valore "
-                 "di mercato [0.85,1.25] + clip lambda).")
+                 "PRODUZIONE ATTUALE (xG stagionale primario + forma ult.5 [0.85,1.15] + "
+                 "valore di mercato [0.85,1.25] + clip lambda) | "
+                 "PRODUZIONE_NORM_SUM (stessi input di PRODUZIONE ma somma attesa "
+                 "normalizzata: S = somma lambda senza mercato, riassegnata in "
+                 "proporzione ai lambda con mercato, poi clip lambda).")
     lines.append("")
     lines.append("xG di produzione: snapshot stagionale statico da xg_<lega>.json "
                  "(stesso file letto da get_league_engine); applicato costante alle "
