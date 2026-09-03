@@ -267,6 +267,8 @@ MARKET_VALUES = {
     "Monza": 120, "Genoa": 110, "Lecce": 80, "Verona": 75, "Udinese": 90,
     "Cagliari": 70, "Empoli": 65, "Parma": 60, "Como": 55, "Venezia": 50,
     "Cremonese": 45, "Sassuolo": 70, "Pisa": 40,
+    # Retrocesse/promosse storiche
+    "Frosinone": 45, "Salernitana": 45, "Sampdoria": 50, "Spezia": 45,
 
     # Premier League
     "Man City": 900, "Arsenal": 850, "Liverpool": 900, "Chelsea": 750,
@@ -274,6 +276,9 @@ MARKET_VALUES = {
     "West Ham": 300, "Brighton": 280, "Wolves": 250, "Crystal Palace": 240,
     "Nott'm Forest": 220, "Bournemouth": 200, "Fulham": 200, "Brentford": 190,
     "Everton": 180, "Ipswich": 120, "Leicester": 160, "Southampton": 140,
+    # Retrocesse/promosse storiche
+    "Leeds": 150, "Burnley": 140, "Sheffield United": 110, "Luton": 90,
+    "Sunderland": 80, "Coventry City": 60, "Hull City": 50,
 
     # La Liga
     "Real Madrid": 1100, "Barcelona": 1000, "Atletico Madrid": 700,
@@ -281,6 +286,12 @@ MARKET_VALUES = {
     "Betis": 250, "Sevilla": 220, "Girona": 200, "Celta Vigo": 150,
     "Mallorca": 120, "Osasuna": 110, "Rayo Vallecano": 100, "Alaves": 90,
     "Getafe": 85, "Las Palmas": 80, "Espanyol": 75, "Leganes": 60, "Valladolid": 55,
+    # Alias per allineare clean_name() ai valori gia' presenti
+    "Ath Madrid": 700, "Ath Bilbao": 350, "Sociedad": 320, "Vallecano": 100,
+    "Espanol": 75, "Celta": 150,
+    # Squadre storiche/retrocesse
+    "Valencia": 220, "Almeria": 65, "Cadiz": 55, "Granada": 60, "Elche": 50,
+    "Levante": 60, "Deportivo": 40, "Málaga": 40, "Oviedo": 40, "Santander": 40,
 
     # Bundesliga
     "Bayern": 900, "Leverkusen": 600, "Dortmund": 550, "Leipzig": 450,
@@ -288,12 +299,22 @@ MARKET_VALUES = {
     "Monchengladbach": 160, "Hoffenheim": 150, "Union Berlin": 130, "Mainz": 120,
     "Augsburg": 110, "Werder Bremen": 110, "Heidenheim": 80, "St. Pauli": 60,
     "Bochum": 55, "Holstein Kiel": 45,
+    # Alias per allineare clean_name() ai valori gia' presenti
+    "Ein Frankfurt": 300, "M'gladbach": 160, "St Pauli": 60,
+    # Squadre storiche/retrocesse
+    "Koln": 110, "Hamburg": 90, "Schalke 04": 80, "Hertha": 90, "Darmstadt": 55,
+    "SC Paderborn": 40, "Elversberg": 35,
 
     # Ligue 1
     "PSG": 1000, "Monaco": 350, "Marseille": 300, "Lyon": 250, "Lille": 250,
     "Rennes": 200, "Nice": 180, "Lens": 150, "Strasbourg": 110, "Reims": 100,
     "Brest": 100, "Toulouse": 80, "Montpellier": 70, "Nantes": 70, "Auxerre": 60,
-    "Saint-Etienne": 60, "Angers": 45, "Le Havre": 45
+    "Saint-Etienne": 60, "Angers": 45, "Le Havre": 45,
+    # Alias per allineare clean_name() ai valori gia' presenti
+    "St Etienne": 60,
+    # Squadre storiche/retrocesse
+    "Lorient": 75, "Clermont": 50, "Metz": 55, "Troyes": 45, "Ajaccio": 35,
+    "Paris": 45, "Le Mans": 30
 }
 
 DEFAULT_MARKET_VALUE = 50
