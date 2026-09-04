@@ -774,6 +774,75 @@ def get_contesto_partita(h, a, camp_sel):
         )
     return contesto, match_id_found
 
+# Una giornata di campionato si gioca in pochi giorni (weekend + eventuale
+# anticipo/posticipo): una partita della stessa "matchday" ma settimane più
+# avanti nel calendario è un recupero/posticipo anomalo e non deve entrare
+# nel Top Mix del giorno.
+TOP_MIX_ROUND_WINDOW_DAYS = 5
+
+
+def _parse_utc_date(utc_date_str):
+    """Converte 'utcDate' ISO 8601 (es. '2026-09-06T14:00:00Z') in datetime timezone-aware.
+
+    Restituisce None se il valore è mancante o non valido, così il chiamante
+    scarta la partita senza mai confrontare datetime naive con aware.
+    """
+    if not utc_date_str or not isinstance(utc_date_str, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(utc_date_str.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:  # difensivo: data senza offset -> trattata come UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def select_next_matchday_matches(matches, now=None):
+    """Seleziona tutte e sole le partite della prossima giornata realmente futura.
+
+    Fix bug Top Mix: prima la selezione usava min(matchday) sulle partite
+    TIMED/SCHEDULED restituite dall'API, che NON garantisce sia la prossima
+    giornata da giocare (partite passate ancora TIMED, recuperi lontani nel
+    calendario o dati anomali potevano far entrare nel Top Mix del giorno
+    partite di giornate molto più avanti, es. fine ottobre). Ora:
+
+    1. 'utcDate' viene convertito in datetime timezone-aware;
+    2. vengono scartate le partite con data/ora <= now (restano solo quelle
+       realmente future) e quelle con dati anomali (utcDate/matchday mancanti
+       o non validi);
+    3. la prossima giornata è quella della prima partita futura per data di
+       gioco effettiva (kickoff più vicino), NON il min(matchday);
+    4. si restituiscono solo le partite di quella giornata che cadono nella
+       stessa finestra di round: giornate future successive (non contigue) o
+       recuperi isolati della stessa giornata ma lontani nel calendario non
+       possono mai entrare.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+    if now.tzinfo is None:  # difensivo: mai confrontare naive con aware
+        now = now.replace(tzinfo=timezone.utc)
+
+    future = []
+    for m in matches or []:
+        md = m.get("matchday")
+        dt = _parse_utc_date(m.get("utcDate"))
+        if dt is None or not isinstance(md, int) or dt <= now:
+            continue
+        future.append((dt, md, m))
+    if not future:
+        return []
+
+    # Ordina per data reale di gioco (non per matchday): la prima partita
+    # futura individua la giornata ancora da giocare.
+    future.sort(key=lambda t: t[0])
+    first_kickoff, next_matchday = future[0][0], future[0][1]
+    window_end = first_kickoff + timedelta(days=TOP_MIX_ROUND_WINDOW_DAYS)
+
+    return [m for dt, md, m in future
+            if md == next_matchday and dt <= window_end]
+
+
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top 10...")
 def fetch_and_calc_top_mix():
     all_preds, missing = [], []
@@ -784,7 +853,9 @@ def fetch_and_calc_top_mix():
         try:
             r = requests.get(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches", headers={'X-Auth-Token': API_KEY_DATA}, params={"status": "TIMED,SCHEDULED"})
             if r.status_code != 200: continue
-            matches = [m for m in r.json().get('matches', []) if m['matchday'] == sorted(set([m['matchday'] for m in r.json().get('matches', [])]))[0]]
+            # Fix bug Top Mix: si seleziona la prossima giornata realmente
+            # futura per data di gioco, non più il semplice min(matchday).
+            matches = select_next_matchday_matches(r.json().get('matches', []))
         except Exception as e:
             logging.warning(f"Errore fetch Top Mix {league}: {e}")
             continue
