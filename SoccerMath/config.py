@@ -362,7 +362,7 @@ TEAM_NAME_MAP = {
     "Nottingham": "Nott'm Forest",
 
     # La Liga
-    "Athletic Bilbao": "Athletic Club",
+    "Athletic Bilbao": "Ath Bilbao",
     "Deportivo Alaves": "Alaves",
     "Real Betis": "Betis",
     "Alavés": "Alaves",
