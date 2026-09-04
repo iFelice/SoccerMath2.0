@@ -408,6 +408,14 @@ def get_league_engine(camp_key):
             att = (att_h + att_a) / 2
             defe = (def_h + def_a) / 2
         
+        # FORMA SOLO NELLA TESTA 1X2: il rapporto puro di lungo periodo (xG/gol
+        # storici puliti) viene conservato in pure_att/pure_def PERCHÉ att0/def0
+        # alimentano la testa Totali (O/U2.5, GG/NG) in get_full_poisson_two_heads.
+        # La forma a 5 gare e' rumore per i totali: il confronto walk-forward su
+        # 5 leghe (Brier con/senza forma) migliora SEMPRE il Brier pooled su
+        # entrambe le teste e la stragrande maggioranza dei 40 confronti a
+        # blocchi (vedi audit/results/form_totali_diagnosis.md).
+        pure_att, pure_def = att, defe
         form = form_factors.get(t, {'att': 1.0, 'def': 1.0})
         att = att * form['att']
         defe = defe * form['def']
@@ -416,15 +424,16 @@ def get_league_engine(camp_key):
         # Fattore mercato logaritmico: big (+20%), medie (+5%), piccole (-7%), neopromosse (-15%)
         mkt_factor = 1 + (np.log10(max(val, 10)) - 2.0) / 4
         mkt_factor = max(0.85, min(1.25, mkt_factor))
-        # Architettura a due teste: conservo sia i rapporti BASE (senza valore di
-        # mercato, M=1) sia quelli aggiustati dal fattore mercato. La testa 1X2
-        # usera' i lambda con mercato normalizzati alla somma base; la testa
-        # O/U2.5 e GG/NG usera' direttamente i lambda base senza distorsione.
+        # Architettura a due teste: conservo sia i rapporti BASE puri (senza
+        # forma, senza valore di mercato, M=1) sia quelli aggiustati da forma
+        # e mercato. La testa 1X2 usera' i lambda con forma+mercato
+        # normalizzati alla somma base; la testa O/U2.5 e GG/NG usera'
+        # direttamente i lambda base puri, senza distorsione.
         stats[t] = {
             'att': att * mkt_factor,
             'def': defe / mkt_factor,
-            'att0': att,          # base, M=1 (xG/gol + forma)
-            'def0': defe,         # base, M=1 (xG/gol + forma)
+            'att0': pure_att,     # base pura, M=1 (xG/gol storici, SENZA forma)
+            'def0': pure_def,     # base pura, M=1 (xG/gol storici, SENZA forma)
             'val': val
         }
     return stats, avg_h, avg_a, df
@@ -593,11 +602,12 @@ def get_full_poisson(h_e, a_e, max_goals=15):
 def _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a, max_goals=15):
     """Architettura a due teste su lambda raw (senza clip).
 
-    Testa 1X2: i lambda con mercato vengono normalizzati vincolando la loro somma
-    alla somma attesa BASE S = base_h + base_a, mantenendone la proporzione
-    relativa (lambda_H* = S * mkt_H / (mkt_H + mkt_A)). Poi clip e matrice.
-    Testa O/U e GG/NG: si usano direttamente i lambda BASE (M=1, senza distorsione
-    del valore di mercato), con clip.
+    Testa 1X2: i lambda con mercato (e forma) vengono normalizzati vincolando la
+    loro somma alla somma attesa BASE S = base_h + base_a, mantenendone la
+    proporzione relativa (lambda_H* = S * mkt_H / (mkt_H + mkt_A)). Poi clip e
+    matrice.
+    Testa O/U e GG/NG: si usano direttamente i lambda BASE (M=1, baseline pura di
+    lungo periodo, senza distorsione di mercato e forma), con clip.
     """
     S = base_h + base_a
     den = mkt_h + mkt_a
@@ -623,9 +633,10 @@ def _stat_num(ts, key, default):
 def get_full_poisson_two_heads(hs, as_, avg_h, avg_a, max_goals=15):
     """Wrapper di alto livello sui dizionari 'stats' del motore.
 
-    Ogni dizionario squadra deve avere att/def (aggiustati dal mercato) e
-    att0/def0 (base, M=1). Se att0/def0 mancano si ripiega su att/def (== modello
-    a testa singola equivalente, ma con normalizzazione della somma su se stessa).
+    Ogni dizionario squadra deve avere att/def (forma + mercato, testa 1X2) e
+    att0/def0 (base pura di lungo periodo, M=1, senza forma — testa Totali).
+    Se att0/def0 mancano si ripiega su att/def (== modello a testa singola
+    equivalente, ma con normalizzazione della somma su se stessa).
     """
     hs = hs or {}
     as_ = as_ or {}

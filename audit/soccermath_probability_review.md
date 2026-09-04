@@ -2,8 +2,14 @@
 
 Documento di handoff. Riassume solo cose verificate sul codice/dati reali del repo
 (`github.com/iFelice/SoccerMath2.0`, cartella `SoccerMath/`), non ipotesi.
-Nessuna formula è stata modificata finora: tutto quello che segue è diagnosi,
-non intervento.
+Nessuna formula è stata modificata al momento della stesura: tutto quello che
+segue è diagnosi, non intervento.
+
+> **Aggiornamento (post-handoff):** due interventi sono stati eseguiti sulla
+> base delle diagnosi e tracciati qui sotto: (1) rimozione della forma a 5 gare
+> da `att0`/`def0` in `app.py` (testa Totali = baseline pura), motivata da
+> `diagnose_form_totali.py` (report in `results/form_totali_diagnosis.md`);
+> (2) fix nomenclatura `"Athletic Bilbao" → "Ath Bilbao"` in `config.py`.
 
 ---
 
@@ -26,7 +32,15 @@ ogni punto è stato poi controllato riga per riga sul repo vero).
 ### 1.1 — Il motore più sofisticato non è quello validato
 `app.py` (righe 409, 1047): commento esplicito *"Dixon-Coles è escluso
 volutamente per velocità"*. Il backtest in-app (`run_historical_backtest`)
-testa solo Poisson ed Elo. Dixon-Coles è usato in produzione ma mai misurato.
+testa solo Poisson ed Elo. **Rettifica: Dixon-Coles NON è in produzione.**
+È presente solo in `models/dixon_coles.py` e viene usato esclusivamente da
+script offline (es. `audit/backtest_experiment_all.py`,
+`SoccerMath/evaluate_models.py`); in `app.py` resta soltanto l'import, mai
+chiamato. La produzione utilizza il **Poisson a Due Teste**
+(`get_full_poisson_two_heads` in `app.py`: testa 1X2 con lambda forma+mercato
+normalizzati alla somma base, testa Totali con lambda base puri). Il punto
+della sezione resta valido nella forma corretta: il motore più sofisticato
+non è quello di produzione e non è mai stato misurato nel circuito live.
 
 ### 1.2 — Il modulo di validazione economica esiste ma è morto
 `models/backtest.py` contiene `run_backtest`, `compare_models_backtest`,
@@ -199,3 +213,11 @@ campione non contaminato da retrospettiva.
   con quote pre-match e de-vig.
 - `analyze.py` — calcola Brier/LogLoss/edge/ROI/drawdown e produce le tabelle
   di questo documento. Da qui si parte per replicare sulle altre leghe.
+- `diagnose_form_totali.py` — walk-forward su 5 leghe (2024/25+2025/26): Brier
+  O/U2.5 e GG/NG della testa Totali con forma a 5 gare vs senza (baseline pura).
+  Report: `results/form_totali_diagnosis.md`. Base della rettifica in
+  `app.py` (att0/def0 senza forma).
+- `diagnose_elo_ensemble.py` — walk-forward su 5 leghe (2024/25+2025/26):
+  Poisson (testa 1X2 di produzione) vs Elo vs ensemble 0.6P+0.4E sul 1X2,
+  con Brier/LogLoss/win rate e analisi del filtro di disaccordo 0.25.
+  Report: `results/elo_ensemble_diagnosis.md`.
