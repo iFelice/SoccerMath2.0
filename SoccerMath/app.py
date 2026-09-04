@@ -408,23 +408,40 @@ def get_league_engine(camp_key):
             att = (att_h + att_a) / 2
             defe = (def_h + def_a) / 2
         
+        # Baseline pura di lungo periodo (xG/gol storici puliti), SENZA forma:
+        # alimenta la testa Totali (O/U2.5 e GG/NG). Evidenza empirica su 5
+        # campionati (40 confronti, vedi audit/diagnose_form_totali.py e
+        # audit/results/form_totali_diagnosis.md): rimuovere la forma a 5 gare
+        # dai totali abbassa il Brier O/U2.5 da 0.2488 a 0.2401 e GG/NG da
+        # 0.2584 a 0.2496.
+        att0_pure = att
+        def0_pure = defe
+
+        # La forma resta SOLO nella testa 1X2 (att/def): att0/def0 continuano a
+        # includerla perche' fanno da ancora (S = base_h + base_a) alla
+        # normalizzazione dei lambda 1X2 in _two_heads_from_lambdas.
         form = form_factors.get(t, {'att': 1.0, 'def': 1.0})
         att = att * form['att']
         defe = defe * form['def']
-        
+        att0 = att
+        def0 = defe
+
         val = mkt_values.get(t, 50)
         # Fattore mercato logaritmico: big (+20%), medie (+5%), piccole (-7%), neopromosse (-15%)
         mkt_factor = 1 + (np.log10(max(val, 10)) - 2.0) / 4
         mkt_factor = max(0.85, min(1.25, mkt_factor))
-        # Architettura a due teste: conservo sia i rapporti BASE (senza valore di
-        # mercato, M=1) sia quelli aggiustati dal fattore mercato. La testa 1X2
-        # usera' i lambda con mercato normalizzati alla somma base; la testa
-        # O/U2.5 e GG/NG usera' direttamente i lambda base senza distorsione.
+        # Architettura a due teste: conservo sia i rapporti BASE (senza valore
+        # di mercato, M=1) sia quelli aggiustati dal fattore mercato. La testa
+        # 1X2 usera' i lambda con mercato normalizzati alla somma base; la testa
+        # O/U2.5 e GG/NG usera' i lambda puri (att0_pure/def0_pure), senza
+        # distorsione di forma o mercato.
         stats[t] = {
             'att': att * mkt_factor,
             'def': defe / mkt_factor,
-            'att0': att,          # base, M=1 (xG/gol + forma)
-            'def0': defe,         # base, M=1 (xG/gol + forma)
+            'att0': att0,         # base con forma, M=1 (ancora S della testa 1X2)
+            'def0': def0,         # base con forma, M=1 (ancora S della testa 1X2)
+            'att0_pure': att0_pure,  # baseline pura, M=1, senza forma: testa Totali
+            'def0_pure': def0_pure,  # baseline pura, M=1, senza forma: testa Totali
             'val': val
         }
     return stats, avg_h, avg_a, df
@@ -590,14 +607,20 @@ def get_full_poisson(h_e, a_e, max_goals=15):
     return _poisson_market(h_e, a_e, max_goals)
 
 
-def _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a, max_goals=15):
+def _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a,
+                            base_pure_h=None, base_pure_a=None, max_goals=15):
     """Architettura a due teste su lambda raw (senza clip).
 
     Testa 1X2: i lambda con mercato vengono normalizzati vincolando la loro somma
     alla somma attesa BASE S = base_h + base_a, mantenendone la proporzione
     relativa (lambda_H* = S * mkt_H / (mkt_H + mkt_A)). Poi clip e matrice.
-    Testa O/U e GG/NG: si usano direttamente i lambda BASE (M=1, senza distorsione
-    del valore di mercato), con clip.
+    S usa base_h/base_a (con forma): questo e' esattamente il comportamento
+    storico e non viene toccato (att0/def0 continuano a includere la forma).
+
+    Testa O/U e GG/NG: si usano i lambda base PURI di lungo periodo
+    (base_pure_h/base_pure_a, M=1, senza forma ne' mercato), con clip; se i
+    lambda puri non vengono forniti (retro-compatibilita') si ripiega su
+    base_h/base_a, come prima dell'introduzione di att0_pure/def0_pure.
     """
     S = base_h + base_a
     den = mkt_h + mkt_a
@@ -607,7 +630,9 @@ def _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a, max_goals=15):
     else:
         norm_h, norm_a = base_h, base_a
     m1 = _poisson_market(norm_h, norm_a, max_goals)     # testa 1X2
-    m0 = _poisson_market(base_h, base_a, max_goals)     # testa Totali
+    t_h = base_h if base_pure_h is None else base_pure_h
+    t_a = base_a if base_pure_a is None else base_pure_a
+    m0 = _poisson_market(t_h, t_a, max_goals)           # testa Totali
     return {
         "1": m1["1"], "X": m1["X"], "2": m1["2"],
         "u15": m0["u15"], "u25": m0["u25"], "u35": m0["u35"],
@@ -623,9 +648,13 @@ def _stat_num(ts, key, default):
 def get_full_poisson_two_heads(hs, as_, avg_h, avg_a, max_goals=15):
     """Wrapper di alto livello sui dizionari 'stats' del motore.
 
-    Ogni dizionario squadra deve avere att/def (aggiustati dal mercato) e
-    att0/def0 (base, M=1). Se att0/def0 mancano si ripiega su att/def (== modello
-    a testa singola equivalente, ma con normalizzazione della somma su se stessa).
+    Ogni dizionario squadra deve avere att/def (aggiustati da forma e mercato,
+    testa 1X2), att0/def0 (base con forma, M=1: ancora S della normalizzazione
+    1X2) e att0_pure/def0_pure (baseline pura di lungo periodo, M=1, senza
+    forma: testa O/U2.5 e GG/NG). Se att0_pure/def0_pure mancano si ripiega su
+    att0/def0 (comportamento precedente); se mancano att0/def0 si ripiega su
+    att/def (== modello a testa singola equivalente, ma con normalizzazione
+    della somma su se stessa).
     """
     hs = hs or {}
     as_ = as_ or {}
@@ -637,7 +666,15 @@ def get_full_poisson_two_heads(hs, as_, avg_h, avg_a, max_goals=15):
     mkt_a = _stat_num(as_, "att", 1.0) * _stat_num(hs, "def", 1.0) * avg_a
     base_h = att0_h * def0_a * avg_h
     base_a = att0_a * def0_h * avg_a
-    return _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a, max_goals)
+    # Baseline pura per la testa Totali (senza forma). Fallback su att0/def0.
+    attp_h = _stat_num(hs, "att0_pure", att0_h)
+    defp_h = _stat_num(hs, "def0_pure", def0_h)
+    attp_a = _stat_num(as_, "att0_pure", att0_a)
+    defp_a = _stat_num(as_, "def0_pure", def0_a)
+    base_pure_h = attp_h * defp_a * avg_h
+    base_pure_a = attp_a * defp_h * avg_a
+    return _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a,
+                                   base_pure_h, base_pure_a, max_goals)
 
 def calcola_segnali(risultati, infraset_giocate, infraset_programmate, stand, *args):
     mult_att, mult_def = 1.0, 1.0

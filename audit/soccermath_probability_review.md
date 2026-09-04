@@ -2,8 +2,16 @@
 
 Documento di handoff. Riassume solo cose verificate sul codice/dati reali del repo
 (`github.com/iFelice/SoccerMath2.0`, cartella `SoccerMath/`), non ipotesi.
-Nessuna formula è stata modificata finora: tutto quello che segue è diagnosi,
-non intervento.
+Nessuna formula è stata modificata al momento della stesura: tutto quello che
+segue è diagnosi, non intervento.
+
+> **Aggiornamento (post-handoff):** interventi eseguiti in base alle diagnosi e
+> tracciati qui sotto: (1) nella testa Totali (O/U2.5, GG/NG) del Poisson a Due
+> Teste la forma a 5 gare è stata rimossa — la testa Totali usa ora la baseline
+> pura `att0_pure`/`def0_pure` (xG/gol storici senza forma), mentre `att0`/`def0`
+> e la testa 1X2 restano invariati — motivato da `diagnose_form_totali.py`
+> (report in `results/form_totali_diagnosis.md`); (2) fix nomenclatura
+> `"Athletic Bilbao" → "Ath Bilbao"` in `config.py`.
 
 ---
 
@@ -26,7 +34,16 @@ ogni punto è stato poi controllato riga per riga sul repo vero).
 ### 1.1 — Il motore più sofisticato non è quello validato
 `app.py` (righe 409, 1047): commento esplicito *"Dixon-Coles è escluso
 volutamente per velocità"*. Il backtest in-app (`run_historical_backtest`)
-testa solo Poisson ed Elo. Dixon-Coles è usato in produzione ma mai misurato.
+testa solo Poisson ed Elo. **Rettifica: Dixon-Coles NON è in produzione.**
+È presente solo in `models/dixon_coles.py` ed è usato esclusivamente da
+script offline (`SoccerMath/evaluate_models.py`,
+`audit/backtest_experiment_all.py`, `SoccerMath/test_basic.py`); in `app.py`
+resta soltanto l'import (riga 33), mai chiamato. La produzione utilizza il
+**Poisson a Due Teste** (`get_full_poisson_two_heads` in `app.py`: testa 1X2
+con lambda forma+mercato normalizzati alla somma base `att0`/`def0`, testa
+Totali con lambda base puri `att0_pure`/`def0_pure` senza forma). Il punto
+della sezione resta valido nella forma corretta: il motore più sofisticato
+non è quello di produzione e non è mai stato misurato nel circuito live.
 
 ### 1.2 — Il modulo di validazione economica esiste ma è morto
 `models/backtest.py` contiene `run_backtest`, `compare_models_backtest`,
@@ -199,3 +216,11 @@ campione non contaminato da retrospettiva.
   con quote pre-match e de-vig.
 - `analyze.py` — calcola Brier/LogLoss/edge/ROI/drawdown e produce le tabelle
   di questo documento. Da qui si parte per replicare sulle altre leghe.
+- `diagnose_form_totali.py` — walk-forward su 5 leghe (2024/25+2025/26): Brier
+  O/U2.5 e GG/NG della testa Totali con forma a 5 gare vs senza (baseline pura).
+  Report: `results/form_totali_diagnosis.md`. Base dell'intervento in `app.py`
+  (testa Totali con `att0_pure`/`def0_pure` senza forma).
+- `diagnose_elo_ensemble.py` — walk-forward su 5 leghe (2024/25+2025/26):
+  Poisson (testa 1X2 di produzione) vs Elo vs ensemble 0.6P+0.4E sul 1X2,
+  con Brier/LogLoss/win rate e analisi del filtro di disaccordo 0.25.
+  Report: `results/elo_ensemble_diagnosis.md`.
