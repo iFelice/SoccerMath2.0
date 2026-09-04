@@ -26,7 +26,12 @@ ogni punto è stato poi controllato riga per riga sul repo vero).
 ### 1.1 — Il motore più sofisticato non è quello validato
 `app.py` (righe 409, 1047): commento esplicito *"Dixon-Coles è escluso
 volutamente per velocità"*. Il backtest in-app (`run_historical_backtest`)
-testa solo Poisson ed Elo. Dixon-Coles è usato in produzione ma mai misurato.
+testa solo Poisson ed Elo. **Rettifica:** Dixon-Coles **NON** è in produzione.
+Il modulo esiste solo in `models/dixon_coles.py` ed è usato esclusivamente da
+script offline (`evaluate_models.py`, `test_basic.py`, `audit/*`); in `app.py`
+le sue funzioni sono importate (riga 33) ma mai chiamate. La produzione utilizza
+il **Poisson a Due Teste** (`att`/`def` con forma+mercato per la testa 1X2,
+`att0`/`def0` baseline pura per la testa O/U2.5 e GG/NG).
 
 ### 1.2 — Il modulo di validazione economica esiste ma è morto
 `models/backtest.py` contiene `run_backtest`, `compare_models_backtest`,

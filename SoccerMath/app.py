@@ -408,6 +408,14 @@ def get_league_engine(camp_key):
             att = (att_h + att_a) / 2
             defe = (def_h + def_a) / 2
         
+        # Baseline pura di lungo periodo (xG/gol storici puliti), SENZA forma:
+        # e' quella usata dalla testa Totali (O/U2.5 e GG/NG). Evidenza empirica
+        # (40/40 confronti su 5 campionati): rimuovere la forma a 5 gare dai
+        # totali abbassa il Brier O/U2.5 da 0.2488 a 0.2401 e GG/NG da 0.2584 a 0.2496.
+        att0 = att
+        def0 = defe
+
+        # La forma resta SOLO nella testa 1X2.
         form = form_factors.get(t, {'att': 1.0, 'def': 1.0})
         att = att * form['att']
         defe = defe * form['def']
@@ -417,14 +425,14 @@ def get_league_engine(camp_key):
         mkt_factor = 1 + (np.log10(max(val, 10)) - 2.0) / 4
         mkt_factor = max(0.85, min(1.25, mkt_factor))
         # Architettura a due teste: conservo sia i rapporti BASE (senza valore di
-        # mercato, M=1) sia quelli aggiustati dal fattore mercato. La testa 1X2
-        # usera' i lambda con mercato normalizzati alla somma base; la testa
-        # O/U2.5 e GG/NG usera' direttamente i lambda base senza distorsione.
+        # mercato e senza forma, M=1) sia quelli aggiustati da forma e mercato.
+        # La testa 1X2 usera' i lambda con forma+mercato normalizzati alla somma
+        # base; la testa O/U2.5 e GG/NG usera' direttamente i lambda base puri.
         stats[t] = {
             'att': att * mkt_factor,
             'def': defe / mkt_factor,
-            'att0': att,          # base, M=1 (xG/gol + forma)
-            'def0': defe,         # base, M=1 (xG/gol + forma)
+            'att0': att0,         # baseline pura, M=1, senza forma (xG/gol storici)
+            'def0': def0,         # baseline pura, M=1, senza forma (xG/gol storici)
             'val': val
         }
     return stats, avg_h, avg_a, df
