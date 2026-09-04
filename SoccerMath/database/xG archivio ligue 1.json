@@ -15797,11 +15797,11 @@
     "date": "2026-09-03 18:45:00",
     "home_team": "Toulouse",
     "away_team": "Lille",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 1,
+    "home_xg": 2.97022,
+    "away_xg": 1.04406,
+    "is_result": true
   },
   {
     "season": 2026,
