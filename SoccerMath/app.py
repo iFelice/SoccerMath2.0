@@ -334,6 +334,37 @@ def aggiorna_risultati_reali(api_key):
     return aggiornate, len(pending)
 
 # --- MOTORI LOGICI ---
+
+# Peso del prior "media di lega" (shrinkage empirico-bayesiano), espresso in
+# partite equivalenti: con n partite osservate la stima del rapporto
+# attacco/difesa e' (n*r + PRIOR_MATCHES) / (n + PRIOR_MATCHES).
+# Fix NG ~99.8%: senza questo prior una neopromossa con 0 gol in 2 partite
+# di DB otteneva ratio 0.0 ESATTO -> lambda 0 -> clip exp(-6) -> NG 99.8%.
+PRIOR_MATCHES = 6.0
+
+
+def _shrunk_ratio(observed, expected, n_matches, prior=PRIOR_MATCHES):
+    """Rapporto observed/expected con shrinkage verso 1.0 (media di lega).
+
+    Dati assenti (n<=0), atteso nullo o totali non finiti -> 1.0: il modello
+    degrada in modo controllato sulla media di lega invece che verso 0.
+    Con prior=6: 0 gol in 2 partite -> 0.75; a 38 partite il prior pesa ~14%.
+    """
+    try:
+        n_matches = float(n_matches)
+        observed, expected = float(observed), float(expected)
+    except (TypeError, ValueError):
+        return 1.0
+    if not (np.isfinite(observed) and np.isfinite(expected) and np.isfinite(n_matches)):
+        return 1.0
+    if n_matches <= 0 or expected <= 0:
+        return 1.0
+    r = observed / expected
+    if not np.isfinite(r):
+        return 1.0
+    return (n_matches * r + prior) / (n_matches + prior)
+
+
 @st.cache_data(ttl=3600)
 def get_league_engine(camp_key):
     # I file (storici + base + live) vengono risolti in config: solo il pattern
@@ -389,24 +420,83 @@ def get_league_engine(camp_key):
     mkt_values = get_market_values()
     league_xg = None
     league_xga = None
-    if xg_data and len(xg_data) >= 10: 
-        league_xg = np.mean([v['xG_avg'] for v in xg_data.values()])
-        league_xga = np.mean([v['xGA_avg'] for v in xg_data.values()])
-    
+    if xg_data and len(xg_data) >= 10:
+        # Medie di lega su soli valori finiti e positivi; range di sanita'
+        # 0.5-5.0: nessun campionato reale sta fuori da questo intervallo
+        # (media xG per squadra/partita ~1.2-1.6 nelle top 5), quindi valori
+        # fuori range = file xG corrotto -> si ignora la fonte xG.
+        _lx = [v['xG_avg'] for v in xg_data.values()
+               if isinstance(v, dict) and isinstance(v.get('xG_avg'), (int, float))
+               and np.isfinite(v['xG_avg']) and v['xG_avg'] > 0]
+        _lxa = [v['xGA_avg'] for v in xg_data.values()
+                if isinstance(v, dict) and isinstance(v.get('xGA_avg'), (int, float))
+                and np.isfinite(v['xGA_avg']) and v['xGA_avg'] > 0]
+        if len(_lx) >= 10 and len(_lxa) >= 10:
+            _m_xg, _m_xga = float(np.mean(_lx)), float(np.mean(_lxa))
+            if 0.5 < _m_xg < 5.0 and 0.5 < _m_xga < 5.0:
+                league_xg, league_xga = _m_xg, _m_xga
+
+    # --- PRIOR EMPIRICO PER CAMPIONI PICCOLI (fix NG ~99.8%) ---
+    # Il rapporto attacco/difesa usa lo shrinkage verso la media di lega
+    # definito a livello di modulo (_shrunk_ratio, PRIOR_MATCHES): senza
+    # prior una neopromossa con 0 gol in 2 partite di DB otteneva ratio
+    # 0.0 ESATTO -> lambda pura 0 -> clip exp(-6) = 0.002479 -> NG 99.8%
+    # (v. audit/test_ng_regression.py e audit/repro_ng_anomaly.py).
+
     stats = {}
     for t in pd.concat([df['HomeClean'], df['AwayClean']]).unique():
         h_h = df[df['HomeClean']==t]
         a_h = df[df['AwayClean']==t]
-        if xg_data and t in xg_data and league_xg and league_xga: 
-            att = xg_data[t]['xG_avg'] / league_xg
-            defe = xg_data[t]['xGA_avg'] / league_xga
-        else:
-            att_h = np.average(h_h['FTHG'].dropna(), weights=h_h.loc[h_h['FTHG'].notna(), 'peso']) / avg_h if not h_h.empty else 1.0
-            att_a = np.average(a_h['FTAG'].dropna(), weights=a_h.loc[a_h['FTAG'].notna(), 'peso']) / avg_a if not a_h.empty else 1.0
-            def_h = np.average(h_h['FTAG'].dropna(), weights=h_h.loc[h_h['FTAG'].notna(), 'peso']) / avg_a if not h_h.empty else 1.0
-            def_a = np.average(a_h['FTHG'].dropna(), weights=a_h.loc[a_h['FTHG'].notna(), 'peso']) / avg_h if not a_h.empty else 1.0
-            att = (att_h + att_a) / 2
-            defe = (def_h + def_a) / 2
+        # --- Testa dati xG: validita' + shrinkage se noto il campione ---
+        xg_rec = xg_data.get(t) if xg_data else None
+        use_xg = False
+        if (xg_rec is not None and league_xg and league_xga
+                and isinstance(xg_rec, dict)):
+            xg_v = xg_rec.get('xG_avg')
+            xga_v = xg_rec.get('xGA_avg')
+            n_xg = xg_rec.get('matches')  # aggiunto da update_xg.py col fix NG
+            try:
+                xg_v = float(xg_v); xga_v = float(xga_v)
+                val_ok = (np.isfinite(xg_v) and np.isfinite(xga_v)
+                          and xg_v >= 0 and xga_v >= 0)
+            except (TypeError, ValueError):
+                val_ok = False
+                n_xg = None
+            n_ok = (isinstance(n_xg, (int, float)) and not isinstance(n_xg, bool)
+                    and np.isfinite(float(n_xg)) and float(n_xg) > 0)
+            # Senza 'matches' (file xG vecchi) uno xG_avg==0 non e' distinguibile
+            # da un dato rotto: si va di fallback sui gol. Con 'matches' noto lo
+            # shrinkage gestisce anche uno 0.0 autentico (0.00 xG in n partite).
+            if val_ok and (n_ok or (xg_v > 0 and xga_v > 0)):
+                if n_ok:
+                    att = _shrunk_ratio(xg_v, league_xg, n_xg)
+                    defe = _shrunk_ratio(xga_v, league_xga, n_xg)
+                else:
+                    att = xg_v / league_xg
+                    defe = xga_v / league_xga
+                use_xg = True
+        if not use_xg:
+            # --- Fallback gol dal DB: rapporto pooled con shrinkage ---
+            # Gol osservati e gol attesi da una squadra "media di lega"
+            # (media casa in casa, media trasferta in trasferta), aggregati
+            # su entrambi i ruoli: un solo ratio stabile invece della media
+            # di ratio casa/trasferta separati (che con 1-2 partite e' rumore).
+            h_gf = h_h['FTHG'].dropna(); a_gf = a_h['FTAG'].dropna()
+            h_ga = h_h['FTAG'].dropna(); a_ga = a_h['FTHG'].dropna()
+            n_played = len(h_gf) + len(a_gf)
+            gf = float(h_gf.sum() + a_gf.sum())
+            ga = float(h_ga.sum() + a_ga.sum())
+            exp_gf = float(avg_h * len(h_gf) + avg_a * len(a_gf))
+            exp_ga = float(avg_a * len(h_ga) + avg_h * len(a_ga))
+            att = _shrunk_ratio(gf, exp_gf, n_played)
+            defe = _shrunk_ratio(ga, exp_ga, n_played)
+
+        # --- Sanitizzazione finale: nessun ratio non-finito o <= 0 puo'
+        # raggiungere le lambda (att/def == 0 => lambda 0 => NG 99.8%).
+        if not (np.isfinite(att) and att > 0):
+            att = 1.0
+        if not (np.isfinite(defe) and defe > 0):
+            defe = 1.0
         
         # Baseline pura di lungo periodo (xG/gol storici puliti), SENZA forma:
         # alimenta la testa Totali (O/U2.5 e GG/NG). Evidenza empirica su 5
@@ -573,8 +663,20 @@ def run_historical_backtest(camp_key, min_train=30, step=5, max_test=300):
 
 
 def _clip_lambda(x):
-    """Clip dei lambda al range validato in audit/ (log-spazio [-6, 3])."""
-    return max(0.002479, min(20.0855, float(x)))  # [exp(-6), exp(3)]
+    """Clip dei lambda al range validato in audit/ (log-spazio [-6, 3]).
+
+    Input non finiti (NaN/+inf/-inf): un lambda non finito segnala un bug a
+    monte (statistiche corrotte). Il valore neutro 1.0 (tasso di gol medio
+    di lega, prior a massima entropia per un tasso Poisson) evita che NaN
+    produca silenziosamente il clip SUPERIORE: con i confronti float Python
+    max(0.002479, min(20.0855, nan)) restituiva 20.0855, cioe' una squadra
+    "infinitamente" prolifica. La pipeline a monte (get_league_engine)
+    sanitizza comunque le statistiche, quindi questo e' un ultimo argine.
+    """
+    x = float(x)
+    if not math.isfinite(x):
+        return 1.0
+    return max(0.002479, min(20.0855, x))  # [exp(-6), exp(3)]
 
 
 def _poisson_market(h_e, a_e, max_goals=15):

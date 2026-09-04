@@ -1,6 +1,6 @@
 """
 update_xg.py - Scarica gli xG da Understat automaticamente
-Stagione corrente: 2025/2026 (ID Understat = 2025)
+Stagione corrente: 2026/2027 (ID Understat = 2026)
 """
 
 import requests
@@ -44,12 +44,12 @@ NAME_MAP = {
     "Real Sociedad": "Real Sociedad", "Celta Vigo": "Celta Vigo", "Rayo Vallecano": "Rayo Vallecano",
     "Deportivo Alaves": "Alaves", "Girona": "Girona", "Las Palmas": "Las Palmas",
     "Sevilla": "Sevilla", "Real Betis": "Betis", "Mallorca": "Mallorca", "Osasuna": "Osasuna",
-    "Getafe": "Getafe", "Espanyol": "Espanyol", "Valladolid": "Valladolid", "Leganes": "Leganes",
+    "Getafe": "Getafe", "Valladolid": "Valladolid", "Leganes": "Leganes",
     # Bundesliga
     "Bayern Munich": "Bayern", "Bayer 04 Leverkusen": "Leverkusen", "Borussia Dortmund": "Dortmund",
-    "RB Leipzig": "Leipzig", "VfB Stuttgart": "Stuttgart", "Eintracht Frankfurt": "Frankfurt",
+    "RB Leipzig": "Leipzig", "VfB Stuttgart": "Stuttgart", "Eintracht Frankfurt": "Ein Frankfurt",
     "SC Freiburg": "Freiburg", "TSG Hoffenheim": "Hoffenheim", "VfL Wolfsburg": "Wolfsburg",
-    "Union Berlin": "Union Berlin", "Borussia Mönchengladbach": "Monchengladbach",
+    "Union Berlin": "Union Berlin", "Borussia Mönchengladbach": "M'gladbach",
     "1. FSV Mainz 05": "Mainz", "SV Werder Bremen": "Werder Bremen", "FC Augsburg": "Augsburg",
     "1. FC Heidenheim 1846": "Heidenheim", "VfL Bochum": "Bochum", "FC St. Pauli": "St. Pauli",
     "Holstein Kiel": "Holstein Kiel",
@@ -61,7 +61,41 @@ NAME_MAP = {
     "OGC Nice": "Nice", "RC Lens": "Lens", "RC Strasbourg Alsace": "Strasbourg",
     "Stade de Reims": "Reims", "Stade Brestois 29": "Brest", "Toulouse FC": "Toulouse",
     "Montpellier HSC": "Montpellier", "FC Nantes": "Nantes", "AJ Auxerre": "Auxerre",
-    "AS Saint-Étienne": "Saint-Etienne", "Angers SCO": "Angers", "Le Havre AC": "Le Havre"
+    "AS Saint-Étienne": "Saint-Etienne", "Angers SCO": "Angers", "Le Havre AC": "Le Havre",
+
+    # --- Fix NG 99.8%: titoli Understat 2026/27 allineati ai nomi CSV/Football-Data.
+    # Senza queste mappature la chiave JSON non coincideva con clean_name(nome CSV)
+    # e la squadra (es. neopromossa) cadeva nel fallback sui gol: con 0 gol in 2
+    # partite il ratio era 0.0 esatto -> lambda ~0 -> NG 99.8% (ora mitigato anche
+    # dallo shrinkage in get_league_engine). Titoli verificati sugli archivi
+    # "database/xG archivio <lega>.json" (stagione 2026).
+    # Premier League
+    "Coventry": "Coventry City",
+    "Hull": "Hull City",
+    # La Liga (nomi CSV: Ath Bilbao, Ath Madrid, Celta, Deportivo, Espanol, ...)
+    "Athletic Club": "Ath Bilbao",
+    "Atletico Madrid": "Ath Madrid",
+    "Celta Vigo": "Celta",
+    "Deportivo La Coruna": "Deportivo",
+    "Espanyol": "Espanol",
+    "Malaga": "Málaga",
+    "Racing Santander": "Santander",
+    "Rayo Vallecano": "Vallecano",
+    "Real Sociedad": "Sociedad",
+    # Bundesliga (nomi CSV: Leverkusen, Leipzig, Hamburg, Mainz, ...)
+    "Bayer Leverkusen": "Leverkusen",
+    "RasenBallsport Leipzig": "Leipzig",
+    "Hamburger SV": "Hamburg",
+    "Mainz 05": "Mainz",
+    "Paderborn": "SC Paderborn",
+    "FC Cologne": "Koln",
+    "Köln": "Koln",
+    "Borussia M.Gladbach": "M'gladbach",
+    # Ligue 1 (due club parigini distinti!)
+    "Paris Saint Germain": "PSG",
+    "Paris FC": "Paris",
+    # varianti accentate dei titoli Understat (equivalenti alle voci sopra)
+    "Deportivo La Coruña": "Deportivo",
 }
 
 def fetch_xg_understat(league_key, league_id, season):
@@ -106,7 +140,12 @@ def fetch_xg_understat(league_key, league_id, season):
             
             result[clean_name] = {
                 "xG_avg": round(total_xg / matches_played, 3) if matches_played > 0 else 0,
-                "xGA_avg": round(total_xga / matches_played, 3) if matches_played > 0 else 0
+                "xGA_avg": round(total_xga / matches_played, 3) if matches_played > 0 else 0,
+                # Numero di partite del campione: consente a get_league_engine
+                # di applicare lo shrinkage verso la media di lega nelle prime
+                # giornate (2-3 partite), quando le medie xG sono ancora rumore
+                # e possono avvicinarsi a 0 (fix NG ~99.8%).
+                "matches": matches_played,
             }
             
         return result
