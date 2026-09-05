@@ -8,7 +8,10 @@ import requests
 import glob
 import re
 import time
+import uuid
 import logging
+import subprocess
+from pathlib import Path
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 from scipy.stats import poisson
 from datetime import datetime, timedelta, timezone
@@ -57,6 +60,9 @@ from prediction_registry import (
 
 API_KEY_ODDS = ODDS_API_KEY
 API_KEY_DATA = FOOTBALL_DATA_API_KEY
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SELECTOR_VERSION_CURRENT = "A"
+VALID_PREDICTION_ORIGINS = {"top_mix", "analisi_rapida", "billy", "billy_fallback"}
 
 try:
     groq_client = Groq(api_key=GROQ_API_KEY) if (Groq and GROQ_API_KEY) else None
@@ -298,12 +304,72 @@ def standardizza_mercato(testo, home=None, away=None):
     
     return "ALTRO"
 
-def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi, mercato_standard=None):
+
+def _fallback_prediction_origin(pronostico):
+    """Fallback compatibile per chiamate legacy senza ``origin`` esplicito.
+
+    I flussi di produzione passano ora ``origin`` in modo esplicito. Questa
+    funzione resta solo come rete di sicurezza per test/call-site legacy,
+    senza toccare il campo storico ``tipo``.
+    """
+    testo = str(pronostico or "")
+    if "Top Mix" in testo:
+        return "top_mix"
+    if "Fallback" in testo or "Errore AI" in testo:
+        return "billy_fallback"
+    return "analisi_rapida"
+
+
+def normalize_prediction_origin(origin=None, pronostico=None):
+    origin_value = str(origin or "").strip().lower()
+    if origin_value in VALID_PREDICTION_ORIGINS:
+        return origin_value
+    return _fallback_prediction_origin(pronostico)
+
+
+def new_calculation_id(origin=None):
+    origin_value = normalize_prediction_origin(origin)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    return f"{origin_value}_{stamp}_{uuid.uuid4().hex[:8]}"
+
+
+def get_data_snapshot_sha(repo_dir=REPO_ROOT):
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        sha = (result.stdout or "").strip()
+        if result.returncode == 0 and re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+            return sha.lower()
+    except Exception as e:
+        logging.warning(f"Impossibile leggere HEAD git per data_snapshot_sha: {e}")
+    return None
+
+
+def new_prediction_run_context(origin):
+    origin_value = normalize_prediction_origin(origin)
+    return {
+        "calculation_id": new_calculation_id(origin_value),
+        "origin": origin_value,
+        "selector_version": SELECTOR_VERSION_CURRENT,
+        "data_snapshot_sha": get_data_snapshot_sha(),
+    }
+
+
+def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi, mercato_standard=None,
+                          calculation_id=None, origin=None, selector_version=SELECTOR_VERSION_CURRENT,
+                          poisson=None, elo=None, position=None, data_snapshot_sha=None):
     preds = load_predictions()
     if any(p.get("match_id") == match_id for p in preds): return
     stagione_reale = calcola_stagione_calcolo(match_date)
     metadata = new_prediction_metadata()
     mercato_code = mercato_standard if mercato_standard else standardizza_mercato(pronostico, h, a)
+    origin_value = normalize_prediction_origin(origin, pronostico)
+    prediction_position = position if origin_value == "top_mix" else None
     preds.append({
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
         "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": mercato_code,
@@ -312,6 +378,13 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
         "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
         MODEL_VERSION_FIELD: metadata[MODEL_VERSION_FIELD],
         EXCLUDED_FROM_CURRENT_STATS_FIELD: metadata[EXCLUDED_FROM_CURRENT_STATS_FIELD],
+        "calculation_id": calculation_id or new_calculation_id(origin_value),
+        "origin": origin_value,
+        "selector_version": selector_version or SELECTOR_VERSION_CURRENT,
+        "poisson": poisson,
+        "elo": elo,
+        "position": prediction_position,
+        "data_snapshot_sha": data_snapshot_sha if data_snapshot_sha else get_data_snapshot_sha(),
     })
     save_predictions(preds)
 
@@ -1102,8 +1175,33 @@ def fetch_and_calc_top_mix():
         time.sleep(6.5)
     return sorted(all_preds, key=lambda x: x['prob'], reverse=True)[:10], missing
 
+
+def persist_top_mix_predictions(top_predictions):
+    run_context = new_prediction_run_context("top_mix")
+    salvate = 0
+    for position, p in enumerate(top_predictions or [], start=1):
+        if not p.get('match_id'):
+            continue
+        save_prediction_entry(
+            p['match_id'], p['home'], p['away'], p['league'], p['giornata'],
+            format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"),
+            f"{p['market']} - Top Mix", [], p['prob_val'], "",
+            mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']),
+            calculation_id=run_context["calculation_id"],
+            origin=run_context["origin"],
+            selector_version=run_context["selector_version"],
+            poisson=p.get("poisson"),
+            elo=p.get("elo"),
+            position=position,
+            data_snapshot_sha=run_context["data_snapshot_sha"],
+        )
+        salvate += 1
+    return salvate
+
+
 def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classifica_sess, giornata_n):
     salvate = 0
+    run_context = new_prediction_run_context("analisi_rapida")
     for match in matches:
         try:
             h, a = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
@@ -1116,7 +1214,18 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             best_mkt = max(mercati, key=mercati.get)
             pron = f"{best_mkt} - {mercati[best_mkt]:.0%} - Poisson Auto"
             top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
-            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(mercati[best_mkt]*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a))
+            save_prediction_entry(
+                m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3,
+                round(mercati[best_mkt]*100, 1), "",
+                mercato_standard=codice_mercato_selezionato(best_mkt, h, a),
+                calculation_id=run_context["calculation_id"],
+                origin=run_context["origin"],
+                selector_version=run_context["selector_version"],
+                poisson=round(mercati[best_mkt]*100, 1),
+                elo=None,
+                position=None,
+                data_snapshot_sha=run_context["data_snapshot_sha"],
+            )
             salvate += 1
         except: pass
     return salvate
@@ -1133,7 +1242,20 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
 
     if not groq_client:
         st.error("⚠️ Billy (Groq) non configurato. Devi creare il file .env come spiegato!")
-        if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Fallback", [], round(prob_top*100, 1), "", mercato_standard=codice_top)
+        if match_id:
+            billy_fallback_context = new_prediction_run_context("billy_fallback")
+            save_prediction_entry(
+                match_id, h, a, camp_sel, giornata_n, match_date_str,
+                f"{mercato_top} - Fallback", [], round(prob_top*100, 1), "",
+                mercato_standard=codice_top,
+                calculation_id=billy_fallback_context["calculation_id"],
+                origin=billy_fallback_context["origin"],
+                selector_version=billy_fallback_context["selector_version"],
+                poisson=round(prob_top*100, 1),
+                elo=None,
+                position=None,
+                data_snapshot_sha=billy_fallback_context["data_snapshot_sha"],
+            )
         return
 
     with st.spinner("Billy sta analizzando..."):
@@ -1240,7 +1362,20 @@ RISPONDI IN ITALIANO. Sii diretto e concreto, niente frasi generiche."""
                     st.error("❌ Nessun valore")
         except Exception as e:
             st.error(f"Errore AI: {e}")
-            if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "", mercato_standard=codice_top)
+            if match_id:
+                billy_fallback_context = new_prediction_run_context("billy_fallback")
+                save_prediction_entry(
+                    match_id, h, a, camp_sel, giornata_n, match_date_str,
+                    f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "",
+                    mercato_standard=codice_top,
+                    calculation_id=billy_fallback_context["calculation_id"],
+                    origin=billy_fallback_context["origin"],
+                    selector_version=billy_fallback_context["selector_version"],
+                    poisson=round(prob_top*100, 1),
+                    elo=None,
+                    position=None,
+                    data_snapshot_sha=billy_fallback_context["data_snapshot_sha"],
+                )
 
 # Banner
 st.markdown("""<div class="safari-safe-banner"></div>""", unsafe_allow_html=True)
@@ -1468,7 +1603,7 @@ with tab2:
         for i, p in enumerate(top_10):
             dt = format_date_italy(p['utcDate'], "%d/%m %H:%M")
             st.markdown(f"<div class='top-mix-row'><div><b>#{i+1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
-            if p.get('match_id'): save_prediction_entry(p['match_id'], p['home'], p['away'], p['league'], p['giornata'], format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"), f"{p['market']} - Top Mix", [], p['prob_val'], "", mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']))
+        persist_top_mix_predictions(top_10)
         st.success("✅ Top Mix salvati!")
 
 with tab3:
