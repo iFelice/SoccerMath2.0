@@ -52,6 +52,7 @@ from prediction_registry import (
     stats_historical,
     stats_all,
     backup_prediction_file,
+    build_registry_datetime_column,
 )
 
 API_KEY_ODDS = ODDS_API_KEY
@@ -1497,6 +1498,15 @@ with tab5:
         # "Legacy" e NON vengono considerati automaticamente post-fix.
         df_preds['modello'] = [model_label(p) for p in preds]
 
+        # FIX ordinamento Registro: 'data' e' persistito come stringa italiana
+        # ("05/09/2026 16:00") e sortarla come testo confronta prima il giorno
+        # (04/09 -> 05/09 -> 10/10 -> 17/08 -> 21/08). Qui LA CONVERTIAMO SOLO
+        # IN MEMORIA in un vero datetime (wall-clock Europe/Rome): i dati
+        # persistiti (predictions.json / JSONBin) non vengono toccati ne'
+        # migrati. Date ISO timezone-aware vengono convertite in Europe/Rome;
+        # valori mancanti/non validi diventano NaT e finiscono in fondo.
+        df_preds['data'] = build_registry_datetime_column(df_preds['data'])
+
         f_col1, f_col2, f_col3 = st.columns(3)
         with f_col1:
             camp_options = ["Tutti"] + list(LEAGUES_CONFIG.keys())
@@ -1559,10 +1569,18 @@ with tab5:
             df_display[
                 ["data", "stagione", "campionato", "home", "away", "mercato_standard",
                  "prob_sicuro", "risultato_reale", "esito", "modello"]
-            ].sort_values(by="data", ascending=False),
+            ].sort_values(by="data", ascending=False, na_position="last"),
             width="stretch",
             height=500,
             column_config={
+                # Colonna davvero datetime64 (non una stringa riconvertita dopo
+                # il sort): l'ordinamento cliccando l'intestazione e' quindi
+                # cronologico. Il formato momentJS mantiene la vista italiana
+                # DD/MM/YYYY HH:mm identica a prima.
+                "data": st.column_config.DatetimeColumn(
+                    None,
+                    format="DD/MM/YYYY HH:mm",
+                ),
                 "modello": st.column_config.TextColumn(
                     "Modello",
                     help=f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}",
