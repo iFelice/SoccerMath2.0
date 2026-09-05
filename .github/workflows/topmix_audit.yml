@@ -1,0 +1,144 @@
+name: Audit Top Mix (sola lettura)
+
+# Nessun commit, nessun push, nessun JSONBin.
+# Ricostruisce Schalke–Bayern con le funzioni di produzione e ispeziona
+# il tracciamento del Registro. Se FOOTBALL_DATA_API_KEY e' presente fa
+# una GET delle fixture (nomi ATTUALI, non uno snapshot del click).
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - '.github/workflows/topmix_audit.yml'
+      - 'audit/reconstruct_topmix_match.py'
+      - 'audit/inspect_topmix_registry.py'
+      - 'audit/test_reconstruct_topmix_match.py'
+      - 'audit/test_topmix_registry_tracking.py'
+      - 'audit/topmix_selector_audit_protocol.md'
+      - 'SoccerMath/app.py'
+      - 'SoccerMath/prediction_registry.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: topmix-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+      AUDIT_OUT: ${{ github.workspace }}/topmix-audit-out
+
+    steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Cartella report (non versionata)
+        run: mkdir -p "$AUDIT_OUT"
+
+      - name: Test diagnostici (nessuna scrittura registro)
+        run: |
+          python -m pytest \
+            audit/test_topmix_registry_tracking.py \
+            audit/test_reconstruct_topmix_match.py \
+            -q --tb=short
+
+      - name: Ricostruzione Schalke–Bayern (funzioni di produzione)
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          python audit/reconstruct_topmix_match.py \
+            --all-candidates \
+            --fetch-api \
+            --output "$AUDIT_OUT/schalke_bayern_921.json"
+
+      - name: Ispezione tracciamento Registro (AST, no JSONBin)
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, "audit")
+          from inspect_topmix_registry import tracking_verdict, inspect_registry_module
+          out = os.environ["AUDIT_OUT"]
+          v = tracking_verdict()
+          src = v["facts"]["dedup_by_match_id"].get("source")
+          if src:
+              v["facts"]["dedup_by_match_id"]["source"] = src[:400]
+          v["registry_module"] = inspect_registry_module()
+          path = os.path.join(out, "topmix_registry_tracking.json")
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(v, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          print("can_measure_top_mix_in_isolation =", v["can_measure_top_mix_in_isolation"])
+          for p in v["problems"]:
+              print(f"- {p['id']} ({p['severity']})")
+          PY
+
+      - name: Riepilogo
+        if: always()
+        run: |
+          {
+            echo "## Audit Top Mix (sola lettura)"
+            echo
+            echo "SHA: \`${{ github.sha }}\`"
+            echo
+            if [ -f "$AUDIT_OUT/schalke_bayern_921.json" ]; then
+              python - <<'PY'
+          import json, os
+          p = os.path.join(os.environ["AUDIT_OUT"], "schalke_bayern_921.json")
+          d = json.load(open(p, encoding="utf-8"))
+          pr = d.get("primary") or {}
+          sel = pr.get("selector_A") or {}
+          tgt = pr.get("target_92_1") or {}
+          api = d.get("api_fetch") or {}
+          print("### Ricostruzione")
+          print()
+          print(f"- canonici: `{pr.get('canonical_names')}`")
+          print(f"- selettore A: **{sel.get('best_market')} {sel.get('prob_val')}%**")
+          print(f"- 92,1% riprodotto: **{tgt.get('reproduced_by_selector_A')}**")
+          print(f"- API fetch: attempted={api.get('attempted')} ok={api.get('ok')} reason={api.get('reason')}")
+          if api.get("match"):
+              m = api["match"]
+              print(f"- nomi API attuali: `{m.get('display_home')}` vs `{m.get('display_away')}` (status {m.get('status')}, id {m.get('id')})")
+              print()
+              print("> I nomi API sono lo stato *attuale*, non lo snapshot del click originale.")
+          PY
+            else
+              echo "Ricostruzione assente."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nessuna modifica ai dati/codice di produzione
+        if: always()
+        run: |
+          if ! git diff --exit-code -- SoccerMath audit/results; then
+            echo "::error::l'audit ha modificato file committati"
+            exit 1
+          fi
+          echo "Nessun file di produzione modificato."
+
+      - name: Pubblica i report come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: topmix-audit-${{ github.run_id }}
+          path: topmix-audit-out/
+          if-no-files-found: warn
+          retention-days: 14
