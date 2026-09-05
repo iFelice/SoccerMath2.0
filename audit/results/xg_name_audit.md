@@ -236,7 +236,7 @@ Stagioni analizzate: 2022, 2023, 2024, 2025, 2026 (stagione corrente: 2026, CSV 
 | `Bayer 04 Leverkusen` | `Leverkusen` | si |
 | `Leverkusen` | `Leverkusen` | si |
 | `Borussia Dortmund` | `Dortmund` | si |
-| `Dortmund` | `Dortmund` | no (solo clean_name) |
+| `Dortmund` | `Dortmund` | si |
 | `Borussia M.Gladbach` | `M'gladbach` | si |
 | `M'gladbach` | `M'gladbach` | si |
 | `Borussia Mönchengladbach` | `M'gladbach` | si |
@@ -245,12 +245,12 @@ Stagioni analizzate: 2022, 2023, 2024, 2025, 2026 (stagione corrente: 2026, CSV 
 | `FC Koln` | `Koln` | si |
 | `RasenBallsport Leipzig` | `Leipzig` | si |
 | `RB Leipzig` | `Leipzig` | si |
-| `Leipzig` | `Leipzig` | no (solo clean_name) |
+| `Leipzig` | `Leipzig` | si |
 | `VfB Stuttgart` | `Stuttgart` | si |
-| `Stuttgart` | `Stuttgart` | no (solo clean_name) |
+| `Stuttgart` | `Stuttgart` | si |
 | `Athletic Club` | `Ath Bilbao` | si |
 | `Athletic Bilbao` | `Ath Bilbao` | si |
-| `Ath Bilbao` | `Ath Bilbao` | no (solo clean_name) |
+| `Ath Bilbao` | `Ath Bilbao` | si |
 | `Hull` | `Hull City` | si |
 | `Hull City` | `Hull City` | si |
 | `Coventry` | `Coventry City` | si |
@@ -258,7 +258,7 @@ Stagioni analizzate: 2022, 2023, 2024, 2025, 2026 (stagione corrente: 2026, CSV 
 | `St. Pauli` | `St Pauli` | si |
 | `St Pauli` | `St Pauli` | si |
 | `Saint-Etienne` | `St Etienne` | si |
-| `St Etienne` | `St Etienne` | no (solo clean_name) |
+| `St Etienne` | `St Etienne` | si |
 | `Paris Saint Germain` | `PSG` | si |
 | `Paris FC` | `Paris` | si |
 

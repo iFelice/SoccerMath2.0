@@ -26,8 +26,35 @@ Regole di validita' (nessuna invenzione di dati):
   * niente mescolanza di stagioni: si aggrega una sola ``season`` per volta;
   * nessuno shrinkage qui: resta in ``app.get_league_engine`` (PRIOR_MATCHES).
 
-Il cutoff temporale (`cutoff`) rende l'aggregazione riutilizzabile per audit
-point-in-time: include solo le partite concluse PRIMA dell'istante indicato.
+Cutoff temporale (audit point-in-time)
+--------------------------------------
+``cutoff`` rende l'aggregazione riutilizzabile per ricostruire cosa era
+DAVVERO noto a un certo istante. Il criterio predefinito
+(``cutoff_policy="previous_day"``) e' conservativo:
+
+    entrano solo le partite dei GIORNI STRETTAMENTE PRECEDENTI al giorno del
+    cutoff, nel fuso dichiarato da ``day_timezone`` (default UTC).
+
+Motivo: il fatto che il calcio d'inizio sia anteriore al cutoff NON dimostra
+che la partita fosse finita, ne' che gli xG fossero gia' pubblicati (kickoff
+18:00, cutoff 18:30 -> partita ancora in corso). L'archivio contiene solo
+``is_result`` allo stato ODIERNO, quindi usarlo insieme al kickoff
+retrodaterebbe informazione. Non si assume alcuna durata fissa della partita:
+non e' un dato verificato ne' disponibile nell'archivio, quindi si esclude
+l'intero giorno del cutoff.
+
+``cutoff_policy="kickoff_unsafe"`` (opt-in) confronta direttamente il kickoff
+con il cutoff: piu' permissivo, NON verificato, da usare solo per esperimenti
+dichiarati come tali. Anche in questa modalita', se il record ha la sola data
+(senza orario) vale la regola del giorno intero.
+
+Limiti dichiarati, non risolvibili con questi dati:
+  * gli xG di Understat possono essere RIVISTI dopo la partita: l'archivio
+    conserva l'ultimo valore, quindi una ricostruzione point-in-time usa xG
+    potenzialmente piu' recenti di quelli visibili all'epoca;
+  * il fuso degli orari Understat non e' documentato nel dato: si interpreta
+    in ``ARCHIVE_TIMEZONE`` (UTC) per scelta esplicita, e ``day_timezone``
+    permette di dichiarare il fuso in cui si contano i giorni.
 """
 
 from __future__ import annotations
@@ -37,7 +64,7 @@ import math
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from config import DATABASE_DIR, LEAGUES_CONFIG
@@ -77,7 +104,17 @@ REQUIRED_FIELDS: Tuple[str, ...] = (
 # NON una verifica del fuso reale usato da Understat.
 ARCHIVE_TIMEZONE = timezone.utc
 
+# Politiche di taglio temporale (vedi docstring del modulo).
+#   "previous_day"   -> default conservativo: solo i giorni precedenti a quello
+#                       del cutoff, nel fuso `day_timezone`.
+#   "kickoff_unsafe" -> confronto diretto kickoff < cutoff. NON verificato:
+#                       puo' includere partite ancora in corso all'istante del
+#                       cutoff. Solo su richiesta esplicita.
+CUTOFF_POLICIES: Tuple[str, ...] = ("previous_day", "kickoff_unsafe")
+DEFAULT_CUTOFF_POLICY = "previous_day"
+
 _DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_OFFSET_RE = re.compile(r"^[+-]\d{2}:?\d{2}$")
 
 
 def archive_path(league: str, base_dir=None) -> str:
@@ -219,6 +256,41 @@ def as_utc(value, default_tz=ARCHIVE_TIMEZONE) -> Optional[datetime]:
     return dt
 
 
+def resolve_timezone(value) -> timezone:
+    """Fuso in cui contare i giorni: ``tzinfo``, nome IANA o offset "+02:00"."""
+    if value is None:
+        return ARCHIVE_TIMEZONE
+    if isinstance(value, tzinfo):
+        return value
+    text = str(value).strip()
+    if not text or text.upper() == "UTC":
+        return ARCHIVE_TIMEZONE
+    if _OFFSET_RE.match(text):
+        sign = -1 if text[0] == "-" else 1
+        hh, mm = text[1:].split(":") if ":" in text else (text[1:3], text[3:5])
+        return timezone(sign * timedelta(hours=int(hh), minutes=int(mm or 0)))
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError as exc:  # pragma: no cover - Python < 3.9
+        raise ValueError(f"fuso non supportato: {value!r}") from exc
+    try:
+        return ZoneInfo(text)
+    except Exception as exc:
+        raise ValueError(f"fuso non riconosciuto: {value!r}") from exc
+
+
+def timezone_label(tz) -> str:
+    """Etichetta leggibile del fuso, per i report e i file di diagnostica."""
+    if tz is None:
+        return "UTC"
+    key = getattr(tz, "key", None)
+    if key:
+        return str(key)
+    if tz == timezone.utc:
+        return "UTC"
+    return str(tz)
+
+
 # ---------------------------------------------------------------------------
 # Risultato dell'aggregazione
 # ---------------------------------------------------------------------------
@@ -229,6 +301,8 @@ class SeasonAggregate:
     league: str
     season: int
     cutoff: Optional[datetime] = None
+    cutoff_policy: str = DEFAULT_CUTOFF_POLICY
+    day_timezone: str = "UTC"
     averages: Dict[str, Dict[str, float]] = field(default_factory=dict)
     matches_used: int = 0
     matches_in_season: int = 0
@@ -237,6 +311,23 @@ class SeasonAggregate:
     conflicts: List[dict] = field(default_factory=list)
     unmapped_names: Dict[str, int] = field(default_factory=dict)
     teams_seen: Dict[str, int] = field(default_factory=dict)
+    # nome grezzo dell'archivio -> nome canonico (per la validazione bloccante
+    # dei nomi in update_xg.derive_league)
+    raw_to_canonical: Dict[str, str] = field(default_factory=dict)
+
+    @property
+    def name_collisions(self) -> Dict[str, List[str]]:
+        """Nomi canonici raggiunti da PIU' nomi grezzi diversi nella stagione.
+
+        Non e' automaticamente un errore (un archivio puo' contenere due grafie
+        della stessa squadra), ma non e' distinguibile dal caso in cui due club
+        diversi vengono fusi: la decisione sta a chi valida
+        (``update_xg.derive_league`` blocca se la collisione non e' dichiarata).
+        """
+        grouped: Dict[str, List[str]] = {}
+        for raw, canonical in self.raw_to_canonical.items():
+            grouped.setdefault(canonical, []).append(raw)
+        return {c: sorted(v) for c, v in sorted(grouped.items()) if len(v) > 1}
 
     @property
     def teams_without_valid_matches(self) -> List[str]:
@@ -253,6 +344,8 @@ class SeasonAggregate:
             "league": self.league,
             "season": self.season,
             "cutoff": self.cutoff.isoformat() if self.cutoff else None,
+            "cutoff_policy": self.cutoff_policy,
+            "day_timezone": self.day_timezone,
             "teams": len(self.averages),
             "matches_used": self.matches_used,
             "matches_in_season": self.matches_in_season,
@@ -260,6 +353,7 @@ class SeasonAggregate:
             "duplicates": self.duplicates,
             "conflicts": self.conflicts,
             "unmapped_names": dict(sorted(self.unmapped_names.items())),
+            "name_collisions": self.name_collisions,
             "teams_without_valid_matches": self.teams_without_valid_matches,
         }
 
@@ -277,6 +371,8 @@ def aggregate_season(
     *,
     league: str = "",
     cutoff=None,
+    cutoff_policy: str = DEFAULT_CUTOFF_POLICY,
+    day_timezone=ARCHIVE_TIMEZONE,
     resolver=canonical_team_name,
     round_digits: int = 3,
 ) -> SeasonAggregate:
@@ -289,9 +385,19 @@ def aggregate_season(
     season:
         anno di inizio stagione (2026 = 2026/27).
     cutoff:
-        se valorizzato, include SOLO le partite concluse prima di quell'istante
-        (timezone esplicita). Se l'archivio conserva soltanto il giorno, l'intero
-        giorno del cutoff viene escluso.
+        se valorizzato, ricostruisce lo stato point-in-time (vedi docstring del
+        modulo). Un cutoff senza fuso viene interpretato in ``ARCHIVE_TIMEZONE``.
+    cutoff_policy:
+        ``"previous_day"`` (default, conservativo): entrano solo le partite dei
+        giorni precedenti a quello del cutoff, quindi nessuna partita ancora in
+        corso all'istante del cutoff puo' entrare.
+        ``"kickoff_unsafe"``: confronto diretto ``kickoff < cutoff``; puo'
+        includere partite non ancora finite. Opt-in, non verificato.
+    day_timezone:
+        fuso in cui si contano i giorni (``tzinfo``, nome IANA come
+        ``"Europe/Rome"`` o offset ``"+02:00"``). Default UTC, coerente con
+        ``ARCHIVE_TIMEZONE``. Cambia quali partite serali finiscono nel giorno
+        precedente: e' una scelta dichiarata, non un dato dell'archivio.
     resolver:
         funzione nome grezzo -> nome canonico. Default: la tabella condivisa di
         ``team_names`` (nessun fuzzy matching).
@@ -299,9 +405,17 @@ def aggregate_season(
     season_int = parse_season(season)
     if season_int is None:
         raise ValueError(f"stagione non valida: {season!r}")
+    if cutoff_policy not in CUTOFF_POLICIES:
+        raise ValueError(
+            f"cutoff_policy non valida: {cutoff_policy!r} (attese: {list(CUTOFF_POLICIES)})")
     cutoff_dt = as_utc(cutoff)
+    day_tz = resolve_timezone(day_timezone)
+    cutoff_day = cutoff_dt.astimezone(day_tz).date() if cutoff_dt is not None else None
 
-    agg = SeasonAggregate(league=league, season=season_int, cutoff=cutoff_dt)
+    agg = SeasonAggregate(
+        league=league, season=season_int, cutoff=cutoff_dt,
+        cutoff_policy=cutoff_policy, day_timezone=timezone_label(day_tz),
+    )
     totals: Dict[str, List[float]] = {}
     seen_keys: Dict[object, dict] = {}
 
@@ -329,6 +443,7 @@ def aggregate_season(
         for res in (home_res, away_res):
             if not res.mapped:
                 _bump(agg.unmapped_names, res.raw)
+            agg.raw_to_canonical[res.raw] = res.canonical
         _bump(agg.teams_seen, home)
         _bump(agg.teams_seen, away)
 
@@ -342,15 +457,19 @@ def aggregate_season(
                 # senza data non si puo' garantire il point-in-time
                 _bump(agg.skipped, "data_illeggibile_con_cutoff")
                 continue
-            if has_time:
+            if cutoff_policy == "kickoff_unsafe" and has_time:
+                # opt-in: confronto diretto, puo' includere partite in corso
                 if kickoff >= cutoff_dt:
                     _bump(agg.skipped, "dopo_cutoff")
                     continue
             else:
-                # solo il giorno: si esclude conservativamente l'intero giorno
-                # del cutoff (e ogni giorno successivo).
-                if kickoff.date() >= cutoff_dt.astimezone(kickoff.tzinfo).date():
-                    _bump(agg.skipped, "stesso_giorno_o_dopo_cutoff")
+                # default conservativo (e unico criterio possibile quando il
+                # record ha la sola data): l'intero giorno del cutoff, e ogni
+                # giorno successivo, restano fuori. Una partita iniziata alle
+                # 18:00 con cutoff alle 18:30 poteva essere ancora in corso:
+                # includerla significherebbe usare informazione non disponibile.
+                if kickoff.astimezone(day_tz).date() >= cutoff_day:
+                    _bump(agg.skipped, "giorno_del_cutoff_o_dopo")
                     continue
 
         home_xg = parse_xg(raw.get("home_xg"))
@@ -487,17 +606,190 @@ def validate_archive(
     return problems
 
 
+# ---------------------------------------------------------------------------
+# Confronto fra due snapshot dell'archivio (protezione dagli scrape parziali)
+# ---------------------------------------------------------------------------
+def match_key(record: dict) -> Tuple:
+    """Chiave stabile di una partita: (stagione, id) o (stagione, casa, ospite).
+
+    L'id di Understat e' l'identificatore naturale; il fallback serve solo agli
+    archivi storici senza id (non presenti nei dati attuali: 0 record senza id).
+    """
+    season = parse_season(record.get("season"))
+    rid = record.get("id")
+    if rid is None or isinstance(rid, bool):
+        return (season, str(record.get("home_team") or "").strip(),
+                str(record.get("away_team") or "").strip())
+    return (season, str(rid))
+
+
+def _finished_with_xg(record: dict) -> bool:
+    return (is_played(record)
+            and parse_xg(record.get("home_xg")) is not None
+            and parse_xg(record.get("away_xg")) is not None)
+
+
+def _describe(key: Tuple, record: dict) -> str:
+    season = key[0]
+    home = record.get("home_team")
+    away = record.get("away_team")
+    ident = key[1] if len(key) == 2 else "senza id"
+    return f"[{season}] {home} - {away} (id {ident})"
+
+
+@dataclass
+class SnapshotDiff:
+    """Differenze fra l'ultimo archivio valido e quello appena scaricato.
+
+    Distingue le variazioni LEGITTIME (nuove partite, correzioni di xG sulla
+    stessa partita, fixture non giocate rimosse dal calendario) dalle
+    variazioni che indicano uno scrape parziale o un dato perso:
+      * ``missing_finished``  partite CONCLUSE con xG valido sparite;
+      * ``regressed``         partite concluse tornate "non giocata"/senza xG;
+      * ``dropped_seasons``   stagioni con risultati sparite dallo snapshot.
+    Solo queste tre categorie sono bloccanti.
+    """
+
+    league: str = ""
+    previous_matches: int = 0
+    current_matches: int = 0
+    missing_finished: List[str] = field(default_factory=list)
+    regressed: List[str] = field(default_factory=list)
+    dropped_seasons: List[int] = field(default_factory=list)
+    new_matches: List[str] = field(default_factory=list)
+    xg_corrections: List[dict] = field(default_factory=list)
+    dropped_unplayed: List[str] = field(default_factory=list)
+
+    @property
+    def blocking_problems(self) -> List[str]:
+        prefix = f"{self.league}: " if self.league else ""
+        problems: List[str] = []
+        if self.missing_finished:
+            problems.append(
+                f"{prefix}{len(self.missing_finished)} partite CONCLUSE con xG "
+                f"presenti nell'archivio precedente e assenti nel nuovo "
+                f"(es. {'; '.join(self.missing_finished[:5])})")
+        if self.regressed:
+            problems.append(
+                f"{prefix}{len(self.regressed)} partite regredite da conclusa "
+                f"con xG a non giocata/senza xG "
+                f"(es. {'; '.join(self.regressed[:5])})")
+        if self.dropped_seasons:
+            problems.append(
+                f"{prefix}stagioni con risultati sparite dallo snapshot: "
+                f"{self.dropped_seasons} (se la riduzione e' voluta, usare "
+                "--allow-dropping-seasons)")
+        return problems
+
+    def to_dict(self) -> dict:
+        return {
+            "league": self.league,
+            "previous_matches": self.previous_matches,
+            "current_matches": self.current_matches,
+            "missing_finished": self.missing_finished,
+            "regressed": self.regressed,
+            "dropped_seasons": self.dropped_seasons,
+            "new_matches": len(self.new_matches),
+            "new_matches_sample": self.new_matches[:5],
+            "xg_corrections": len(self.xg_corrections),
+            "xg_corrections_sample": self.xg_corrections[:5],
+            "dropped_unplayed": len(self.dropped_unplayed),
+            "dropped_unplayed_sample": self.dropped_unplayed[:5],
+            "blocking_problems": self.blocking_problems,
+        }
+
+
+def compare_snapshots(
+    previous: Optional[Sequence[dict]],
+    current: Sequence[dict],
+    *,
+    league: str = "",
+    requested_seasons: Optional[Sequence[int]] = None,
+    allow_dropping_seasons: bool = False,
+) -> SnapshotDiff:
+    """Confronta due snapshot partita per partita (chiave stagione + id).
+
+    Il totale delle partite non basta: uno snapshot puo' avere lo STESSO numero
+    di righe e aver perso un risultato (una partita conclusa sostituita da una
+    nuova fixture). Qui si confronta identita' e stato di ogni partita.
+
+    ``requested_seasons``: stagioni chieste a monte. Le stagioni presenti nel
+    vecchio archivio ma NON richieste sono una scelta esplicita solo se
+    ``allow_dropping_seasons`` e' vero, altrimenti bloccano.
+    """
+    diff = SnapshotDiff(league=league, current_matches=len(current or []))
+    if not previous:
+        return diff
+    diff.previous_matches = len(previous)
+
+    prev_index: Dict[Tuple, dict] = {}
+    for rec in previous:
+        if isinstance(rec, dict):
+            prev_index[match_key(rec)] = rec
+    cur_index: Dict[Tuple, dict] = {}
+    for rec in current or []:
+        if isinstance(rec, dict):
+            cur_index[match_key(rec)] = rec
+
+    kept_seasons = set(requested_seasons or []) or None
+
+    for key, old in prev_index.items():
+        season = key[0]
+        season_dropped = (
+            kept_seasons is not None and season is not None
+            and season not in kept_seasons)
+        new = cur_index.get(key)
+        if new is None:
+            if not _finished_with_xg(old):
+                diff.dropped_unplayed.append(_describe(key, old))
+            elif season_dropped:
+                if season is not None and season not in diff.dropped_seasons:
+                    diff.dropped_seasons.append(season)
+            else:
+                diff.missing_finished.append(_describe(key, old))
+            continue
+        if _finished_with_xg(old) and not _finished_with_xg(new):
+            diff.regressed.append(_describe(key, new))
+            continue
+        if _finished_with_xg(old) and _finished_with_xg(new):
+            old_h, old_a = parse_xg(old.get("home_xg")), parse_xg(old.get("away_xg"))
+            new_h, new_a = parse_xg(new.get("home_xg")), parse_xg(new.get("away_xg"))
+            if (not math.isclose(old_h, new_h, rel_tol=0, abs_tol=1e-9)
+                    or not math.isclose(old_a, new_a, rel_tol=0, abs_tol=1e-9)):
+                # correzione legittima: Understat rivede gli xG di una partita
+                diff.xg_corrections.append({
+                    "match": _describe(key, new),
+                    "before": [old_h, old_a],
+                    "after": [new_h, new_a],
+                })
+
+    for key, new in cur_index.items():
+        if key not in prev_index:
+            diff.new_matches.append(_describe(key, new))
+
+    diff.dropped_seasons.sort()
+    if allow_dropping_seasons:
+        # riduzione dichiarata delle stagioni: non blocca, ma resta nel report
+        diff.dropped_seasons = []
+    return diff
+
+
 def season_averages(
     league: str,
     season: int,
     *,
     base_dir=None,
     cutoff=None,
+    cutoff_policy: str = DEFAULT_CUTOFF_POLICY,
+    day_timezone=ARCHIVE_TIMEZONE,
     records: Optional[Sequence[dict]] = None,
 ) -> SeasonAggregate:
     """Carica l'archivio della lega e ne deriva le medie della stagione."""
     data = list(records) if records is not None else load_archive(league, base_dir)
-    return aggregate_season(data, season, league=league, cutoff=cutoff)
+    return aggregate_season(
+        data, season, league=league, cutoff=cutoff,
+        cutoff_policy=cutoff_policy, day_timezone=day_timezone,
+    )
 
 
 def write_averages(aggregate: SeasonAggregate, path: str) -> None:

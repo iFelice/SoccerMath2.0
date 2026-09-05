@@ -27,7 +27,13 @@ Garanzie:
   * niente shrinkage qui (resta in ``app.get_league_engine``, PRIOR_MATCHES=6);
   * scrittura atomica: un errore non lascia file parziali;
   * se l'archivio manca/non valida o produce meno di ``--min-teams`` squadre,
-    il file esistente NON viene sovrascritto e l'uscita e' diversa da zero.
+    il file esistente NON viene sovrascritto e l'uscita e' diversa da zero;
+  * VALIDAZIONE NOMI BLOCCANTE E PREVENTIVA: se un nome dell'archivio non e'
+    risolto dalla tabella condivisa (``team_aliases``), o se due nomi grezzi
+    diversi collassano sullo stesso nome canonico senza essere dichiarati in
+    ``ACCEPTED_COLLISIONS``, la lega fallisce PRIMA di scrivere. I nomi gia'
+    canonici sono accettati esplicitamente (nessun falso allarme) e non c'e'
+    nessun fuzzy matching: niente viene indovinato.
 """
 
 from __future__ import annotations
@@ -44,6 +50,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import CURRENT_SEASON_START_YEAR  # noqa: E402
 from team_names import NAME_MAP, UNDERSTAT_NAME_MAP, canonical_team_name  # noqa: E402
 from xg_archive import (  # noqa: E402
+    ARCHIVE_TIMEZONE,
+    CUTOFF_POLICIES,
+    DEFAULT_CUTOFF_POLICY,
     LEAGUES,
     SeasonAggregate,
     archive_path,
@@ -63,10 +72,54 @@ log = logging.getLogger("update_xg")
 # soltanto distruggere l'ultimo insieme valido.
 MIN_TEAMS = 10
 
+# Collisioni dichiarate: nome canonico -> nomi grezzi che possono legittimamente
+# convergere nella STESSA stagione (es. due grafie note dello stesso club nello
+# stesso archivio). Vuoto: sui dati reali delle 5 leghe, stagioni 2022-2026, non
+# esiste nessuna collisione (vedi audit/results/xg_name_audit.md). Aggiungere una
+# voce qui e' una decisione esplicita e tracciabile, non un silenzioso "ok".
+ACCEPTED_COLLISIONS: Dict[str, List[str]] = {}
+
 __all__ = [
     "NAME_MAP", "UNDERSTAT_NAME_MAP", "canonical_team_name",
-    "MIN_TEAMS", "derive_league", "main",
+    "MIN_TEAMS", "ACCEPTED_COLLISIONS", "mapping_errors",
+    "derive_league", "main",
 ]
+
+
+def mapping_errors(
+    aggregate: SeasonAggregate,
+    *,
+    league: str = "",
+    accepted_collisions: Optional[Dict[str, List[str]]] = None,
+) -> List[str]:
+    """Errori di mappatura che devono BLOCCARE la pubblicazione.
+
+    1. nomi non risolti: presenti nell'archivio ma assenti dalla tabella
+       condivisa e non riconducibili a un nome canonico dichiarato. Verrebbero
+       pubblicati con il nome grezzo e l'engine non li troverebbe (cadrebbe sul
+       fallback gol) senza che nessuno se ne accorga;
+    2. collisioni non giustificate: due nomi grezzi diversi che finiscono sullo
+       stesso nome canonico, sommando partite di squadre potenzialmente diverse.
+    """
+    accepted = ACCEPTED_COLLISIONS if accepted_collisions is None else accepted_collisions
+    prefix = f"{league}: " if league else ""
+    errors: List[str] = []
+
+    unmapped = sorted(aggregate.unmapped_names)
+    if unmapped:
+        errors.append(
+            f"{prefix}{len(unmapped)} nomi non risolti dalla tabella condivisa "
+            f"(team_aliases.py): {', '.join(unmapped)}. "
+            "Aggiungere l'alias esplicito prima di pubblicare le medie.")
+
+    for canonical, raws in aggregate.name_collisions.items():
+        if sorted(accepted.get(canonical, [])) == raws:
+            continue
+        errors.append(
+            f"{prefix}collisione non dichiarata su '{canonical}': "
+            f"{', '.join(raws)}. Se e' corretta, dichiararla in "
+            "update_xg.ACCEPTED_COLLISIONS.")
+    return errors
 
 
 def derive_league(
@@ -75,8 +128,11 @@ def derive_league(
     *,
     database_dir=None,
     cutoff=None,
+    cutoff_policy: str = DEFAULT_CUTOFF_POLICY,
+    day_timezone=None,
     min_teams: int = MIN_TEAMS,
     dry_run: bool = False,
+    allow_unmapped_names: bool = False,
 ) -> Dict:
     """Deriva e (se valido) scrive ``xg_<lega>.json`` per una lega."""
     out: Dict = {
@@ -102,8 +158,22 @@ def derive_league(
         return out
 
     aggregate: SeasonAggregate = season_averages(
-        league, season, base_dir=database_dir, cutoff=cutoff, records=records)
+        league, season, base_dir=database_dir, cutoff=cutoff,
+        cutoff_policy=cutoff_policy,
+        day_timezone=ARCHIVE_TIMEZONE if day_timezone is None else day_timezone,
+        records=records)
     out.update(aggregate.to_dict())
+
+    # --- validazione nomi PRIMA di qualunque scrittura -------------------
+    name_problems = mapping_errors(aggregate, league=league)
+    if name_problems:
+        if allow_unmapped_names:
+            out["warnings"] = name_problems
+            for problem in name_problems:
+                log.warning("%s (ignorato per --allow-unmapped-names)", problem)
+        else:
+            out["errors"].extend(name_problems)
+            return out  # file precedente intatto: niente scrittura parziale
 
     if len(aggregate.averages) < min_teams:
         out["errors"].append(
@@ -129,8 +199,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--database-dir", default=None,
                         help="cartella dei dati (default: SoccerMath/database)")
     parser.add_argument("--cutoff", default=None,
-                        help="istante di previsione ISO-8601: include solo le "
-                             "partite concluse prima (audit point-in-time)")
+                        help="istante di previsione ISO-8601 (audit point-in-time)")
+    parser.add_argument("--cutoff-policy", default=DEFAULT_CUTOFF_POLICY,
+                        choices=list(CUTOFF_POLICIES),
+                        help="previous_day (default, conservativo: esclude tutto "
+                             "il giorno del cutoff, quindi anche le partite in "
+                             "corso) oppure kickoff_unsafe (kickoff < cutoff, "
+                             "non verificato)")
+    parser.add_argument("--day-timezone", default="UTC",
+                        help="fuso in cui contare i giorni per il cutoff "
+                             "(default UTC, es. Europe/Rome)")
+    parser.add_argument("--allow-unmapped-names", action="store_true",
+                        help="NON usare in produzione: declassa a warning gli "
+                             "errori di mappatura invece di bloccare")
     parser.add_argument("--min-teams", type=int, default=MIN_TEAMS,
                         help=f"squadre minime per pubblicare il file (default {MIN_TEAMS})")
     parser.add_argument("--dry-run", action="store_true",
@@ -148,8 +229,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             league, args.season,
             database_dir=args.database_dir,
             cutoff=args.cutoff,
+            cutoff_policy=args.cutoff_policy,
+            day_timezone=args.day_timezone,
             min_teams=args.min_teams,
             dry_run=args.dry_run,
+            allow_unmapped_names=args.allow_unmapped_names,
         )
         results.append(res)
         if res["errors"]:
@@ -167,6 +251,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         if res["unmapped_names"]:
             log.warning("%s: nomi Understat senza mapping esplicito: %s",
                         league, ", ".join(sorted(res["unmapped_names"])))
+        if res.get("name_collisions"):
+            log.warning("%s: collisioni di nomi: %s", league,
+                        res["name_collisions"])
         if res["conflicts"]:
             log.warning("%s: %d conflitti xG sulla stessa partita",
                         league, len(res["conflicts"]))

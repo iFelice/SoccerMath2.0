@@ -181,14 +181,35 @@ e il workflow fallisce in modo visibile.
 
 ## 4. Base per audit point-in-time
 
-`aggregate_season(records, season, cutoff=...)` include **solo** le partite
-concluse prima dell'istante indicato:
+`aggregate_season(records, season, cutoff=..., cutoff_policy=..., day_timezone=...)`
+ricostruisce le medie con le sole partite **dimostrabilmente concluse** prima
+dell'istante indicato.
+
+**Criterio predefinito `previous_day` (conservativo).** Entrano solo le partite
+dei giorni **strettamente precedenti** a quello del cutoff, nel fuso dichiarato
+da `day_timezone` (default UTC). Il giorno della previsione è escluso per
+intero **anche quando l'orario di kickoff esiste**: un kickoff alle 18:00 con
+cutoff alle 18:30 non dimostra che la partita fosse finita, e l'archivio
+contiene `is_result` solo allo **stato odierno**, quindi combinarlo con il
+kickoff retrodaterebbe informazione. Non viene assunta nessuna durata fissa
+della partita: sarebbe un'ipotesi non verificata e non presente nel dato.
+
+**Criterio `kickoff_unsafe` (opt-in).** Confronto diretto `kickoff < cutoff`.
+È più permissivo e **non verificato**: può includere partite ancora in corso.
+Va richiesto esplicitamente (`--cutoff-policy kickoff_unsafe`) e i risultati
+ottenuti così vanno dichiarati come non validati.
+
+Altre regole (entrambi i criteri):
 
 * il cutoff è timezone-aware; un cutoff naive viene interpretato nel fuso
   dichiarato dell'archivio (`xg_archive.ARCHIVE_TIMEZONE`, UTC);
-* una partita esattamente **all'istante** del cutoff è esclusa;
+* `day_timezone` accetta `tzinfo`, nome IANA (`Europe/Rome`) o offset
+  (`+02:00`) ed è riportato nel risultato (`day_timezone` in `to_dict()`):
+  è una **scelta dichiarata**, non un dato dell'archivio. Esempio verificato:
+  kickoff `2026-08-31 22:00` con cutoff `2026-09-01 00:30 UTC` è incluso
+  contando i giorni in UTC ed escluso contandoli a Roma;
 * se il record ha solo il giorno (o un timestamp `00:00:00`, che Understat non
-  usa per un calcio d'inizio reale) si esclude **l'intero giorno** del cutoff;
+  usa per un calcio d'inizio reale) vale comunque la regola del giorno intero;
 * una data illeggibile con cutoff attivo esclude la partita, non la include
   "per sicurezza";
 * le medie vengono **ricalcolate** sulle partite passate: non si filtra un
@@ -211,9 +232,11 @@ concluse prima dell'istante indicato:
    Per cutoff a granularità di giornata l'impatto è nullo; per cutoff a
    granularità di ora l'incertezza è di ±2 ore.
 3. **Ritardo di pubblicazione.** Anche a fuso corretto, l'xG di una partita
-   non è disponibile all'istante del fischio finale. Il cutoff a livello di
-   partita è quindi ottimistico di qualche decina di minuti; per audit
-   prudenti conviene usare un cutoff a inizio giornata.
+   non è disponibile all'istante del fischio finale, e non si sa quanto ci
+   metta a comparire. È esattamente il motivo per cui il criterio predefinito
+   esclude l'intero giorno del cutoff invece di fidarsi dell'orario di
+   kickoff: il criterio `kickoff_unsafe` resta disponibile ma dichiarato come
+   non verificato.
 4. **Disallineamento fra fonti.** I CSV football-data e l'archivio Understat
    sono aggiornati in momenti diversi (§1.4): un audit point-in-time che
    incrocia le due fonti eredita quella differenza.
@@ -257,3 +280,156 @@ Nessun esperimento Poisson/Elo è stato avviato in questo intervento.
   riproduce i dtype nullable di `convert_dtypes()`).
   L'aggiornamento reale dei dati resta affidato al workflow GitHub Actions.
 * **Nessuna modifica a JSONBin** e nessuna credenziale toccata.
+
+---
+
+## 7. Secondo giro: quattro correzioni verificate
+
+Interventi successivi alla prima consegna (`e23c807`), nati dalla revisione
+puntuale di quel commit. Nessuna modifica a formule predittive, `PRIOR_MATCHES`,
+pesi Poisson/Elo, versione del modello o JSONBin.
+
+### 7.1 Il cutoff includeva partite ancora in corso
+
+*Problema.* Il criterio `kickoff < cutoff` combinato con `is_result` (che è lo
+stato **odierno**) faceva entrare, in una ricostruzione al 5 settembre ore
+18:30, una partita iniziata alle 18:00 e finita alle 19:50.
+
+*Correzione.* Nuovo criterio predefinito `previous_day` descritto in §4, più
+`day_timezone` esplicito. Il vecchio comportamento resta disponibile solo come
+`kickoff_unsafe`, documentato come non verificato. Nessuna durata fissa della
+partita è stata introdotta.
+
+*Test* (`SoccerMath/test_xg_pipeline.py`, classe `TestTemporalCutoff`):
+partita in corso all'istante del cutoff, partita dello stesso giorno iniziata
+prima, partita del giorno precedente, confine di fuso UTC vs `Europe/Rome`,
+offset numerico, opt-in `kickoff_unsafe` e suo fallback alla regola del giorno
+quando manca l'orario, rifiuto di una policy sconosciuta.
+
+### 7.2 Protezione dagli archivi parziali basata sul solo totale
+
+*Problema.* `MAX_SHRINK_RATIO` guardava il numero complessivo di righe delle 5
+stagioni: uno snapshot con lo **stesso** numero di partite ma con un risultato
+sostituito, o con una singola partita conclusa mancante, passava il controllo.
+
+*Correzione.* `xg_archive.compare_snapshots()` confronta i due snapshot
+**partita per partita**, con chiave `(stagione, id)` (fallback
+`(stagione, casa, ospite)` per archivi senza id). Bloccano:
+
+* partite **concluse con xG valido** presenti nel vecchio snapshot e assenti
+  dal nuovo;
+* partite regredite da conclusa-con-xG a non giocata / senza xG;
+* stagioni con risultati scomparse, salvo `--allow-dropping-seasons`.
+
+Restano ammesse e vengono riportate: partite nuove, correzioni di xG sulla
+stessa partita (Understat rivede i valori), fixture **non giocate** tolte dal
+calendario. La soglia sul volume rimane come rete secondaria, ma calcolata solo
+sulle stagioni richieste. Un fallimento non scrive l'archivio e, poiché il
+workflow interrompe la catena, non pubblica nemmeno le medie.
+
+*Test* (`TestAcquisitionSafety`, `TestSnapshotDiff`): una sola partita conclusa
+mancante su 200, stesso totale con un id sostituito, conclusa → non giocata,
+nuove partite + correzioni xG + fixture rimossa (accettate), riduzione di
+stagione con e senza flag, perdita di risultati in una stagione ancora
+richiesta anche con il flag attivo, `--baseline-dir` che confronta con i dati
+veri scrivendo altrove.
+
+### 7.3 I nomi non risolti non bloccavano la pubblicazione
+
+*Problema.* `derive_league()` scriveva `xg_<lega>.json` e solo dopo `main()`
+stampava un warning sui nomi non mappati: un titolo Understat cambiato finiva
+pubblicato con il nome grezzo e l'engine cadeva in silenzio sul fallback gol.
+
+*Correzione.*
+
+* `update_xg.mapping_errors()` viene chiamata **prima di qualunque
+  scrittura**: nomi non risolti o collisioni non dichiarate fanno fallire la
+  lega lasciando intatto il file precedente (uscita ≠ 0);
+* `team_names.resolve_team_name()` restituisce ora anche `source`
+  (`alias` | `canonical` | `unknown` | `empty`): i nomi **già canonici** sono
+  accettati esplicitamente, quindi nessun falso allarme e nessun fuzzy
+  matching. `.mapped` resta per compatibilità;
+* le collisioni legittime vanno dichiarate in `update_xg.ACCEPTED_COLLISIONS`
+  (oggi vuoto: sui dati reali non ce n'è nessuna);
+* `--allow-unmapped-names` esiste solo come uscita di emergenza manuale e
+  declassa gli errori a warning; il workflow non lo usa.
+
+*Fonte unica degli alias.* Le tabelle ancora sovrapposte
+(`config.TEAM_NAME_MAP` + `clean_name` da una parte, gli alias di
+`team_names.py` dall'altra) sono confluite in **`SoccerMath/team_aliases.py`**,
+modulo senza dipendenze dal progetto (quindi nessun import circolare):
+`TEAM_NAME_MAP`, `NAME_CLEAN_REPLACEMENTS`, `clean_name()`,
+`UNDERSTAT_NAME_MAP`, `ALL_ALIASES`, `CANONICAL_NAMES`. `config.py` li
+ri-esporta (`from config import clean_name`, `config.TEAM_NAME_MAP` continuano
+a funzionare) e `team_names.py` contiene ora solo il resolver.
+Nel travaso sono stati corretti due valori non canonici di `config`:
+`FC St. Pauli → St Pauli` (era `St. Pauli`) e
+`AS Saint-Étienne → St Etienne` (era `Saint-Etienne`); entrambi puntavano a
+nomi che i CSV non usano.
+
+*Test* (`TestSharedAliasSource`, `TestBlockingNameValidation`): nome
+sconosciuto che blocca, alias valido accettato, nome canonico accettato senza
+warning, collisione non dichiarata che blocca, collisione dichiarata ammessa,
+file precedente invariato dopo l'errore (nessun `.tmp` lasciato in giro),
+coerenza fra i due livelli (`conflicting_aliases() == {}`), ogni valore
+mappato è canonico, ogni nome dei CSV delle 5 leghe è già canonico, i cinque
+archivi reali passano la validazione bloccante.
+
+*Audit rieseguito*: `audit/results/xg_name_audit.md` → **482/482** coppie
+(lega, stagione, squadra) risolte, **0** non risolte, **0** collisioni; i nomi
+prima marcati "no (solo clean_name)" (`Dortmund`, `Leipzig`, `Stuttgart`,
+`Ath Bilbao`, `St Etienne`) risultano ora riconosciuti come **canonici**.
+Le medie derivate dopo il refactor sono **identiche byte per byte** a quelle
+già committate.
+
+### 7.4 Modalità verifica su GitHub Actions (dati reali)
+
+Nuovo workflow **`.github/workflows/xg_verify.yml`** — *Verifica pipeline xG
+(solo lettura)*:
+
+1. installa `soccerdata==1.9.1` (versione dichiarata; `update_all_xg_db.py`
+   controlla a runtime la versione effettiva e lo scrive nei log) e `pandas`;
+2. esegue i test offline della pipeline;
+3. **acquisizione reale** delle 5 leghe con output in `$RUNNER_TEMP` e
+   `--baseline-dir SoccerMath/database` (il confronto per-partita di §7.2 usa
+   i dati veri);
+4. deriva le medie dallo stesso snapshot nella cartella temporanea, con la
+   validazione bloccante dei nomi di §7.3;
+5. riesegue l'audit nomi/medie con `--database-dir` e `--results-dir`
+   temporanei;
+6. verifica con `git diff --exit-code` che **nessun** file committato sia
+   cambiato e pubblica archivio, medie e report come artifact.
+
+`permissions: contents: read`, nessun commit, nessun push, nessun segreto:
+JSONBin e `main` non vengono toccati.
+
+Come avviarlo a mano da GitHub web (il `push` su `arena/**` lo avvia già da
+solo, e il pulsante *Run workflow* compare solo dopo che il file esiste sul
+branch di default):
+
+1. `Actions` → workflow **Verifica pipeline xG (solo lettura)**;
+2. `Run workflow` → **Branch: `arena/01a071f5-soccermath2-0`** → `Run workflow`;
+3. a fine run, scaricare l'artifact `xg-verify-<run_id>`.
+
+In alternativa da CLI:
+`gh workflow run xg_verify.yml --ref arena/01a071f5-soccermath2-0`
+(funziona solo dopo che il workflow è presente sul branch di default; fino ad
+allora vale l'esecuzione automatica innescata dal push).
+
+I test offline **non** sono una prova di acquisizione reale: la prova è il run
+di questo workflow.
+
+### 7.5 Limiti residui dopo il secondo giro
+
+* Gli **xG rivisti** restano un limite non risolvibile con questo archivio
+  (§4, punto 1): la ricostruzione point-in-time usa gli ultimi valori noti.
+* Il **fuso reale dei timestamp Understat** non è documentato nel dato: `UTC`
+  è una convenzione dichiarata, `day_timezone` serve a renderla esplicita.
+* `compare_snapshots()` protegge dalle perdite, non dalla **correttezza** dei
+  valori: se Understat pubblicasse xG sbagliati ma coerenti, il confronto li
+  accetterebbe come "correzioni".
+* La validazione dei nomi vede solo i nomi **presenti** nello snapshot: una
+  squadra che sparisce del tutto dall'archivio non genera un errore di
+  mapping (genera semmai una partita mancante, coperta da §7.2).
+* L'ambiente di sviluppo continua a non poter contattare Understat (§6):
+  ogni verifica su dati veri passa da GitHub Actions.

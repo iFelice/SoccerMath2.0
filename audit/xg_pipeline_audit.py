@@ -21,6 +21,11 @@ Produce due rapporti in ``audit/results/``:
 
 Uso:
     python audit/xg_pipeline_audit.py [--season 2026]
+    python audit/xg_pipeline_audit.py --database-dir /tmp/verify/database \
+        --results-dir /tmp/verify/reports --baseline-ref ""
+
+``--database-dir`` permette di auditare uno snapshot appena scaricato in una
+cartella temporanea (modalita' verifica in CI) senza toccare i dati committati.
 """
 
 from __future__ import annotations
@@ -44,7 +49,11 @@ from xg_archive import (  # noqa: E402
     LEAGUES, load_archive, parse_season, season_averages,
 )
 
-DB_DIR = os.path.join(_REPO_ROOT, "SoccerMath", "database")
+# Dati del repository. ``DB_DIR`` puo' essere spostato con --database-dir (per
+# auditare uno snapshot appena scaricato); ``REPO_DB_DIR`` resta il riferimento
+# committato, usato come baseline nel confronto delle medie.
+REPO_DB_DIR = os.path.join(_REPO_ROOT, "SoccerMath", "database")
+DB_DIR = REPO_DB_DIR
 RESULTS_DIR = os.path.join(_AUDIT_DIR, "results")
 
 LEAGUE_PREFIX = {
@@ -64,10 +73,17 @@ XG_FILES = {
 
 
 def csv_path(league: str, season: int, current_season: int) -> str:
+    """CSV football-data: sempre quelli committati nel repository.
+
+    Anche quando si audita un archivio scaricato altrove (--database-dir), il
+    riferimento dei nomi canonici resta il CSV del repo.
+    """
     prefix = LEAGUE_PREFIX[league]
-    if season >= current_season:
-        return os.path.join(DB_DIR, f"{prefix}_Live.csv")
-    return os.path.join(DB_DIR, f"{prefix}_{season}.csv")
+    name = f"{prefix}_Live.csv" if season >= current_season else f"{prefix}_{season}.csv"
+    candidate = os.path.join(DB_DIR, name)
+    if os.path.exists(candidate):
+        return candidate
+    return os.path.join(REPO_DB_DIR, name)
 
 
 def csv_teams(path: str):
@@ -100,7 +116,7 @@ def archive_titles(records, season: int):
 def build_name_audit(seasons, current_season):
     report = {}
     for league in LEAGUES:
-        records = load_archive(league)
+        records = load_archive(league, DB_DIR)
         league_rows = []
         for season in seasons:
             titles = archive_titles(records, season)
@@ -237,7 +253,7 @@ def _baseline_averages(league: str, ref: str):
     Serve a confrontare le medie PRE-consolidamento con quelle derivate anche
     dopo che i file ``xg_<lega>.json`` sono stati rigenerati nel working tree.
     """
-    rel = os.path.relpath(os.path.join(DB_DIR, XG_FILES[league]), _REPO_ROOT)
+    rel = os.path.relpath(os.path.join(REPO_DB_DIR, XG_FILES[league]), _REPO_ROOT)
     if ref:
         try:
             raw = subprocess.run(
@@ -246,7 +262,7 @@ def _baseline_averages(league: str, ref: str):
             return json.loads(raw), f"{ref}:{rel}"
         except (subprocess.CalledProcessError, json.JSONDecodeError, OSError):
             pass
-    path = os.path.join(DB_DIR, XG_FILES[league])
+    path = os.path.join(REPO_DB_DIR, XG_FILES[league])
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f), rel
@@ -266,7 +282,7 @@ def build_averages_comparison(season: int, baseline_ref: str = "") -> str:
     out.append("")
     for league in LEAGUES:
         existing, source = _baseline_averages(league, baseline_ref)
-        agg = season_averages(league, season)
+        agg = season_averages(league, season, base_dir=DB_DIR)
         derived = agg.averages
 
         both = sorted(set(existing) & set(derived))
@@ -338,7 +354,18 @@ def main(argv=None) -> int:
     parser.add_argument("--baseline-ref", default="origin/main",
                         help="ref git da cui leggere le medie di riferimento "
                              "(default: origin/main; stringa vuota = working tree)")
+    parser.add_argument("--database-dir", default=None,
+                        help="cartella dei dati da auditare "
+                             "(default: SoccerMath/database)")
+    parser.add_argument("--results-dir", default=None,
+                        help="cartella dei report (default: audit/results)")
     args = parser.parse_args(argv)
+
+    global DB_DIR, RESULTS_DIR
+    if args.database_dir:
+        DB_DIR = os.path.abspath(args.database_dir)
+    if args.results_dir:
+        RESULTS_DIR = os.path.abspath(args.results_dir)
 
     from config import CURRENT_SEASON_START_YEAR
     current = CURRENT_SEASON_START_YEAR
@@ -349,7 +376,7 @@ def main(argv=None) -> int:
     else:
         found = set()
         for league in LEAGUES:
-            for rec in load_archive(league):
+            for rec in load_archive(league, DB_DIR):
                 s = parse_season(rec.get("season"))
                 if s:
                     found.add(s)

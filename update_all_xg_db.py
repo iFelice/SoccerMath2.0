@@ -18,8 +18,14 @@ Robustezza (nessun file vuoto o parziale in produzione):
     (``pd.NA``/``NaT`` -> ``null``, ``numpy.int64`` -> ``int``);
   * l'archivio nuovo viene validato PRIMA di sostituire quello vecchio
     (schema, date, id duplicati, xG delle partite concluse, copertura
-    stagionale minima) e confrontato con il precedente: un crollo del numero
-    di partite viene rifiutato;
+    stagionale minima);
+  * il nuovo snapshot viene confrontato con l'ultimo valido PARTITA PER PARTITA
+    (chiave stagione + id, non il totale delle righe): spariscono partite gia'
+    concluse con xG, o regrediscono a "non giocata"/senza xG? Si rifiuta.
+    Restano invece ammesse - e riportate - le variazioni legittime: partite
+    nuove, correzioni di xG sulla stessa partita, fixture non ancora giocate
+    tolte dal calendario. Ridurre le stagioni richieste e' possibile solo con
+    ``--allow-dropping-seasons``;
   * la scrittura e' atomica (file temporaneo + ``os.replace``);
   * se una lega fallisce, l'ultimo archivio valido resta al suo posto e lo
     script esce con codice diverso da zero (il workflow non pubblica nulla).
@@ -28,6 +34,8 @@ Uso:
     python update_all_xg_db.py
     python update_all_xg_db.py --league "Serie A" --seasons 2526 2627
     python update_all_xg_db.py --dry-run
+    python update_all_xg_db.py --output-dir /tmp/verify \
+        --baseline-dir SoccerMath/database        # verifica senza toccare i dati
 """
 
 from __future__ import annotations
@@ -48,6 +56,7 @@ from xg_archive import (  # noqa: E402
     LEAGUES,
     REQUIRED_FIELDS,
     SOCCERDATA_LEAGUES,
+    compare_snapshots,
     parse_season,
     validate_archive,
 )
@@ -74,9 +83,13 @@ OUTPUT_COLUMNS = {
 
 DEFAULT_OUTPUT_DIR = os.path.join(_REPO_ROOT, "SoccerMath", "database")
 
-# Un archivio nuovo che perde piu' di questa frazione di partite rispetto al
-# precedente e' quasi certamente uno scrape parziale: si rifiuta.
+# Rete di sicurezza GROSSOLANA, secondaria rispetto a compare_snapshots(): un
+# archivio che perde piu' di questa frazione di RIGHE rispetto al precedente e'
+# comunque sospetto anche quando le righe perse sono solo fixture non giocate.
 MAX_SHRINK_RATIO = 0.10
+
+# Versione di soccerdata verificata per queste colonne/questo formato.
+REQUIRED_SOCCERDATA_VERSION = "1.9.1"
 
 
 def _json_safe(value):
@@ -126,9 +139,35 @@ def records_from_schedule(df) -> List[dict]:
     return records
 
 
+def check_soccerdata_version(strict: bool = False) -> str:
+    """Verifica la versione di soccerdata effettivamente installata.
+
+    Le colonne di ``read_schedule()`` sono state verificate su
+    ``REQUIRED_SOCCERDATA_VERSION``: una versione diversa non viene rifiutata
+    in silenzio, viene dichiarata nei log (o rifiutata con ``strict``).
+    """
+    try:
+        from importlib.metadata import version
+        installed = version("soccerdata")
+    except Exception:  # pragma: no cover - dipende dall'ambiente
+        installed = "sconosciuta"
+    if installed != REQUIRED_SOCCERDATA_VERSION:
+        message = (f"soccerdata {installed} != versione verificata "
+                   f"{REQUIRED_SOCCERDATA_VERSION}")
+        if strict:
+            raise RuntimeError(message)
+        log.warning("%s: le colonne di read_schedule() sono verificate solo "
+                    "sulla versione dichiarata", message)
+    else:
+        log.info("soccerdata %s (versione verificata)", installed)
+    return installed
+
+
 def fetch_league(sd_league: str, seasons: List[str], no_cache: bool = True) -> List[dict]:
     """Scarica il calendario con xG di una lega (unica chiamata a Understat)."""
     import soccerdata as sd  # import locale: i test non richiedono la libreria
+
+    check_soccerdata_version()
 
     understat = sd.Understat(leagues=sd_league, seasons=seasons, no_cache=no_cache)
     df = understat.read_schedule().reset_index()
@@ -161,6 +200,8 @@ def update_league(
     *,
     dry_run: bool = False,
     fetcher=fetch_league,
+    baseline_dir: Optional[str] = None,
+    allow_dropping_seasons: bool = False,
 ) -> Dict:
     """Scarica, valida e (solo se valido) sostituisce l'archivio della lega."""
     result: Dict = {"league": league, "written": False, "matches": 0, "errors": []}
@@ -182,16 +223,49 @@ def update_league(
         result["errors"].extend(problems)
         return result
 
-    previous = _load_existing(path)
+    # Baseline = ultimo archivio valido. In modalita' verifica l'output va in
+    # una cartella temporanea, ma il confronto deve restare contro i dati veri.
+    baseline_path = path
+    if baseline_dir:
+        baseline_path = os.path.join(baseline_dir, ARCHIVE_FILES[league])
+    result["baseline_path"] = baseline_path
+    previous = _load_existing(baseline_path)
     if previous:
-        shrink = 1.0 - (len(records) / len(previous))
         result["previous_matches"] = len(previous)
-        if shrink > MAX_SHRINK_RATIO:
+        diff = compare_snapshots(
+            previous, records, league=league,
+            requested_seasons=[s for s in expected if s],
+            allow_dropping_seasons=allow_dropping_seasons,
+        )
+        result["diff"] = diff.to_dict()
+        blocking = diff.blocking_problems
+        if blocking:
+            result["errors"].extend(blocking)
             result["errors"].append(
-                f"archivio nuovo con {len(records)} partite contro le "
-                f"{len(previous)} precedenti (-{shrink:.0%}): scrape parziale, "
-                "archivio esistente lasciato invariato")
+                "archivio esistente lasciato invariato (nessuna media pubblicata)")
             return result
+        if diff.new_matches or diff.xg_corrections or diff.dropped_unplayed:
+            log.info(
+                "%s: variazioni ammesse - %d partite nuove, %d correzioni xG, "
+                "%d fixture non giocate rimosse",
+                league, len(diff.new_matches), len(diff.xg_corrections),
+                len(diff.dropped_unplayed))
+
+        # Rete secondaria sul volume, confrontando solo le stagioni RICHIESTE
+        # (ridurre le stagioni non e' un crollo dello scrape).
+        wanted = {s for s in expected if s}
+        in_scope = [r for r in previous
+                    if isinstance(r, dict)
+                    and (not wanted or parse_season(r.get("season")) in wanted)]
+        if in_scope:
+            shrink = 1.0 - (len(records) / len(in_scope))
+            if shrink > MAX_SHRINK_RATIO:
+                result["errors"].append(
+                    f"archivio nuovo con {len(records)} partite contro le "
+                    f"{len(in_scope)} precedenti sulle stesse stagioni "
+                    f"(-{shrink:.0%}): scrape parziale, archivio esistente "
+                    "lasciato invariato")
+                return result
 
     result["matches"] = len(records)
     if not dry_run:
@@ -208,6 +282,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--seasons", nargs="+", default=SEASONS,
                         help=f"stagioni soccerdata (default: {' '.join(SEASONS)})")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--baseline-dir", default=None,
+                        help="cartella dell'ultimo archivio valido con cui "
+                             "confrontare lo snapshot (default: --output-dir). "
+                             "Serve alla modalita' verifica, che scrive altrove "
+                             "ma deve confrontarsi con i dati veri")
+    parser.add_argument("--allow-dropping-seasons", action="store_true",
+                        help="autorizza esplicitamente la scomparsa delle "
+                             "stagioni non piu' richieste")
     parser.add_argument("--dry-run", action="store_true",
                         help="scarica e valida senza scrivere")
     parser.add_argument("--report", default=None, help="riepilogo JSON")
@@ -219,7 +301,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     for league in leagues:
         log.info("Scaricamento %s (stagioni: %s)...", league, ", ".join(args.seasons))
         res = update_league(league, list(args.seasons), args.output_dir,
-                            dry_run=args.dry_run)
+                            dry_run=args.dry_run,
+                            baseline_dir=args.baseline_dir,
+                            allow_dropping_seasons=args.allow_dropping_seasons)
         results.append(res)
         if res["errors"]:
             failures += 1
