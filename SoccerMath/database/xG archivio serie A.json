@@ -18485,11 +18485,11 @@
     "date": "2026-09-04 18:45:00",
     "home_team": "Genoa",
     "away_team": "Como",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 4,
+    "home_xg": 0.920577,
+    "away_xg": 2.00713,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18497,11 +18497,11 @@
     "date": "2026-09-05 13:00:00",
     "home_team": "Fiorentina",
     "away_team": "Torino",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 2,
+    "home_xg": 1.35877,
+    "away_xg": 0.771751,
+    "is_result": true
   },
   {
     "season": 2026,

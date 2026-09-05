@@ -20,9 +20,9 @@
     "matches": 3
   },
   "Betis": {
-    "xG_avg": 1.528,
-    "xGA_avg": 1.823,
-    "matches": 3
+    "xG_avg": 1.367,
+    "xGA_avg": 2.213,
+    "matches": 4
   },
   "Celta": {
     "xG_avg": 0.619,
@@ -65,9 +65,9 @@
     "matches": 3
   },
   "Real Madrid": {
-    "xG_avg": 3.091,
-    "xGA_avg": 0.747,
-    "matches": 3
+    "xG_avg": 3.164,
+    "xGA_avg": 0.782,
+    "matches": 4
   },
   "Santander": {
     "xG_avg": 1.898,

@@ -10,9 +10,9 @@
     "matches": 1
   },
   "Dortmund": {
-    "xG_avg": 1.313,
-    "xGA_avg": 1.106,
-    "matches": 1
+    "xG_avg": 1.669,
+    "xGA_avg": 1.636,
+    "matches": 2
   },
   "Ein Frankfurt": {
     "xG_avg": 2.119,
@@ -20,14 +20,14 @@
     "matches": 1
   },
   "Elversberg": {
-    "xG_avg": 1.4,
-    "xGA_avg": 2.615,
-    "matches": 1
+    "xG_avg": 2.216,
+    "xGA_avg": 2.752,
+    "matches": 2
   },
   "Freiburg": {
-    "xG_avg": 2.385,
-    "xGA_avg": 0.949,
-    "matches": 1
+    "xG_avg": 1.778,
+    "xGA_avg": 0.841,
+    "matches": 2
   },
   "Hamburg": {
     "xG_avg": 1.106,
@@ -35,29 +35,29 @@
     "matches": 1
   },
   "Hoffenheim": {
-    "xG_avg": 1.923,
-    "xGA_avg": 2.314,
-    "matches": 1
+    "xG_avg": 2.045,
+    "xGA_avg": 2.169,
+    "matches": 2
   },
   "Koln": {
-    "xG_avg": 2.314,
-    "xGA_avg": 1.923,
-    "matches": 1
+    "xG_avg": 2.586,
+    "xGA_avg": 2.723,
+    "matches": 2
   },
   "Leipzig": {
-    "xG_avg": 3.765,
-    "xGA_avg": 1.234,
-    "matches": 1
+    "xG_avg": 2.673,
+    "xGA_avg": 1.044,
+    "matches": 2
   },
   "Leverkusen": {
-    "xG_avg": 2.615,
-    "xGA_avg": 1.4,
-    "matches": 1
+    "xG_avg": 3.004,
+    "xGA_avg": 0.825,
+    "matches": 2
   },
   "M'gladbach": {
-    "xG_avg": 1.234,
-    "xGA_avg": 3.765,
-    "matches": 1
+    "xG_avg": 2.061,
+    "xGA_avg": 3.398,
+    "matches": 2
   },
   "Mainz": {
     "xG_avg": 1.549,
@@ -65,9 +65,9 @@
     "matches": 1
   },
   "SC Paderborn": {
-    "xG_avg": 0.691,
-    "xGA_avg": 1.549,
-    "matches": 1
+    "xG_avg": 0.712,
+    "xGA_avg": 1.361,
+    "matches": 2
   },
   "Schalke 04": {
     "xG_avg": 1.837,
@@ -75,18 +75,18 @@
     "matches": 1
   },
   "Stuttgart": {
-    "xG_avg": 1.25,
-    "xGA_avg": 4.079,
-    "matches": 1
+    "xG_avg": 2.386,
+    "xGA_avg": 3.469,
+    "matches": 2
   },
   "Union Berlin": {
-    "xG_avg": 2.283,
-    "xGA_avg": 2.119,
-    "matches": 1
+    "xG_avg": 1.267,
+    "xGA_avg": 2.756,
+    "matches": 2
   },
   "Werder Bremen": {
-    "xG_avg": 0.949,
-    "xGA_avg": 2.385,
-    "matches": 1
+    "xG_avg": 0.901,
+    "xGA_avg": 1.983,
+    "matches": 2
   }
 }

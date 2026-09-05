@@ -18617,11 +18617,11 @@
     "date": "2026-09-04 19:00:00",
     "home_team": "Real Betis",
     "away_team": "Real Madrid",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 0,
+    "home_xg": 0.885249,
+    "away_xg": 3.38283,
+    "is_result": true
   },
   {
     "season": 2026,

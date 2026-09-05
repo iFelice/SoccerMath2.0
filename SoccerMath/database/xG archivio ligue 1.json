@@ -15809,11 +15809,11 @@
     "date": "2026-09-04 17:00:00",
     "home_team": "Lyon",
     "away_team": "Auxerre",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 3,
+    "away_goals": 1,
+    "home_xg": 2.88188,
+    "away_xg": 0.907856,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15821,11 +15821,11 @@
     "date": "2026-09-04 19:05:00",
     "home_team": "Paris Saint Germain",
     "away_team": "Monaco",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 2,
+    "home_xg": 2.52357,
+    "away_xg": 0.601454,
+    "is_result": true
   },
   {
     "season": 2026,

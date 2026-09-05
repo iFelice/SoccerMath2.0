@@ -10,9 +10,9 @@
     "matches": 2
   },
   "Bournemouth": {
-    "xG_avg": 1.483,
-    "xGA_avg": 2.069,
-    "matches": 2
+    "xG_avg": 1.535,
+    "xGA_avg": 1.637,
+    "matches": 3
   },
   "Brentford": {
     "xG_avg": 2.827,
@@ -20,9 +20,9 @@
     "matches": 2
   },
   "Brighton": {
-    "xG_avg": 2.897,
-    "xGA_avg": 2.052,
-    "matches": 2
+    "xG_avg": 2.672,
+    "xGA_avg": 2.113,
+    "matches": 3
   },
   "Chelsea": {
     "xG_avg": 3.206,
@@ -55,19 +55,19 @@
     "matches": 2
   },
   "Ipswich": {
-    "xG_avg": 1.695,
-    "xGA_avg": 3.022,
-    "matches": 2
+    "xG_avg": 1.329,
+    "xGA_avg": 2.263,
+    "matches": 3
   },
   "Leeds": {
-    "xG_avg": 0.808,
-    "xGA_avg": 1.135,
-    "matches": 2
+    "xG_avg": 1.283,
+    "xGA_avg": 1.497,
+    "matches": 3
   },
   "Liverpool": {
-    "xG_avg": 2.205,
-    "xGA_avg": 2.237,
-    "matches": 2
+    "xG_avg": 1.718,
+    "xGA_avg": 1.691,
+    "matches": 3
   },
   "Man City": {
     "xG_avg": 2.521,
@@ -80,9 +80,9 @@
     "matches": 2
   },
   "Newcastle": {
-    "xG_avg": 1.302,
-    "xGA_avg": 2.126,
-    "matches": 2
+    "xG_avg": 1.125,
+    "xGA_avg": 1.964,
+    "matches": 3
   },
   "Nott'm Forest": {
     "xG_avg": 1.768,

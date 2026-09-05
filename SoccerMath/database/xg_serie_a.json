@@ -15,14 +15,14 @@
     "matches": 2
   },
   "Como": {
-    "xG_avg": 1.742,
-    "xGA_avg": 1.577,
-    "matches": 2
+    "xG_avg": 1.83,
+    "xGA_avg": 1.358,
+    "matches": 3
   },
   "Fiorentina": {
-    "xG_avg": 1.052,
-    "xGA_avg": 2.864,
-    "matches": 2
+    "xG_avg": 1.154,
+    "xGA_avg": 2.167,
+    "matches": 3
   },
   "Frosinone": {
     "xG_avg": 1.159,
@@ -30,9 +30,9 @@
     "matches": 2
   },
   "Genoa": {
-    "xG_avg": 0.622,
-    "xGA_avg": 1.635,
-    "matches": 2
+    "xG_avg": 0.722,
+    "xGA_avg": 1.759,
+    "matches": 3
   },
   "Inter": {
     "xG_avg": 2.755,
@@ -85,9 +85,9 @@
     "matches": 2
   },
   "Torino": {
-    "xG_avg": 1.316,
-    "xGA_avg": 1.643,
-    "matches": 2
+    "xG_avg": 1.135,
+    "xGA_avg": 1.548,
+    "matches": 3
   },
   "Udinese": {
     "xG_avg": 1.572,

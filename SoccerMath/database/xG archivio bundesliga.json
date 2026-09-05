@@ -14801,11 +14801,11 @@
     "date": "2026-09-04 18:30:00",
     "home_team": "VfB Stuttgart",
     "away_team": "FC Cologne",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 4,
+    "away_goals": 1,
+    "home_xg": 3.5224,
+    "away_xg": 2.85818,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -14813,11 +14813,11 @@
     "date": "2026-09-05 13:30:00",
     "home_team": "Bayer Leverkusen",
     "away_team": "Union Berlin",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 4,
+    "away_goals": 0,
+    "home_xg": 3.39215,
+    "away_xg": 0.249852,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -14825,11 +14825,11 @@
     "date": "2026-09-05 13:30:00",
     "home_team": "Borussia M.Gladbach",
     "away_team": "Elversberg",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 3,
+    "away_goals": 4,
+    "home_xg": 2.88776,
+    "away_xg": 3.03199,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -14837,11 +14837,11 @@
     "date": "2026-09-05 13:30:00",
     "home_team": "Hoffenheim",
     "away_team": "Borussia Dortmund",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 3,
+    "home_xg": 2.16627,
+    "away_xg": 2.02481,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -14849,11 +14849,11 @@
     "date": "2026-09-05 13:30:00",
     "home_team": "Paderborn",
     "away_team": "Freiburg",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 1,
+    "home_xg": 0.733133,
+    "away_xg": 1.1716,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -14873,11 +14873,11 @@
     "date": "2026-09-05 13:30:00",
     "home_team": "Werder Bremen",
     "away_team": "RasenBallsport Leipzig",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 3,
+    "away_goals": 1,
+    "home_xg": 0.854137,
+    "away_xg": 1.58161,
+    "is_result": true
   },
   {
     "season": 2026,
