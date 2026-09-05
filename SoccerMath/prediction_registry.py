@@ -25,15 +25,22 @@ Cutoff temporale
 ----------------
 Derivato dal repository git (non inventato):
 
-  - commit del fix:  ae8784d643575593f77241c54a1930e7bd48145f
+  - commit del fix sul branch:  ae8784d643575593f77241c54a1930e7bd48145f
     (fix(top-mix): elimina NG ~99.8% causato da lambda ~0 per neopromosse senza dati)
   - merge in main:   dc192d5eaa36968380f8bde823ca1abe9792e65d
     (Merge pull request #10)
 
-Una predizione salvata prima dell'author timestamp del commit di fix e'
-certamente pre-fix. Una predizione salvata dopo il merge in main e'
-certamente post-fix. L'intervallo tra le due date e' trattato come
-AMBIGUO e non viene classificato automaticamente.
+Il criterio corretto di classificazione usa il momento in cui il fix e'
+entrato in ``main`` (merge commit), NON il timestamp del commit sul branch.
+Solo dal merge in main il modello corretto era disponibile all'app di
+produzione.
+
+Quindi:
+  - predizioni della stagione 2026/27 salvate PRIMA del merge -> pre_shrinkage
+  - predizioni della stagione 2026/27 salvate DOPO il merge, senza
+    model_version -> ambiguous (non promosse a post_shrinkage_v1)
+  - predizioni di stagioni precedenti, senza model_version -> legacy
+  - predizioni gia' dotate di model_version -> non riclassificate
 """
 
 from __future__ import annotations
@@ -367,15 +374,22 @@ def entry_generation_time(entry: Any) -> Tuple[Optional[datetime], Optional[str]
 
 
 def entry_era_by_time(entry: Any) -> str:
-    """Era temporale certa/ambigua del record: pre, ambiguous, post o unknown."""
+    """Era temporale del record rispetto al merge del fix in main.
+
+    Il cutoff di produzione e' il merge commit ``dc192d5`` in main
+    (``CUTOFF_MERGE_TIME``), NON il timestamp del commit del fix sul branch.
+    Solo dal merge il modello corretto era disponibile all'app.
+
+    - ``salvato_il`` < merge time  -> "pre"
+    - ``salvato_il`` >= merge time -> "post"
+    - nessun timestamp disponibile -> "unknown"
+    """
     dt, _ = entry_generation_time(entry)
     if dt is None:
         return "unknown"
-    if dt < CUTOFF_COMMIT_TIME:
+    if dt < CUTOFF_MERGE_TIME:
         return "pre"
-    if dt >= CUTOFF_MERGE_TIME:
-        return "post"
-    return "ambiguous"
+    return "post"
 
 
 def should_tag_pre_fix(entry: Any) -> bool:
@@ -436,14 +450,14 @@ def classify_entry(entry: Any) -> Dict[str, Any]:
     elif explicit_other:
         status = "ambiguous" if mv == MODEL_VERSION_AMBIGUOUS else "legacy"
     elif season == TARGET_SEASON and era == "pre":
+        # Prima del merge del fix in main: certamente pre-shrinkage.
         status = "to_tag_pre_shrinkage"
-    elif season == TARGET_SEASON and era == "ambiguous":
+    elif season == TARGET_SEASON and era == "post":
+        # Dopo il merge in main ma senza model_version: ambiguo.
+        # Non viene promosso automaticamente a post_shrinkage_v1.
         status = "ambiguous"
     elif season == TARGET_SEASON and era == "unknown":
-        status = "ambiguous"
-    elif season == TARGET_SEASON and era == "post":
-        # Dopo il fix ma senza versionamento: resta ambiguo/legacy. Non viene
-        # promosso automaticamente a post_shrinkage_v1.
+        # Nessun timestamp disponibile per la classificazione: ambiguo.
         status = "ambiguous"
     else:
         status = "legacy"

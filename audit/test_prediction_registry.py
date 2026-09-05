@@ -82,13 +82,15 @@ POST_UNVERSIONED_2026 = {
     "tipo": "Top Mix", "stagione": "2026/2027", "salvato_il": "06/09/2026 09:00",
 }
 
+# Dopo il merge in main (04/09/2026 18:50:17 CEST = 16:50:17 UTC).
+# Senza model_version → ambiguous.
 AMBIGUOUS_2026 = {
     "match_id": 5,
     "home": "Amb", "away": "Igua", "campionato": "Bundesliga", "giornata": 4,
     "data": "05/09/2026 18:30", "pronostico_sicuro": "GG",
     "mercato_standard": "GG", "top3": [], "prob_sicuro": 64.0,
     "risultati_attesi": "", "risultato_reale": None, "esito": "⏳",
-    "tipo": "Top Mix", "stagione": "2026/2027", "salvato_il": "04/09/2026 18:00",
+    "tipo": "Top Mix", "stagione": "2026/2027", "salvato_il": "04/09/2026 19:00",
 }
 
 
@@ -134,7 +136,7 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(get_model_version(LEGACY_2025), MODEL_VERSION_LEGACY)
 
     def test_ambiguous_window_not_tagged(self):
-        # Salvata tra il commit di fix e il merge in main: non classificare.
+        # Salvata dopo il merge in main senza model_version: non pre_shrinkage.
         self.assertFalse(should_tag_pre_fix(AMBIGUOUS_2026))
         info = classify_entry(AMBIGUOUS_2026)
         self.assertEqual(info["status"], "ambiguous")
