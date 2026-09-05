@@ -198,6 +198,50 @@ def save_predictions(preds):
             )
         except: pass
 
+def _mercato_name_tokens(name):
+    """Token usati per riconoscere una squadra nel testo libero del pronostico.
+
+    ``clean_name`` da solo non basta: il testo salvato usa spesso il nome
+    display API (``Stade Rennais``, ``Barça``) mentre ``clean_name`` produce
+    la chiave CSV (``Rennes``, ``Barcelona``), che non e' sottostringa.
+    Si confrontano ENTRAMBI: grezzo e canonico.
+    """
+    raw = str(name or "").strip()
+    if not raw:
+        return []
+    tokens = []
+    seen = set()
+    for tok in (raw.lower(), clean_name(raw).lower()):
+        tok = (tok or "").strip()
+        if tok and tok not in seen and len(tok) >= 2:
+            seen.add(tok)
+            tokens.append(tok)
+    return tokens
+
+
+def codice_mercato_selezionato(best_mkt, home=None, away=None):
+    """Codice mercato noto al momento della generazione (non dal testo libero).
+
+    Usato da Top Mix / Analisi Rapida / Billy quando il mercato e' gia'
+    una delle sette chiavi di produzione. ``standardizza_mercato`` resta
+    il fallback per i record vecchi e per il testo libero di Billy.
+    """
+    mapping = {
+        "Pareggio": "X",
+        "Over 2.5": "OVER_2.5",
+        "Under 2.5": "UNDER_2.5",
+        "GG": "GG",
+        "NG": "NG",
+    }
+    if best_mkt in mapping:
+        return mapping[best_mkt]
+    if home is not None and best_mkt == f"Vittoria {home}":
+        return "1"
+    if away is not None and best_mkt == f"Vittoria {away}":
+        return "2"
+    return standardizza_mercato(best_mkt, home, away)
+
+
 def standardizza_mercato(testo, home=None, away=None):
     if not testo:
         return "ALTRO"
@@ -223,15 +267,27 @@ def standardizza_mercato(testo, home=None, away=None):
     # Pareggio
     if re.search(r'\bpareggio\b|\bdraw\b|\bmatch nul\b', t): return "X"
     
-    # Vittoria casa (1) o trasferta (2) — disambigua con i nomi squadra
+    # Vittoria casa (1) o trasferta (2) — disambigua con i nomi squadra.
+    # Confronta il nome GREZZO e clean_name: il pronostico Top Mix e'
+    # ``Vittoria {shortName}`` e shortName spesso non e' sottostringa del canonico.
     if home and away:
-        h_clean = clean_name(home).lower()
-        a_clean = clean_name(away).lower()
-        
-        if h_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b|\b1\b', t):
-            return "1"
-        if a_clean in t and re.search(r'\bvittoria\b|\bvince\b|\bwin\b|\b2\b', t):
-            return "2"
+        win_re = re.search(r'\bvittoria\b|\bvince\b|\bwin\b|\b1\b|\b2\b', t)
+        if win_re:
+            h_hit = any(tok in t for tok in _mercato_name_tokens(home))
+            a_hit = any(tok in t for tok in _mercato_name_tokens(away))
+            if h_hit and not a_hit:
+                return "1"
+            if a_hit and not h_hit:
+                return "2"
+            if h_hit and a_hit:
+                # Entrambi i nomi nel testo: resta la preferenza casa-prima
+                # solo se il pattern non distingue; altrimenti il nome piu'
+                # lungo (match piu' specifico) vince.
+                h_tok = max(_mercato_name_tokens(home), key=len, default="")
+                a_tok = max(_mercato_name_tokens(away), key=len, default="")
+                if len(a_tok) > len(h_tok):
+                    return "2"
+                return "1"
     
     # Fallback esplicito per pattern numerici
     if re.search(r'\b1\b.*\b(casa|home|casalinga)\b|\b(casa|home|casalinga)\b.*\b1\b', t): return "1"
@@ -242,14 +298,15 @@ def standardizza_mercato(testo, home=None, away=None):
     
     return "ALTRO"
 
-def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi):
+def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi, mercato_standard=None):
     preds = load_predictions()
     if any(p.get("match_id") == match_id for p in preds): return
     stagione_reale = calcola_stagione_calcolo(match_date)
     metadata = new_prediction_metadata()
+    mercato_code = mercato_standard if mercato_standard else standardizza_mercato(pronostico, h, a)
     preds.append({
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
-        "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": standardizza_mercato(pronostico, h, a),
+        "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": mercato_code,
         "top3": top3, "prob_sicuro": prob, "risultati_attesi": ris_attesi,
         "risultato_reale": None, "esito": "⏳", "tipo": "Top Mix" if "Top Mix" in pronostico else "Analisi", 
         "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
@@ -1037,6 +1094,7 @@ def fetch_and_calc_top_mix():
                     "league": league, "giornata": match['matchday'],
                     "home": h, "away": a, "match_id": match.get("id"),
                     "utcDate": match['utcDate'], "market": best_mkt,
+                    "mercato_standard": codice_mercato_selezionato(best_mkt, h, a),
                     "prob": confidence, "prob_val": round(confidence * 100, 1),
                     "poisson": round(poisson_prob * 100, 1),
                     "elo": round(elo_prob * 100, 1)
@@ -1058,7 +1116,7 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             best_mkt = max(mercati, key=mercati.get)
             pron = f"{best_mkt} - {mercati[best_mkt]:.0%} - Poisson Auto"
             top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
-            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(mercati[best_mkt]*100, 1), "")
+            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(mercati[best_mkt]*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a))
             salvate += 1
         except: pass
     return salvate
@@ -1071,10 +1129,11 @@ def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
             match_id = mx.get("id"); match_date_str = format_date_italy(mx["utcDate"], "%d/%m/%Y %H:%M"); break
     mercato_top = max({f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}, key=lambda k: {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}[k])
     prob_top = {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}[mercato_top]
+    codice_top = codice_mercato_selezionato(mercato_top, h, a)
 
     if not groq_client:
         st.error("⚠️ Billy (Groq) non configurato. Devi creare il file .env come spiegato!")
-        if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Fallback", [], round(prob_top*100, 1), "")
+        if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Fallback", [], round(prob_top*100, 1), "", mercato_standard=codice_top)
         return
 
     with st.spinner("Billy sta analizzando..."):
@@ -1181,7 +1240,7 @@ RISPONDI IN ITALIANO. Sii diretto e concreto, niente frasi generiche."""
                     st.error("❌ Nessun valore")
         except Exception as e:
             st.error(f"Errore AI: {e}")
-            if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "")
+            if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "", mercato_standard=codice_top)
 
 # Banner
 st.markdown("""<div class="safari-safe-banner"></div>""", unsafe_allow_html=True)
@@ -1409,7 +1468,7 @@ with tab2:
         for i, p in enumerate(top_10):
             dt = format_date_italy(p['utcDate'], "%d/%m %H:%M")
             st.markdown(f"<div class='top-mix-row'><div><b>#{i+1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
-            if p.get('match_id'): save_prediction_entry(p['match_id'], p['home'], p['away'], p['league'], p['giornata'], format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"), f"{p['market']} - Top Mix", [], p['prob_val'], "")
+            if p.get('match_id'): save_prediction_entry(p['match_id'], p['home'], p['away'], p['league'], p['giornata'], format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"), f"{p['market']} - Top Mix", [], p['prob_val'], "", mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']))
         st.success("✅ Top Mix salvati!")
 
 with tab3:

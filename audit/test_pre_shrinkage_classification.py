@@ -286,6 +286,23 @@ class Test06_ExistingModelVersion(unittest.TestCase):
         info = classify_entry(entry)
         self.assertEqual(info["status"], "already_post_shrinkage_v1")
 
+    def test_explicit_post_version_wins_over_pre_merge_timestamp(self):
+        """Comportamento ATTUALE, non un fix: model_version esplicito vince sul tempo.
+
+        Se Schalke–Bayern e' taggato post_shrinkage_v1 con salvato_il precedente
+        al merge, classify_entry NON lo ribalta a pre_fix. Non e' un bug del
+        parser di data: e' la regola 'versione esplicita non sovrascritta'.
+        Un eventuale correttivo andrebbe proposto, non applicato qui.
+        """
+        entry = _entry(home="Schalke", away="Bayern",
+                       salvato_il="04/09/2026 15:25",
+                       model_version=MODEL_VERSION_CURRENT,
+                       prob=92.1)
+        self.assertEqual(entry_era_by_time(entry), "pre")
+        info = classify_entry(entry)
+        self.assertEqual(info["status"], "already_post_shrinkage_v1")
+        self.assertFalse(should_tag_pre_fix(entry))
+
     def test_pre_shrinkage_already_tagged_not_modified(self):
         entry = _entry(home="Pre", away="Already",
                        salvato_il="04/09/2026 16:00",

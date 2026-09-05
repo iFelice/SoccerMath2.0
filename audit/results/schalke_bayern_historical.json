@@ -1,0 +1,1735 @@
+{
+  "primary": {
+    "ok": true,
+    "git_sha": "e573fa331d03fe4eaa35824af06a98e42e20f011",
+    "snapshot_commit": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+    "snapshot_commit_present": true,
+    "current_equals_snapshot": false,
+    "model_version": "post_shrinkage_v1",
+    "reconstructed_at_utc": "2026-09-05T18:41:16.583943+00:00",
+    "league": "Bundesliga",
+    "season_engine_xg": "2026/2027",
+    "season_start_year": 2026,
+    "prior_matches": 6.0,
+    "round_window_days": 5,
+    "forbidden_functions_not_called": [
+      "save_prediction_entry",
+      "save_predictions",
+      "load_predictions",
+      "fetch_and_calc_top_mix",
+      "analisi_rapida_giornata"
+    ],
+    "api_names": {
+      "home_received": {
+        "status": "assumption",
+        "value": "Schalke",
+        "note": "Nome passato a clean_name come farebbe fetch_and_calc_top_mix (shortName or name). Senza snapshot API e' un candidato."
+      },
+      "away_received": {
+        "status": "assumption",
+        "value": "Bayern",
+        "note": "Come home_received."
+      },
+      "api_snapshot": null
+    },
+    "canonical_names": {
+      "home": "Schalke 04",
+      "away": "Bayern"
+    },
+    "league_goal_averages": {
+      "avg_h": 1.7740112994350283,
+      "avg_a": 1.414043583535109,
+      "n_matches_df": 1239,
+      "note": "Medie gol sul df concatenato (storici + live), produzione.",
+      "status": "verified"
+    },
+    "league_xg_averages": {
+      "league_xg": 2.195777777777778,
+      "league_xga": 2.1037222222222223,
+      "meta": {
+        "used": true,
+        "n_xg": 18,
+        "n_xga": 18
+      },
+      "n_teams_in_xg_file": 18,
+      "status": "verified"
+    },
+    "home": {
+      "api_name": "Schalke",
+      "canonical": "Schalke 04",
+      "name_resolution": {
+        "raw": "Schalke",
+        "canonical": "Schalke 04",
+        "source": "alias",
+        "mapped": true
+      },
+      "in_engine_stats": true,
+      "used_default_1_1_fallback": false,
+      "xg_key_hit": true,
+      "xg_record": {
+        "xG_avg": 1.837,
+        "xGA_avg": 5.536,
+        "matches": 1
+      },
+      "strength_source": "xg_shrunk",
+      "shrinkage_xg": {
+        "xG_avg": 1.837,
+        "xGA_avg": 5.536,
+        "matches": 1,
+        "league_xg": 2.195777777777778,
+        "league_xga": 2.1037222222222223,
+        "ratio_att_raw": 0.8366056067199675,
+        "ratio_def_raw": 2.6315261309319458,
+        "ratio_att_shrunk": 0.9766579438171382,
+        "ratio_def_shrunk": 1.2330751615617064,
+        "prior": 6.0,
+        "n_ok": true
+      },
+      "goals_fallback": {
+        "n_played": 35,
+        "gf": 35.0,
+        "ga": 74.0,
+        "exp_gf": 55.61097659402745,
+        "exp_ga": 55.97094430992736,
+        "ratio_att_raw": 0.6293721517517633,
+        "ratio_def_raw": 1.322114552690777,
+        "ratio_att_shrunk": 0.6836103734466272,
+        "ratio_def_shrunk": 1.2749758376628584,
+        "prior": 6.0
+      },
+      "form_last5": {
+        "n": 5,
+        "matches": [
+          {
+            "date": "2023-05-05",
+            "venue": "A",
+            "opponent": "Mainz",
+            "gf": 3,
+            "ga": 2
+          },
+          {
+            "date": "2023-05-13",
+            "venue": "A",
+            "opponent": "Bayern",
+            "gf": 0,
+            "ga": 6
+          },
+          {
+            "date": "2023-05-20",
+            "venue": "H",
+            "opponent": "Ein Frankfurt",
+            "gf": 2,
+            "ga": 2
+          },
+          {
+            "date": "2023-05-27",
+            "venue": "A",
+            "opponent": "Leipzig",
+            "gf": 2,
+            "ga": 4
+          },
+          {
+            "date": "2026-08-30",
+            "venue": "A",
+            "opponent": "Augsburg",
+            "gf": 0,
+            "ga": 3
+          }
+        ],
+        "gf": 7.0,
+        "ga": 17.0,
+        "att": 0.8782784810126582,
+        "def": 1.15,
+        "note": "Le ultime 5 partite sono sul df multi-stagione di get_league_engine (storici + live), non sulla sola stagione corrente."
+      },
+      "market_value": {
+        "canonical_key": "Schalke 04",
+        "in_MARKET_VALUES": true,
+        "value": 80,
+        "default_if_missing": 50,
+        "mkt_factor": 0.9757724967479859,
+        "status": "verified"
+      },
+      "engine_stats": {
+        "att": 0.8369958444298099,
+        "def": 1.4532449321147451,
+        "att0": 0.8577776553646622,
+        "def0": 1.4180364357959623,
+        "att0_pure": 0.9766579438171382,
+        "def0_pure": 1.2330751615617064,
+        "val": 80
+      },
+      "trace_matches_engine_att0_pure": true,
+      "csv_presence": [
+        {
+          "file": "Bundesliga_2022.csv",
+          "n_matches": 34,
+          "raw_names_as_home": [
+            "Schalke 04"
+          ],
+          "raw_names_as_away": [
+            "Schalke 04"
+          ],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_2023.csv",
+          "n_matches": 0,
+          "raw_names_as_home": [],
+          "raw_names_as_away": [],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_2024.csv",
+          "n_matches": 0,
+          "raw_names_as_home": [],
+          "raw_names_as_away": [],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_2025.csv",
+          "n_matches": 0,
+          "raw_names_as_home": [],
+          "raw_names_as_away": [],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_Live.csv",
+          "n_matches": 2,
+          "raw_names_as_home": [],
+          "raw_names_as_away": [
+            "Schalke",
+            "Schalke 04"
+          ],
+          "exists": true
+        }
+      ],
+      "xg_matches_season": {
+        "season": 2026,
+        "matches_included": [
+          {
+            "id": 32254,
+            "date": "2026-08-30 15:30:00",
+            "home_raw": "Augsburg",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Augsburg",
+            "away_canonical": "Schalke 04",
+            "home_xg": 5.53649,
+            "away_xg": 1.83691,
+            "home_goals": 3,
+            "away_goals": 0,
+            "is_result": true,
+            "kickoff": "2026-08-30T15:30:00+00:00",
+            "xg": 1.83691,
+            "xga": 5.53649
+          }
+        ],
+        "matches_skipped": [
+          {
+            "id": 32260,
+            "date": "2026-09-05 16:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-09-05T16:30:00+00:00"
+          },
+          {
+            "id": 32263,
+            "date": "2026-09-11 18:30:00",
+            "home_raw": "Union Berlin",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Union Berlin",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-09-11T18:30:00+00:00"
+          },
+          {
+            "id": 32761,
+            "date": "2026-09-20 15:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Elversberg",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Elversberg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-09-20T15:30:00+00:00"
+          },
+          {
+            "id": 32285,
+            "date": "2026-10-10 13:30:00",
+            "home_raw": "Freiburg",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Freiburg",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-10T13:30:00+00:00"
+          },
+          {
+            "id": 32292,
+            "date": "2026-10-17 13:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Mainz 05",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Mainz",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-17T13:30:00+00:00"
+          },
+          {
+            "id": 32297,
+            "date": "2026-10-24 13:30:00",
+            "home_raw": "FC Cologne",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Koln",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-24T13:30:00+00:00"
+          },
+          {
+            "id": 32304,
+            "date": "2026-10-31 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "RasenBallsport Leipzig",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Leipzig",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-31T14:30:00+00:00"
+          },
+          {
+            "id": 32314,
+            "date": "2026-11-07 14:30:00",
+            "home_raw": "Hoffenheim",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Hoffenheim",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-11-07T14:30:00+00:00"
+          },
+          {
+            "id": 32324,
+            "date": "2026-11-21 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "VfB Stuttgart",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Stuttgart",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-11-21T14:30:00+00:00"
+          },
+          {
+            "id": 32332,
+            "date": "2026-11-28 14:30:00",
+            "home_raw": "Paderborn",
+            "away_raw": "Schalke 04",
+            "home_canonical": "SC Paderborn",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-11-28T14:30:00+00:00"
+          },
+          {
+            "id": 32340,
+            "date": "2026-12-05 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Borussia Dortmund",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Dortmund",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-12-05T14:30:00+00:00"
+          },
+          {
+            "id": 32346,
+            "date": "2026-12-12 14:30:00",
+            "home_raw": "Hamburger SV",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Hamburg",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-12-12T14:30:00+00:00"
+          },
+          {
+            "id": 32357,
+            "date": "2026-12-19 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Borussia M.Gladbach",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "M'gladbach",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-12-19T14:30:00+00:00"
+          },
+          {
+            "id": 32366,
+            "date": "2027-01-09 14:30:00",
+            "home_raw": "Eintracht Frankfurt",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Ein Frankfurt",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-09T14:30:00+00:00"
+          },
+          {
+            "id": 32373,
+            "date": "2027-01-13 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Werder Bremen",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Werder Bremen",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-13T14:30:00+00:00"
+          },
+          {
+            "id": 32375,
+            "date": "2027-01-16 14:30:00",
+            "home_raw": "Bayer Leverkusen",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Leverkusen",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-16T14:30:00+00:00"
+          },
+          {
+            "id": 32388,
+            "date": "2027-01-23 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Augsburg",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Augsburg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-23T14:30:00+00:00"
+          },
+          {
+            "id": 32398,
+            "date": "2027-01-30 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Bayern",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-30T14:30:00+00:00"
+          },
+          {
+            "id": 32402,
+            "date": "2027-02-06 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Union Berlin",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Union Berlin",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-06T14:30:00+00:00"
+          },
+          {
+            "id": 32778,
+            "date": "2027-02-13 14:30:00",
+            "home_raw": "Elversberg",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Elversberg",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-13T14:30:00+00:00"
+          },
+          {
+            "id": 32420,
+            "date": "2027-02-20 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Freiburg",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Freiburg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-20T14:30:00+00:00"
+          },
+          {
+            "id": 32424,
+            "date": "2027-02-27 14:30:00",
+            "home_raw": "Mainz 05",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Mainz",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-27T14:30:00+00:00"
+          },
+          {
+            "id": 32436,
+            "date": "2027-03-03 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "FC Cologne",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Koln",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-03T14:30:00+00:00"
+          },
+          {
+            "id": 32445,
+            "date": "2027-03-06 14:30:00",
+            "home_raw": "RasenBallsport Leipzig",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Leipzig",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-06T14:30:00+00:00"
+          },
+          {
+            "id": 32452,
+            "date": "2027-03-13 14:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Hoffenheim",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Hoffenheim",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-13T14:30:00+00:00"
+          },
+          {
+            "id": 32462,
+            "date": "2027-03-20 14:30:00",
+            "home_raw": "VfB Stuttgart",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Stuttgart",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-20T14:30:00+00:00"
+          },
+          {
+            "id": 32469,
+            "date": "2027-04-03 13:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Paderborn",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "SC Paderborn",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-03T13:30:00+00:00"
+          },
+          {
+            "id": 32472,
+            "date": "2027-04-10 13:30:00",
+            "home_raw": "Borussia Dortmund",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Dortmund",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-10T13:30:00+00:00"
+          },
+          {
+            "id": 32485,
+            "date": "2027-04-17 13:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Hamburger SV",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Hamburg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-17T13:30:00+00:00"
+          },
+          {
+            "id": 32487,
+            "date": "2027-04-24 13:30:00",
+            "home_raw": "Borussia M.Gladbach",
+            "away_raw": "Schalke 04",
+            "home_canonical": "M'gladbach",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-24T13:30:00+00:00"
+          },
+          {
+            "id": 32501,
+            "date": "2027-05-08 13:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Eintracht Frankfurt",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Ein Frankfurt",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-05-08T13:30:00+00:00"
+          },
+          {
+            "id": 32510,
+            "date": "2027-05-15 13:30:00",
+            "home_raw": "Werder Bremen",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Werder Bremen",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-05-15T13:30:00+00:00"
+          },
+          {
+            "id": 32517,
+            "date": "2027-05-22 13:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Bayer Leverkusen",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Leverkusen",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-05-22T13:30:00+00:00"
+          }
+        ],
+        "n_included": 1,
+        "archive_average": {
+          "xG_avg": 1.837,
+          "xGA_avg": 5.536,
+          "matches": 1
+        },
+        "unmapped_home_or_away": []
+      },
+      "in_elo": true,
+      "elo_rating": 1457.6,
+      "elo_default_if_missing": 1500.0
+    },
+    "away": {
+      "api_name": "Bayern",
+      "canonical": "Bayern",
+      "name_resolution": {
+        "raw": "Bayern",
+        "canonical": "Bayern",
+        "source": "canonical",
+        "mapped": true
+      },
+      "in_engine_stats": true,
+      "used_default_1_1_fallback": false,
+      "xg_key_hit": true,
+      "xg_record": {
+        "xG_avg": 4.079,
+        "xGA_avg": 1.25,
+        "matches": 1
+      },
+      "strength_source": "xg_shrunk",
+      "shrinkage_xg": {
+        "xG_avg": 4.079,
+        "xGA_avg": 1.25,
+        "matches": 1,
+        "league_xg": 2.195777777777778,
+        "league_xga": 2.1037222222222223,
+        "ratio_att_raw": 1.8576561076814087,
+        "ratio_def_raw": 0.594184910344099,
+        "ratio_att_shrunk": 1.1225223010973442,
+        "ratio_def_shrunk": 0.9420264157634427,
+        "prior": 6.0,
+        "n_ok": true
+      },
+      "goals_fallback": {
+        "n_played": 137,
+        "gf": 412.0,
+        "ga": 152.0,
+        "exp_gf": 218.56174334140437,
+        "exp_ga": 218.20177562550447,
+        "ratio_att_raw": 1.8850508497108545,
+        "ratio_def_raw": 0.6966029472687458,
+        "ratio_att_shrunk": 1.8479158490236858,
+        "ratio_def_shrunk": 0.7093328935371901,
+        "prior": 6.0
+      },
+      "form_last5": {
+        "n": 5,
+        "matches": [
+          {
+            "date": "2026-04-25",
+            "venue": "A",
+            "opponent": "Mainz",
+            "gf": 4,
+            "ga": 3
+          },
+          {
+            "date": "2026-05-02",
+            "venue": "H",
+            "opponent": "Heidenheim",
+            "gf": 3,
+            "ga": 3
+          },
+          {
+            "date": "2026-05-09",
+            "venue": "A",
+            "opponent": "Wolfsburg",
+            "gf": 1,
+            "ga": 0
+          },
+          {
+            "date": "2026-05-16",
+            "venue": "H",
+            "opponent": "Koln",
+            "gf": 5,
+            "ga": 1
+          },
+          {
+            "date": "2026-08-28",
+            "venue": "H",
+            "opponent": "Stuttgart",
+            "gf": 5,
+            "ga": 1
+          }
+        ],
+        "gf": 18.0,
+        "ga": 8.0,
+        "att": 1.15,
+        "def": 1.003746835443038,
+        "note": "Le ultime 5 partite sono sul df multi-stagione di get_league_engine (storici + live), non sulla sola stagione corrente."
+      },
+      "market_value": {
+        "canonical_key": "Bayern",
+        "in_MARKET_VALUES": true,
+        "value": 900,
+        "default_if_missing": 50,
+        "mkt_factor": 1.2385606273598313,
+        "status": "verified"
+      },
+      "engine_stats": {
+        "att": 1.5988587142934072,
+        "def": 0.7634313677013058,
+        "att0": 1.2909006462619457,
+        "def0": 0.9455560337263034,
+        "att0_pure": 1.1225223010973442,
+        "def0_pure": 0.9420264157634427,
+        "val": 900
+      },
+      "trace_matches_engine_att0_pure": true,
+      "csv_presence": [
+        {
+          "file": "Bundesliga_2022.csv",
+          "n_matches": 34,
+          "raw_names_as_home": [
+            "Bayern Munich"
+          ],
+          "raw_names_as_away": [
+            "Bayern Munich"
+          ],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_2023.csv",
+          "n_matches": 34,
+          "raw_names_as_home": [
+            "Bayern Munich"
+          ],
+          "raw_names_as_away": [
+            "Bayern Munich"
+          ],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_2024.csv",
+          "n_matches": 34,
+          "raw_names_as_home": [
+            "Bayern Munich"
+          ],
+          "raw_names_as_away": [
+            "Bayern Munich"
+          ],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_2025.csv",
+          "n_matches": 34,
+          "raw_names_as_home": [
+            "Bayern Munich"
+          ],
+          "raw_names_as_away": [
+            "Bayern Munich"
+          ],
+          "exists": true
+        },
+        {
+          "file": "Bundesliga_Live.csv",
+          "n_matches": 1,
+          "raw_names_as_home": [
+            "Bayern"
+          ],
+          "raw_names_as_away": [],
+          "exists": true
+        }
+      ],
+      "xg_matches_season": {
+        "season": 2026,
+        "matches_included": [
+          {
+            "id": 32247,
+            "date": "2026-08-28 18:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "VfB Stuttgart",
+            "home_canonical": "Bayern",
+            "away_canonical": "Stuttgart",
+            "home_xg": 4.07897,
+            "away_xg": 1.24951,
+            "home_goals": 5,
+            "away_goals": 1,
+            "is_result": true,
+            "kickoff": "2026-08-28T18:30:00+00:00",
+            "xg": 4.07897,
+            "xga": 1.24951
+          }
+        ],
+        "matches_skipped": [
+          {
+            "id": 32260,
+            "date": "2026-09-05 16:30:00",
+            "home_raw": "Schalke 04",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Schalke 04",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-09-05T16:30:00+00:00"
+          },
+          {
+            "id": 32760,
+            "date": "2026-09-13 15:30:00",
+            "home_raw": "Elversberg",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Elversberg",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-09-13T15:30:00+00:00"
+          },
+          {
+            "id": 32271,
+            "date": "2026-09-18 18:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Union Berlin",
+            "home_canonical": "Bayern",
+            "away_canonical": "Union Berlin",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-09-18T18:30:00+00:00"
+          },
+          {
+            "id": 32282,
+            "date": "2026-10-10 13:30:00",
+            "home_raw": "Augsburg",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Augsburg",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-10T13:30:00+00:00"
+          },
+          {
+            "id": 32288,
+            "date": "2026-10-17 13:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "RasenBallsport Leipzig",
+            "home_canonical": "Bayern",
+            "away_canonical": "Leipzig",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-17T13:30:00+00:00"
+          },
+          {
+            "id": 32298,
+            "date": "2026-10-24 13:30:00",
+            "home_raw": "Freiburg",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Freiburg",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-24T13:30:00+00:00"
+          },
+          {
+            "id": 32309,
+            "date": "2026-10-31 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Borussia Dortmund",
+            "home_canonical": "Bayern",
+            "away_canonical": "Dortmund",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-10-31T14:30:00+00:00"
+          },
+          {
+            "id": 32315,
+            "date": "2026-11-07 14:30:00",
+            "home_raw": "Mainz 05",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Mainz",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-11-07T14:30:00+00:00"
+          },
+          {
+            "id": 32321,
+            "date": "2026-11-21 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "FC Cologne",
+            "home_canonical": "Bayern",
+            "away_canonical": "Koln",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-11-21T14:30:00+00:00"
+          },
+          {
+            "id": 32329,
+            "date": "2026-11-28 14:30:00",
+            "home_raw": "Hamburger SV",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Hamburg",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-11-28T14:30:00+00:00"
+          },
+          {
+            "id": 32336,
+            "date": "2026-12-05 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Paderborn",
+            "home_canonical": "Bayern",
+            "away_canonical": "SC Paderborn",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-12-05T14:30:00+00:00"
+          },
+          {
+            "id": 32347,
+            "date": "2026-12-12 14:30:00",
+            "home_raw": "Hoffenheim",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Hoffenheim",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-12-12T14:30:00+00:00"
+          },
+          {
+            "id": 32353,
+            "date": "2026-12-19 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Werder Bremen",
+            "home_canonical": "Bayern",
+            "away_canonical": "Werder Bremen",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2026-12-19T14:30:00+00:00"
+          },
+          {
+            "id": 32364,
+            "date": "2027-01-09 14:30:00",
+            "home_raw": "Borussia M.Gladbach",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "M'gladbach",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-09T14:30:00+00:00"
+          },
+          {
+            "id": 32368,
+            "date": "2027-01-13 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Bayer Leverkusen",
+            "home_canonical": "Bayern",
+            "away_canonical": "Leverkusen",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-13T14:30:00+00:00"
+          },
+          {
+            "id": 32378,
+            "date": "2027-01-16 14:30:00",
+            "home_raw": "Eintracht Frankfurt",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Ein Frankfurt",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-16T14:30:00+00:00"
+          },
+          {
+            "id": 32384,
+            "date": "2027-01-23 14:30:00",
+            "home_raw": "VfB Stuttgart",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Stuttgart",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-23T14:30:00+00:00"
+          },
+          {
+            "id": 32398,
+            "date": "2027-01-30 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Schalke 04",
+            "home_canonical": "Bayern",
+            "away_canonical": "Schalke 04",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-01-30T14:30:00+00:00"
+          },
+          {
+            "id": 32777,
+            "date": "2027-02-06 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Elversberg",
+            "home_canonical": "Bayern",
+            "away_canonical": "Elversberg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-06T14:30:00+00:00"
+          },
+          {
+            "id": 32414,
+            "date": "2027-02-13 14:30:00",
+            "home_raw": "Union Berlin",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Union Berlin",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-13T14:30:00+00:00"
+          },
+          {
+            "id": 32416,
+            "date": "2027-02-20 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Augsburg",
+            "home_canonical": "Bayern",
+            "away_canonical": "Augsburg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-20T14:30:00+00:00"
+          },
+          {
+            "id": 32430,
+            "date": "2027-02-27 14:30:00",
+            "home_raw": "RasenBallsport Leipzig",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Leipzig",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-02-27T14:30:00+00:00"
+          },
+          {
+            "id": 32432,
+            "date": "2027-03-03 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Freiburg",
+            "home_canonical": "Bayern",
+            "away_canonical": "Freiburg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-03T14:30:00+00:00"
+          },
+          {
+            "id": 32439,
+            "date": "2027-03-06 14:30:00",
+            "home_raw": "Borussia Dortmund",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Dortmund",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-06T14:30:00+00:00"
+          },
+          {
+            "id": 32449,
+            "date": "2027-03-13 14:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Mainz 05",
+            "home_canonical": "Bayern",
+            "away_canonical": "Mainz",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-13T14:30:00+00:00"
+          },
+          {
+            "id": 32456,
+            "date": "2027-03-20 14:30:00",
+            "home_raw": "FC Cologne",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Koln",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-03-20T14:30:00+00:00"
+          },
+          {
+            "id": 32465,
+            "date": "2027-04-03 13:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Hamburger SV",
+            "home_canonical": "Bayern",
+            "away_canonical": "Hamburg",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-03T13:30:00+00:00"
+          },
+          {
+            "id": 32477,
+            "date": "2027-04-10 13:30:00",
+            "home_raw": "Paderborn",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "SC Paderborn",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-10T13:30:00+00:00"
+          },
+          {
+            "id": 32481,
+            "date": "2027-04-17 13:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Hoffenheim",
+            "home_canonical": "Bayern",
+            "away_canonical": "Hoffenheim",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-17T13:30:00+00:00"
+          },
+          {
+            "id": 32494,
+            "date": "2027-04-24 13:30:00",
+            "home_raw": "Werder Bremen",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Werder Bremen",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-04-24T13:30:00+00:00"
+          },
+          {
+            "id": 32497,
+            "date": "2027-05-08 13:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Borussia M.Gladbach",
+            "home_canonical": "Bayern",
+            "away_canonical": "M'gladbach",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-05-08T13:30:00+00:00"
+          },
+          {
+            "id": 32503,
+            "date": "2027-05-15 13:30:00",
+            "home_raw": "Bayer Leverkusen",
+            "away_raw": "Bayern Munich",
+            "home_canonical": "Leverkusen",
+            "away_canonical": "Bayern",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-05-15T13:30:00+00:00"
+          },
+          {
+            "id": 32512,
+            "date": "2027-05-22 13:30:00",
+            "home_raw": "Bayern Munich",
+            "away_raw": "Eintracht Frankfurt",
+            "home_canonical": "Bayern",
+            "away_canonical": "Ein Frankfurt",
+            "home_xg": null,
+            "away_xg": null,
+            "home_goals": null,
+            "away_goals": null,
+            "is_result": false,
+            "kickoff": "2027-05-22T13:30:00+00:00"
+          }
+        ],
+        "n_included": 1,
+        "archive_average": {
+          "xG_avg": 4.079,
+          "xGA_avg": 1.25,
+          "matches": 1
+        },
+        "unmapped_home_or_away": []
+      },
+      "in_elo": true,
+      "elo_rating": 1821.6,
+      "elo_default_if_missing": 1500.0
+    },
+    "defaults_att_def_1": {
+      "home": false,
+      "away": false,
+      "note": "Se True, team_stats.get(..., {att:1, def:1}) di produzione: manca att0_pure e la testa Totali ripiega su att/def=1."
+    },
+    "lambdas": {
+      "avg_h": 1.7740112994350283,
+      "avg_a": 1.414043583535109,
+      "base_h_1x2_anchor": 1.438859474657947,
+      "base_a_1x2_anchor": 2.58846921165357,
+      "mkt_h": 1.1335734973662983,
+      "mkt_a": 3.28557738752834,
+      "norm_h_1x2": 1.0330656686990698,
+      "norm_a_1x2": 2.9942630176124467,
+      "norm_h_1x2_clipped": 1.0330656686990698,
+      "norm_a_1x2_clipped": 2.9942630176124467,
+      "base_pure_h_totals": 1.632157066800334,
+      "base_pure_a_totals": 1.9572546023845523,
+      "base_pure_h_clipped": 1.632157066800334,
+      "base_pure_a_clipped": 1.9572546023845523
+    },
+    "poisson_two_heads": {
+      "1": 0.09860892030584686,
+      "X": 0.13344867793984053,
+      "2": 0.7679417468748557,
+      "u15": 0.12673463965910517,
+      "u25": 0.30462600314510363,
+      "u35": 0.5174677817930547,
+      "gg": 0.6908615110852896
+    },
+    "poisson_crosscheck_vs_lambdas": {
+      "1": true,
+      "X": true,
+      "2": true,
+      "u25": true,
+      "gg": true
+    },
+    "seven_markets_poisson": {
+      "Vittoria Schalke": 0.09860892030584686,
+      "Pareggio": 0.13344867793984053,
+      "Vittoria Bayern": 0.7679417468748557,
+      "Over 2.5": 0.6953739968548964,
+      "Under 2.5": 0.30462600314510363,
+      "GG": 0.6908615110852896,
+      "NG": 0.3091384889147104
+    },
+    "elo_1x2": {
+      "1": 0.1374,
+      "X": 0.1161,
+      "2": 0.7465,
+      "elo_home": 1457.6,
+      "elo_away": 1821.6,
+      "elo_diff": -294.0,
+      "home_adv": 70.0,
+      "expected_score_home": 0.1555,
+      "expected_score_away": 0.8445
+    },
+    "elo_error": null,
+    "selector_A": {
+      "selector": "A_max_poisson_then_mix_and_filters",
+      "best_market": "Vittoria Bayern",
+      "poisson_prob": 0.7679417468748557,
+      "elo_prob": 0.7465,
+      "elo_used_for_selected": true,
+      "confidence": 0.7593650481249135,
+      "prob_val": 75.9,
+      "min_conf": 0.55,
+      "disagree": 0.02144174687485567,
+      "admitted": true,
+      "filters": {
+        "min_conf": 0.55,
+        "elo_disagree_max": 0.25,
+        "poisson_weight": 0.6,
+        "elo_weight": 0.4
+      }
+    },
+    "selector_B": {
+      "selector": "B_final_probs_then_filters_then_max_admissible",
+      "all_markets": [
+        {
+          "market": "Vittoria Schalke",
+          "poisson_prob": 0.09860892030584686,
+          "elo_prob": 0.1374,
+          "elo_used": true,
+          "confidence": 0.11412535218350811,
+          "prob_val": 11.4,
+          "min_conf": 0.55,
+          "disagree": 0.03879107969415313,
+          "admitted": false
+        },
+        {
+          "market": "Pareggio",
+          "poisson_prob": 0.13344867793984053,
+          "elo_prob": 0.1161,
+          "elo_used": true,
+          "confidence": 0.1265092067639043,
+          "prob_val": 12.7,
+          "min_conf": 0.55,
+          "disagree": 0.01734867793984053,
+          "admitted": false
+        },
+        {
+          "market": "Vittoria Bayern",
+          "poisson_prob": 0.7679417468748557,
+          "elo_prob": 0.7465,
+          "elo_used": true,
+          "confidence": 0.7593650481249135,
+          "prob_val": 75.9,
+          "min_conf": 0.55,
+          "disagree": 0.02144174687485567,
+          "admitted": true
+        },
+        {
+          "market": "Over 2.5",
+          "poisson_prob": 0.6953739968548964,
+          "elo_prob": 0.6953739968548964,
+          "elo_used": false,
+          "confidence": 0.6953739968548964,
+          "prob_val": 69.5,
+          "min_conf": 0.6,
+          "disagree": 0.0,
+          "admitted": true
+        },
+        {
+          "market": "Under 2.5",
+          "poisson_prob": 0.30462600314510363,
+          "elo_prob": 0.30462600314510363,
+          "elo_used": false,
+          "confidence": 0.30462600314510363,
+          "prob_val": 30.5,
+          "min_conf": 0.6,
+          "disagree": 0.0,
+          "admitted": false
+        },
+        {
+          "market": "GG",
+          "poisson_prob": 0.6908615110852896,
+          "elo_prob": 0.6908615110852896,
+          "elo_used": false,
+          "confidence": 0.6908615110852896,
+          "prob_val": 69.1,
+          "min_conf": 0.6,
+          "disagree": 0.0,
+          "admitted": true
+        },
+        {
+          "market": "NG",
+          "poisson_prob": 0.3091384889147104,
+          "elo_prob": 0.3091384889147104,
+          "elo_used": false,
+          "confidence": 0.3091384889147104,
+          "prob_val": 30.9,
+          "min_conf": 0.6,
+          "disagree": 0.0,
+          "admitted": false
+        }
+      ],
+      "best_market": "Vittoria Bayern",
+      "confidence": 0.7593650481249135,
+      "prob_val": 75.9,
+      "admitted": true,
+      "n_admitted": 3,
+      "filters": {
+        "min_conf_ou_gg": 0.6,
+        "min_conf_1x2": 0.55,
+        "elo_disagree_max": 0.25,
+        "poisson_weight": 0.6,
+        "elo_weight": 0.4
+      }
+    },
+    "selectors_agree": true,
+    "target_92_1": {
+      "target_prob_val": 92.1,
+      "reproduced_by_selector_A": false,
+      "selector_A_prob_val": 75.9,
+      "selector_B_prob_val": 75.9,
+      "gap_A": -16.2
+    },
+    "missing_for_bit_exact_replay": [
+      "snapshot API football-data (nomi shortName/name, match_id, utcDate, status TIMED/SCHEDULED al momento del Top Mix)",
+      "snapshot Elo al millisecondo del click (l'Elo e' ricalcolato ora dai CSV del commit dati usato: verificato sui file committati, non su un dump Elo persistito)",
+      "registro JSONBin della riga Top Mix (prob_sicuro, mercato, salvato_il, rank)"
+    ],
+    "csv_files": [
+      "Bundesliga_2022.csv",
+      "Bundesliga_2023.csv",
+      "Bundesliga_2024.csv",
+      "Bundesliga_2025.csv",
+      "Bundesliga_Live.csv"
+    ],
+    "candidate_api_names": {
+      "home": "Schalke",
+      "away": "Bayern"
+    },
+    "data_git_ref": {
+      "ref": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+      "sha": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+      "committer_iso": "2026-09-05T16:14:55+00:00",
+      "subject": "auto: archivio xG Understat + medie derivate 2026-09-05T16:14Z"
+    },
+    "data_database_dir": "/tmp/sm_histdb_r1pec4gu/SoccerMath/database",
+    "code_git_sha": "e573fa331d03fe4eaa35824af06a98e42e20f011"
+  },
+  "all_name_candidates": [
+    {
+      "home": "Schalke",
+      "away": "Bayern",
+      "prob_val_A": 75.9,
+      "market_A": "Vittoria Bayern",
+      "reproduced": false
+    },
+    {
+      "home": "Schalke 04",
+      "away": "Bayern",
+      "prob_val_A": 75.9,
+      "market_A": "Vittoria Bayern",
+      "reproduced": false
+    },
+    {
+      "home": "FC Schalke 04",
+      "away": "FC Bayern München",
+      "prob_val_A": 67.9,
+      "market_A": "GG",
+      "reproduced": false
+    },
+    {
+      "home": "Schalke 04",
+      "away": "Bayern Munich",
+      "prob_val_A": 75.9,
+      "market_A": "Vittoria Bayern Munich",
+      "reproduced": false
+    },
+    {
+      "home": "Schalke",
+      "away": "Bayern Munich",
+      "prob_val_A": 75.9,
+      "market_A": "Vittoria Bayern Munich",
+      "reproduced": false
+    }
+  ],
+  "api_fetch": {
+    "attempted": false,
+    "ok": false,
+    "reason": "non richiesto"
+  },
+  "identical_poisson_across_mapped_candidates": {
+    "comparable": 4,
+    "identical": true
+  },
+  "jsonbin_get": {
+    "ok": false,
+    "reason": "JSONBIN_API_KEY / JSONBIN_BIN_ID assenti (env, SoccerMath/.env o st.secrets). Nessuna GET eseguita.",
+    "http_status": null,
+    "n_records": 0,
+    "put_called": false,
+    "method": "GET",
+    "n_schalke_bayern": 0,
+    "n_schalke_bayern_92_1": 0,
+    "n_any_92_1": 0,
+    "schalke_bayern": [],
+    "any_92_1_preview": []
+  },
+  "main_head_at_salvato_il": null,
+  "git_ref_requested": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+  "git_ref_used": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+  "data_ref_scan": {
+    "n": 5,
+    "rows": [
+      {
+        "ref": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+        "data_git_ref": {
+          "ref": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+          "sha": "0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+          "committer_iso": "2026-09-05T16:14:55+00:00",
+          "subject": "auto: archivio xG Understat + medie derivate 2026-09-05T16:14Z"
+        },
+        "ok": true,
+        "best_market": "Vittoria Bayern",
+        "prob_val_A": 75.9,
+        "reproduced_92_1": false,
+        "gap_A": -16.2,
+        "home_xg_matches": {
+          "xG_avg": 1.837,
+          "xGA_avg": 5.536,
+          "matches": 1
+        },
+        "away_xg_matches": {
+          "xG_avg": 4.079,
+          "xGA_avg": 1.25,
+          "matches": 1
+        },
+        "error": null
+      },
+      {
+        "ref": "bcb6b60",
+        "data_git_ref": {
+          "ref": "bcb6b60",
+          "sha": "bcb6b6099a6e91a2990da4e4184e05682bbd53ec",
+          "committer_iso": "2026-09-05T14:04:27+00:00",
+          "subject": "Auto-update live data 2026-09-05T14:04Z"
+        },
+        "ok": true,
+        "best_market": "Vittoria Bayern",
+        "prob_val_A": 89.7,
+        "reproduced_92_1": false,
+        "gap_A": -2.4,
+        "home_xg_matches": null,
+        "away_xg_matches": {
+          "xG_avg": 2.652,
+          "xGA_avg": 0.749
+        },
+        "error": null
+      },
+      {
+        "ref": "73586bd",
+        "data_git_ref": {
+          "ref": "73586bd",
+          "sha": "73586bd68e3edfeebdba69f83a9e6a90d9611fa9",
+          "committer_iso": "2026-09-05T01:35:41+00:00",
+          "subject": "Auto-update live data 2026-09-05T01:35Z"
+        },
+        "ok": true,
+        "best_market": "Vittoria Bayern",
+        "prob_val_A": 89.7,
+        "reproduced_92_1": false,
+        "gap_A": -2.4,
+        "home_xg_matches": null,
+        "away_xg_matches": {
+          "xG_avg": 2.652,
+          "xGA_avg": 0.749
+        },
+        "error": null
+      },
+      {
+        "ref": "afc58d2",
+        "data_git_ref": {
+          "ref": "afc58d2",
+          "sha": "afc58d2d3627c2d22b81d242d0356804e1c8a2b7",
+          "committer_iso": "2026-09-04T19:57:44+00:00",
+          "subject": "Auto-update live data 2026-09-04T19:57Z"
+        },
+        "ok": true,
+        "best_market": "Vittoria Bayern",
+        "prob_val_A": 89.7,
+        "reproduced_92_1": false,
+        "gap_A": -2.4,
+        "home_xg_matches": null,
+        "away_xg_matches": {
+          "xG_avg": 2.652,
+          "xGA_avg": 0.749
+        },
+        "error": null
+      },
+      {
+        "ref": "4d775ca",
+        "data_git_ref": {
+          "ref": "4d775ca",
+          "sha": "4d775ca8d393e34442429eadec7c195f651ce485",
+          "committer_iso": "2026-09-04T01:34:58+00:00",
+          "subject": "Auto-update live data 2026-09-04T01:34Z"
+        },
+        "ok": true,
+        "best_market": "Vittoria Bayern",
+        "prob_val_A": 89.7,
+        "reproduced_92_1": false,
+        "gap_A": -2.4,
+        "home_xg_matches": null,
+        "away_xg_matches": {
+          "xG_avg": 2.652,
+          "xGA_avg": 0.749
+        },
+        "error": null
+      }
+    ]
+  }
+}
