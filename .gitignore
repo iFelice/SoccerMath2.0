@@ -35,3 +35,4 @@ SoccerMath/database/predictions.json
 # IDE
 .vscode/
 .idea/
+xg-verify-out/

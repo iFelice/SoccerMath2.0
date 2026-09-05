@@ -8,8 +8,9 @@ on:
 permissions:
   contents: write
 
+# Stesso gruppo di update_xg.yml: entrambi committano dati sullo stesso branch.
 concurrency:
-  group: update-database
+  group: soccermath-data
   cancel-in-progress: false
 
 jobs:
@@ -51,10 +52,11 @@ jobs:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
         run: python update_db.py
       
-      - name: Update xG
-        continue-on-error: true
-        run: python update_xg.py
-      
+      # Lo scraping xG NON avviene piu' qui: l'unica acquisizione Understat e'
+      # .github/workflows/update_xg.yml (update_all_xg_db.py + update_xg.py).
+      # Lasciarlo qui significava un secondo download, con uno snapshot diverso
+      # da quello dell'archivio e medie incoerenti fra loro.
+
       - name: Commit e push (con retry se main si muove)
         working-directory: ${{ github.workspace }}
         run: |
@@ -62,7 +64,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           git config --global user.name "M4 Bot"
           git config --global user.email "action@github.com"
-          git add -A -- 'SoccerMath/database/*.csv' 'SoccerMath/database/xg_*.json'
+          git add -A -- 'SoccerMath/database/*.csv'
           if git diff --cached --quiet; then
             echo "Nessun cambiamento: niente da committare."
             exit 0

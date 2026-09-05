@@ -1,0 +1,152 @@
+name: Verifica pipeline xG (solo lettura)
+
+# MODALITA' VERIFICA: acquisizione REALE delle 5 leghe da Understat, validazione,
+# derivazione delle medie in una cartella TEMPORANEA e audit dei nomi.
+#
+# Che cosa NON fa, per costruzione:
+#   * nessun commit e nessun push (permissions: contents: read);
+#   * non scrive dentro SoccerMath/database: l'output va in una cartella di
+#     lavoro non versionata (xg-verify-out/) e uno step finale verifica che i
+#     file committati siano rimasti identici;
+#   * non tocca main e non parla con JSONBin (nessun segreto usato).
+#
+# Serve a dimostrare su dati veri cio' che i test offline non possono provare:
+# che lo scraping funziona, che i nomi si risolvono e che le medie derivate dallo
+# snapshot fresco coincidono con quelle pubblicate. I report restano come
+# artifact scaricabili.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Stagioni soccerdata (formato 2627), separate da spazio"
+        required: false
+        default: "2223 2324 2425 2526 2627"
+  # Un workflow presente solo su un branch non di default NON e' avviabile da
+  # workflow_dispatch: il push su arena/** garantisce comunque una esecuzione
+  # reale su questo branch.
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - '.github/workflows/xg_verify.yml'
+      - 'update_all_xg_db.py'
+      - 'SoccerMath/update_xg.py'
+      - 'SoccerMath/xg_archive.py'
+      - 'SoccerMath/team_aliases.py'
+      - 'SoccerMath/team_names.py'
+      - 'SoccerMath/test_xg_pipeline.py'
+      - 'audit/xg_pipeline_audit.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xg-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      # cartella di lavoro non versionata: la verifica non scrive mai dentro
+      # SoccerMath/database ne' in audit/results
+      VERIFY_DIR: ${{ github.workspace }}/xg-verify-out
+
+    steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Versione dichiarata e verificata: le colonne di read_schedule() sono
+      # state controllate su questa release.
+      - name: Installazione dipendenze (soccerdata pinnato)
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'soccerdata==1.9.1' pandas pytest
+          python - <<'PY'
+          from importlib.metadata import version
+          print("soccerdata installato:", version("soccerdata"))
+          PY
+
+      - name: Prepara le cartelle temporanee
+        run: mkdir -p "$VERIFY_DIR/database" "$VERIFY_DIR/reports"
+
+      - name: Test offline della pipeline
+        run: python -m pytest SoccerMath/test_xg_pipeline.py -q
+
+      # 1. Acquisizione REALE. L'output va nella cartella temporanea, ma il
+      #    confronto con l'ultimo snapshot valido usa i dati committati
+      #    (--baseline-dir): risultati spariti o regrediti fanno fallire il job.
+      - name: Acquisizione reale delle 5 leghe (Understat)
+        run: |
+          python update_all_xg_db.py \
+            --seasons ${{ github.event.inputs.seasons || '2223 2324 2425 2526 2627' }} \
+            --output-dir "$VERIFY_DIR/database" \
+            --baseline-dir SoccerMath/database \
+            --report "$VERIFY_DIR/reports/acquisizione.json"
+
+      # 2. Derivazione delle medie dallo STESSO snapshot, sempre nel temporaneo.
+      #    La validazione bloccante dei nomi gira qui: nomi non risolti o
+      #    collisioni non dichiarate fanno fallire il job prima di ogni scrittura.
+      - name: Derivazione medie dallo snapshot appena scaricato
+        run: |
+          python SoccerMath/update_xg.py \
+            --database-dir "$VERIFY_DIR/database" \
+            --report "$VERIFY_DIR/reports/derivazione.json"
+
+      # 3. Audit dei nomi sui dati appena scaricati, confrontati con i CSV e
+      #    con le medie xG committate nel repository (baseline-ref vuoto: il
+      #    checkout della CI e' superficiale e non contiene origin/main).
+      - name: Audit nomi e confronto medie
+        run: |
+          python audit/xg_pipeline_audit.py \
+            --database-dir "$VERIFY_DIR/database" \
+            --results-dir "$VERIFY_DIR/reports" \
+            --baseline-ref ""
+
+      - name: Riepilogo nel summary del run
+        if: always()
+        run: |
+          {
+            echo "## Verifica pipeline xG (nessuna scrittura)"
+            echo
+            echo "### Acquisizione"
+            echo '```json'
+            cat "$VERIFY_DIR/reports/acquisizione.json" 2>/dev/null || echo "(assente)"
+            echo '```'
+            echo "### Audit nomi (sintesi)"
+            head -n 12 "$VERIFY_DIR/reports/xg_name_audit.md" 2>/dev/null || echo "(assente)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 4. Prova che i dati del repository non sono stati toccati.
+      - name: Nessuna modifica ai dati committati
+        if: always()
+        run: |
+          if ! git diff --exit-code -- SoccerMath/database audit/results; then
+            echo "::error::la modalita' verifica ha modificato file committati"
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain -- SoccerMath/database audit/results)" ]; then
+            echo "::error::file nuovi comparsi nelle cartelle dei dati committati"
+            git status --porcelain -- SoccerMath/database audit/results
+            exit 1
+          fi
+          echo "Nessun file committato modificato."
+
+      - name: Pubblica i report come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xg-verify-${{ github.run_id }}
+          path: |
+            xg-verify-out/reports/
+            xg-verify-out/database/
+          if-no-files-found: warn
+          retention-days: 14

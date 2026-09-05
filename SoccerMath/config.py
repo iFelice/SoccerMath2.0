@@ -328,112 +328,12 @@ def get_market_values() -> dict:
 # ==========================================
 # 6. NORMALIZZAZIONE NOMI SQUADRE
 # ==========================================
-TEAM_NAME_MAP = {
-    # Serie A
-    "Inter Milan": "Inter",
-    "FC Internazionale Milano": "Inter",
-    "AC Milan": "Milan",
-    "AS Roma": "Roma",
-    "Juventus FC": "Juventus",
-    "SS Lazio": "Lazio",
-    "Atalanta BC": "Atalanta",
-    "SSC Napoli": "Napoli",
-    "ACF Fiorentina": "Fiorentina",
-    "Hellas Verona": "Verona",
-    "Cagliari Calcio": "Cagliari",
-    "Genoa CFC": "Genoa",
-    "Udinese Calcio": "Udinese",
-    "Parma Calcio 1913": "Parma",
-
-    # Premier League
-    "Manchester United": "Man United",
-    "Manchester City": "Man City",
-    "Tottenham Hotspur": "Tottenham",
-    "Newcastle United": "Newcastle",
-    "West Ham United": "West Ham",
-    "Brighton and Hove Albion": "Brighton",
-    "Wolverhampton Wanderers": "Wolves",
-    "Nottingham Forest": "Nott'm Forest",
-    "AFC Bournemouth": "Bournemouth",
-    "Ipswich Town": "Ipswich",
-    "Leicester City": "Leicester",
-    "Brighton Hove": "Brighton",
-    "Leeds United": "Leeds",
-    "Nottingham": "Nott'm Forest",
-
-    # La Liga
-    "Athletic Bilbao": "Ath Bilbao",
-    "Deportivo Alaves": "Alaves",
-    "Real Betis": "Betis",
-    "Alavés": "Alaves",
-    "Athletic": "Ath Bilbao",
-    "Atleti": "Ath Madrid",
-    "Barça": "Barcelona",
-    "Espanyol": "Espanol",
-    "Rayo Vallecano": "Vallecano",
-    "Real Sociedad": "Sociedad",
-
-    # Bundesliga
-    "Bayern Munich": "Bayern",
-    "Bayer 04 Leverkusen": "Leverkusen",
-    "Borussia Dortmund": "Dortmund",
-    "RB Leipzig": "Leipzig",
-    "VfB Stuttgart": "Stuttgart",
-    "Eintracht Frankfurt": "Frankfurt",
-    "SC Freiburg": "Freiburg",
-    "TSG Hoffenheim": "Hoffenheim",
-    "VfL Wolfsburg": "Wolfsburg",
-    "1. FSV Mainz 05": "Mainz",
-    "SV Werder Bremen": "Werder Bremen",
-    "FC Augsburg": "Augsburg",
-    "1. FC Heidenheim 1846": "Heidenheim",
-    "VfL Bochum": "Bochum",
-    "FC St. Pauli": "St. Pauli",
-    "Borussia Mönchengladbach": "Monchengladbach",
-    "Bremen": "Werder Bremen",
-    "Frankfurt": "Ein Frankfurt",
-    "HSV": "Hamburg",
-    "Köln": "Koln",
-    "Schalke": "Schalke 04",
-
-    # Ligue 1
-    "Paris Saint-Germain": "PSG",
-    "Paris SG": "PSG",
-    "Olympique de Marseille": "Marseille",
-    "Olympique Lyonnais": "Lyon",
-    "Stade Rennais FC": "Rennes",
-    "OGC Nice": "Nice",
-    "RC Lens": "Lens",
-    "RC Strasbourg Alsace": "Strasbourg",
-    "Stade de Reims": "Reims",
-    "Stade Brestois 29": "Brest",
-    "Toulouse FC": "Toulouse",
-    "Montpellier HSC": "Montpellier",
-    "FC Nantes": "Nantes",
-    "AJ Auxerre": "Auxerre",
-    "AS Saint-Étienne": "Saint-Etienne",
-    "Angers SCO": "Angers",
-    "Le Havre AC": "Le Havre",
-    "Olympique Lyon": "Lyon",
-    "Stade Rennais": "Rennes",
-}    
-
-# Prefissi/suffissi comuni da rimuovere durante la pulizia del nome
-NAME_CLEAN_REPLACEMENTS = [
-    "FC", "BC", "AC ", "AS ", "SSC ", "SS ", "AFC ", "SV ",
-    "1907", "Calcio", " CFC", "VfL ", "VfB ", "1. ", "OGC ", "RC ", "HSC"
-]
-
-
-def clean_name(name: str) -> str:
-    """
-    Pulisce e standardizza il nome di una squadra per garantire coerenza
-    tra API esterne (Football-Data, Understat) e i database CSV locali.
-    """
-    if not name:
-        return ""
-    n = str(name).strip()
-    n = TEAM_NAME_MAP.get(n, n)
-    for r in NAME_CLEAN_REPLACEMENTS:
-        n = n.replace(r, "")
-    return n.strip()
+# Gli alias vivono in un unico modulo senza dipendenze (team_aliases.py),
+# condiviso con team_names.py: qui si ri-esportano i nomi storici
+# (TEAM_NAME_MAP, NAME_CLEAN_REPLACEMENTS, clean_name) per non rompere gli
+# import esistenti.
+from team_aliases import (  # noqa: E402,F401
+    NAME_CLEAN_REPLACEMENTS,
+    TEAM_NAME_MAP,
+    clean_name,
+)
