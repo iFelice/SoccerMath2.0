@@ -38,6 +38,22 @@ from config import (
     PREDICTIONS_FILE, LEAGUES_CONFIG, LEAGUE_CODE_MAP, LEAGUE_PREFIX_MAP, CURRENT_SEASON, clean_name, DATABASE_DIR,
     LEAGUE_HOME_ADVANTAGE, get_league_db_files,
 )
+from prediction_registry import (
+    EXCLUDED_FROM_CURRENT_STATS_FIELD,
+    MODEL_VERSION_CURRENT,
+    MODEL_VERSION_FIELD,
+    MODEL_LABEL_CURRENT,
+    MODEL_LABEL_PRE_FIX,
+    PRE_FIX_TOOLTIP,
+    CURRENT_MODEL_TOOLTIP,
+    new_prediction_metadata,
+    model_label,
+    stats_current_model,
+    stats_historical,
+    stats_all,
+    backup_prediction_file,
+    build_registry_datetime_column,
+)
 
 API_KEY_ODDS = ODDS_API_KEY
 API_KEY_DATA = FOOTBALL_DATA_API_KEY
@@ -146,6 +162,7 @@ st.markdown("""
 
 # --- REGISTRO PREDIZIONI ---
 def load_predictions():
+    # Fonte remota primaria se configurata; in fallback il file locale.
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         try:
             r = requests.get(f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}/latest", headers={"X-Master-Key": JSONBIN_API_KEY}, timeout=5)
@@ -164,11 +181,22 @@ def load_predictions():
     return []
 
 def save_predictions(preds):
+    # Backup prima di ogni scrittura: non si sovrascrive mai un registro
+    # esistente senza copia integrale. Il remoto viene aggiornato SOLO dopo
+    # che la scrittura locale e' riuscita.
+    backup_prediction_file(PREDICTIONS_FILE)
+    os.makedirs(DATABASE_DIR, exist_ok=True)
+    with open(PREDICTIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump({"data": preds}, f, ensure_ascii=False, indent=2)
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
-        try: requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}", json={"data": preds}, headers={"X-Master-Key": JSONBIN_API_KEY, "Content-Type": "application/json"}, timeout=5)
+        try:
+            requests.put(
+                f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}",
+                json={"data": preds},
+                headers={"X-Master-Key": JSONBIN_API_KEY, "Content-Type": "application/json"},
+                timeout=5,
+            )
         except: pass
-    os.makedirs("database", exist_ok=True)
-    with open(PREDICTIONS_FILE, "w", encoding="utf-8") as f: json.dump({"data": preds}, f, ensure_ascii=False, indent=2)
 
 def standardizza_mercato(testo, home=None, away=None):
     if not testo:
@@ -218,12 +246,15 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     preds = load_predictions()
     if any(p.get("match_id") == match_id for p in preds): return
     stagione_reale = calcola_stagione_calcolo(match_date)
+    metadata = new_prediction_metadata()
     preds.append({
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
         "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": standardizza_mercato(pronostico, h, a),
         "top3": top3, "prob_sicuro": prob, "risultati_attesi": ris_attesi,
         "risultato_reale": None, "esito": "⏳", "tipo": "Top Mix" if "Top Mix" in pronostico else "Analisi", 
-        "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M")
+        "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
+        MODEL_VERSION_FIELD: metadata[MODEL_VERSION_FIELD],
+        EXCLUDED_FROM_CURRENT_STATS_FIELD: metadata[EXCLUDED_FROM_CURRENT_STATS_FIELD],
     })
     save_predictions(preds)
 
@@ -1463,6 +1494,18 @@ with tab5:
     else:
         df_preds = pd.DataFrame(preds)
         df_preds['stagione'] = df_preds['data'].apply(calcola_stagione_calcolo)
+        # Classificazione esplicita: i record senza model_version restano
+        # "Legacy" e NON vengono considerati automaticamente post-fix.
+        df_preds['modello'] = [model_label(p) for p in preds]
+
+        # FIX ordinamento Registro: 'data' e' persistito come stringa italiana
+        # ("05/09/2026 16:00") e sortarla come testo confronta prima il giorno
+        # (04/09 -> 05/09 -> 10/10 -> 17/08 -> 21/08). Qui LA CONVERTIAMO SOLO
+        # IN MEMORIA in un vero datetime (wall-clock Europe/Rome): i dati
+        # persistiti (predictions.json / JSONBin) non vengono toccati ne'
+        # migrati. Date ISO timezone-aware vengono convertite in Europe/Rome;
+        # valori mancanti/non validi diventano NaT e finiscono in fondo.
+        df_preds['data'] = build_registry_datetime_column(df_preds['data'])
 
         f_col1, f_col2, f_col3 = st.columns(3)
         with f_col1:
@@ -1480,23 +1523,67 @@ with tab5:
         elif filter_status == "Vinte (✅)": df_preds = df_preds[df_preds["esito"] == "✅"]
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
-        
-        tot = len(df_preds)
-        vinte = len(df_preds[df_preds["esito"] == "✅"])
-        perse = len(df_preds[df_preds["esito"] == "❌"])
-        attese = len(df_preds[df_preds["esito"].isin(["⏳", None])])
-        # La % di vittorie è veritiera solo sulle partite GIÀ DECISE (esclude le
-        # partite in attesa ⏳): includerle gonfierebbe/abbasserebbe la percentuale
-        # in modo fuorviante.
-        decise = vinte + perse
-        win_rate = (vinte / decise * 100) if decise > 0 else 0.0
+
+        filtered_records = df_preds.to_dict("records")
+        current_stats = stats_current_model(filtered_records)
+        historical_stats = stats_historical(filtered_records)
+        all_stats = stats_all(filtered_records)
+
+        st.caption(
+            "Statistiche separate: il win rate del **modello attuale** usa SOLO le predizioni "
+            f"`{MODEL_VERSION_CURRENT}`; le predizioni pre-fix e i record legacy/ambiguo restano "
+            "visibili per audit ma sono esclusi dalle metriche attuali."
+        )
+
+        st.markdown("##### 📊 Modello attuale")
         s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Totale", tot)
-        s2.metric("✅ Vinte", vinte, delta=f"{win_rate:.1f}%", help="Percentuale calcolata solo sulle partite decise (esclude quelle in attesa).")
-        s3.metric("❌ Perse", perse)
-        s4.metric("⏳ Attesa", attese)
-        
+        s1.metric("Totale", current_stats["total"])
+        s2.metric("✅ Vinte", current_stats["wins"],
+                  delta=f"{current_stats['win_rate']:.1f}%" if current_stats["decided"] else None,
+                  help="Percentuale calcolata solo sulle partite decise del modello attuale (esclude quelle in attesa).")
+        s3.metric("❌ Perse", current_stats["losses"])
+        s4.metric("⏳ Attesa", current_stats["pending"])
+
+        st.markdown("##### 📜 Storico / pre-fix (audit)")
+        h1, h2, h3, h4 = st.columns(4)
+        h1.metric("Totale", historical_stats["total"])
+        h2.metric("✅ Vinte", historical_stats["wins"],
+                  delta=f"{historical_stats['win_rate']:.1f}%" if historical_stats["decided"] else None,
+                  help="Win rate storico/audit separato, calcolato solo sulle partite decise non incluse nel modello attuale.")
+        h3.metric("❌ Perse", historical_stats["losses"])
+        h4.metric("⏳ Attesa", historical_stats["pending"])
+
+        st.caption(
+            f"Totale registro (audit complessivo): Totale {all_stats['total']}, "
+            f"Vinte {all_stats['wins']} ({all_stats['win_rate']:.1f}% su decise), "
+            f"Perse {all_stats['losses']}, Attesa {all_stats['pending']}."
+        )
+
         # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
         df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
-        
-        st.dataframe(df_display[["data", "stagione", "campionato", "home", "away", "mercato_standard", "prob_sicuro", "risultato_reale", "esito"]].sort_values(by="data", ascending=False), width="stretch", height=500)
+        st.caption(
+            f"{MODEL_LABEL_PRE_FIX} = {PRE_FIX_TOOLTIP} · "
+            f"{MODEL_LABEL_CURRENT} = {CURRENT_MODEL_TOOLTIP}"
+        )
+        st.dataframe(
+            df_display[
+                ["data", "stagione", "campionato", "home", "away", "mercato_standard",
+                 "prob_sicuro", "risultato_reale", "esito", "modello"]
+            ].sort_values(by="data", ascending=False, na_position="last"),
+            width="stretch",
+            height=500,
+            column_config={
+                # Colonna davvero datetime64 (non una stringa riconvertita dopo
+                # il sort): l'ordinamento cliccando l'intestazione e' quindi
+                # cronologico. Il formato momentJS mantiene la vista italiana
+                # DD/MM/YYYY HH:mm identica a prima.
+                "data": st.column_config.DatetimeColumn(
+                    None,
+                    format="DD/MM/YYYY HH:mm",
+                ),
+                "modello": st.column_config.TextColumn(
+                    "Modello",
+                    help=f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}",
+                )
+            },
+        )
