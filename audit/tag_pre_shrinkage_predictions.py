@@ -54,10 +54,14 @@ Il confronto e' sul contenuto completo canonicalizzato: il numero di record
 NON e' mai usato come unico criterio.
 
 Il cutoff e' derivato dal repository Git, non inventato:
-  - commit fix:  ae8784d643575593f77241c54a1930e7bd48145f (2026-09-04 15:40:10 UTC)
-  - merge main:  dc192d5eaa36968380f8bde823ca1abe9792e65d (2026-09-04 16:50:17 UTC)
-Le predizioni salvate nell'intervallo tra i due timestamp sono classificate
-come AMBIGUE e non vengono taggate automaticamente.
+  - commit fix sul branch: ae8784d643575593f77241c54a1930e7bd48145f (2026-09-04 15:40:10 UTC)
+  - merge in main:         dc192d5eaa36968380f8bde823ca1abe9792e65d (2026-09-04 16:50:17 UTC)
+
+Il criterio corretto di classificazione usa il merge in main come cutoff
+unico: solo da quel momento il modello corretto era disponibile in produzione.
+  - salvato_il < merge -> pre_shrinkage
+  - salvato_il >= merge, senza model_version -> ambiguous
+  - stagioni precedenti senza model_version -> legacy
 """
 
 from __future__ import annotations
@@ -615,8 +619,7 @@ def _explain(records: List[Dict], needle: str) -> None:
         print(f"      stagione        : {info['season']}  (target {TARGET_SEASON})")
         print(f"      {str(field or 'salvato_il'):<16}: {_fmt_utc(dt)}")
         print(f"      era vs cutoff   : {info['era']}"
-              f"  (pre < {CUTOFF_COMMIT_TIME:%Y-%m-%d %H:%M} UTC"
-              f" <= ambiguous < {CUTOFF_MERGE_TIME:%Y-%m-%d %H:%M} UTC <= post)")
+              f"  (pre < {CUTOFF_MERGE_TIME:%Y-%m-%d %H:%M} UTC <= post)")
         print(f"      model_version   : {info['model_version']}")
         print(f"      etichetta UI    : {model_label(entry)}")
         print(f"      stato migrazione: {info['status']}  (will_tag={info['will_tag']})")

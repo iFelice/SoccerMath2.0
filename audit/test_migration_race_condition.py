@@ -72,7 +72,7 @@ def _entry(home, away, salvato_il, prob=70.0, esito="\u23f3", **extra):
     return e
 
 
-# Salvate PRIMA del commit di fix (2026-09-04 15:40:10 UTC = 17:40:10 Rome).
+# Salvate PRIMA del merge in main (2026-09-04 16:50:17 UTC = 18:50:17 Rome CEST).
 PRE_FIX_A = _entry("Man City", "Coventry City", "04/09/2026 17:35", prob=99.8)
 PRE_FIX_B = _entry("Hull City", "Aston Villa", "04/09/2026 17:35", prob=99.8)
 # Stagione precedente -> legacy.
