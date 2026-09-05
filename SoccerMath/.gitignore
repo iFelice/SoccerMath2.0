@@ -22,3 +22,6 @@ database/*.json.bak
 # OS
 .DS_Store
 Thumbs.db
+
+# File temporanei di scrittura atomica
+database/*.json.tmp

@@ -41,7 +41,8 @@ _REPO_ROOT = os.path.dirname(_AUDIT_DIR)
 sys.path.insert(0, _AUDIT_DIR)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 
-from config import clean_name, LEAGUE_HOME_ADVANTAGE  # sola lettura
+from config import LEAGUE_HOME_ADVANTAGE  # sola lettura
+from team_names import canonical_team_name  # unica fonte di normalizzazione nomi
 from backtest_experiment_all import (load_league, get_full_poisson, devig_1x2,
                                      market_factor, LEAGUES)
 
@@ -65,37 +66,16 @@ XG_FILES = {
     "Ligue 1": "xg_ligue_1.json",
 }
 
-# Traduzione nome Understat (raw, da archivio) -> nome pulito CSV/app (clean_name).
-# Serie A e Premier coincidono via clean_name; per La Liga/Bundesliga/Ligue 1 le
-# convenzioni di nome differiscono tra Understat e football-data, quindi mappatura esplicita.
-NAME_TRANSLATE = {
-    "La Liga": {
-        "Athletic Club": "Ath Bilbao", "Atletico Madrid": "Ath Madrid",
-        "Celta Vigo": "Celta", "Espanyol": "Espanol", "Real Betis": "Betis",
-        "Real Sociedad": "Sociedad", "Real Valladolid": "Valladolid",
-        "Rayo Vallecano": "Vallecano", "Real Oviedo": "Oviedo",
-        # Deportivo La Coruna / Malaga / Racing Santander / Elche / Levante / Las Palmas:
-        # presenti in archivio (stagioni diverse) ma non nel CSV testato -> si ignora il match.
-    },
-    "Bundesliga": {
-        "Bayer Leverkusen": "Leverkusen", "Bayern Munich": "Bayern",
-        "Borussia Dortmund": "Dortmund", "Borussia M.Gladbach": "M'gladbach",
-        "Eintracht Frankfurt": "Ein Frankfurt", "FC Cologne": "Koln",
-        "FC Heidenheim": "Heidenheim", "Hamburger SV": "Hamburg",
-        "Mainz 05": "Mainz", "RasenBallsport Leipzig": "Leipzig",
-        "St. Pauli": "St Pauli", "VfB Stuttgart": "Stuttgart",
-    },
-    "Ligue 1": {
-        "Paris Saint Germain": "PSG", "Saint-Etienne": "St Etienne",
-    },
-}
+# Traduzione nome Understat -> nome canonico CSV/app: fonte unica condivisa
+# (SoccerMath/team_names.py). La vecchia tabella locale NAME_TRANSLATE e' stata
+# rimossa: era una terza copia parziale dello stesso mapping.
 
 K_ROLLING = 5  # finestra mobile: media ultime 5 partite
 
 
 def trans_name(league, raw):
-    t = NAME_TRANSLATE.get(league, {}).get(raw)
-    return clean_name(t) if t else clean_name(raw)
+    """Nome canonico condiviso (nessun fuzzy matching, nessuna tabella locale)."""
+    return canonical_team_name(raw)
 
 
 def load_archive(league):

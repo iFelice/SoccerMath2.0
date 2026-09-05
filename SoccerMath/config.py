@@ -379,7 +379,11 @@ TEAM_NAME_MAP = {
     "Borussia Dortmund": "Dortmund",
     "RB Leipzig": "Leipzig",
     "VfB Stuttgart": "Stuttgart",
-    "Eintracht Frankfurt": "Frankfurt",
+    # I CSV football-data (e quindi le chiavi di get_league_engine/elo_engine)
+    # usano "Ein Frankfurt": mappare su "Frankfurt" faceva fallire il lookup
+    # perche' clean_name e' a passata singola e non riapplicava "Frankfurt" ->
+    # "Ein Frankfurt".
+    "Eintracht Frankfurt": "Ein Frankfurt",
     "SC Freiburg": "Freiburg",
     "TSG Hoffenheim": "Hoffenheim",
     "VfL Wolfsburg": "Wolfsburg",
@@ -389,7 +393,8 @@ TEAM_NAME_MAP = {
     "1. FC Heidenheim 1846": "Heidenheim",
     "VfL Bochum": "Bochum",
     "FC St. Pauli": "St. Pauli",
-    "Borussia Mönchengladbach": "Monchengladbach",
+    # idem: il nome canonico dei CSV e' "M'gladbach", non "Monchengladbach".
+    "Borussia Mönchengladbach": "M'gladbach",
     "Bremen": "Werder Bremen",
     "Frankfurt": "Ein Frankfurt",
     "HSV": "Hamburg",

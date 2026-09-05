@@ -1,13 +1,36 @@
-name: Update xG Database Automatically
+name: Pipeline xG (Understat)
+
+# Pipeline consolidata in UN SOLO workflow:
+#   1. acquisizione dell'archivio per-partita da Understat (update_all_xg_db.py)
+#   2. validazione dell'archivio scaricato
+#   3. derivazione delle medie stagionali dallo STESSO snapshot (update_xg.py)
+#   4. commit di archivio + medie insieme
+#
+# Il vecchio secondo scraping (step "Update xG" dentro update_database.yml, che
+# rieseguiva uno scraper Understat indipendente ogni 6 ore) e' stato rimosso:
+# c'era una sola fonte ma due download disallineati fra loro.
+#
+# Se il download o la validazione falliscono, lo step successivo non parte e
+# nulla viene committato: restano in repo l'ultimo archivio e le ultime medie
+# valide, e il workflow fallisce in modo visibile.
 
 on:
   schedule:
-    # Esegue lo script ogni Martedi (2) e Venerdi (5) alle 06:00 UTC (08:00 italiane)
+    # Martedi e Venerdi alle 06:00 UTC
     - cron: '0 6 * * 2,5'
-  workflow_dispatch: # Permette anche l'esecuzione manuale con un click da GitHub
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Stesso gruppo di update_database.yml: i due workflow committano sullo stesso
+# branch, quindi non devono girare in parallelo.
+concurrency:
+  group: soccermath-data
+  cancel-in-progress: false
 
 jobs:
-  update-data:
+  update-xg:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,15 +45,64 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install soccerdata requests
+          pip install soccerdata pandas
 
-      - name: Run update script
-        run: |
-          python update_all_xg_db.py
+      # 1 + 2: acquisizione + validazione (scrittura atomica, nessun file
+      # parziale; exit code != 0 se una lega non valida).
+      - name: Acquisizione archivio Understat
+        run: python update_all_xg_db.py
 
-      - name: Commit and push updated JSONs
+      # 3: medie derivate dallo stesso snapshot appena scaricato.
+      - name: Derivazione medie stagionali dall'archivio
+        run: python SoccerMath/update_xg.py
+
+      # Rete di sicurezza: se per qualsiasi motivo un file di dati risultasse
+      # vuoto o non parsabile, si annulla tutto prima del commit.
+      - name: Controllo finale dei file prodotti
         run: |
+          python - <<'PY'
+          import json, sys, glob, os
+          base = os.path.join("SoccerMath", "database")
+          errors = []
+          for path in sorted(glob.glob(os.path.join(base, "xG archivio *.json"))):
+              data = json.load(open(path, encoding="utf-8"))
+              if not isinstance(data, list) or len(data) < 100:
+                  errors.append(f"{path}: {len(data)} partite")
+          for path in sorted(glob.glob(os.path.join(base, "xg_*.json"))):
+              data = json.load(open(path, encoding="utf-8"))
+              if not isinstance(data, dict) or len(data) < 10:
+                  errors.append(f"{path}: {len(data)} squadre")
+          if errors:
+              print("::error::file xG non validi: " + "; ".join(errors))
+              sys.exit(1)
+          print("File xG validi.")
+          PY
+
+      - name: Commit e push (con retry se il branch si muove)
+        run: |
+          set -uo pipefail
+          BRANCH="${{ github.ref_name }}"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add SoccerMath/database/*.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "auto: aggiornamento archivio xG campionati (Understat)" && git push)
+          git add -- 'SoccerMath/database/xG archivio *.json' 'SoccerMath/database/xg_*.json'
+          if git diff --cached --quiet; then
+            echo "Nessun cambiamento: niente da committare."
+            exit 0
+          fi
+          git commit -m "auto: archivio xG Understat + medie derivate $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:$BRANCH"; then
+              echo "Push ok."
+              exit 0
+            fi
+            echo "Push rifiutato: rebase e riprovo ($i/4)"
+            git fetch -q origin "$BRANCH"
+            if ! git rebase -q "origin/$BRANCH"; then
+              git rebase --abort
+              echo "::error::Conflitto sui dati xG, serve intervento manuale"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+          echo "::error::Push non riuscito dopo 4 tentativi"
+          exit 1

@@ -1,130 +1,102 @@
 {
   "Alaves": {
-    "xG_avg": 1.022,
-    "xGA_avg": 1.232
-  },
-  "Alavés": {
-    "xG_avg": 1.205,
-    "xGA_avg": 1.436
+    "xG_avg": 1.807,
+    "xGA_avg": 0.759,
+    "matches": 3
   },
   "Ath Bilbao": {
-    "xG_avg": 1.271,
-    "xGA_avg": 0.993
+    "xG_avg": 1.607,
+    "xGA_avg": 2.028,
+    "matches": 3
   },
   "Ath Madrid": {
-    "xG_avg": 1.718,
-    "xGA_avg": 0.89
-  },
-  "Athletic": {
-    "xG_avg": 1.132,
-    "xGA_avg": 1.526
-  },
-  "Atleti": {
-    "xG_avg": 1.632,
-    "xGA_avg": 1.158
+    "xG_avg": 1.187,
+    "xGA_avg": 1.617,
+    "matches": 3
   },
   "Barcelona": {
-    "xG_avg": 2.512,
-    "xGA_avg": 1.028
-  },
-  "Barça": {
-    "xG_avg": 2.5,
-    "xGA_avg": 0.947
+    "xG_avg": 3.709,
+    "xGA_avg": 0.822,
+    "matches": 3
   },
   "Betis": {
-    "xG_avg": 1.314,
-    "xGA_avg": 1.08
+    "xG_avg": 1.528,
+    "xGA_avg": 1.823,
+    "matches": 3
   },
   "Celta": {
-    "xG_avg": 1.166,
-    "xGA_avg": 1.079
+    "xG_avg": 0.619,
+    "xGA_avg": 1.618,
+    "matches": 4
+  },
+  "Deportivo": {
+    "xG_avg": 0.959,
+    "xGA_avg": 1.32,
+    "matches": 3
   },
   "Elche": {
-    "xG_avg": 0.843,
-    "xGA_avg": 0.978
+    "xG_avg": 1.28,
+    "xGA_avg": 2.385,
+    "matches": 3
   },
   "Espanol": {
-    "xG_avg": 1.094,
-    "xGA_avg": 1.369
-  },
-  "Espanyol": {
-    "xG_avg": 1.179,
-    "xGA_avg": 1.41
+    "xG_avg": 1.32,
+    "xGA_avg": 1.891,
+    "matches": 3
   },
   "Getafe": {
-    "xG_avg": 0.724,
-    "xGA_avg": 0.908
-  },
-  "Girona": {
-    "xG_avg": 0.92,
-    "xGA_avg": 1.236
-  },
-  "Las Palmas": {
-    "xG_avg": 1.107,
-    "xGA_avg": 1.576
-  },
-  "Leganes": {
-    "xG_avg": 1.013,
-    "xGA_avg": 1.487
+    "xG_avg": 0.778,
+    "xGA_avg": 1.72,
+    "matches": 3
   },
   "Levante": {
-    "xG_avg": 0.795,
-    "xGA_avg": 1.154
+    "xG_avg": 1.501,
+    "xGA_avg": 1.608,
+    "matches": 3
   },
-  "Mallorca": {
-    "xG_avg": 0.84,
-    "xGA_avg": 1.138
+  "Málaga": {
+    "xG_avg": 0.782,
+    "xGA_avg": 1.96,
+    "matches": 3
   },
   "Osasuna": {
-    "xG_avg": 0.949,
-    "xGA_avg": 1.15
-  },
-  "Oviedo": {
-    "xG_avg": 0.655,
-    "xGA_avg": 1.699
-  },
-  "Rayo Vallecano": {
-    "xG_avg": 1.077,
-    "xGA_avg": 1.179
+    "xG_avg": 1.498,
+    "xGA_avg": 0.822,
+    "matches": 3
   },
   "Real Madrid": {
-    "xG_avg": 1.711,
-    "xGA_avg": 0.829
-  },
-  "Real Oviedo": {
-    "xG_avg": 0.684,
-    "xGA_avg": 1.579
-  },
-  "Real Sociedad": {
-    "xG_avg": 1.553,
-    "xGA_avg": 1.605
+    "xG_avg": 3.091,
+    "xGA_avg": 0.747,
+    "matches": 3
   },
   "Santander": {
-    "xG_avg": 2.0,
-    "xGA_avg": 2.0
+    "xG_avg": 1.898,
+    "xGA_avg": 0.942,
+    "matches": 3
   },
   "Sevilla": {
-    "xG_avg": 1.02,
-    "xGA_avg": 1.187
+    "xG_avg": 1.355,
+    "xGA_avg": 1.618,
+    "matches": 3
   },
   "Sociedad": {
-    "xG_avg": 1.131,
-    "xGA_avg": 1.242
+    "xG_avg": 1.385,
+    "xGA_avg": 1.641,
+    "matches": 4
   },
   "Valencia": {
-    "xG_avg": 0.923,
-    "xGA_avg": 1.179
-  },
-  "Valladolid": {
-    "xG_avg": 0.774,
-    "xGA_avg": 2.115
+    "xG_avg": 0.909,
+    "xGA_avg": 0.97,
+    "matches": 3
   },
   "Vallecano": {
-    "xG_avg": 1.166,
-    "xGA_avg": 1.231
+    "xG_avg": 1.182,
+    "xGA_avg": 2.399,
+    "matches": 3
   },
   "Villarreal": {
-    "xG_avg": 1.461,
-    "xGA_avg": 1.059
+    "xG_avg": 1.921,
+    "xGA_avg": 1.207,
+    "matches": 3
   }
 }

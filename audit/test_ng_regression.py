@@ -181,7 +181,15 @@ class TestNaNInfSafety(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # 4. Scenari engine su dati reali (Premier League) con fonti xG manipolate
 # ---------------------------------------------------------------------------
-PL_STALE_XG = json.load(open(os.path.join(DB_DIR, "xg_premier_league.json")))
+# Snapshot xG "vecchio" della Premier League usato dai test di regressione.
+# I file xg_<lega>.json sono ora DERIVATI dall'archivio per-partita
+# (SoccerMath/update_xg.py) e contengono anche le neopromosse, quindi lo
+# scenario del bug ("squadra assente dal file xG") va costruito
+# esplicitamente rimuovendo Coventry City e Hull City: e' quella assenza,
+# non il contenuto del file committato, che i test qui sotto verificano.
+_PL_XG_FILE = json.load(open(os.path.join(DB_DIR, "xg_premier_league.json")))
+PL_STALE_XG = {k: v for k, v in _PL_XG_FILE.items()
+               if k not in ("Coventry City", "Hull City")}
 
 
 class TestEngineXGPaths(unittest.TestCase):

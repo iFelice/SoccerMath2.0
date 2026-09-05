@@ -1,6 +1,20 @@
+"""DEPRECATO - non fa parte della pipeline.
+
+L'UNICA acquisizione Understat di SoccerMath e' ``update_all_xg_db.py`` (root
+del repository), che produce ``SoccerMath/database/xG archivio <lega>.json``;
+le medie stagionali si derivano da quell'archivio con
+``python SoccerMath/update_xg.py``.
+
+Questo file resta solo come traccia dello scraper esplorativo usato per la
+Serie A: non e' importato da nessun modulo e non deve essere schedulato.
+Eseguendolo serve ``--force``, per evitare che diventi una seconda fonte di
+dati disallineata dall'archivio.
+"""
+
 import json
 import os
 import re
+import sys
 import time
 import requests
 
@@ -90,4 +104,9 @@ def run_test():
 
 
 if __name__ == '__main__':
+  if '--force' not in sys.argv:
+    print('Script deprecato: usa update_all_xg_db.py (acquisizione) e '
+          'SoccerMath/update_xg.py (medie derivate). Con --force lo esegui '
+          'comunque, ma i suoi file non fanno parte della pipeline.')
+    raise SystemExit(1)
   run_test()

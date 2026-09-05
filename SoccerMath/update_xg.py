@@ -1,177 +1,190 @@
 """
-update_xg.py - Scarica gli xG da Understat automaticamente
-Stagione corrente: 2026/2027 (ID Understat = 2026)
+update_xg.py - Medie xG stagionali derivate dall'archivio per-partita.
+
+QUESTO SCRIPT NON SCARICA PIU' NULLA DA UNDERSTAT.
+L'unica acquisizione Understat e' ``update_all_xg_db.py`` (root del repo), che
+salva l'archivio per-partita ``database/xG archivio <lega>.json``. Qui si
+derivano soltanto i file ``database/xg_<lega>.json`` consumati dall'app:
+
+    {"Inter": {"xG_avg": 2.36, "xGA_avg": 0.83, "matches": 3}, ...}
+
+con, per ogni partita valida della stagione richiesta:
+    squadra di casa   -> xG = home_xg, xGA = away_xg
+    squadra ospite    -> xG = away_xg, xGA = home_xg
+    matches           -> partite valide effettivamente incluse
+
+Il file mantiene il nome storico per compatibilita' (workflow, import esistenti,
+``audit/test_ng_regression.py`` che usa ``update_xg.NAME_MAP``).
+
+Uso:
+    python update_xg.py                        # stagione corrente, tutte le leghe
+    python update_xg.py --season 2025
+    python update_xg.py --league "Serie A" --dry-run
+    python update_xg.py --cutoff 2026-09-05T12:00:00+02:00   # audit point-in-time
+    python update_xg.py --report audit/results/xg_derivation.json
+
+Garanzie:
+  * niente shrinkage qui (resta in ``app.get_league_engine``, PRIOR_MATCHES=6);
+  * scrittura atomica: un errore non lascia file parziali;
+  * se l'archivio manca/non valida o produce meno di ``--min-teams`` squadre,
+    il file esistente NON viene sovrascritto e l'uscita e' diversa da zero.
 """
 
-import requests
+from __future__ import annotations
+
+import argparse
 import json
-import re
-import base64
-import codecs
+import logging
 import os
-import time
+import sys
+from typing import Dict, List, Optional
 
-# Configurazione campionati su Understat
-# ID Lega: Serie A=11, Premier=9, La Liga=12, Bundesliga=20
-# Season: Anno di inizio della stagione (2025 per il 2025/2026)
-LEAGUES = {
-    "serie_a": {"id": 11, "season": 2026},
-    "premier_league": {"id": 9, "season": 2026},
-    "la_liga": {"id": 12, "season": 2026},
-    "bundesliga": {"id": 20, "season": 2026},
-    "ligue_1": {"id": 13, "season": 2026},
-}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Mappatura nomi Understat -> Nomi usati dalla tua App
-NAME_MAP = {
-    # Serie A
-    "Inter Milan": "Inter", "AC Milan": "Milan", "AS Roma": "Roma", "Juventus": "Juventus",
-    "SS Lazio": "Lazio", "Atalanta": "Atalanta", "SSC Napoli": "Napoli", "ACF Fiorentina": "Fiorentina",
-    "Bologna": "Bologna", "Torino": "Torino", "Udinese": "Udinese", "Genoa": "Genoa",
-    "Cagliari": "Cagliari", "Empoli": "Empoli", "Hellas Verona": "Verona", "Lecce": "Lecce",
-    "Parma Calcio 1913": "Parma", "Monza": "Monza", "Como": "Como", "Venezia": "Venezia",
-    "Cremonese": "Cremonese", "Sassuolo": "Sassuolo", "Pisa": "Pisa",
-    # Premier League
-    "Manchester City": "Man City", "Manchester United": "Man United", "Tottenham Hotspur": "Tottenham",
-    "Newcastle United": "Newcastle", "Aston Villa": "Aston Villa", "West Ham United": "West Ham",
-    "Brighton and Hove Albion": "Brighton", "Wolverhampton Wanderers": "Wolves",
-    "Crystal Palace": "Crystal Palace", "Nottingham Forest": "Nott'm Forest",
-    "AFC Bournemouth": "Bournemouth", "Fulham": "Fulham", "Brentford": "Brentford",
-    "Everton": "Everton", "Ipswich Town": "Ipswich", "Leicester City": "Leicester",
-    "Southampton": "Southampton",
-    # La Liga
-    "Atletico Madrid": "Atletico Madrid", "Athletic Bilbao": "Athletic Club",
-    "Real Sociedad": "Real Sociedad", "Celta Vigo": "Celta Vigo", "Rayo Vallecano": "Rayo Vallecano",
-    "Deportivo Alaves": "Alaves", "Girona": "Girona", "Las Palmas": "Las Palmas",
-    "Sevilla": "Sevilla", "Real Betis": "Betis", "Mallorca": "Mallorca", "Osasuna": "Osasuna",
-    "Getafe": "Getafe", "Valladolid": "Valladolid", "Leganes": "Leganes",
-    # Bundesliga
-    "Bayern Munich": "Bayern", "Bayer 04 Leverkusen": "Leverkusen", "Borussia Dortmund": "Dortmund",
-    "RB Leipzig": "Leipzig", "VfB Stuttgart": "Stuttgart", "Eintracht Frankfurt": "Ein Frankfurt",
-    "SC Freiburg": "Freiburg", "TSG Hoffenheim": "Hoffenheim", "VfL Wolfsburg": "Wolfsburg",
-    "Union Berlin": "Union Berlin", "Borussia Mönchengladbach": "M'gladbach",
-    "1. FSV Mainz 05": "Mainz", "SV Werder Bremen": "Werder Bremen", "FC Augsburg": "Augsburg",
-    "1. FC Heidenheim 1846": "Heidenheim", "VfL Bochum": "Bochum", "FC St. Pauli": "St. Pauli",
-    "Holstein Kiel": "Holstein Kiel",
+from config import CURRENT_SEASON_START_YEAR  # noqa: E402
+from team_names import NAME_MAP, UNDERSTAT_NAME_MAP, canonical_team_name  # noqa: E402
+from xg_archive import (  # noqa: E402
+    LEAGUES,
+    SeasonAggregate,
+    archive_path,
+    averages_path,
+    load_archive,
+    season_averages,
+    validate_archive,
+    write_averages,
+)
 
-    # Ligue 1
-    "Paris Saint-Germain": "PSG", "AS Monaco": "Monaco", "Monaco": "Monaco",
-    "Olympique de Marseille": "Marseille", "Olympique Lyonnais": "Lyon",
-    "Lille OSC": "Lille", "Lille": "Lille", "Stade Rennais FC": "Rennes",
-    "OGC Nice": "Nice", "RC Lens": "Lens", "RC Strasbourg Alsace": "Strasbourg",
-    "Stade de Reims": "Reims", "Stade Brestois 29": "Brest", "Toulouse FC": "Toulouse",
-    "Montpellier HSC": "Montpellier", "FC Nantes": "Nantes", "AJ Auxerre": "Auxerre",
-    "AS Saint-Étienne": "Saint-Etienne", "Angers SCO": "Angers", "Le Havre AC": "Le Havre",
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log = logging.getLogger("update_xg")
 
-    # --- Fix NG 99.8%: titoli Understat 2026/27 allineati ai nomi CSV/Football-Data.
-    # Senza queste mappature la chiave JSON non coincideva con clean_name(nome CSV)
-    # e la squadra (es. neopromossa) cadeva nel fallback sui gol: con 0 gol in 2
-    # partite il ratio era 0.0 esatto -> lambda ~0 -> NG 99.8% (ora mitigato anche
-    # dallo shrinkage in get_league_engine). Titoli verificati sugli archivi
-    # "database/xG archivio <lega>.json" (stagione 2026).
-    # Premier League
-    "Coventry": "Coventry City",
-    "Hull": "Hull City",
-    # La Liga (nomi CSV: Ath Bilbao, Ath Madrid, Celta, Deportivo, Espanol, ...)
-    "Athletic Club": "Ath Bilbao",
-    "Atletico Madrid": "Ath Madrid",
-    "Celta Vigo": "Celta",
-    "Deportivo La Coruna": "Deportivo",
-    "Espanyol": "Espanol",
-    "Malaga": "Málaga",
-    "Racing Santander": "Santander",
-    "Rayo Vallecano": "Vallecano",
-    "Real Sociedad": "Sociedad",
-    # Bundesliga (nomi CSV: Leverkusen, Leipzig, Hamburg, Mainz, ...)
-    "Bayer Leverkusen": "Leverkusen",
-    "RasenBallsport Leipzig": "Leipzig",
-    "Hamburger SV": "Hamburg",
-    "Mainz 05": "Mainz",
-    "Paderborn": "SC Paderborn",
-    "FC Cologne": "Koln",
-    "Köln": "Koln",
-    "Borussia M.Gladbach": "M'gladbach",
-    # Ligue 1 (due club parigini distinti!)
-    "Paris Saint Germain": "PSG",
-    "Paris FC": "Paris",
-    # varianti accentate dei titoli Understat (equivalenti alle voci sopra)
-    "Deportivo La Coruña": "Deportivo",
-}
+# Numero minimo di squadre perche' il file derivato sia utilizzabile:
+# ``scraper_xg.get_understat_xg`` e ``get_league_engine`` scartano i file con
+# meno di 10 squadre, quindi pubblicarne uno piu' piccolo significherebbe
+# soltanto distruggere l'ultimo insieme valido.
+MIN_TEAMS = 10
 
-def fetch_xg_understat(league_key, league_id, season):
-    url = f"https://understat.com/league/{league_id}/{season}"
-    print(f"Fetching {url}...")
+__all__ = [
+    "NAME_MAP", "UNDERSTAT_NAME_MAP", "canonical_team_name",
+    "MIN_TEAMS", "derive_league", "main",
+]
+
+
+def derive_league(
+    league: str,
+    season: int,
+    *,
+    database_dir=None,
+    cutoff=None,
+    min_teams: int = MIN_TEAMS,
+    dry_run: bool = False,
+) -> Dict:
+    """Deriva e (se valido) scrive ``xg_<lega>.json`` per una lega."""
+    out: Dict = {
+        "league": league,
+        "season": season,
+        "written": False,
+        "path": averages_path(league, database_dir),
+        "errors": [],
+    }
+    src = archive_path(league, database_dir)
+    if not os.path.exists(src):
+        out["errors"].append(f"archivio mancante: {src}")
+        return out
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        resp = requests.get(url, headers=headers, timeout=20)
-        
-        if resp.status_code == 404:
-            print(f"  Stagione {season} non ancora disponibile su Understat per questa lega.")
-            return None
-        if resp.status_code != 200:
-            print(f"  Errore HTTP: {resp.status_code}")
-            return None
+        records = load_archive(league, database_dir)
+    except Exception as exc:  # file corrotto / JSON invalido
+        out["errors"].append(f"archivio illeggibile ({exc})")
+        return out
 
-        match = re.search(r'var teamsData = JSON.parse\(\'(.*?)\'\);', resp.text)
-        if not match:
-            print("  Struttura pagina Understat cambiata o dati non trovati.")
-            return None
+    problems = validate_archive(records, league=league, min_matches=1)
+    if problems:
+        out["errors"].extend(problems)
+        return out
 
-        encoded_data = match.group(1)
-        decoded_bytes = base64.b64decode(encoded_data)
-        decoded_str = codecs.escape_decode(decoded_bytes)[0].decode('utf-8')
-        
-        teams_data = json.loads(decoded_str)
-        
-        result = {}
-        for team_id, team_info in teams_data.items():
-            understat_name = team_info.get("title", "")
-            clean_name = NAME_MAP.get(understat_name, understat_name)
-            
-            history = team_info.get("history", [])
-            if not history:
-                continue
-            
-            total_xg = sum(float(m.get("xG", 0)) for m in history)
-            total_xga = sum(float(m.get("xGA", 0)) for m in history)
-            matches_played = len(history)
-            
-            result[clean_name] = {
-                "xG_avg": round(total_xg / matches_played, 3) if matches_played > 0 else 0,
-                "xGA_avg": round(total_xga / matches_played, 3) if matches_played > 0 else 0,
-                # Numero di partite del campione: consente a get_league_engine
-                # di applicare lo shrinkage verso la media di lega nelle prime
-                # giornate (2-3 partite), quando le medie xG sono ancora rumore
-                # e possono avvicinarsi a 0 (fix NG ~99.8%).
-                "matches": matches_played,
-            }
-            
-        return result
-        
-    except Exception as e:
-        print(f"  Errore scraping Understat: {e}")
-        return None
+    aggregate: SeasonAggregate = season_averages(
+        league, season, base_dir=database_dir, cutoff=cutoff, records=records)
+    out.update(aggregate.to_dict())
 
-def main():
-    os.makedirs("database", exist_ok=True)
-    successi = 0
+    if len(aggregate.averages) < min_teams:
+        out["errors"].append(
+            f"solo {len(aggregate.averages)} squadre con partite valide "
+            f"(minimo {min_teams}): file esistente lasciato invariato")
+        return out
 
-    for league_key, info in LEAGUES.items():
-        data = fetch_xg_understat(league_key, info["id"], info["season"])
-        if data and len(data) >= 10:
-            path = f"database/xg_{league_key}.json"
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"  Salvato: {path} ({len(data)} squadre)")
-            successi += 1
-        else:
-            print(f"  SKIP {league_key} - Dati insufficienti o non disponibili")
-        
-        time.sleep(3)
+    if not dry_run:
+        write_averages(aggregate, out["path"])
+        out["written"] = True
+    return out
 
-    print(f"\nCompletato: {successi}/{len(LEAGUES)} campionati aggiornati")
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Deriva le medie xG stagionali dall'archivio per-partita "
+                    "(nessuno scraping: l'acquisizione e' update_all_xg_db.py)")
+    parser.add_argument("--season", type=int, default=CURRENT_SEASON_START_YEAR,
+                        help="anno di inizio stagione (default: stagione corrente)")
+    parser.add_argument("--league", action="append", dest="leagues",
+                        choices=list(LEAGUES),
+                        help="limita a una lega (ripetibile)")
+    parser.add_argument("--database-dir", default=None,
+                        help="cartella dei dati (default: SoccerMath/database)")
+    parser.add_argument("--cutoff", default=None,
+                        help="istante di previsione ISO-8601: include solo le "
+                             "partite concluse prima (audit point-in-time)")
+    parser.add_argument("--min-teams", type=int, default=MIN_TEAMS,
+                        help=f"squadre minime per pubblicare il file (default {MIN_TEAMS})")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="calcola e stampa senza scrivere nulla")
+    parser.add_argument("--report", default=None,
+                        help="salva un riepilogo JSON della derivazione")
+    args = parser.parse_args(argv)
+
+    leagues = args.leagues or list(LEAGUES)
+    results = []
+    failures = 0
+
+    for league in leagues:
+        res = derive_league(
+            league, args.season,
+            database_dir=args.database_dir,
+            cutoff=args.cutoff,
+            min_teams=args.min_teams,
+            dry_run=args.dry_run,
+        )
+        results.append(res)
+        if res["errors"]:
+            failures += 1
+            for err in res["errors"]:
+                log.error("%s", err)
+            continue
+        log.info(
+            "%s %s: %d squadre, %d partite valide su %d in stagione%s%s",
+            "[dry-run]" if args.dry_run else "OK", league,
+            res["teams"], res["matches_used"], res["matches_in_season"],
+            f" (cutoff {res['cutoff']})" if res.get("cutoff") else "",
+            "" if res["written"] else " [non scritto]",
+        )
+        if res["unmapped_names"]:
+            log.warning("%s: nomi Understat senza mapping esplicito: %s",
+                        league, ", ".join(sorted(res["unmapped_names"])))
+        if res["conflicts"]:
+            log.warning("%s: %d conflitti xG sulla stessa partita",
+                        league, len(res["conflicts"]))
+        if res["teams_without_valid_matches"]:
+            log.info("%s: senza partite valide (fallback gol nell'engine): %s",
+                     league, ", ".join(res["teams_without_valid_matches"]))
+
+    if args.report:
+        os.makedirs(os.path.dirname(os.path.abspath(args.report)) or ".", exist_ok=True)
+        with open(args.report, "w", encoding="utf-8") as f:
+            json.dump({"season": args.season, "leagues": results}, f,
+                      ensure_ascii=False, indent=2)
+        log.info("Report salvato in %s", args.report)
+
+    ok = len(leagues) - failures
+    log.info("Completato: %d/%d leghe aggiornate", ok, len(leagues))
+    return 1 if failures else 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
