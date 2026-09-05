@@ -13,9 +13,12 @@ on:
     paths:
       - '.github/workflows/topmix_audit.yml'
       - 'audit/reconstruct_topmix_match.py'
+      - 'audit/fetch_jsonbin_match.py'
       - 'audit/inspect_topmix_registry.py'
       - 'audit/test_reconstruct_topmix_match.py'
       - 'audit/test_topmix_registry_tracking.py'
+      - 'audit/test_jsonbin_readonly_get.py'
+      - 'SoccerMath/test_standardizza_mercato.py'
       - 'audit/topmix_selector_audit_protocol.md'
       - 'SoccerMath/app.py'
       - 'SoccerMath/prediction_registry.py'
@@ -59,15 +62,39 @@ jobs:
           python -m pytest \
             audit/test_topmix_registry_tracking.py \
             audit/test_reconstruct_topmix_match.py \
+            audit/test_jsonbin_readonly_get.py \
+            SoccerMath/test_standardizza_mercato.py \
             -q --tb=short
 
-      - name: Ricostruzione Schalke–Bayern (funzioni di produzione)
+      - name: GET JSONBin Schalke–Bayern (sola lettura, mai PUT)
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+        run: |
+          python audit/fetch_jsonbin_match.py \
+            --schalke-bayern \
+            --output "$AUDIT_OUT/jsonbin_schalke_bayern.json"
+          python - <<'PY'
+          import json, os
+          p = os.path.join(os.environ["AUDIT_OUT"], "jsonbin_schalke_bayern.json")
+          d = json.load(open(p, encoding="utf-8"))
+          print("ok", d.get("ok"), "reason", d.get("reason"))
+          print("n_schalke_bayern", d.get("n_schalke_bayern"))
+          print("put_called", d.get("put_called"))
+          PY
+
+      - name: Ricostruzione Schalke–Bayern (funzioni di produzione + commit storici)
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
         run: |
           python audit/reconstruct_topmix_match.py \
             --all-candidates \
             --fetch-api \
+            --jsonbin-get \
+            --scan-data-refs \
+            --git-ref 0695e9e611e481d2a9f5648a3a9fcd4412f86070 \
             --output "$AUDIT_OUT/schalke_bayern_921.json"
 
       - name: Ispezione tracciamento Registro (AST, no JSONBin)
@@ -113,6 +140,9 @@ jobs:
           print(f"- canonici: `{pr.get('canonical_names')}`")
           print(f"- selettore A: **{sel.get('best_market')} {sel.get('prob_val')}%**")
           print(f"- 92,1% riprodotto: **{tgt.get('reproduced_by_selector_A')}**")
+          print(f"- git_ref_used: `{d.get('git_ref_used')}`")
+          jb = d.get("jsonbin_get") or {}
+          print(f"- JSONBin GET: ok={jb.get('ok')} n_schalke_bayern={jb.get('n_schalke_bayern')} reason={jb.get('reason')}")
           print(f"- API fetch: attempted={api.get('attempted')} ok={api.get('ok')} reason={api.get('reason')}")
           if api.get("match"):
               m = api["match"]

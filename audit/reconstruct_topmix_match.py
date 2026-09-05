@@ -34,6 +34,8 @@ _REPO_ROOT = os.path.dirname(_AUDIT_DIR)
 _SOCCER = os.path.join(_REPO_ROOT, "SoccerMath")
 if _SOCCER not in sys.path:
     sys.path.insert(0, _SOCCER)
+if _AUDIT_DIR not in sys.path:
+    sys.path.insert(0, _AUDIT_DIR)
 
 os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
 
@@ -124,6 +126,190 @@ def git_commit_0695e9e_present() -> bool:
         return bool(out)
     except Exception:
         return False
+
+
+def resolve_git_ref(ref: str) -> Dict[str, str]:
+    """Risolve un ref git (SHA, tag, origin/main~N) senza fare checkout."""
+    try:
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--verify", ref],
+            cwd=_REPO_ROOT, text=True, stderr=subprocess.DEVNULL,
+        ).strip()
+        meta = subprocess.check_output(
+            ["git", "show", "-s", "--format=%H%x1f%cI%x1f%s", sha],
+            cwd=_REPO_ROOT, text=True, stderr=subprocess.DEVNULL,
+        ).strip().split("\x1f")
+        return {
+            "ref": ref,
+            "sha": meta[0] if meta else sha,
+            "committer_iso": meta[1] if len(meta) > 1 else "",
+            "subject": meta[2] if len(meta) > 2 else "",
+        }
+    except Exception as exc:
+        return {"ref": ref, "sha": "", "error": str(exc)}
+
+
+def main_head_at(timestamp_iso: str, branch: str = "origin/main") -> Dict[str, str]:
+    """HEAD di ``branch`` all'istante ``timestamp_iso`` (git log --until, committer date)."""
+    try:
+        out = subprocess.check_output(
+            ["git", "log", branch, f"--until={timestamp_iso}", "-1",
+             "--format=%H%x1f%cI%x1f%s"],
+            cwd=_REPO_ROOT, text=True, stderr=subprocess.PIPE,
+        ).strip()
+    except subprocess.CalledProcessError as exc:
+        return {"error": exc.stderr.decode()[:300] if exc.stderr else str(exc),
+                "timestamp": timestamp_iso, "branch": branch}
+    if not out:
+        return {"error": "nessun commit su {0} prima di {1}".format(branch, timestamp_iso),
+                "timestamp": timestamp_iso, "branch": branch}
+    parts = out.split("\x1f")
+    return {
+        "timestamp": timestamp_iso,
+        "branch": branch,
+        "sha": parts[0],
+        "committer_iso": parts[1] if len(parts) > 1 else "",
+        "subject": parts[2] if len(parts) > 2 else "",
+    }
+
+
+_PATH_KEYS = ("base_csv", "live_csv", "xg_json")
+
+# Commit di dati su main intorno al weekend Schalke–Bayern (CSV live / xG).
+# Non sono "il" commit del click: sono candidati di sensibilita' se manca salvato_il.
+DATA_REF_CANDIDATES: Tuple[str, ...] = (
+    "0695e9e611e481d2a9f5648a3a9fcd4412f86070",  # 2026-09-05T16:14Z xG
+    "bcb6b60",  # 2026-09-05T14:04Z live
+    "73586bd",  # 2026-09-05T01:35Z live
+    "afc58d2",  # 2026-09-04T19:57Z live
+    "4d775ca",  # 2026-09-04T01:34Z live
+)
+
+
+def extract_database_at_ref(ref: str, dest: str) -> str:
+    """Estrae SoccerMath/database da ``ref`` in ``dest`` (git archive, no checkout)."""
+    dest = os.path.abspath(dest)
+    os.makedirs(dest, exist_ok=True)
+    proc = subprocess.run(
+        ["git", "archive", "--format=tar", ref, "SoccerMath/database"],
+        cwd=_REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", errors="replace")[:400]
+        raise RuntimeError(f"git archive {ref} fallito: {err}")
+    import io
+    import tarfile
+    buf = io.BytesIO(proc.stdout)
+    with tarfile.open(fileobj=buf, mode="r:") as tar:
+        try:
+            tar.extractall(dest, filter="data")
+        except TypeError:
+            tar.extractall(dest)
+    db = os.path.join(dest, "SoccerMath", "database")
+    if not os.path.isdir(db):
+        raise RuntimeError(f"database non estratto da {ref}")
+    return db
+
+
+def _snapshot_db_paths() -> Dict[str, Any]:
+    import config
+    import scraper_xg
+    import xg_archive
+    from models import elo_engine
+    return {
+        "config_DATABASE_DIR": config.DATABASE_DIR,
+        "leagues": {
+            name: {k: info.get(k) for k in _PATH_KEYS}
+            for name, info in config.LEAGUES_CONFIG.items()
+        },
+        "config_LEAGUE_FILE_MAP": dict(config.LEAGUE_FILE_MAP),
+        "scraper_LEAGUE_FILE_MAP": dict(scraper_xg.LEAGUE_FILE_MAP),
+        "xg_archive_DATABASE_DIR": xg_archive.DATABASE_DIR,
+        "elo_DATABASE_DIR": elo_engine.DATABASE_DIR,
+    }
+
+
+def _redirect_database_dir(new_db: str) -> None:
+    """Punta config/scraper/xg_archive/elo ai CSV/xG estratti. Mutazione in-place."""
+    from pathlib import Path
+    import config
+    import scraper_xg
+    import xg_archive
+    from models import elo_engine
+    new_path = Path(new_db)
+    config.DATABASE_DIR = new_path
+    elo_engine.DATABASE_DIR = new_path
+    xg_archive.DATABASE_DIR = new_path
+    for info in config.LEAGUES_CONFIG.values():
+        for key in _PATH_KEYS:
+            if info.get(key):
+                info[key] = str(new_path / Path(str(info[key])).name)
+    new_map = {name: info["xg_json"] for name, info in config.LEAGUES_CONFIG.items()}
+    config.LEAGUE_FILE_MAP.clear()
+    config.LEAGUE_FILE_MAP.update(new_map)
+    scraper_xg.LEAGUE_FILE_MAP.clear()
+    scraper_xg.LEAGUE_FILE_MAP.update(new_map)
+
+
+def _restore_db_paths(snap: Dict[str, Any]) -> None:
+    import config
+    import scraper_xg
+    import xg_archive
+    from models import elo_engine
+    config.DATABASE_DIR = snap["config_DATABASE_DIR"]
+    elo_engine.DATABASE_DIR = snap["elo_DATABASE_DIR"]
+    xg_archive.DATABASE_DIR = snap["xg_archive_DATABASE_DIR"]
+    for name, paths in snap["leagues"].items():
+        if name in config.LEAGUES_CONFIG:
+            config.LEAGUES_CONFIG[name].update(paths)
+    config.LEAGUE_FILE_MAP.clear()
+    config.LEAGUE_FILE_MAP.update(snap["config_LEAGUE_FILE_MAP"])
+    scraper_xg.LEAGUE_FILE_MAP.clear()
+    scraper_xg.LEAGUE_FILE_MAP.update(snap["scraper_LEAGUE_FILE_MAP"])
+
+
+def clear_production_caches() -> None:
+    try:
+        get_league_engine.clear()
+    except Exception:
+        pass
+    try:
+        from models import elo_engine
+        elo_engine._ELO_ENGINES_CACHE.clear()
+    except Exception:
+        pass
+
+
+class database_at_git_ref:
+    """Context manager: CSV/xG/Elo del commit ``ref``, HEAD git invariato."""
+
+    def __init__(self, ref: str):
+        self.ref = ref
+        self.tmp = ""
+        self.db = ""
+        self.meta: Dict[str, Any] = {}
+        self._snap: Optional[Dict[str, Any]] = None
+
+    def __enter__(self) -> "database_at_git_ref":
+        import tempfile
+        self.meta = resolve_git_ref(self.ref)
+        if not self.meta.get("sha"):
+            raise RuntimeError(f"ref git non risolto: {self.ref} ({self.meta})")
+        self.tmp = tempfile.mkdtemp(prefix="sm_histdb_")
+        self.db = extract_database_at_ref(self.meta["sha"], self.tmp)
+        self._snap = _snapshot_db_paths()
+        _redirect_database_dir(self.db)
+        clear_production_caches()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        import shutil
+        if self._snap is not None:
+            _restore_db_paths(self._snap)
+        clear_production_caches()
+        if self.tmp:
+            shutil.rmtree(self.tmp, ignore_errors=True)
+        return None
 
 
 def _json_safe(obj: Any) -> Any:
@@ -656,7 +842,27 @@ def reconstruct_match(
     league: str = "Bundesliga",
     *,
     api_snapshot: Optional[Dict[str, Any]] = None,
+    git_ref: Optional[str] = None,
 ) -> Dict[str, Any]:
+    if git_ref:
+        with database_at_git_ref(git_ref) as hist:
+            rec = reconstruct_match(
+                home_api, away_api, league,
+                api_snapshot=api_snapshot, git_ref=None,
+            )
+            rec["data_git_ref"] = hist.meta
+            rec["data_database_dir"] = hist.db
+            rec["snapshot_commit"] = hist.meta.get("sha") or git_ref
+            rec["snapshot_commit_present"] = bool(hist.meta.get("sha"))
+            rec["current_equals_snapshot"] = git_sha().startswith(
+                (hist.meta.get("sha") or "")[:7]
+            ) if hist.meta.get("sha") else False
+            rec["code_git_sha"] = git_sha()
+            rec["note_code_vs_data"] = (
+                "Le funzioni di produzione sono quelle del working tree; "
+                "CSV/xG/Elo sono quelli del commit storico (git archive, no checkout)."
+            )
+            return rec
     sha = git_sha()
     engine = get_league_engine(league)
     if not engine:
@@ -709,7 +915,7 @@ def reconstruct_match(
         )
     missing.append(
         "snapshot Elo al millisecondo del click (l'Elo e' ricalcolato ora dai CSV "
-        "dello snapshot 0695e9e: verificato sui dati committati, non su un dump Elo persistito)"
+        "del commit dati usato: verificato sui file committati, non su un dump Elo persistito)"
     )
     missing.append(
         "registro JSONBin della riga Top Mix (prob_sicuro, mercato, salvato_il, rank)"
@@ -885,25 +1091,42 @@ def reconstruct_schalke_bayern(
     *,
     fetch_api: bool = False,
     api_key: Optional[str] = None,
+    git_ref: Optional[str] = None,
 ) -> Dict[str, Any]:
     api_info = {"attempted": False, "ok": False, "reason": "non richiesto"}
     if fetch_api:
         api_info = try_fetch_api_names("Bundesliga", "Schalke", "Bayern", api_key=api_key)
 
-    results = []
+    results: List[Dict[str, Any]] = []
     names_to_try: List[Tuple[str, str]] = list(DEFAULT_API_CANDIDATES)
     if api_info.get("ok") and api_info.get("match"):
         m = api_info["match"]
         pair = (m["display_home"], m["display_away"])
         names_to_try = [pair] + [c for c in names_to_try if c != pair]
 
-    for home, away in names_to_try:
-        rec = reconstruct_match(
-            home, away, "Bundesliga",
-            api_snapshot=api_info.get("match") if api_info.get("ok") else None,
-        )
-        rec["candidate_api_names"] = {"home": home, "away": away}
-        results.append(rec)
+    def _run(data_ref: Optional[str]) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for home, away in names_to_try:
+            rec = reconstruct_match(
+                home, away, "Bundesliga",
+                api_snapshot=api_info.get("match") if api_info.get("ok") else None,
+                git_ref=data_ref,
+            )
+            rec["candidate_api_names"] = {"home": home, "away": away}
+            out.append(rec)
+        return out
+
+    if git_ref:
+        # Un solo git archive: reconstruct_match vede gia' i path reindirizzati.
+        with database_at_git_ref(git_ref) as hist:
+            results = _run(None)
+            for rec in results:
+                rec["data_git_ref"] = hist.meta
+                rec["data_database_dir"] = hist.db
+                rec["snapshot_commit"] = hist.meta.get("sha") or git_ref
+                rec["code_git_sha"] = git_sha()
+    else:
+        results = _run(None)
 
     # La ricostruzione "principale" e' il primo candidato (API attuale se c'e',
     # altrimenti shortName tipici Schalke/Bayern).
@@ -956,6 +1179,36 @@ def write_json(payload: Dict[str, Any], path: str) -> str:
     return path
 
 
+def reconstruct_at_data_refs(
+    refs: Sequence[str],
+    *,
+    fetch_api: bool = False,
+) -> Dict[str, Any]:
+    """Ricostruisce Schalke–Bayern su piu' commit dati (sensibilita', no checkout)."""
+    rows = []
+    for ref in refs:
+        try:
+            rec = reconstruct_schalke_bayern(fetch_api=fetch_api, git_ref=ref)
+            primary = rec.get("primary") or {}
+            sel = primary.get("selector_A") or {}
+            tgt = primary.get("target_92_1") or {}
+            rows.append({
+                "ref": ref,
+                "data_git_ref": primary.get("data_git_ref"),
+                "ok": primary.get("ok"),
+                "best_market": sel.get("best_market"),
+                "prob_val_A": sel.get("prob_val"),
+                "reproduced_92_1": tgt.get("reproduced_by_selector_A"),
+                "gap_A": tgt.get("gap_A"),
+                "home_xg_matches": (primary.get("home") or {}).get("xg_record"),
+                "away_xg_matches": (primary.get("away") or {}).get("xg_record"),
+                "error": primary.get("error"),
+            })
+        except Exception as exc:
+            rows.append({"ref": ref, "ok": False, "error": str(exc)})
+    return {"n": len(rows), "rows": rows}
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Ricostruzione diagnostica Top Mix (sola lettura)")
     parser.add_argument("--home", default="Schalke")
@@ -965,19 +1218,62 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="GET football-data (nomi attuali). Non scrive nulla.")
     parser.add_argument("--all-candidates", action="store_true",
                         help="Prova i candidati di nomi API Schalke/Bayern.")
+    parser.add_argument("--git-ref", default=None,
+                        help="Commit da cui estrarre CSV/xG (git archive, HEAD invariato).")
+    parser.add_argument("--salvato-il", default=None,
+                        help="Timestamp (ISO o dd/mm/yyyy HH:MM) per risolvere HEAD di origin/main.")
+    parser.add_argument("--scan-data-refs", action="store_true",
+                        help="Ricostruisce sui commit dati candidati (sensibilita').")
+    parser.add_argument("--jsonbin-get", action="store_true",
+                        help="GET JSONBin sola lettura (Schalke–Bayern). Mai PUT.")
     parser.add_argument("--output", default=None,
                         help="Percorso JSON di output")
     args = parser.parse_args(argv)
 
+    jsonbin_report = None
+    resolved_ref = args.git_ref
+    main_at = None
+    if args.jsonbin_get:
+        from fetch_jsonbin_match import fetch_latest, report_schalke_bayern
+        jsonbin_report = report_schalke_bayern(fetch_latest())
+        rows = jsonbin_report.get("schalke_bayern") or []
+        if rows and not args.salvato_il:
+            raw = (rows[0].get("salvato_il_utc")
+                   or rows[0].get("salvato_il_raw"))
+            if raw:
+                args.salvato_il = raw
+
+    if args.salvato_il:
+        ts = args.salvato_il
+        # Se e' italiano dd/mm/yyyy, converti via prediction_registry
+        if "/" in ts and "T" not in ts:
+            from prediction_registry import parse_datetime
+            dt = parse_datetime(ts)
+            if dt is not None:
+                ts = dt.astimezone(timezone.utc).isoformat()
+        main_at = main_head_at(ts)
+        if main_at.get("sha") and not resolved_ref:
+            resolved_ref = main_at["sha"]
+
     if args.all_candidates or (args.home == "Schalke" and args.away == "Bayern"):
-        payload = reconstruct_schalke_bayern(fetch_api=args.fetch_api)
+        payload = reconstruct_schalke_bayern(fetch_api=args.fetch_api, git_ref=resolved_ref)
     else:
         payload = {
-            "primary": reconstruct_match(args.home, args.away, args.league),
+            "primary": reconstruct_match(
+                args.home, args.away, args.league, git_ref=resolved_ref,
+            ),
             "all_name_candidates": [],
             "api_fetch": try_fetch_api_names(args.league, args.home, args.away) if args.fetch_api
             else {"attempted": False},
         }
+    payload["jsonbin_get"] = jsonbin_report
+    payload["main_head_at_salvato_il"] = main_at
+    payload["git_ref_requested"] = args.git_ref
+    payload["git_ref_used"] = resolved_ref
+    if args.scan_data_refs:
+        payload["data_ref_scan"] = reconstruct_at_data_refs(
+            DATA_REF_CANDIDATES, fetch_api=False,
+        )
     out = args.output or os.path.join(
         _AUDIT_DIR, "results", "schalke_bayern_921.json"
     )

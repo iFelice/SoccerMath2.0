@@ -1,0 +1,18 @@
+{
+  "ok": false,
+  "reason": "JSONBIN_API_KEY / JSONBIN_BIN_ID assenti (env, SoccerMath/.env o st.secrets). Nessuna GET eseguita.",
+  "http_status": null,
+  "n_records": 0,
+  "put_called": false,
+  "method": "GET",
+  "n_schalke_bayern": 0,
+  "n_schalke_bayern_92_1": 0,
+  "n_any_92_1": 0,
+  "schalke_bayern": [],
+  "any_92_1_preview": [],
+  "credentials": {
+    "api_key_present": false,
+    "bin_id_present": false
+  },
+  "fetched_at_utc": "2026-09-05T18:41:14.531884+00:00"
+}

@@ -101,15 +101,20 @@ class TestTrackingInspection(unittest.TestCase):
 
 
 class TestReadOnlyWorkflow(unittest.TestCase):
-    def test_github_action_is_read_only_and_skips_jsonbin(self):
+    def test_github_action_is_read_only(self):
         path = os.path.join(_REPO_ROOT, ".github", "workflows", "topmix_audit.yml")
         with open(path, encoding="utf-8") as f:
             src = f.read()
         self.assertIn("contents: read", src)
-        self.assertNotIn("JSONBIN", src)
         self.assertNotIn("contents: write", src)
         self.assertIn("upload-artifact", src)
         self.assertIn("--fetch-api", src)
+        # GET JSONBin consentita; PUT / --apply / --push-remote vietati.
+        self.assertNotIn("--apply", src)
+        self.assertNotIn("--push-remote", src)
+        self.assertNotIn("requests.put", src)
+        self.assertNotIn("method: PUT", src)
+        self.assertIn("--jsonbin-get", src)
 
 
 class TestSourceDoesNotWriteRemoteOnImport(unittest.TestCase):

@@ -23,6 +23,9 @@ from reconstruct_topmix_match import (  # noqa: E402
     SEVEN_MARKET_KEYS,
     apply_selector_A,
     apply_selector_B,
+    database_at_git_ref,
+    git_sha,
+    main_head_at,
     reconstruct_match,
     seven_markets,
     _FORBIDDEN_CALLS,
@@ -208,6 +211,38 @@ class TestSchalkeBayernProduction(unittest.TestCase):
             "Vittoria H", "Pareggio", "Vittoria A",
             "Over 2.5", "Under 2.5", "GG", "NG",
         })
+
+
+class TestHistoricalGitRef(unittest.TestCase):
+    """Ricostruzione su commit storico senza cambiare HEAD del working tree."""
+
+    def test_main_head_at_xg_commit(self):
+        info = main_head_at("2026-09-05T16:14:56+00:00")
+        self.assertTrue(info.get("sha", "").startswith("0695e9e"), info)
+
+    def test_database_at_ref_does_not_move_head(self):
+        import config
+        before = git_sha()
+        old_db = str(config.DATABASE_DIR)
+        with database_at_git_ref("0695e9e611e481d2a9f5648a3a9fcd4412f86070") as hist:
+            self.assertTrue(os.path.isdir(hist.db))
+            self.assertTrue(os.path.exists(os.path.join(hist.db, "xg_bundesliga.json")))
+            self.assertNotEqual(str(config.DATABASE_DIR), old_db)
+            rec = reconstruct_match("Schalke", "Bayern", "Bundesliga")
+            self.assertTrue(rec["ok"], rec.get("error"))
+            self.assertIsNotNone((rec.get("selector_A") or {}).get("prob_val"))
+        self.assertEqual(git_sha(), before)
+        self.assertEqual(str(config.DATABASE_DIR), old_db)
+
+    def test_reconstruct_match_git_ref_kw(self):
+        before = git_sha()
+        rec = reconstruct_match(
+            "Schalke", "Bayern", "Bundesliga",
+            git_ref="0695e9e611e481d2a9f5648a3a9fcd4412f86070",
+        )
+        self.assertTrue(rec["ok"], rec.get("error"))
+        self.assertTrue(str(rec.get("snapshot_commit") or "").startswith("0695e9e"))
+        self.assertEqual(git_sha(), before)
 
 
 if __name__ == "__main__":
