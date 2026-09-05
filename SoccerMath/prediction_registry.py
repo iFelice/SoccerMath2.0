@@ -213,6 +213,103 @@ def parse_datetime(value: Any, default_tz: Any = TZ_ITALY) -> Optional[datetime]
     return None
 
 
+# Formati accettati dal parser di visualizzazione del Registro. L'italiano
+# "DD/MM/YYYY [HH:MM[:SS]]" e' il formato scritto da save_prediction_entry
+# (format_date_italy + strftime "%d/%m/%Y %H:%M"); i formati ISO sono presenti
+# nei record legacy e NON vengono migrati: vengono solo interpretati in lettura.
+REGISTRY_DATE_FORMATS = (
+    "%d/%m/%Y %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+    "%d/%m/%Y",
+    "%Y-%m-%dT%H:%M:%S.%f%z",
+    "%Y-%m-%dT%H:%M:%S%z",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%Y-%m-%d",
+)
+
+
+def _to_rome_naive(dt: datetime) -> datetime:
+    """Riporta un datetime a wall-clock Europe/Rome SENZA tzinfo.
+
+    - aware (es. ISO legacy ``...Z`` / ``...+00:00``): conversione reale in
+      Europe/Rome, poi rimozione del tzinfo;
+    - naive (formato italiano salvato dall'app): il valore e' gia' l'ora
+      legale italiana, quindi viene conservato cosi' com'e'.
+
+    Il risultato naive e' il tipo corretto per la colonna datetime di
+    ``st.dataframe``: le colonne naive vengono renderizzate esattamente col
+    loro wall-clock (nessuno shift sul fuso del browser) e l'ordinamento
+    manuale sull'intestazione resta cronologico.
+    """
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(TZ_ITALY)
+    return dt.replace(tzinfo=None)
+
+
+def parse_registry_display_datetime(value: Any) -> Optional[datetime]:
+    """Parser del campo ``data`` per la UI del Registro Predizioni.
+
+    Converte in un vero ``datetime`` naive espresso come wall-clock di
+    Europe/Rome, senza toccare i dati persistiti. Restituisce ``None`` per
+    valori mancanti o non validi (che diventano ``NaT`` nel dataframe).
+
+    Formati supportati:
+      - ``DD/MM/YYYY HH:MM`` e ``DD/MM/YYYY HH:MM:SS`` (formato standard del registro);
+      - ``DD/MM/YYYY`` (solo data -> mezzanotte);
+      - ISO 8601 legacy con o senza timezone (aware -> convertito in Europe/Rome);
+      - oggetti ``datetime`` / ``pandas.Timestamp`` gia' pronti;
+      - ``None`` / stringhe vuote / valori non parsabili -> ``None``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return _to_rome_naive(value)
+    if not isinstance(value, str):
+        # pd.Timestamp e' un sottoclass di datetime (gia' gestito sopra);
+        # qui si catturano al massimo wrapper esotici, altrimenti e' NaN/NaN-like.
+        to_py = getattr(value, "to_pydatetime", None)
+        if callable(to_py):
+            try:
+                dt = to_py()
+                if isinstance(dt, datetime):
+                    return _to_rome_naive(dt)
+            except Exception:
+                return None
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    for fmt in REGISTRY_DATE_FORMATS:
+        try:
+            return _to_rome_naive(datetime.strptime(text, fmt))
+        except (ValueError, TypeError):
+            continue
+    # Ultimo tentativo: ISO con varianti che strptime non copre
+    # (frazioni di secondo senza tz, offset ``Z``, ...).
+    try:
+        return _to_rome_naive(datetime.fromisoformat(text.replace("Z", "+00:00")))
+    except (ValueError, TypeError):
+        return None
+
+
+def build_registry_datetime_column(values: Any) -> Any:
+    """Converte la colonna ``data`` del Registro in una Series ``datetime64`` reale.
+
+    Gli elementi non validi diventano ``NaT``. pandas viene importato qui in
+    modo pigro per mantenere il resto del modulo importabile senza dipendenze
+    (il parser puro resta la fonte unica della logica di parsing).
+    """
+    import pandas as pd
+
+    # Nessun parse diretto di pd.to_datetime sulle stringhe: il parsing passa
+    # SOLO da parse_registry_display_datetime (giorno-prima, italiano) per non
+    # far inferire a pandas formati ambigui (es. 05/09 come maggio/settembre).
+    series = values if isinstance(values, pd.Series) else pd.Series(list(values), dtype=object)
+    return pd.to_datetime(series.map(parse_registry_display_datetime))
+
+
 def normalize_season(season: Any) -> str:
     """Normalizza le stringhe di stagione (2026/2027, 2026/27, 26/27 etc.)."""
     if season is None:
