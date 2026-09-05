@@ -36,6 +36,23 @@ Sicurezza scritture
 - ``--push-remote`` e' l'unico percorso che tocca JSONBin e ABORTISCE se non
   riesce prima a salvare un backup integrale del bin remoto.
 
+Protezione dalle race condition
+-------------------------------
+L'app puo' aggiungere predizioni mentre la migrazione e' in corso. Per non
+sovrascrivere scritture concorrenti:
+
+1. la PRIMA GET remota produce uno ``RemoteSnapshot`` IMMUTABILE, con
+   fingerprint SHA-256 della serializzazione canonica;
+2. il backup e' scritto ESATTAMENTE da quello snapshot (nessuna seconda GET,
+   quindi backup e dati migrati non possono divergere);
+3. la migrazione e' calcolata SOLO dallo snapshot;
+4. immediatamente prima della PUT viene eseguita una GET di sola verifica;
+5. se il contenuto canonico differisce anche per un solo campo, l'operazione
+   ABORTISCE senza alcuna PUT (exit code 3) e il backup viene conservato.
+
+Il confronto e' sul contenuto completo canonicalizzato: il numero di record
+NON e' mai usato come unico criterio.
+
 Il cutoff e' derivato dal repository Git, non inventato:
   - commit fix:  ae8784d643575593f77241c54a1930e7bd48145f (2026-09-04 15:40:10 UTC)
   - merge main:  dc192d5eaa36968380f8bde823ca1abe9792e65d (2026-09-04 16:50:17 UTC)
@@ -46,13 +63,15 @@ come AMBIGUE e non vengono taggate automaticamente.
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import json
 import subprocess
 import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SOCCERMATH_DIR = _REPO_ROOT / "SoccerMath"
@@ -85,6 +104,111 @@ from prediction_registry import (  # noqa: E402
 
 JSONBIN_READ_URL = "https://api.jsonbin.io/v3/b/{bin_id}/latest"
 JSONBIN_WRITE_URL = "https://api.jsonbin.io/v3/b/{bin_id}"
+
+REMOTE_CHANGED_MESSAGE = (
+    "Remote registry changed since read; migration aborted. Run dry-run again."
+)
+
+
+# ---------------------------------------------------------------------------
+# Snapshot immutabile + fingerprint canonico (anti race-condition)
+# ---------------------------------------------------------------------------
+def canonical_payload(records: List[Dict]) -> str:
+    """Serializzazione canonica e deterministica del registro.
+
+    Proprieta' necessarie per un confronto affidabile:
+      - ``sort_keys=True``: l'ordine delle chiavi in un dict JSON non e'
+        semanticamente rilevante, quindi non deve generare falsi positivi;
+      - ``ensure_ascii=False``: i nomi squadra accentati restano stabili;
+      - separatori compatti: nessuna differenza dovuta a indentazione;
+      - l'ORDINE DELLE ENTRY nella lista viene invece preservato: un
+        riordino e' una modifica reale del registro e deve far abortire.
+
+    Il confronto e' sul CONTENUTO COMPLETO: qualunque campo aggiunto,
+    rimosso o modificato cambia la stringa (e quindi il fingerprint).
+    """
+    return json.dumps(records, sort_keys=True, ensure_ascii=False,
+                      separators=(",", ":"))
+
+
+def fingerprint(records: List[Dict]) -> str:
+    """SHA-256 della serializzazione canonica del registro."""
+    return hashlib.sha256(canonical_payload(records).encode("utf-8")).hexdigest()
+
+
+class RemoteChangedError(RuntimeError):
+    """Il registro remoto e' cambiato tra la lettura e la scrittura."""
+
+
+class RemoteSnapshot:
+    """Fotografia IMMUTABILE del registro remoto a un dato istante.
+
+    Tutto il flusso di migrazione (report, backup, calcolo dei tag, PUT) deve
+    derivare da questo unico oggetto: non si esegue una seconda GET per
+    ricavare i dati, ma solo per VERIFICARE che il remoto non sia cambiato.
+
+    ``records`` restituisce sempre una deep copy: nessun chiamante puo'
+    mutare lo snapshot, nemmeno per errore.
+    """
+
+    __slots__ = ("_records", "_fingerprint", "_taken_at", "_label")
+
+    def __init__(self, records: List[Dict], label: str = ""):
+        # Deep copy in ingresso: lo snapshot non condivide struttura con il
+        # chiamante, quindi mutazioni esterne non lo alterano.
+        self._records: List[Dict] = copy.deepcopy(list(records))
+        self._fingerprint: str = fingerprint(self._records)
+        self._taken_at: datetime = datetime.now()
+        self._label: str = label
+
+    @property
+    def records(self) -> List[Dict]:
+        """Deep copy dei record: lo snapshot resta immutabile."""
+        return copy.deepcopy(self._records)
+
+    @property
+    def fingerprint(self) -> str:
+        return self._fingerprint
+
+    @property
+    def count(self) -> int:
+        return len(self._records)
+
+    @property
+    def taken_at(self) -> datetime:
+        return self._taken_at
+
+    @property
+    def label(self) -> str:
+        return self._label
+
+    def matches(self, other_records: List[Dict]) -> bool:
+        """True solo se il contenuto canonico coincide byte per byte.
+
+        NON usa il numero di record come criterio: due registri con lo stesso
+        numero di entry ma contenuto diverso hanno fingerprint diversi.
+        """
+        return fingerprint(list(other_records)) == self._fingerprint
+
+    def diff_summary(self, other_records: List[Dict]) -> str:
+        """Descrizione sintetica della differenza, per il messaggio di abort."""
+        other = list(other_records)
+        if len(other) != self.count:
+            delta = len(other) - self.count
+            return (f"numero entry {self.count} -> {len(other)} "
+                    f"({delta:+d})")
+        # Stesso numero di record: individuo gli indici con contenuto diverso.
+        changed = [
+            i for i, (a, b) in enumerate(zip(self._records, other))
+            if json.dumps(a, sort_keys=True, ensure_ascii=False) !=
+               json.dumps(b, sort_keys=True, ensure_ascii=False)
+        ]
+        if changed:
+            preview = ", ".join(str(i) for i in changed[:5])
+            more = f" (+{len(changed) - 5} altri)" if len(changed) > 5 else ""
+            return (f"stesso numero di entry ({self.count}) ma contenuto "
+                    f"diverso agli indici: {preview}{more}")
+        return "differenza non localizzata (ordine o codifica)"
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +268,10 @@ def _require_remote_config() -> None:
 def _fetch_remote_records(timeout: int = 15) -> Tuple[List[Dict], str]:
     """GET in sola lettura del registro JSONBin. Nessuna scrittura.
 
+    Ogni chiamata esegue una GET REALE e restituisce lo stato corrente del
+    bin: e' il mattone usato sia per creare lo snapshot iniziale sia per la
+    ri-verifica immediatamente precedente alla PUT.
+
     Solleva RuntimeError con messaggio esplicito se la lettura fallisce: il
     dry-run sul registro reale non deve MAI degradare silenziosamente a 0 entry.
     """
@@ -172,34 +300,40 @@ def _fetch_remote_records(timeout: int = 15) -> Tuple[List[Dict], str]:
     return records, f"JSONBin {JSONBIN_BIN_ID} (sola lettura)"
 
 
-def _load_source(args) -> Tuple[List[Dict], str, str]:
-    """Carica i record dalla fonte richiesta.
+def _load_source(args) -> Tuple[RemoteSnapshot, str, str]:
+    """Carica i record dalla fonte richiesta come snapshot immutabile.
 
-    Ritorna (records, label, mode) dove mode e' 'local', 'remote' o 'source'.
+    Ritorna (snapshot, label, mode) dove mode e' 'local', 'remote' o 'source'.
+    Anche le fonti locali vengono congelate in uno snapshot, cosi' il resto del
+    flusso ha un solo tipo da gestire; la ri-verifica pre-PUT si applica pero'
+    unicamente alla modalita' 'remote'.
     """
     if getattr(args, "source", None):
         p = Path(args.source)
         if not p.exists():
             raise FileNotFoundError(f"Fonte non trovata: {p}")
-        return load_predictions_file(p), str(p), "source"
+        return RemoteSnapshot(load_predictions_file(p), str(p)), str(p), "source"
 
     # --remote: registro REALE, precedenza identica ad app.load_predictions().
+    # Questa e' LA PRIMA GET: il suo risultato diventa lo snapshot immutabile.
     if getattr(args, "remote", False):
-        records, label = _fetch_remote_records()
-        return records, label, "remote"
+        snap = fetch_remote_snapshot()
+        return snap, snap.label, "remote"
 
     local = Path(PREDICTIONS_FILE)
     if local.exists():
-        return load_predictions_file(local), str(local), "local"
+        return (RemoteSnapshot(load_predictions_file(local), str(local)),
+                str(local), "local")
 
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         try:
-            records, label = _fetch_remote_records()
-            return records, label, "remote"
+            snap = fetch_remote_snapshot()
+            return snap, snap.label, "remote"
         except RuntimeError as exc:
             print(f"[WARN] {exc}", file=sys.stderr)
 
-    return [], "(nessun file locale e nessun JSONBin leggibile)", "remote"
+    return (RemoteSnapshot([], "(vuoto)"),
+            "(nessun file locale e nessun JSONBin leggibile)", "remote")
 
 
 # ---------------------------------------------------------------------------
@@ -211,17 +345,62 @@ def _default_backup_path(ts: Optional[datetime] = None) -> Path:
     return Path(PREDICTIONS_FILE).with_name(f"predictions_jsonbin_{stamp}.json.bak")
 
 
-def backup_remote_registry(dest: Optional[Path] = None) -> Tuple[Path, int]:
-    """Scarica il bin e ne salva una copia integrale su file locale.
+def fetch_remote_snapshot(label: Optional[str] = None) -> RemoteSnapshot:
+    """Esegue LA PRIMA GET e ne congela il risultato in uno snapshot immutabile."""
+    records, auto_label = _fetch_remote_records()
+    return RemoteSnapshot(records, label or auto_label)
 
-    Esegue SOLO una GET verso JSONBin. Ritorna (path, n_entry).
+
+def backup_snapshot(snapshot: RemoteSnapshot, dest: Optional[Path] = None) -> Tuple[Path, int]:
+    """Salva su file il backup ESATTAMENTE dallo snapshot fornito.
+
+    Non esegue alcuna GET: il backup e' per costruzione identico ai dati su
+    cui e' calcolata la migrazione, quindi non puo' divergere per effetto di
+    una scrittura concorrente dell'app.
+
+    Il fingerprint dello snapshot viene riscritto accanto al backup (file
+    ``<backup>.sha256``) per poterne verificare l'integrita' a posteriori.
     """
-    records, _ = _fetch_remote_records()
+    records = snapshot.records
     path = Path(dest) if dest else _default_backup_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump({"data": records}, fh, ensure_ascii=False, indent=2)
+    path.with_suffix(path.suffix + ".sha256").write_text(
+        f"{snapshot.fingerprint}  {path.name}\n", encoding="utf-8"
+    )
     return path, len(records)
+
+
+def backup_remote_registry(dest: Optional[Path] = None) -> Tuple[Path, int]:
+    """Preflight standalone: GET del bin + backup integrale su file locale.
+
+    Usato solo da ``--verify-backup`` quando non esiste gia' uno snapshot di
+    migrazione. Nel percorso di ``--apply --push-remote`` il backup viene
+    invece prodotto da ``backup_snapshot()`` sullo snapshot originale.
+    """
+    return backup_snapshot(fetch_remote_snapshot(), dest)
+
+
+def assert_remote_unchanged(snapshot: RemoteSnapshot) -> List[Dict]:
+    """Ri-legge il bin e ABORTISCE se differisce dallo snapshot originale.
+
+    Va chiamata IMMEDIATAMENTE prima della PUT: e' la finestra piu' stretta
+    ottenibile senza supporto server-side per il compare-and-swap (JSONBin
+    non espone ETag/If-Match sul path v3/b/{id}).
+
+    Ritorna i record correnti se identici; altrimenti solleva
+    RemoteChangedError senza che alcuna scrittura sia stata tentata.
+    """
+    current, _ = _fetch_remote_records()
+    if not snapshot.matches(current):
+        raise RemoteChangedError(
+            f"{REMOTE_CHANGED_MESSAGE}\n"
+            f"  fingerprint atteso : {snapshot.fingerprint}\n"
+            f"  fingerprint attuale: {fingerprint(list(current))}\n"
+            f"  differenza         : {snapshot.diff_summary(current)}"
+        )
+    return current
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +417,8 @@ def _fmt_utc(dt: Optional[datetime]) -> str:
 
 
 def _report(records: List[Dict], source_label: str, mode: str, apply: bool,
-            explain_match: Optional[str] = None) -> Dict[str, object]:
+            explain_match: Optional[str] = None,
+            snapshot: Optional[RemoteSnapshot] = None) -> Dict[str, object]:
     total = len(records)
     counters: Counter = Counter()
     times: List[datetime] = []
@@ -268,6 +448,10 @@ def _report(records: List[Dict], source_label: str, mode: str, apply: bool,
     print("=" * 78)
     print(f"Fonte          : {source_label}")
     print(f"Modalita'      : {'APPLICAZIONE' if apply else 'DRY RUN (nessuna modifica, solo GET)'}")
+    if snapshot is not None:
+        print(f"Snapshot preso : {snapshot.taken_at:%Y-%m-%d %H:%M:%S}"
+              f"  ({snapshot.count} entry)")
+        print(f"Fingerprint    : sha256:{snapshot.fingerprint}")
     print(f"Commit fix     : {CUTOFF_COMMIT_SHORT} {CUTOFF_COMMIT}  ({CUTOFF_COMMIT_TIME:%Y-%m-%d %H:%M:%S} UTC)")
     print(f"  {CUTOFF_COMMIT_MESSAGE}")
     print(f"Merge in main  : {CUTOFF_MERGE_COMMIT_SHORT} {CUTOFF_MERGE_COMMIT}  ({CUTOFF_MERGE_TIME:%Y-%m-%d %H:%M:%S} UTC)")
@@ -379,23 +563,38 @@ def _explain(records: List[Dict], needle: str) -> None:
 # ---------------------------------------------------------------------------
 # Apply
 # ---------------------------------------------------------------------------
-def _apply(records: List[Dict], output: Path, push_remote: bool,
-           remote_backup: Optional[Path] = None) -> Tuple[int, int, Optional[Path], Optional[Path]]:
-    """Applica la migrazione locale. Il remoto non viene mai toccato senza flag.
+def build_migration(records: List[Dict]) -> Tuple[List[Dict], int, int]:
+    """Calcola il registro migrato. Funzione pura: nessun I/O, nessuna GET.
 
-    Con ``push_remote`` viene PRIMA salvato un backup integrale del bin: se il
-    backup fallisce, la PUT non parte.
+    Il tagging dipende solo da stagione/timestamp/model_version
+    (``should_tag_pre_fix``): probabilita' ed esito non vengono mai letti.
     """
+    migrated: List[Dict] = []
     changed = 0
     kept = 0
-    migrated_records: List[Dict] = []
     for entry in records:
         if should_tag_pre_fix(entry):
-            migrated_records.append(tag_pre_fix(entry))
+            migrated.append(tag_pre_fix(entry))
             changed += 1
         else:
-            migrated_records.append(entry)
+            migrated.append(entry)
             kept += 1
+    return migrated, changed, kept
+
+
+def _apply(snapshot: RemoteSnapshot, output: Path, push_remote: bool,
+           remote_backup: Optional[Path] = None) -> Tuple[int, int, Optional[Path], Optional[Path]]:
+    """Applica la migrazione a partire da uno snapshot IMMUTABILE.
+
+    Sequenza anti race-condition:
+      1. lo snapshot proviene dalla PRIMA e UNICA GET di lettura dati;
+      2. il backup e' scritto ESATTAMENTE da quello snapshot (nessuna GET);
+      3. la migrazione e' calcolata SOLO dallo snapshot;
+      4. subito prima della PUT viene rifatta una GET di sola verifica;
+      5. se il contenuto canonico differisce -> abort, nessuna PUT;
+      6. il backup resta su disco anche in caso di abort.
+    """
+    migrated_records, changed, kept = build_migration(snapshot.records)
 
     backup = backup_prediction_file(output) if output.exists() else None
     write_predictions_file(output, migrated_records)
@@ -403,9 +602,18 @@ def _apply(records: List[Dict], output: Path, push_remote: bool,
     remote_backup_path: Optional[Path] = None
     if push_remote:
         _require_remote_config()
-        # SICUREZZA: nessuna scrittura remota senza backup integrale riuscito.
-        remote_backup_path, n_backup = backup_remote_registry(remote_backup)
+        # (2) Backup dallo snapshot originale, NON da una nuova GET: cosi' il
+        # punto di ripristino combacia con i dati usati per la migrazione.
+        remote_backup_path, n_backup = backup_snapshot(snapshot, remote_backup)
         print(f"[SAFE] Backup remoto salvato: {remote_backup_path} ({n_backup} entry)")
+        print(f"[SAFE] Fingerprint snapshot : {snapshot.fingerprint}")
+
+        # (4) Ultima verifica prima di scrivere. Se il registro e' cambiato,
+        # RemoteChangedError esce di qui SENZA che la PUT venga tentata.
+        print("[SAFE] Ri-verifica del registro remoto prima della PUT...")
+        assert_remote_unchanged(snapshot)
+        print("[SAFE] Registro remoto invariato: PUT consentita.")
+
         import requests
         resp = requests.put(
             JSONBIN_WRITE_URL.format(bin_id=JSONBIN_BIN_ID),
@@ -460,12 +668,12 @@ def main(argv=None) -> int:
             return 0
 
     try:
-        records, source_label, mode = _load_source(args)
+        snapshot, source_label, mode = _load_source(args)
     except (RuntimeError, FileNotFoundError) as exc:
         print(f"[ERRORE] {exc}", file=sys.stderr)
         return 2
 
-    if args.remote and not records:
+    if args.remote and not snapshot.count:
         print("[ERRORE] Registro remoto vuoto o non leggibile: dry-run non significativo.",
               file=sys.stderr)
         return 2
@@ -475,10 +683,16 @@ def main(argv=None) -> int:
         if not output.exists() and source_label != str(Path(PREDICTIONS_FILE)):
             print(f"[INFO] Il registro locale non esiste: verra' creato {output} "
                   f"(nessuna sovrascrittura remota).")
-        changed, kept, backup, remote_backup = _apply(
-            records, output, args.push_remote,
-            Path(args.backup_path) if args.backup_path else None,
-        )
+        try:
+            changed, kept, backup, remote_backup = _apply(
+                snapshot, output, args.push_remote,
+                Path(args.backup_path) if args.backup_path else None,
+            )
+        except RemoteChangedError as exc:
+            print(f"[ABORT] {exc}", file=sys.stderr)
+            print("[ABORT] Nessuna PUT eseguita. Il backup dello snapshot iniziale "
+                  "e' stato conservato.", file=sys.stderr)
+            return 3
         print(f"[APPLY] {changed} record taggati pre_shrinkage; {kept} invariati.")
         print(f"[APPLY] Backup locale: {backup}")
         print(f"[APPLY] Output locale: {output}")
@@ -487,7 +701,8 @@ def main(argv=None) -> int:
         else:
             print("[APPLY] JSONBin NON aggiornato: verificare il file locale prima del push.")
     else:
-        _report(records, source_label, mode, apply=False, explain_match=args.explain_match)
+        _report(snapshot.records, source_label, mode, apply=False,
+                explain_match=args.explain_match, snapshot=snapshot)
 
     return 0
 

@@ -210,7 +210,78 @@ GET /v3/b/mockbin123/latest
 - ❌ Nessun `predictions.json` creato o ripristinato nel working tree
 - ❌ Nessuna modifica a risultati, probabilità, esiti, date o altri campi
 
-## 9. Comando da eseguire in ambiente autorizzato
+## 9. Race condition tra lettura e scrittura — corretta
+
+### Il difetto
+
+Nella versione precedente il backup eseguiva una **propria GET**, indipendente
+dalla lettura su cui era calcolata la migrazione:
+
+```
+GET #1  -> registro A          # dati su cui si calcola la migrazione
+                               # ← l'app salva una nuova predizione: A diventa B
+GET #2  -> registro B          # backup (dentro backup_remote_registry)
+PUT     <- migrazione(A)       # sovrascrive B, la predizione nuova è persa
+```
+
+Due conseguenze: la scrittura concorrente veniva **persa**, e il backup non
+corrispondeva ai dati migrati (era `B`, la migrazione derivava da `A`).
+
+### La correzione
+
+```
+GET #1  -> snapshot IMMUTABILE A + fingerprint sha256
+backup  <- scritto ESATTAMENTE da A          (nessuna GET)
+migraz. <- calcolata SOLO da A               (funzione pura)
+GET #2  -> verifica: contenuto ancora == A ?
+            ├─ sì  -> PUT consentita
+            └─ no  -> ABORT, nessuna PUT, backup conservato
+```
+
+- `RemoteSnapshot` congela i dati con deep copy in ingresso **e** in uscita:
+  nessun chiamante può mutarlo, nemmeno per errore.
+- `fingerprint()` = SHA-256 di una serializzazione **canonica**
+  (`sort_keys=True`, separatori compatti, `ensure_ascii=False`).
+- `assert_remote_unchanged()` viene invocata **immediatamente prima** della PUT
+  e solleva `RemoteChangedError` con il messaggio richiesto:
+  `Remote registry changed since read; migration aborted. Run dry-run again.`
+- Exit code dedicato **3** per l'abort (distinto da `2` = errore di lettura).
+- Il backup ha un sidecar `.sha256` per verificarne l'integrità a posteriori.
+
+Il confronto è sul **contenuto completo canonicalizzato**: il numero di record
+non è mai il criterio. Un riordino delle entry è trattato come modifica reale
+(fa abortire), mentre un diverso ordine delle *chiavi* dentro un dict non
+genera falsi positivi.
+
+⚠️ Resta una finestra teorica tra la GET di verifica e la PUT: JSONBin non
+espone ETag/`If-Match` sul path `v3/b/{id}`, quindi un compare-and-swap
+atomico lato server non è ottenibile. La finestra è ridotta al minimo
+possibile; in caso di collisione il backup consente il ripristino integrale.
+
+### Test
+
+`audit/test_migration_race_condition.py` — **25 test**, rete completamente
+sostituita da un doppio (`FakeBin`) che registra ogni richiesta:
+
+| Scenario richiesto | Esito |
+|---|---|
+| 1. remoto invariato → scrittura consentita | ✅ 1 PUT, 2 tag applicati |
+| 2. nuova predizione tra GET e PUT → abort | ✅ 0 PUT, entry concorrente salva |
+| 3. modifica di una predizione esistente → abort | ✅ 0 PUT, esito reale preservato |
+| 4. stesso numero di record, contenuto diverso → abort | ✅ 0 PUT, rilevato da fingerprint |
+| 5. backup identico allo snapshot iniziale | ✅ anche quando il remoto è già mutato |
+| 6. in caso di abort nessuna PUT | ✅ solo `["GET", "GET"]`, exit code 3 |
+
+Test aggiuntivi: immutabilità dello snapshot, il conteggio non è il criterio,
+il riordino è rilevato, l'ordine delle chiavi non è un falso positivo, il
+dry-run esegue una sola GET e zero PUT, e il tagging resta indipendente da
+probabilità ed esito (sweep su `0.1 … 100.0%` e su tutti gli esiti).
+
+**Validazione dei test stessi:** reintroducendo artificialmente la race nel
+codice, **10 dei 25 test falliscono**; ripristinando la correzione tornano
+tutti verdi. I test descrivono quindi un comportamento reale, non tautologico.
+
+## 10. Comando da eseguire in ambiente autorizzato
 
 ```bash
 export JSONBIN_API_KEY='<master key>'
