@@ -42,11 +42,12 @@ class TestTrackingInspection(unittest.TestCase):
         self.assertTrue(d["early_return"])
         self.assertIn("match_id", d["source"])
 
-    def test_tipo_collapses_billy_into_analisi(self):
+    def test_tipo_collapses_billy_into_analisi_but_origin_is_now_explicit(self):
         tipo = self.facts["tipo_classification"]
         self.assertIn("Top Mix", tipo["rule"])
         self.assertIn("Analisi", tipo["rule"])
         self.assertFalse(tipo["billy_tipo_esplicito"])
+        self.assertTrue(tipo["origin_field_present"])
 
     def test_cache_is_30_minutes_and_nullary(self):
         cache = self.facts["top_mix_cache"]
@@ -82,14 +83,16 @@ class TestTrackingInspection(unittest.TestCase):
         self.assertFalse(self.verdict["can_measure_top_mix_in_isolation"])
         ids = {p["id"] for p in self.verdict["problems"]}
         self.assertIn("dedup_match_id", ids)
-        self.assertIn("origin_collapsed", ids)
         self.assertIn("cache_30min", ids)
         self.assertIn("jsonbin_unchecked", ids)
         self.assertIn("schema_gaps", ids)
+        self.assertNotIn("origin_collapsed", ids)
 
-    def test_schema_gaps_include_rank_origin_calculation_id(self):
+    def test_schema_gap_reduced_but_rank_kickoff_still_missing(self):
         missing = set(self.facts["missing_from_save"])
-        for field in ("calculation_id", "origin", "selector_version", "rank"):
+        for field in ("calculation_id", "origin", "selector_version", "data_snapshot_sha", "poisson", "elo", "position"):
+            self.assertNotIn(field, missing)
+        for field in ("rank", "kickoff_utc"):
             self.assertIn(field, missing)
 
     def test_registry_module_has_model_version_not_origin(self):
