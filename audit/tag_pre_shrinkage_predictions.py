@@ -66,8 +66,10 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -113,10 +115,68 @@ REMOTE_CHANGED_MESSAGE = (
 # ---------------------------------------------------------------------------
 # Snapshot immutabile + fingerprint canonico (anti race-condition)
 # ---------------------------------------------------------------------------
+def _canonical_number(value: Any) -> Any:
+    """Normalizza int/float JSON-logicamente equivalenti a una forma unica.
+
+    JSON non distingue fra intero e decimale: ``1``, ``1.0`` e ``1.00`` sono
+    lo stesso valore logico e vengono parsati in Python come ``int`` o
+    ``float`` a seconda della sola forma testuale. Senza normalizzazione una
+    riscrittura innocua del bin (o un serializzatore diverso lato app)
+    produrrebbe un fingerprint diverso e quindi un ABORT SPURIO.
+
+    Regole:
+      - float con parte frazionaria nulla e finito -> int equivalente
+        (``1.0`` -> ``1``, ``-0.0`` -> ``0``);
+      - float con parte frazionaria -> invariato (``1.01`` resta ``1.01``);
+      - ``nan`` / ``inf`` -> marcatore testuale (non rappresentabili in JSON
+        standard, ma tollerati da ``json.loads``);
+      - i ``bool`` NON passano di qui: sono gestiti prima, perche' in Python
+        ``True == 1`` e ``isinstance(True, int)`` e' vero. ``true`` e ``1``
+        devono restare DISTINTI.
+    """
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            return f"__nonfinite__:{value!r}"
+        if value.is_integer():
+            # int(-0.0) == 0: la normalizzazione unifica anche lo zero negativo.
+            return int(value)
+        return value
+    return value
+
+
+def _canonicalize(node: Any) -> Any:
+    """Riscrive ricorsivamente la struttura in forma canonica.
+
+    L'ordine delle chiavi dei dict non viene toccato qui: se ne occupa
+    ``sort_keys=True`` in fase di dump. L'ordine degli elementi delle liste
+    e' invece preservato, perche' un riordino delle entry del registro e'
+    una modifica reale.
+    """
+    # bool PRIMA di int/float: in Python bool e' sottoclasse di int, quindi
+    # senza questo ramo True verrebbe normalizzato a 1 e "true" risulterebbe
+    # uguale a "1". Il tipo viene marcato esplicitamente per tenerli distinti.
+    if isinstance(node, bool):
+        return f"__bool__:{node}"
+    if isinstance(node, (int, float)):
+        return _canonical_number(node)
+    if isinstance(node, dict):
+        return {k: _canonicalize(v) for k, v in node.items()}
+    if isinstance(node, (list, tuple)):
+        return [_canonicalize(v) for v in node]
+    return node
+
+
 def canonical_payload(records: List[Dict]) -> str:
     """Serializzazione canonica e deterministica del registro.
 
+    Il confronto avviene SEMPRE sulla struttura JSON gia' parsata, mai sul
+    body HTTP grezzo: spaziatura, indentazione, ordine delle chiavi e forma
+    testuale dei numeri non devono influenzare l'esito.
+
     Proprieta' necessarie per un confronto affidabile:
+      - normalizzazione numerica: ``1``, ``1.0`` e ``1.00`` collassano sullo
+        stesso valore, evitando abort spuri;
+      - i ``bool`` restano distinti dai numeri (``true`` != ``1``);
       - ``sort_keys=True``: l'ordine delle chiavi in un dict JSON non e'
         semanticamente rilevante, quindi non deve generare falsi positivi;
       - ``ensure_ascii=False``: i nomi squadra accentati restano stabili;
@@ -127,8 +187,8 @@ def canonical_payload(records: List[Dict]) -> str:
     Il confronto e' sul CONTENUTO COMPLETO: qualunque campo aggiunto,
     rimosso o modificato cambia la stringa (e quindi il fingerprint).
     """
-    return json.dumps(records, sort_keys=True, ensure_ascii=False,
-                      separators=(",", ":"))
+    return json.dumps(_canonicalize(records), sort_keys=True,
+                      ensure_ascii=False, separators=(",", ":"))
 
 
 def fingerprint(records: List[Dict]) -> str:
@@ -198,10 +258,12 @@ class RemoteSnapshot:
             return (f"numero entry {self.count} -> {len(other)} "
                     f"({delta:+d})")
         # Stesso numero di record: individuo gli indici con contenuto diverso.
+        # Il confronto per-entry usa la STESSA canonicalizzazione del
+        # fingerprint, altrimenti il riepilogo potrebbe segnalare differenze
+        # (es. 1 vs 1.0) che non hanno fatto scattare l'abort.
         changed = [
             i for i, (a, b) in enumerate(zip(self._records, other))
-            if json.dumps(a, sort_keys=True, ensure_ascii=False) !=
-               json.dumps(b, sort_keys=True, ensure_ascii=False)
+            if canonical_payload([a]) != canonical_payload([b])
         ]
         if changed:
             preview = ", ".join(str(i) for i in changed[:5])
@@ -563,6 +625,31 @@ def _explain(records: List[Dict], needle: str) -> None:
 # ---------------------------------------------------------------------------
 # Apply
 # ---------------------------------------------------------------------------
+def write_predictions_file_atomic(path: Path, records: List[Dict]) -> Path:
+    """Scrive il registro in modo atomico: file temporaneo + ``os.replace``.
+
+    Evita che un'interruzione a meta' scrittura lasci un ``predictions.json``
+    troncato: finche' il rename non avviene, il file originale resta intatto.
+    Il temporaneo e' creato nella stessa directory perche' ``os.replace`` e'
+    atomico solo all'interno dello stesso filesystem.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent),
+                                    prefix=f".{path.name}.", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump({"data": list(records)}, fh, ensure_ascii=False, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    return path
+
+
 def build_migration(records: List[Dict]) -> Tuple[List[Dict], int, int]:
     """Calcola il registro migrato. Funzione pura: nessun I/O, nessuna GET.
 
@@ -593,11 +680,17 @@ def _apply(snapshot: RemoteSnapshot, output: Path, push_remote: bool,
       4. subito prima della PUT viene rifatta una GET di sola verifica;
       5. se il contenuto canonico differisce -> abort, nessuna PUT;
       6. il backup resta su disco anche in caso di abort.
+
+    Ordine delle scritture con ``push_remote=True``
+    ----------------------------------------------
+    La scrittura del file locale e' RIMANDATA a dopo la verifica remota. In
+    caso di abort il registro locale non deve restare derivato da uno
+    snapshot ormai stale: l'app lo userebbe come fallback di
+    ``load_predictions()`` e mostrerebbe dati incoerenti col remoto.
+    Quindi: nessun file creato se non esisteva, e file preesistente
+    bit-per-bit invariato.
     """
     migrated_records, changed, kept = build_migration(snapshot.records)
-
-    backup = backup_prediction_file(output) if output.exists() else None
-    write_predictions_file(output, migrated_records)
 
     remote_backup_path: Optional[Path] = None
     if push_remote:
@@ -608,8 +701,9 @@ def _apply(snapshot: RemoteSnapshot, output: Path, push_remote: bool,
         print(f"[SAFE] Backup remoto salvato: {remote_backup_path} ({n_backup} entry)")
         print(f"[SAFE] Fingerprint snapshot : {snapshot.fingerprint}")
 
-        # (4) Ultima verifica prima di scrivere. Se il registro e' cambiato,
-        # RemoteChangedError esce di qui SENZA che la PUT venga tentata.
+        # (4) Ultima verifica PRIMA di toccare qualsiasi cosa (locale o
+        # remota). Se il registro e' cambiato, RemoteChangedError esce di qui
+        # senza PUT e senza aver modificato il file locale.
         print("[SAFE] Ri-verifica del registro remoto prima della PUT...")
         assert_remote_unchanged(snapshot)
         print("[SAFE] Registro remoto invariato: PUT consentita.")
@@ -626,6 +720,12 @@ def _apply(snapshot: RemoteSnapshot, output: Path, push_remote: bool,
                 f"PUT JSONBin fallita: HTTP {resp.status_code} {resp.text[:200]}. "
                 f"Backup integrale disponibile in {remote_backup_path}"
             )
+
+    # Scrittura locale: senza --push-remote avviene subito (unico effetto
+    # dell'operazione); con --push-remote solo dopo che la PUT e' riuscita.
+    backup = backup_prediction_file(output) if output.exists() else None
+    write_predictions_file_atomic(output, migrated_records)
+
     return changed, kept, backup, remote_backup_path
 
 

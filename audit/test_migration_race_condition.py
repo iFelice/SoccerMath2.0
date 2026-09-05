@@ -485,6 +485,260 @@ class TestSnapshotImmutability(RaceConditionTestCase):
 
 
 # ---------------------------------------------------------------------------
+# Canonicalizzazione numerica del fingerprint
+# ---------------------------------------------------------------------------
+class TestNumericCanonicalization(unittest.TestCase):
+    """JSON non distingue 1 da 1.0: non devono generare abort spuri.
+
+    Il confronto avviene sempre sulla struttura parsata, mai sul body HTTP
+    grezzo, quindi spaziatura e forma testuale dei numeri sono irrilevanti.
+    """
+
+    def assertSameFingerprint(self, a, b, msg=""):
+        self.assertEqual(mig.fingerprint(a), mig.fingerprint(b), msg)
+
+    def assertDifferentFingerprint(self, a, b, msg=""):
+        self.assertNotEqual(mig.fingerprint(a), mig.fingerprint(b), msg)
+
+    # -- equivalenze numeriche ---------------------------------------------
+    def test_int_and_float_are_equivalent(self):
+        self.assertSameFingerprint([{"giornata": 1}], [{"giornata": 1.0}],
+                                   "1 e 1.0 sono lo stesso valore JSON")
+
+    def test_trailing_zeros_are_equivalent(self):
+        """``1.00`` parsato da JSON deve coincidere con ``1``."""
+        parsed = json.loads('[{"giornata": 1.00}]')
+        self.assertSameFingerprint([{"giornata": 1}], parsed)
+
+    def test_exponent_notation_is_equivalent(self):
+        parsed = json.loads('[{"v": 1e2}]')
+        self.assertSameFingerprint([{"v": 100}], parsed)
+
+    def test_probability_trailing_zero_is_equivalent(self):
+        """Caso realistico: prob_sicuro 99.8 riscritto come 99.80."""
+        parsed = json.loads('[{"prob_sicuro": 99.80}]')
+        self.assertSameFingerprint([{"prob_sicuro": 99.8}], parsed)
+
+    def test_negative_zero_equals_zero(self):
+        self.assertSameFingerprint([{"v": -0.0}], [{"v": 0}])
+
+    def test_nested_numbers_are_normalized(self):
+        self.assertSameFingerprint([{"top3": {"odds": [1, 2]}}],
+                                   [{"top3": {"odds": [1.0, 2.0]}}])
+
+    def test_whole_registry_reserialization_is_stable(self):
+        """Un round-trip JSON del registro non cambia il fingerprint."""
+        reparsed = json.loads(json.dumps(BASE_REGISTRY))
+        self.assertSameFingerprint(BASE_REGISTRY, reparsed)
+
+    # -- distinzioni che devono restare -------------------------------------
+    def test_true_is_not_one(self):
+        self.assertDifferentFingerprint([{"v": True}], [{"v": 1}],
+                                        "true non e' 1")
+
+    def test_false_is_not_zero(self):
+        self.assertDifferentFingerprint([{"v": False}], [{"v": 0}],
+                                        "false non e' 0")
+
+    def test_true_is_not_one_point_zero(self):
+        self.assertDifferentFingerprint([{"v": True}], [{"v": 1.0}])
+
+    def test_bool_field_realistic(self):
+        """excluded_from_current_model_stats: False non deve valere 0."""
+        self.assertDifferentFingerprint(
+            [{"excluded_from_current_model_stats": False}],
+            [{"excluded_from_current_model_stats": 0}])
+
+    def test_real_numeric_change_is_detected(self):
+        self.assertDifferentFingerprint([{"v": 1.0}], [{"v": 1.01}],
+                                        "1.0 e 1.01 sono valori diversi")
+
+    def test_string_number_is_not_number(self):
+        self.assertDifferentFingerprint([{"v": "1"}], [{"v": 1}])
+
+    def test_none_is_not_zero(self):
+        self.assertDifferentFingerprint([{"v": None}], [{"v": 0}])
+
+    def test_key_order_is_irrelevant(self):
+        self.assertSameFingerprint([{"a": 1, "b": 2}], [{"b": 2, "a": 1}])
+
+    def test_entry_order_is_relevant(self):
+        self.assertDifferentFingerprint([{"a": 1}, {"b": 2}],
+                                        [{"b": 2}, {"a": 1}])
+
+    # -- integrazione: nessun abort spurio ----------------------------------
+    def test_int_float_rewrite_does_not_abort(self):
+        """Se il bin riscrive 1 come 1.0, la PUT deve restare consentita."""
+        original = [_entry("A", "B", "04/09/2026 17:35", prob=70)]
+        snap = mig.RemoteSnapshot(original, "test")
+        rewritten = json.loads(json.dumps(original).replace('"giornata": 3',
+                                                            '"giornata": 3.0'))
+        self.assertTrue(snap.matches(rewritten),
+                        "una riscrittura numerica equivalente non deve abortire")
+
+
+class TestNumericCanonicalizationNoSpuriousAbort(RaceConditionTestCase):
+
+    def test_put_allowed_when_remote_reserializes_numbers(self):
+        """Il remoto restituisce gli stessi dati con int al posto di float."""
+        original = [
+            _entry("Man City", "Coventry City", "04/09/2026 17:35", prob=99.8,
+                   giornata=3),
+        ]
+
+        def reserialize(state):
+            # Stesso valore logico, forma diversa: 3 -> 3.0
+            for e in state:
+                e["giornata"] = float(e["giornata"])
+            return state
+
+        fake = FakeBin(original, mutate_after_reads=1, mutation=reserialize)
+        self.wire(fake)
+        out, bak = self.paths()
+
+        snapshot = mig.fetch_remote_snapshot()
+        changed, kept, _, _ = mig._apply(snapshot, out, push_remote=True,
+                                         remote_backup=bak)
+        self.assertEqual(len(fake.puts), 1,
+                         "nessun abort spurio per 3 vs 3.0")
+        self.assertEqual(changed, 1)
+
+
+# ---------------------------------------------------------------------------
+# Nessun file locale stale dopo un abort remoto
+# ---------------------------------------------------------------------------
+class TestNoStaleLocalFileOnAbort(RaceConditionTestCase):
+    """Se la PUT viene abortita, il registro locale non deve restare
+    derivato dallo snapshot stale: l'app lo userebbe come fallback."""
+
+    def _abort_run(self, out: Path, bak: Path):
+        fake = FakeBin(
+            BASE_REGISTRY, mutate_after_reads=1,
+            mutation=lambda s: s + [_entry("Concorrente", "Scrittura",
+                                           "05/09/2026 12:00")])
+        self.wire(fake)
+        snapshot = mig.fetch_remote_snapshot()
+        with self.assertRaises(mig.RemoteChangedError):
+            mig._apply(snapshot, out, push_remote=True, remote_backup=bak)
+        return fake, snapshot
+
+    def test_no_local_file_created_when_none_existed(self):
+        out, bak = self.paths()
+        self.assertFalse(out.exists())
+        fake, _ = self._abort_run(out, bak)
+        self.assertEqual(len(fake.puts), 0)
+        self.assertFalse(out.exists(),
+                         "non deve essere creato un predictions.json stale")
+
+    def test_existing_local_file_is_byte_identical(self):
+        out, bak = self.paths()
+        original = json.dumps(
+            {"data": [{"home": "PRE", "away": "ESISTENTE",
+                       "salvato_il": "01/01/2026 10:00"}]},
+            ensure_ascii=False, indent=2)
+        out.write_text(original, encoding="utf-8")
+        before = out.read_bytes()
+
+        fake, _ = self._abort_run(out, bak)
+
+        self.assertEqual(len(fake.puts), 0)
+        self.assertEqual(out.read_bytes(), before,
+                         "il file locale preesistente deve restare identico")
+
+    def test_no_local_backup_side_effect_on_abort(self):
+        """L'abort non deve nemmeno lasciare backup locali .bak spuri."""
+        out, bak = self.paths()
+        out.write_text(json.dumps({"data": []}), encoding="utf-8")
+        self._abort_run(out, bak)
+        strays = [p for p in out.parent.glob("predictions*.json.bak")]
+        self.assertEqual(strays, [], f"backup locali inattesi: {strays}")
+
+    def test_no_temp_files_left_behind(self):
+        out, bak = self.paths()
+        self._abort_run(out, bak)
+        leftovers = [p.name for p in out.parent.glob(".*tmp*")]
+        self.assertEqual(leftovers, [], f"file temporanei residui: {leftovers}")
+
+    def test_remote_backup_is_kept_on_abort(self):
+        out, bak = self.paths()
+        _, snapshot = self._abort_run(out, bak)
+        self.assertTrue(bak.exists(), "il backup remoto va conservato")
+        saved = json.loads(bak.read_text(encoding="utf-8"))["data"]
+        self.assertEqual(mig.fingerprint(saved), snapshot.fingerprint)
+
+    def test_remote_state_unchanged_on_abort(self):
+        out, bak = self.paths()
+        fake, _ = self._abort_run(out, bak)
+        self.assertEqual(len(fake.state), 4, "la entry concorrente resta")
+        self.assertFalse(any("model_version" in e for e in fake.state))
+
+    def test_local_file_written_when_remote_unchanged(self):
+        """Controprova: senza collisione il file locale DEVE essere scritto."""
+        fake = FakeBin(BASE_REGISTRY)
+        self.wire(fake)
+        out, bak = self.paths()
+        snapshot = mig.fetch_remote_snapshot()
+        mig._apply(snapshot, out, push_remote=True, remote_backup=bak)
+
+        self.assertEqual(len(fake.puts), 1)
+        self.assertTrue(out.exists(), "a PUT riuscita il locale va aggiornato")
+        data = json.loads(out.read_text(encoding="utf-8"))["data"]
+        self.assertEqual(len(data), 3)
+
+    def test_local_write_still_happens_without_push_remote(self):
+        """Senza --push-remote la scrittura locale resta l'unico effetto."""
+        fake = FakeBin(BASE_REGISTRY)
+        self.wire(fake)
+        out, bak = self.paths()
+        snapshot = mig.fetch_remote_snapshot()
+        mig._apply(snapshot, out, push_remote=False)
+
+        self.assertEqual(len(fake.puts), 0)
+        self.assertTrue(out.exists())
+        self.assertEqual(len(json.loads(out.read_text())["data"]), 3)
+
+    def test_cli_abort_leaves_no_stale_local_file(self):
+        fake = FakeBin(
+            BASE_REGISTRY, mutate_after_reads=1,
+            mutation=lambda s: s + [_entry("X", "Y", "05/09/2026 12:00")])
+        self.wire(fake)
+        out, bak = self.paths()
+        rc = mig.main(["--remote", "--apply", "--push-remote",
+                       "--output", str(out), "--backup-path", str(bak)])
+        self.assertEqual(rc, 3)
+        self.assertEqual(len(fake.puts), 0)
+        self.assertFalse(out.exists(),
+                         "la CLI non deve lasciare un registro locale stale")
+        self.assertTrue(bak.exists())
+
+
+class TestAtomicLocalWrite(RaceConditionTestCase):
+
+    def test_atomic_write_replaces_content(self):
+        out, _ = self.paths()
+        mig.write_predictions_file_atomic(out, [{"a": 1}])
+        self.assertEqual(json.loads(out.read_text())["data"], [{"a": 1}])
+        mig.write_predictions_file_atomic(out, [{"b": 2}])
+        self.assertEqual(json.loads(out.read_text())["data"], [{"b": 2}])
+
+    def test_failed_write_leaves_original_intact(self):
+        """Se la serializzazione fallisce, il file originale non cambia."""
+        out, _ = self.paths()
+        mig.write_predictions_file_atomic(out, [{"ok": 1}])
+        before = out.read_bytes()
+
+        class Unserializable:
+            pass
+
+        with self.assertRaises(TypeError):
+            mig.write_predictions_file_atomic(out, [{"bad": Unserializable()}])
+
+        self.assertEqual(out.read_bytes(), before)
+        self.assertEqual([p.name for p in out.parent.glob(".*tmp*")], [],
+                         "nessun temporaneo deve restare")
+
+
+# ---------------------------------------------------------------------------
 # Il tagging non dipende da probabilita'/esito
 # ---------------------------------------------------------------------------
 class TestTaggingIgnoresProbabilityAndOutcome(unittest.TestCase):

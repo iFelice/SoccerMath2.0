@@ -281,6 +281,42 @@ probabilità ed esito (sweep su `0.1 … 100.0%` e su tutti gli esiti).
 codice, **10 dei 25 test falliscono**; ripristinando la correzione tornano
 tutti verdi. I test descrivono quindi un comportamento reale, non tautologico.
 
+### Rifiniture successive
+
+**a) Canonicalizzazione numerica.** JSON non distingue `1` da `1.0`: la stessa
+predizione riscritta dal bin (o serializzata diversamente dall'app) produceva
+fingerprint diversi e quindi un **abort spurio**. `canonical_payload()` ora
+normalizza i numeri prima del dump — i float con parte frazionaria nulla
+collassano sull'intero equivalente (`1.0`→`1`, `1e2`→`100`, `-0.0`→`0`), mentre
+i valori realmente diversi (`1.0` vs `1.01`) restano distinti.
+
+I `bool` sono gestiti **prima** di int/float e marcati esplicitamente: in Python
+`isinstance(True, int)` è vero e `True == 1`, quindi senza quel ramo `true`
+risulterebbe uguale a `1`. Restano distinti anche `false`/`0`, `"1"`/`1` e
+`null`/`0`. Il confronto avviene sempre sulla struttura **parsata**, mai sul
+body HTTP grezzo.
+
+**b) Nessun file locale stale dopo un abort.** `_apply()` scriveva
+`predictions.json` *prima* di `assert_remote_unchanged()`. In caso di
+collisione la PUT veniva correttamente abortita, ma sul disco restava un
+registro derivato dallo snapshot ormai vecchio — che l'app avrebbe poi usato
+come fallback di `load_predictions()`, mostrando dati incoerenti col remoto.
+
+La scrittura locale è ora **rimandata a dopo** la verifica remota (e dopo la
+PUT). In caso di abort: nessun file creato se non esisteva, file preesistente
+**identico bit-per-bit**, nessun `.bak` locale spurio, backup remoto dello
+snapshot comunque conservato. Senza `--push-remote` il comportamento non
+cambia: la scrittura locale resta l'unico effetto.
+
+La scrittura usa `write_predictions_file_atomic()` (file temporaneo +
+`os.fsync` + `os.replace`): un'interruzione a metà non può lasciare un
+`predictions.json` troncato, e in caso di errore il temporaneo viene rimosso.
+
+**Test:** la suite sale a **54 test**. Validazione anti-tautologica ripetuta
+per entrambe le correzioni — revertendo la sola canonicalizzazione numerica
+falliscono **7** test, revertendo il solo ordine di scrittura ne falliscono
+**4**; con entrambe le correzioni la suite è verde.
+
 ## 10. Comando da eseguire in ambiente autorizzato
 
 ```bash
