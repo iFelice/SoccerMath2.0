@@ -846,8 +846,13 @@ class TestLiveEngineIntegration(unittest.TestCase):
     def test_engine_resolves_every_published_team(self):
         """Ogni squadra del file xG deve esistere fra le chiavi dell'engine
         (nomi canonici) e il record deve avere un 'matches' > 0."""
-        import app
-        from scraper_xg import get_understat_xg
+        try:
+            import app
+            from scraper_xg import get_understat_xg
+        except ImportError as exc:
+            # ambienti minimi (es. il workflow di verifica) non installano
+            # streamlit: il test dell'engine live non e' eseguibile.
+            self.skipTest(f"dipendenze dell'app non disponibili: {exc}")
         for league in LEAGUES:
             xg = get_understat_xg(league)
             self.assertIsNotNone(xg, league)

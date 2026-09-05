@@ -5,9 +5,9 @@ name: Verifica pipeline xG (solo lettura)
 #
 # Che cosa NON fa, per costruzione:
 #   * nessun commit e nessun push (permissions: contents: read);
-#   * non scrive dentro SoccerMath/database (l'output va in $RUNNER_TEMP) e uno
-#     step finale verifica che i file committati siano rimasti byte per byte
-#     identici;
+#   * non scrive dentro SoccerMath/database: l'output va in una cartella di
+#     lavoro non versionata (xg-verify-out/) e uno step finale verifica che i
+#     file committati siano rimasti identici;
 #   * non tocca main e non parla con JSONBin (nessun segreto usato).
 #
 # Serve a dimostrare su dati veri cio' che i test offline non possono provare:
@@ -50,6 +50,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    env:
+      # cartella di lavoro non versionata: la verifica non scrive mai dentro
+      # SoccerMath/database ne' in audit/results
+      VERIFY_DIR: ${{ github.workspace }}/xg-verify-out
+
     steps:
       - name: Checkout del branch
         uses: actions/checkout@v4
@@ -70,14 +75,11 @@ jobs:
           print("soccerdata installato:", version("soccerdata"))
           PY
 
-      - name: Test offline della pipeline
-        run: |
-          python -m pytest SoccerMath/test_xg_pipeline.py -q
-
       - name: Prepara le cartelle temporanee
-        run: |
-          echo "VERIFY_DIR=$RUNNER_TEMP/xg-verify" >> "$GITHUB_ENV"
-          mkdir -p "$RUNNER_TEMP/xg-verify/database" "$RUNNER_TEMP/xg-verify/reports"
+        run: mkdir -p "$VERIFY_DIR/database" "$VERIFY_DIR/reports"
+
+      - name: Test offline della pipeline
+        run: python -m pytest SoccerMath/test_xg_pipeline.py -q
 
       # 1. Acquisizione REALE. L'output va nella cartella temporanea, ma il
       #    confronto con l'ultimo snapshot valido usa i dati committati
@@ -99,14 +101,15 @@ jobs:
             --database-dir "$VERIFY_DIR/database" \
             --report "$VERIFY_DIR/reports/derivazione.json"
 
-      # 3. Audit dei nomi sui dati appena scaricati, confrontati con i CSV
-      #    committati e con le medie di riferimento in main.
+      # 3. Audit dei nomi sui dati appena scaricati, confrontati con i CSV e
+      #    con le medie xG committate nel repository (baseline-ref vuoto: il
+      #    checkout della CI e' superficiale e non contiene origin/main).
       - name: Audit nomi e confronto medie
         run: |
           python audit/xg_pipeline_audit.py \
             --database-dir "$VERIFY_DIR/database" \
             --results-dir "$VERIFY_DIR/reports" \
-            --baseline-ref origin/main
+            --baseline-ref ""
 
       - name: Riepilogo nel summary del run
         if: always()
@@ -130,6 +133,11 @@ jobs:
             echo "::error::la modalita' verifica ha modificato file committati"
             exit 1
           fi
+          if [ -n "$(git status --porcelain -- SoccerMath/database audit/results)" ]; then
+            echo "::error::file nuovi comparsi nelle cartelle dei dati committati"
+            git status --porcelain -- SoccerMath/database audit/results
+            exit 1
+          fi
           echo "Nessun file committato modificato."
 
       - name: Pubblica i report come artifact
@@ -138,7 +146,7 @@ jobs:
         with:
           name: xg-verify-${{ github.run_id }}
           path: |
-            ${{ env.VERIFY_DIR }}/reports/
-            ${{ env.VERIFY_DIR }}/database/
+            xg-verify-out/reports/
+            xg-verify-out/database/
           if-no-files-found: warn
           retention-days: 14
