@@ -15833,11 +15833,11 @@
     "date": "2026-09-05 18:45:00",
     "home_team": "Le Havre",
     "away_team": "Brest",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 2,
+    "home_xg": 1.61083,
+    "away_xg": 3.01175,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15845,11 +15845,11 @@
     "date": "2026-09-05 15:15:00",
     "home_team": "Lens",
     "away_team": "Lorient",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 1,
+    "home_xg": 1.10048,
+    "away_xg": 1.03397,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15857,11 +15857,11 @@
     "date": "2026-09-05 18:45:00",
     "home_team": "Nice",
     "away_team": "Le Mans",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 1,
+    "home_xg": 1.2469,
+    "away_xg": 1.17845,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15869,11 +15869,11 @@
     "date": "2026-09-06 15:15:00",
     "home_team": "Angers",
     "away_team": "Rennes",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 2,
+    "home_xg": 1.86719,
+    "away_xg": 2.37195,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15881,11 +15881,11 @@
     "date": "2026-09-06 18:45:00",
     "home_team": "Marseille",
     "away_team": "Paris FC",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 3,
+    "home_xg": 1.72315,
+    "away_xg": 3.37808,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15893,11 +15893,11 @@
     "date": "2026-09-06 13:00:00",
     "home_team": "Troyes",
     "away_team": "Strasbourg",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 6,
+    "home_xg": 2.64731,
+    "away_xg": 3.51582,
+    "is_result": true
   },
   {
     "season": 2026,

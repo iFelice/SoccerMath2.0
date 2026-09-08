@@ -14861,11 +14861,11 @@
     "date": "2026-09-05 16:30:00",
     "home_team": "Schalke 04",
     "away_team": "Bayern Munich",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 0,
+    "home_xg": 0.25073,
+    "away_xg": 2.0536,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -14885,11 +14885,11 @@
     "date": "2026-09-06 15:30:00",
     "home_team": "Eintracht Frankfurt",
     "away_team": "Augsburg",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 4,
+    "home_xg": 2.51037,
+    "away_xg": 1.44545,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -14897,11 +14897,11 @@
     "date": "2026-09-06 13:30:00",
     "home_team": "Hamburger SV",
     "away_team": "Mainz 05",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 5,
+    "home_xg": 0.257239,
+    "away_xg": 3.27983,
+    "is_result": true
   },
   {
     "season": 2026,

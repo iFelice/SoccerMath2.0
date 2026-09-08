@@ -1,13 +1,13 @@
 {
   "Arsenal": {
-    "xG_avg": 1.689,
-    "xGA_avg": 0.42,
-    "matches": 2
+    "xG_avg": 2.061,
+    "xGA_avg": 0.424,
+    "matches": 3
   },
   "Aston Villa": {
-    "xG_avg": 0.279,
-    "xGA_avg": 2.764,
-    "matches": 2
+    "xG_avg": 0.731,
+    "xGA_avg": 2.113,
+    "matches": 3
   },
   "Bournemouth": {
     "xG_avg": 1.535,
@@ -15,9 +15,9 @@
     "matches": 3
   },
   "Brentford": {
-    "xG_avg": 2.827,
-    "xGA_avg": 0.953,
-    "matches": 2
+    "xG_avg": 2.414,
+    "xGA_avg": 1.354,
+    "matches": 3
   },
   "Brighton": {
     "xG_avg": 2.672,
@@ -25,34 +25,34 @@
     "matches": 3
   },
   "Chelsea": {
-    "xG_avg": 3.206,
-    "xGA_avg": 1.604,
-    "matches": 2
+    "xG_avg": 2.281,
+    "xGA_avg": 2.005,
+    "matches": 3
   },
   "Coventry City": {
-    "xG_avg": 0.87,
-    "xGA_avg": 1.157,
-    "matches": 2
+    "xG_avg": 1.078,
+    "xGA_avg": 1.501,
+    "matches": 3
   },
   "Crystal Palace": {
-    "xG_avg": 1.579,
-    "xGA_avg": 2.009,
-    "matches": 2
+    "xG_avg": 1.839,
+    "xGA_avg": 2.3,
+    "matches": 3
   },
   "Everton": {
-    "xG_avg": 1.557,
-    "xGA_avg": 2.244,
-    "matches": 2
+    "xG_avg": 1.39,
+    "xGA_avg": 1.787,
+    "matches": 3
   },
   "Fulham": {
-    "xG_avg": 1.221,
-    "xGA_avg": 2.073,
-    "matches": 2
+    "xG_avg": 1.775,
+    "xGA_avg": 2.169,
+    "matches": 3
   },
   "Hull City": {
-    "xG_avg": 0.978,
-    "xGA_avg": 1.481,
-    "matches": 2
+    "xG_avg": 0.923,
+    "xGA_avg": 1.532,
+    "matches": 3
   },
   "Ipswich": {
     "xG_avg": 1.329,
@@ -70,14 +70,14 @@
     "matches": 3
   },
   "Man City": {
-    "xG_avg": 2.521,
-    "xGA_avg": 0.817,
-    "matches": 2
+    "xG_avg": 2.41,
+    "xGA_avg": 1.042,
+    "matches": 3
   },
   "Man United": {
-    "xG_avg": 3.322,
-    "xGA_avg": 1.651,
-    "matches": 2
+    "xG_avg": 2.506,
+    "xGA_avg": 1.453,
+    "matches": 3
   },
   "Newcastle": {
     "xG_avg": 1.125,
@@ -85,18 +85,18 @@
     "matches": 3
   },
   "Nott'm Forest": {
-    "xG_avg": 1.768,
-    "xGA_avg": 0.873,
-    "matches": 2
+    "xG_avg": 1.456,
+    "xGA_avg": 1.077,
+    "matches": 3
   },
   "Sunderland": {
-    "xG_avg": 1.37,
-    "xGA_avg": 1.304,
-    "matches": 2
+    "xG_avg": 1.632,
+    "xGA_avg": 1.398,
+    "matches": 3
   },
   "Tottenham": {
-    "xG_avg": 0.938,
-    "xGA_avg": 2.526,
-    "matches": 2
+    "xG_avg": 1.12,
+    "xGA_avg": 1.961,
+    "matches": 3
   }
 }
