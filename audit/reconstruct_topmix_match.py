@@ -90,8 +90,11 @@ _FORBIDDEN_CALLS = (
 OU_GG_MARKETS = ("Over 2.5", "Under 2.5", "GG", "NG")
 MIN_CONF_OU_GG = 0.60
 MIN_CONF_1X2 = 0.55
-POISSON_WEIGHT = 0.6
-ELO_WEIGHT = 0.4
+# Pesi del blend 1X2 del Top Mix: agganciati alla costante di produzione
+# app.ELO_ENSEMBLE_W (ensemble Poisson+Elo validato in
+# audit/diagnose_elo_ensemble.py), cosi' la ricostruzione non puo' divergere.
+POISSON_WEIGHT = float(_prod.ELO_ENSEMBLE_W)
+ELO_WEIGHT = 1.0 - POISSON_WEIGHT
 ELO_DISAGREE_MAX = 0.25
 TOP_N = 10
 TARGET_DISPLAY = 92.1

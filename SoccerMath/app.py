@@ -480,6 +480,43 @@ def _league_mean_gate(xg_data):
     return None, None
 
 
+# --- ENSEMBLE POISSON+ELO SULL'1X2 (leva validata in audit) ---
+# Peso della componente Poisson nell'ensemble 1X2. Scelto in
+# audit/diagnose_elo_ensemble.py (walk-forward no-leakage, 5 leghe,
+# VALIDATION 2024/25 + TEST 2025/26): Brier 1X2 0.5893 (solo Poisson) ->
+# 0.5830 con w=0.6, migliore tra tutti i pesi testati e mai peggiore del
+# solo Poisson in TEST. Lo stesso blend 0.6/0.4 era gia' usato come
+# confidence del Top Mix; da qui in avanti e' la probabilita' 1X2 mostrata.
+# L'ensemble tocca SOLO le probabilita' 1X2 finali: stats del motore
+# (att/def/att0/def0/att0_pure/def0_pure), Totali (O/U, GG/NG) e la
+# funzione get_full_poisson_two_heads restano bit-identici.
+ELO_ENSEMBLE_W = 0.6
+
+
+def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W):
+    """Ritorna una COPIA del dizionario Poisson con l'1X2 nella forma
+    ``w*Poisson + (1-w)*Elo`` (peso Poisson = ``ELO_ENSEMBLE_W``, validato
+    in audit/diagnose_elo_ensemble.py). I Totali (u15/u25/u35/gg) e ogni
+    altra chiave passano invariati. Se l'Elo non e' disponibile (errore del
+    motore) ritorna il Poisson puro bit-identico: il degrado e' sempre
+    controllato verso il comportamento pre-modifica.
+    """
+    out = dict(m)
+    try:
+        elo_p = predict_elo_probs(home, away, league)
+    except Exception:
+        return out
+    for k in ("1", "X", "2"):
+        try:
+            e = float(elo_p[k])
+        except (KeyError, TypeError, ValueError):
+            return dict(m)
+        if not np.isfinite(e) or e < 0:
+            return dict(m)
+        out[k] = w * float(m[k]) + (1.0 - w) * e
+    return out
+
+
 @st.cache_data(ttl=3600)
 def get_league_engine(camp_key):
     # I file (storici + base + live) vengono risolti in config: solo il pattern
@@ -1188,8 +1225,10 @@ def fetch_and_calc_top_mix():
                 confidence = poisson_prob
                 min_conf = 0.60
             else:
-                # Per 1X2: media armonica pesata (Elo ha peso 40%, Poisson 60%)
-                confidence = 0.6 * poisson_prob + 0.4 * elo_prob
+                # Per 1X2: media armonica pesata (stesso peso dell'ensemble
+                # ELO_ENSEMBLE_W: la confidence coincide con la probabilita'
+                # 1X2 ensemble usata ovunque)
+                confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
                 min_conf = 0.55
             
             # Filtro qualità: confidence minima e nessun disaccordo estremo
@@ -1216,6 +1255,9 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             match_date_str = format_date_italy(match['utcDate'], "%d/%m/%Y %H:%M")
             h_s, a_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0}), team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
             m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+            # 1X2 salvato = ensemble Poisson+Elo (w=ELO_ENSEMBLE_W); i Totali
+            # restano Poisson puro.
+            m = blend_elo_into_1x2(m, h, a, camp_sel)
             mercati = {f"Vittoria {h}": m["1"], "Pareggio": m["X"], f"Vittoria {a}": m["2"], "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"], "GG": m["gg"], "NG": 1 - m["gg"]}
             best_mkt = max(mercati, key=mercati.get)
             pron = f"{best_mkt} - {mercati[best_mkt]:.0%} - Poisson Auto"
@@ -1541,6 +1583,9 @@ with tab1:
             h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})
             a_s = team_stats.get(clean_name(a_api), {"att": 1.0, "def": 1.0})
             m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+            # 1X2 mostrato = ensemble Poisson+Elo (w=ELO_ENSEMBLE_W, validato
+            # in audit); Totali (u25/gg) restano Poisson puro.
+            m = blend_elo_into_1x2(m, h_api, a_api, camp_sel)
             with st.container():
                 st.markdown('<div class="match-card">', unsafe_allow_html=True)
                 c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])

@@ -75,7 +75,12 @@ class TestNoWriteSideEffects(unittest.TestCase):
 class TestProductionConstants(unittest.TestCase):
     def test_weights_and_thresholds_match_fetch_and_calc_top_mix(self):
         src = _app_topmix_source()
-        self.assertIn("0.6 * poisson_prob + 0.4 * elo_prob", src)
+        # la confidence 1X2 usa la costante condivisa dell'ensemble
+        self.assertIn(
+            "confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob",
+            src)
+        # semantica del peso: 0.6 Poisson / 0.4 Elo (audit elo_ensemble)
+        self.assertEqual(POISSON_WEIGHT, 0.6)
         # 0.60 nel file; ast.unparse lo rende 0.6
         self.assertTrue("min_conf = 0.60" in src or "min_conf = 0.6" in src)
         self.assertIn("min_conf = 0.55", src)

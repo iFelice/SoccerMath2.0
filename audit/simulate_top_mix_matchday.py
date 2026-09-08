@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "SoccerMath"))
 from datetime import datetime, timezone
 from config import clean_name
 from app import (get_league_engine, get_full_poisson_two_heads,
-                 select_next_matchday_matches)
+                 select_next_matchday_matches, ELO_ENSEMBLE_W)
 from models.elo_engine import predict_elo_probs
 
 FIXTURES_MD3 = [  # (utcDate, home football-data style, away)
@@ -64,7 +64,7 @@ for m in selected:
         confidence = poisson_prob
         min_conf = 0.60
     else:
-        confidence = 0.6 * poisson_prob + 0.4 * elo_prob
+        confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
         min_conf = 0.55
     if confidence >= min_conf and abs(poisson_prob - elo_prob) < 0.25:
         all_preds.append({"home": h, "away": a, "market": best_mkt,

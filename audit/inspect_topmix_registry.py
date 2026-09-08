@@ -246,7 +246,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "has_under_15": "Under 1.5" in src,
             "has_over_35": "Over 3.5" in src,
             "max_then_filter": "best_mkt = max(mercati" in src,
-            "elo_mix_1x2": "0.6 * poisson_prob + 0.4 * elo_prob" in src,
+            "elo_mix_1x2": "ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob" in src,
             # Il sorgente scrive 0.60; ast.unparse normalizza a 0.6.
             "min_conf_ou_gg": "min_conf = 0.60" in raw_src or "min_conf = 0.6" in src,
             "min_conf_1x2": "min_conf = 0.55" in src or "min_conf = 0.55" in raw_src,
