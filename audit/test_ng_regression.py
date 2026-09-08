@@ -223,10 +223,15 @@ class TestEngineXGPaths(unittest.TestCase):
 
     def test_missing_xg_fallback_shrunk_not_zero(self):
         """2) Squadra con xG MANCANTI (caso del bug): fallback gol con prior.
-        Coventry City: 0 gol in 2 partite -> att0_pure = 0.75 (non 0.0)."""
-        stats, avg_h, avg_a, _ = self._stats(dict(PL_STALE_XG))
-        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"], 0.75, places=6)
-        self.assertAlmostEqual(stats["Hull City"]["def0_pure"], 0.75, places=6)
+        L'atteso va derivato dal DB live corrente, non fissato a mano: con il
+        rollover dei dati le neopromosse possono avere 2, 3, ... partite."""
+        stats, avg_h, avg_a, df = self._stats(dict(PL_STALE_XG))
+        cov = df[(df["HomeClean"] == "Coventry City") | (df["AwayClean"] == "Coventry City")]
+        hull = df[(df["HomeClean"] == "Hull City") | (df["AwayClean"] == "Hull City")]
+        expected_cov_att = PRIOR_MATCHES / (len(cov) + PRIOR_MATCHES)  # 0 gol segnati
+        expected_hull_def = PRIOR_MATCHES / (len(hull) + PRIOR_MATCHES)  # 0 gol subiti
+        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"], expected_cov_att, places=6)
+        self.assertAlmostEqual(stats["Hull City"]["def0_pure"], expected_hull_def, places=6)
         self.assertGreater(stats["Hull City"]["att0_pure"], 0.5)
 
     def test_missing_xg_no_extreme_ng(self):
@@ -244,8 +249,10 @@ class TestEngineXGPaths(unittest.TestCase):
         si usa il fallback gol, NON lambda ~ 0."""
         xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
         xg["Coventry City"] = {"xG_avg": 0.0, "xGA_avg": 1.5}
-        stats, _, _, _ = self._stats(xg)
-        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"], 0.75, places=6)
+        stats, _, _, df = self._stats(xg)
+        cov = df[(df["HomeClean"] == "Coventry City") | (df["AwayClean"] == "Coventry City")]
+        expected_cov_att = PRIOR_MATCHES / (len(cov) + PRIOR_MATCHES)
+        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"], expected_cov_att, places=6)
 
     def test_zero_xg_with_matches_shrunk(self):
         """xG_avg = 0 autentico (0.00 xG in 2 partite, con 'matches'):

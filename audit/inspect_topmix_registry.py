@@ -155,15 +155,19 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
                             dedup["early_return"] = True
     facts["dedup_by_match_id"] = dedup
 
-    # --- tipo: Top Mix vs Analisi (Billy non ha un tipo proprio) ---
+    # --- tipo: Top Mix vs Analisi (il campo storico resta, ma puo' essere
+    #     affiancato da un origin esplicito per distinguere i flussi) ---
     tipo = {
         "field": "tipo",
         "top_mix_marker": "Top Mix" in (ast.unparse(save_entry) if save_entry else ""),
         "billy_tipo_esplicito": False,
         "fallback_label": "Analisi",
         "rule": None,
+        "origin_field_present": False,
     }
     if save_entry is not None:
+        src = ast.unparse(save_entry)
+        tipo["origin_field_present"] = '"origin"' in src or "'origin'" in src
         for node in ast.walk(save_entry):
             if isinstance(node, ast.IfExp):
                 text = ast.unparse(node)
@@ -181,6 +185,8 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "pronostico_sicuro", "mercato_standard", "top3", "prob_sicuro",
             "risultati_attesi", "risultato_reale", "esito", "tipo", "stagione",
             "salvato_il", "model_version", "excluded_from_current_model_stats",
+            "calculation_id", "origin", "selector_version", "data_snapshot_sha",
+            "poisson", "elo", "position",
         ):
             if f'"{field}"' in src or f"'{field}'" in src:
                 facts["new_entry_fields_in_save"].append(field)
@@ -294,14 +300,14 @@ def tracking_verdict(app_facts: Optional[Dict[str, Any]] = None) -> Dict[str, An
         })
 
     tipo = facts.get("tipo_classification") or {}
-    if tipo.get("rule") and not tipo.get("billy_tipo_esplicito"):
+    if tipo.get("rule") and not tipo.get("origin_field_present"):
         problems.append({
             "id": "origin_collapsed",
             "severity": "blocking",
             "summary": (
                 "Il campo tipo vale 'Top Mix' solo se la stringa 'Top Mix' compare "
-                "nel pronostico; altrimenti e' 'Analisi'. Billy e Analisi Rapida "
-                "non sono distinguibili da un tipo dedicato."
+                "nel pronostico; altrimenti e' 'Analisi'. Senza un campo origin "
+                "esplicito Billy e Analisi Rapida non sono distinguibili."
             ),
         })
 
