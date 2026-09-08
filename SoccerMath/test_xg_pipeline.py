@@ -42,8 +42,8 @@ from team_names import (  # noqa: E402
 )
 from xg_archive import (  # noqa: E402
     ARCHIVE_FILES, LEAGUES, aggregate_season, compare_snapshots, load_archive,
-    match_key, parse_kickoff, parse_season, parse_xg, season_averages,
-    validate_archive,
+    match_key, parse_kickoff, parse_season, parse_xg,
+    point_in_time_averages, season_averages, validate_archive,
 )
 
 DB_DIR = os.path.join(_HERE, "database")
@@ -1116,6 +1116,120 @@ class TestSnapshotDiff(unittest.TestCase):
                                  allow_dropping_seasons=True)
         self.assertEqual(len(diff.missing_finished), 1)
         self.assertTrue(diff.blocking_problems)
+
+
+# ---------------------------------------------------------------------------
+# Lookup point-in-time a finestra mobile (PT-19) con tetto di eta'
+# ---------------------------------------------------------------------------
+def pt_match(mid, date, home="TeamAlpha", away="TeamGamma",
+             home_xg=2.0, away_xg=1.0, season=2026, is_result=True):
+    return {"season": season, "id": mid, "date": date,
+            "home_team": home, "away_team": away,
+            "home_goals": 1, "away_goals": 0,
+            "home_xg": home_xg, "away_xg": away_xg, "is_result": is_result}
+
+
+class TestPointInTimeAverages(unittest.TestCase):
+    """PT-19: finestra trailing con tetto di eta' e minimo partite."""
+
+    CUTOFF = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+
+    def _records_alpha(self):
+        # 5 partite casalinghe di TeamAlpha a eta' crescente dal cutoff.
+        return [
+            pt_match(1, "2026-04-25 15:00:00", home_xg=3.0),   # ~6 giorni
+            pt_match(2, "2026-04-10 15:00:00", home_xg=2.0),   # ~21 giorni
+            pt_match(3, "2026-03-01 15:00:00", home_xg=1.0),   # ~61 giorni
+            pt_match(4, "2025-06-05 15:00:00", home_xg=5.0),   # ~330 giorni
+            pt_match(5, "2025-01-01 15:00:00", home_xg=9.0),   # ~485 giorni
+        ]
+
+    def _alpha(self, agg):
+        key = canonical_team_name("TeamAlpha")
+        return agg.averages.get(key)
+
+    def test_age_cap_drops_stale_matches(self):
+        agg = point_in_time_averages(
+            "Serie A", cutoff=self.CUTOFF, records=self._records_alpha(),
+            window=19, max_age_days=400.0, min_matches=2)
+        rec = self._alpha(agg)
+        self.assertIsNotNone(rec)
+        # la partita di 485 giorni fa e' scartata dal tetto di 400
+        self.assertEqual(rec["matches"], 4)
+        self.assertAlmostEqual(rec["xG_avg"], round((3 + 2 + 1 + 5) / 4, 3))
+
+    def test_no_cap_keeps_stale_matches(self):
+        agg = point_in_time_averages(
+            "Serie A", cutoff=self.CUTOFF, records=self._records_alpha(),
+            window=19, max_age_days=None, min_matches=2)
+        rec = self._alpha(agg)
+        self.assertEqual(rec["matches"], 5)
+        self.assertAlmostEqual(rec["xG_avg"], round((3 + 2 + 1 + 5 + 9) / 5, 3))
+
+    def test_window_limits_trailing_matches(self):
+        # finestra piccola: prende solo le ultime `window`, poi applica il tetto
+        agg = point_in_time_averages(
+            "Serie A", cutoff=self.CUTOFF, records=self._records_alpha(),
+            window=2, max_age_days=None, min_matches=1)
+        rec = self._alpha(agg)
+        self.assertEqual(rec["matches"], 2)
+        self.assertAlmostEqual(rec["xG_avg"], round((3.0 + 2.0) / 2, 3))
+
+    def test_insufficient_data_under_cap(self):
+        # TeamBeta ha solo partite piu' vecchie del tetto -> dato insufficiente
+        # (avversario TeamGamma per non toccare la finestra di TeamAlpha)
+        recs = self._records_alpha() + [
+            pt_match(10, "2024-01-01 15:00:00", home="TeamBeta",
+                     away="TeamGamma", home_xg=1.0, away_xg=1.0),
+        ]
+        agg = point_in_time_averages(
+            "Serie A", cutoff=self.CUTOFF, records=recs,
+            window=19, max_age_days=400.0, min_matches=2)
+        key = canonical_team_name("TeamBeta")
+        self.assertNotIn(key, agg.averages)
+        self.assertIn(key, agg.insufficient_data)
+
+    def test_cutoff_day_excluded(self):
+        # una partita nel GIORNO del cutoff non entra (previous_day)
+        recs = [pt_match(1, "2026-05-01 09:00:00", home_xg=7.0),
+                pt_match(2, "2026-04-30 15:00:00", home_xg=2.0)]
+        agg = point_in_time_averages(
+            "Serie A", cutoff=self.CUTOFF, records=recs,
+            window=19, max_age_days=None, min_matches=1)
+        rec = self._alpha(agg)
+        self.assertEqual(rec["matches"], 1)
+        self.assertAlmostEqual(rec["xG_avg"], 2.0)
+
+    def test_away_side_is_mirrored(self):
+        # TeamAlpha ospite: xG = away_xg, xGA = home_xg
+        recs = [pt_match(1, "2026-04-20 15:00:00", home="TeamBeta",
+                         away="TeamAlpha", home_xg=4.0, away_xg=1.5)]
+        agg = point_in_time_averages(
+            "Serie A", cutoff=self.CUTOFF, records=recs,
+            window=19, max_age_days=None, min_matches=1)
+        rec = self._alpha(agg)
+        self.assertAlmostEqual(rec["xG_avg"], 1.5)
+        self.assertAlmostEqual(rec["xGA_avg"], 4.0)
+
+    def test_unplayed_and_invalid_are_skipped(self):
+        recs = [pt_match(1, "2026-04-20 15:00:00", home_xg=2.0),
+                pt_match(2, "2026-04-18 15:00:00", is_result=False),
+                pt_match(3, "2026-04-16 15:00:00", home_xg=None)]
+        agg = point_in_time_averages(
+            "Serie A", cutoff=self.CUTOFF, records=recs,
+            window=19, max_age_days=None, min_matches=1)
+        rec = self._alpha(agg)
+        self.assertEqual(rec["matches"], 1)
+        self.assertAlmostEqual(rec["xG_avg"], 2.0)
+
+    def test_rejects_bad_parameters(self):
+        with self.assertRaises(ValueError):
+            point_in_time_averages("Serie A", records=[], window=0)
+        with self.assertRaises(ValueError):
+            point_in_time_averages("Serie A", records=[], window=3,
+                                   min_matches=5)
+        with self.assertRaises(ValueError):
+            point_in_time_averages("Serie A", records=[], max_age_days=-1)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,10 @@ except ImportError:
     Groq = None
 
 from scraper_xg import get_understat_xg, get_market_values
+from xg_archive import (
+    point_in_time_averages, PT_WINDOW_DEFAULT, PT_MAX_AGE_DAYS_DEFAULT,
+    PT_MIN_MATCHES_DEFAULT,
+)
 from models.elo_engine import get_current_elo, get_elo_leaderboard, predict_elo_probs, get_team_elo_history
 from models.dixon_coles import get_dixon_coles_matrix, predict_dixon_coles_probs, get_dixon_coles_team_strengths
 from models.backtest import run_backtest, compare_models_backtest, detect_value_bets
@@ -524,6 +528,34 @@ def get_league_engine(camp_key):
             if 0.5 < _m_xg < 5.0 and 0.5 < _m_xga < 5.0:
                 league_xg, league_xga = _m_xg, _m_xga
 
+    # --- FONTE POINT-IN-TIME PER LA TESTA TOTALI (PT-19 con tetto di eta') ---
+    # att0_pure/def0_pure (testa O/U2.5 e GG/NG) leggono le medie xG sulla
+    # finestra trailing di PT_WINDOW_DEFAULT partite dall'archivio per-partita,
+    # scartando le partite piu' vecchie di PT_MAX_AGE_DAYS_DEFAULT giorni
+    # (difetto dei gap da retrocessione: senza tetto la finestra pescava
+    # partite di due stagioni fa, verificate assenze di 453-813 giorni).
+    # Squadre con meno di PT_MIN_MATCHES_DEFAULT partite valide entro il tetto
+    # sono "dato insufficiente": per loro il ramo qui sotto usa il fallback
+    # gol con shrinkage, lo stesso dei casi a campione zero. La testa 1X2
+    # (att/def/att0/def0) NON usa questa fonte: resta sulla sorgente
+    # stagionale di get_understat_xg(), invariata.
+    # Se il lookup non e' disponibile (archivio assente, errore) il
+    # comportamento torna ESATTAMENTE quello precedente alla modifica.
+    pt_lookup = {}
+    pt_active = False
+    if league_xg and league_xga:
+        try:
+            pt_lookup = point_in_time_averages(
+                camp_key, cutoff=datetime.now(timezone.utc),
+                window=PT_WINDOW_DEFAULT,
+                max_age_days=PT_MAX_AGE_DAYS_DEFAULT,
+                min_matches=PT_MIN_MATCHES_DEFAULT,
+            ).averages
+            pt_active = True
+        except Exception as e:
+            logging.warning(f"Lookup point-in-time non disponibile per {camp_key}: {e}")
+            pt_lookup = {}
+
     # --- PRIOR EMPIRICO PER CAMPIONI PICCOLI (fix NG ~99.8%) ---
     # Il rapporto attacco/difesa usa lo shrinkage verso la media di lega
     # definito a livello di modulo (_shrunk_ratio, PRIOR_MATCHES): senza
@@ -563,21 +595,25 @@ def get_league_engine(camp_key):
                     att = xg_v / league_xg
                     defe = xga_v / league_xga
                 use_xg = True
+        # --- Fallback gol dal DB: rapporto pooled con shrinkage ---
+        # Gol osservati e gol attesi da una squadra "media di lega"
+        # (media casa in casa, media trasferta in trasferta), aggregati
+        # su entrambi i ruoli: un solo ratio stabile invece della media
+        # di ratio casa/trasferta separati (che con 1-2 partite e' rumore).
+        # Calcolato sempre: serve alla testa 1X2 quando manca l'xG E alla
+        # testa Totali quando il dato point-in-time e' insufficiente.
+        h_gf = h_h['FTHG'].dropna(); a_gf = a_h['FTAG'].dropna()
+        h_ga = h_h['FTAG'].dropna(); a_ga = a_h['FTHG'].dropna()
+        n_played = len(h_gf) + len(a_gf)
+        gf = float(h_gf.sum() + a_gf.sum())
+        ga = float(h_ga.sum() + a_ga.sum())
+        exp_gf = float(avg_h * len(h_gf) + avg_a * len(a_gf))
+        exp_ga = float(avg_a * len(h_ga) + avg_h * len(a_ga))
+        fb_att = _shrunk_ratio(gf, exp_gf, n_played)
+        fb_defe = _shrunk_ratio(ga, exp_ga, n_played)
         if not use_xg:
-            # --- Fallback gol dal DB: rapporto pooled con shrinkage ---
-            # Gol osservati e gol attesi da una squadra "media di lega"
-            # (media casa in casa, media trasferta in trasferta), aggregati
-            # su entrambi i ruoli: un solo ratio stabile invece della media
-            # di ratio casa/trasferta separati (che con 1-2 partite e' rumore).
-            h_gf = h_h['FTHG'].dropna(); a_gf = a_h['FTAG'].dropna()
-            h_ga = h_h['FTAG'].dropna(); a_ga = a_h['FTHG'].dropna()
-            n_played = len(h_gf) + len(a_gf)
-            gf = float(h_gf.sum() + a_gf.sum())
-            ga = float(h_ga.sum() + a_ga.sum())
-            exp_gf = float(avg_h * len(h_gf) + avg_a * len(a_gf))
-            exp_ga = float(avg_a * len(h_ga) + avg_h * len(a_ga))
-            att = _shrunk_ratio(gf, exp_gf, n_played)
-            defe = _shrunk_ratio(ga, exp_ga, n_played)
+            att = fb_att
+            defe = fb_defe
 
         # --- Sanitizzazione finale: nessun ratio non-finito o <= 0 puo'
         # raggiungere le lambda (att/def == 0 => lambda 0 => NG 99.8%).
@@ -585,15 +621,51 @@ def get_league_engine(camp_key):
             att = 1.0
         if not (np.isfinite(defe) and defe > 0):
             defe = 1.0
-        
-        # Baseline pura di lungo periodo (xG/gol storici puliti), SENZA forma:
-        # alimenta la testa Totali (O/U2.5 e GG/NG). Evidenza empirica su 5
-        # campionati (40 confronti, vedi audit/diagnose_form_totali.py e
-        # audit/results/form_totali_diagnosis.md): rimuovere la forma a 5 gare
-        # dai totali abbassa il Brier O/U2.5 da 0.2488 a 0.2401 e GG/NG da
-        # 0.2584 a 0.2496.
-        att0_pure = att
-        def0_pure = defe
+
+        # Baseline pura di lungo periodo, SENZA forma: alimenta la testa
+        # Totali (O/U2.5 e GG/NG). Evidenza empirica su 5 campionati
+        # (40 confronti, vedi audit/diagnose_form_totali.py e
+        # audit/results/form_totali_diagnosis.md): rimuovere la forma a 5
+        # gare dai totali abbassa il Brier O/U2.5 da 0.2488 a 0.2401 e GG/NG
+        # da 0.2584 a 0.2496.
+        # Fonte: lookup point-in-time PT-19 con tetto di eta' (v. sopra).
+        # Squadra con meno di PT_MIN_MATCHES_DEFAULT partite valide entro il
+        # tetto = "dato insufficiente": stesso trattamento del ramo a
+        # campione zero (fallback gol con shrinkage verso la media di lega).
+        # Se il lookup non e' disponibile, la baseline resta identica a
+        # quella precedente a questa modifica.
+        use_pt = False
+        if pt_active:
+            pt_rec = pt_lookup.get(t)
+            if isinstance(pt_rec, dict):
+                try:
+                    pt_xg_v = float(pt_rec.get('xG_avg'))
+                    pt_xga_v = float(pt_rec.get('xGA_avg'))
+                    pt_n = pt_rec.get('matches')
+                    pt_ok = (np.isfinite(pt_xg_v) and np.isfinite(pt_xga_v)
+                             and pt_xg_v >= 0 and pt_xga_v >= 0
+                             and isinstance(pt_n, (int, float))
+                             and not isinstance(pt_n, bool)
+                             and np.isfinite(float(pt_n)) and float(pt_n) > 0)
+                except (TypeError, ValueError):
+                    pt_ok = False
+                if pt_ok:
+                    att0_pure = _shrunk_ratio(pt_xg_v, league_xg, pt_n)
+                    def0_pure = _shrunk_ratio(pt_xga_v, league_xga, pt_n)
+                    use_pt = True
+        if not use_pt:
+            if pt_active:
+                # dato insufficiente entro il tetto: ramo a campione zero
+                att0_pure = fb_att
+                def0_pure = fb_defe
+            else:
+                # lookup non disponibile: comportamento pre-modifica
+                att0_pure = att
+                def0_pure = defe
+        if not (np.isfinite(att0_pure) and att0_pure > 0):
+            att0_pure = 1.0
+        if not (np.isfinite(def0_pure) and def0_pure > 0):
+            def0_pure = 1.0
 
         # La forma resta SOLO nella testa 1X2 (att/def): att0/def0 continuano a
         # includerla perche' fanno da ancora (S = base_h + base_a) alla

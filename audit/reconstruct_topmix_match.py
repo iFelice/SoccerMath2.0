@@ -60,6 +60,10 @@ from xg_archive import (  # noqa: E402
     parse_season,
     parse_xg,
     season_averages,
+    point_in_time_averages,
+    PT_WINDOW_DEFAULT,
+    PT_MAX_AGE_DAYS_DEFAULT,
+    PT_MIN_MATCHES_DEFAULT,
 )
 
 import app as _prod  # noqa: E402
@@ -712,6 +716,61 @@ def trace_team(
     if source == "unknown":
         source = "goals_fallback"
 
+    # --- Fonte point-in-time PT-19 (testa Totali: att0_pure/def0_pure) ---
+    # get_league_engine non legge piu' il file xG stagionale per la testa
+    # Totali: usa il lookup point-in-time con tetto di eta' (xg_archive).
+    # Il trace replica la stessa decisione (attivo solo con medie di lega
+    # disponibili; squadra senza dato sufficiente entro il tetto -> fallback
+    # gol; lookup non disponibile -> comportamento pre-modifica su att/def).
+    pt_trace: Optional[Dict[str, Any]] = None
+    pt_expected = None
+    if league_xg and league_xga:
+        try:
+            pt_lookup = point_in_time_averages(
+                league, cutoff=datetime.now(timezone.utc),
+                window=PT_WINDOW_DEFAULT,
+                max_age_days=PT_MAX_AGE_DAYS_DEFAULT,
+                min_matches=PT_MIN_MATCHES_DEFAULT,
+            ).averages
+            pt_active = True
+        except Exception as exc:  # archivio assente/errore -> pre-modifica
+            pt_lookup = {}
+            pt_active = False
+            pt_trace = {"pt_active": False, "error": str(exc)}
+        if pt_active:
+            rec = pt_lookup.get(canonical)
+            import numpy as np
+            use_pt = False
+            if isinstance(rec, dict):
+                try:
+                    _pxg = float(rec.get("xG_avg"))
+                    _pxga = float(rec.get("xGA_avg"))
+                    _pn = rec.get("matches")
+                    pt_ok = (np.isfinite(_pxg) and np.isfinite(_pxga)
+                             and _pxg >= 0 and _pxga >= 0
+                             and isinstance(_pn, (int, float))
+                             and not isinstance(_pn, bool)
+                             and np.isfinite(float(_pn)) and float(_pn) > 0)
+                except (TypeError, ValueError):
+                    pt_ok = False
+                if pt_ok:
+                    pt_expected = (
+                        float(_shrunk_ratio(_pxg, league_xg, _pn)),
+                        float(_shrunk_ratio(_pxga, league_xga, _pn)),
+                    )
+                    use_pt = True
+            if not use_pt:
+                # dato insufficiente entro il tetto -> ramo a campione zero
+                pt_expected = (goals["ratio_att_shrunk"],
+                               goals["ratio_def_shrunk"])
+            pt_trace = {
+                "pt_active": True,
+                "record": rec,
+                "used_pt": use_pt,
+                "expected_att0_pure": pt_expected[0],
+                "expected_def0_pure": pt_expected[1],
+            }
+
     form = _form_from_df(df, canonical, avg_h, avg_a)
     mkt_values = get_market_values()
     val = mkt_values.get(canonical, 50)
@@ -727,9 +786,19 @@ def trace_team(
     engine_att = stats.get("att") if isinstance(stats, dict) else None
     engine_def = stats.get("def") if isinstance(stats, dict) else None
 
-    # Verifica: att0_pure di produzione vs shrinkage tracciato.
+    # Verifica: att0_pure/def0_pure di produzione vs fonte tracciata.
+    # Con la fonte point-in-time attiva il confronto e' contro il valore PT
+    # atteso (o il fallback gol se il dato e' insufficiente); se il lookup
+    # non e' disponibile il comportamento e' quello pre-modifica (xG/fallback
+    # stagionali), quindi il confronto resta quello storico.
     match_pure = None
-    if shrinkage and engine_att0_pure is not None:
+    if pt_trace is not None and pt_trace.get("pt_active") and pt_expected is not None \
+            and engine_att0_pure is not None:
+        match_pure = (
+            math.isclose(engine_att0_pure, pt_expected[0], rel_tol=0, abs_tol=1e-9)
+            and math.isclose(engine_def0_pure, pt_expected[1], rel_tol=0, abs_tol=1e-9)
+        )
+    elif shrinkage and engine_att0_pure is not None:
         match_pure = (
             math.isclose(engine_att0_pure, shrinkage["ratio_att_shrunk"], rel_tol=0, abs_tol=1e-9)
             and math.isclose(engine_def0_pure, shrinkage["ratio_def_shrunk"], rel_tol=0, abs_tol=1e-9)
@@ -769,6 +838,7 @@ def trace_team(
         "strength_source": source,
         "shrinkage_xg": shrinkage,
         "goals_fallback": goals,
+        "point_in_time_totali": pt_trace,
         "form_last5": form,
         "market_value": {
             "canonical_key": canonical,

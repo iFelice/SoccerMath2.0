@@ -192,75 +192,154 @@ PL_STALE_XG = {k: v for k, v in _PL_XG_FILE.items()
                if k not in ("Coventry City", "Hull City")}
 
 
-class TestEngineXGPaths(unittest.TestCase):
-    """xG normali / mancanti / zero-anomali / NaN, sul database reale."""
+def _expected_goal_fallback(df, team, avg_h, avg_a):
+    """Il ramo fallback gol di get_league_engine (stesse identiche operazioni):
+    rapporto pooled casa+trasferta con shrinkage verso la media di lega."""
+    h_h = df[df["HomeClean"] == team]
+    a_h = df[df["AwayClean"] == team]
+    h_gf = h_h["FTHG"].dropna(); a_gf = a_h["FTAG"].dropna()
+    h_ga = h_h["FTAG"].dropna(); a_ga = a_h["FTHG"].dropna()
+    n_played = len(h_gf) + len(a_gf)
+    gf = float(h_gf.sum() + a_gf.sum())
+    ga = float(h_ga.sum() + a_ga.sum())
+    exp_gf = float(avg_h * len(h_gf) + avg_a * len(a_gf))
+    exp_ga = float(avg_a * len(h_ga) + avg_h * len(a_ga))
+    return (_shrunk_ratio(gf, exp_gf, n_played),
+            _shrunk_ratio(ga, exp_ga, n_played))
 
-    def _stats(self, patched_xg):
+
+class _PTStub:
+    """Esito minimo di xg_archive.point_in_time_averages (basta .averages)."""
+
+    def __init__(self, averages):
+        self.averages = averages
+
+
+class TestEngineXGPaths(unittest.TestCase):
+    """xG normali / mancanti / zero-anomali / NaN, sul database reale.
+
+    Dalla modifica PT-19 la testa Totali (att0_pure/def0_pure) legge il
+    lookup point-in-time ``point_in_time_averages`` invece del file xG
+    stagionale; la testa 1X2 (att/def/att0/def0) resta sul file xG. Questi
+    test fissano il nuovo contratto della fonte Totali, sorgente PT
+    controllata via mock:
+      a) PT con record valido      -> ratio PT con shrinkage (PRIOR_MATCHES);
+      b) PT senza la squadra       -> fallback gol con shrinkage (mai 0.0);
+      c) PT non disponibile        -> comportamento ESATTO pre-modifica.
+    """
+
+    def _stats(self, patched_xg, pt=None):
+        """pt: None = archivio reale; _PTStub = esito controllato;
+        Exception = lookup che fallisce (archivio non disponibile)."""
         with mock.patch.object(app, "get_understat_xg", return_value=patched_xg):
-            engine = _engine("Premier League")
+            if isinstance(pt, Exception):
+                with mock.patch.object(app, "point_in_time_averages",
+                                       side_effect=pt):
+                    engine = _engine("Premier League")
+            elif pt is not None:
+                with mock.patch.object(app, "point_in_time_averages",
+                                       return_value=pt):
+                    engine = _engine("Premier League")
+            else:
+                engine = _engine("Premier League")
         return engine
 
-    def test_normal_xg_used(self):
-        """1) Squadra con xG normali: il ratio xG viene usato (con shrinkage
-        se 'matches' e' noto, identico al passato altrimenti)."""
+    def test_pt_source_used_for_totali(self):
+        """a) PT con record valido: att0_pure/def0_pure = ratio PT con
+        shrinkage verso la media di lega del file xG (ancora di produzione)."""
         xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
         xg["Coventry City"] = {"xG_avg": 1.0, "xGA_avg": 1.5, "matches": 2}
-        xg["Hull City"] = {"xG_avg": 1.1, "xGA_avg": 1.4, "matches": 2}
-        stats, avg_h, avg_a, _ = self._stats(xg)
         league_xg = sum(v["xG_avg"] for v in xg.values()) / len(xg)
+        league_xga = sum(v["xGA_avg"] for v in xg.values()) / len(xg)
+        pt = _PTStub({"Coventry City": {"xG_avg": 1.0, "xGA_avg": 1.5,
+                                        "matches": 2}})
+        stats, avg_h, avg_a, _ = self._stats(xg, pt)
+        self.assertAlmostEqual(
+            stats["Coventry City"]["att0_pure"],
+            _shrunk_ratio(1.0, league_xg, 2), places=10)
+        self.assertAlmostEqual(
+            stats["Coventry City"]["def0_pure"],
+            _shrunk_ratio(1.5, league_xga, 2), places=10)
+
+    def test_pt_insufficient_falls_back_to_goals(self):
+        """b) Squadra assente/dato insufficiente nel PT: fallback gol con
+        prior, MAI 0.0 (caso del bug NG ~99.8%)."""
+        pt = _PTStub({})  # nessuna squadra con dato sufficiente
+        stats, avg_h, avg_a, df = self._stats(dict(PL_STALE_XG), pt)
+        fb_att, fb_def = _expected_goal_fallback(df, "Coventry City",
+                                                 avg_h, avg_a)
         self.assertAlmostEqual(stats["Coventry City"]["att0_pure"],
-                               (2 * (1.0 / league_xg) + PRIOR_MATCHES) / (2 + PRIOR_MATCHES),
-                               places=10)
+                               fb_att, places=10)
+        self.assertAlmostEqual(stats["Coventry City"]["def0_pure"],
+                               fb_def, places=10)
+        self.assertGreater(stats["Coventry City"]["att0_pure"], 0.3)
+        fb_att_h, fb_def_h = _expected_goal_fallback(df, "Hull City",
+                                                     avg_h, avg_a)
+        self.assertAlmostEqual(stats["Hull City"]["def0_pure"],
+                               fb_def_h, places=10)
+        self.assertGreater(stats["Hull City"]["att0_pure"], 0.3)
 
-    def test_legacy_xg_without_matches_backcompat(self):
-        """File xG vecchio (senza 'matches'): ratio = xG/lega, nessun shrinkage."""
-        xg = {k: {"xG_avg": v["xG_avg"], "xGA_avg": v["xGA_avg"]}
-              for k, v in PL_STALE_XG.items()}
-        stats, avg_h, avg_a, _ = self._stats(xg)
-        league_xg = sum(v["xG_avg"] for v in xg.values()) / len(xg)
+    def test_pt_unavailable_keeps_pre_change_behavior(self):
+        """c) Lookup PT non disponibile (archivio assente/errore): la testa
+        Totali resta ESATTAMENTE sul comportamento pre-modifica: ratio del
+        file xG stagionale (shrinkage se 'matches' noto, identico altrimenti)
+        o fallback gol."""
+        pt_err = Exception("archivio non disponibile")
+        # 1) file xG vecchio senza 'matches': ratio puro, nessun shrinkage
+        xg_no_n = {k: {"xG_avg": v["xG_avg"], "xGA_avg": v["xGA_avg"]}
+                   for k, v in PL_STALE_XG.items()}
+        stats, avg_h, avg_a, df = self._stats(xg_no_n, pt_err)
+        league_xg = sum(v["xG_avg"] for v in xg_no_n.values()) / len(xg_no_n)
         self.assertAlmostEqual(stats["Arsenal"]["att0_pure"],
-                               xg["Arsenal"]["xG_avg"] / league_xg, places=10)
-
-    def test_missing_xg_fallback_shrunk_not_zero(self):
-        """2) Squadra con xG MANCANTI (caso del bug): fallback gol con prior.
-        Coventry City: 0 gol in 2 partite -> att0_pure = 0.75 (non 0.0)."""
-        stats, avg_h, avg_a, _ = self._stats(dict(PL_STALE_XG))
-        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"], 0.75, places=6)
-        self.assertAlmostEqual(stats["Hull City"]["def0_pure"], 0.75, places=6)
-        self.assertGreater(stats["Hull City"]["att0_pure"], 0.5)
+                               xg_no_n["Arsenal"]["xG_avg"] / league_xg,
+                               places=10)
+        # 2) Coventry: xG_avg=0 autentico con 'matches' -> shrinkage 0.75
+        xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
+        xg["Coventry City"] = {"xG_avg": 0.0, "xGA_avg": 1.5, "matches": 2}
+        stats2, _, _, _ = self._stats(xg, pt_err)
+        self.assertAlmostEqual(stats2["Coventry City"]["att0_pure"], 0.75,
+                               places=6)
+        # 3) squadra senza xG -> fallback gol (mai 0.0)
+        del xg["Coventry City"]
+        stats3, avg_h3, avg_a3, df3 = self._stats(xg, pt_err)
+        fb_att, _ = _expected_goal_fallback(df3, "Coventry City",
+                                            avg_h3, avg_a3)
+        self.assertAlmostEqual(stats3["Coventry City"]["att0_pure"],
+                               fb_att, places=10)
 
     def test_missing_xg_no_extreme_ng(self):
         """Con il fallback corretto le partite delle neopromosse non danno
         NG ~ 99.8% (le due partite della giornata 5-6/09/2026)."""
-        stats, avg_h, avg_a, _ = self._stats(dict(PL_STALE_XG))
+        stats, avg_h, avg_a, _ = self._stats(dict(PL_STALE_XG), _PTStub({}))
         for h, a in [("Man City", "Coventry City"), ("Hull City", "Aston Villa")]:
             m = get_full_poisson_two_heads(stats[clean_name(h)], stats[clean_name(a)],
                                            avg_h, avg_a)
             self.assertLess(1 - m["gg"], 0.85, f"NG estremo per {h}-{a}")
             self.assertGreater(m["gg"], 0.15)
 
-    def test_zero_xg_without_matches_falls_back(self):
-        """3) xG_avg = 0 senza 'matches' (dato indistinguibile da rotto):
-        si usa il fallback gol, NON lambda ~ 0."""
-        xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
-        xg["Coventry City"] = {"xG_avg": 0.0, "xGA_avg": 1.5}
-        stats, _, _, _ = self._stats(xg)
-        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"], 0.75, places=6)
-
-    def test_zero_xg_with_matches_shrunk(self):
-        """xG_avg = 0 autentico (0.00 xG in 2 partite, con 'matches'):
-        shrinkage -> 0.75, mai 0.0."""
+    def test_zero_xg_with_matches_shrunk_not_zero(self):
+        """xG_avg = 0 autentico (0.00 xG in 2 partite, con 'matches'): con
+        shrinkage il ratio non e' mai 0.0, ne' sulla fonte stagionale (1X2)
+        ne' sul PT (Totali, quando il record PT e' esso stesso zero)."""
         xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
         xg["Coventry City"] = {"xG_avg": 0.0, "xGA_avg": 1.5, "matches": 2}
-        stats, _, _, _ = self._stats(xg)
-        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"], 0.75, places=6)
+        league_xg = sum(v["xG_avg"] for v in xg.values()) / len(xg)
+        pt = _PTStub({"Coventry City": {"xG_avg": 0.0, "xGA_avg": 1.5,
+                                        "matches": 2}})
+        stats, _, _, _ = self._stats(xg, pt)
+        self.assertAlmostEqual(stats["Coventry City"]["att0_pure"],
+                               _shrunk_ratio(0.0, league_xg, 2), places=10)
+        self.assertGreater(stats["Coventry City"]["att0_pure"], 0.3)
 
     def test_nan_xg_falls_back(self):
         xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
         xg["Hull City"] = {"xG_avg": float("nan"), "xGA_avg": 1.4}
-        stats, _, _, _ = self._stats(xg)
+        stats, avg_h, avg_a, df = self._stats(xg, _PTStub({}))
         self.assertTrue(math.isfinite(stats["Hull City"]["att0_pure"]))
-        self.assertGreater(stats["Hull City"]["att0_pure"], 0.5)
+        fb_att, _ = _expected_goal_fallback(df, "Hull City", avg_h, avg_a)
+        self.assertAlmostEqual(stats["Hull City"]["att0_pure"], fb_att,
+                               places=10)
+        self.assertGreater(stats["Hull City"]["att0_pure"], 0.3)
 
 
 # ---------------------------------------------------------------------------

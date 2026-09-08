@@ -55,6 +55,29 @@ Limiti dichiarati, non risolvibili con questi dati:
   * il fuso degli orari Understat non e' documentato nel dato: si interpreta
     in ``ARCHIVE_TIMEZONE`` (UTC) per scelta esplicita, e ``day_timezone``
     permette di dichiarare il fuso in cui si contano i giorni.
+
+Lookup point-in-time a finestra mobile (PT-19) con tetto di eta'
+---------------------------------------------------------------
+``point_in_time_averages()`` ricostruisce, per ogni squadra, le medie xG/xGA
+sulle ULTIME ``window`` partite valide PRIMA del cutoff (default 19 = PT-19),
+attraversando anche piu' stagioni: e' la fonte della testa Totali in
+``app.get_league_engine``. Due protezioni contro le finestre "stantie":
+
+  * tetto di eta' (``max_age_days``, default 400): le partite piu' vecchie di
+    400 giorni rispetto alla data di calcolo vengono scartate ANCHE se questo
+    lascia meno di ``window`` partite. Senza tetto, una squadra reduce da una
+    retrocessione (gap verificato di 453-813 giorni senza partite nella lega)
+    si ritrova in finestra partite di due stagioni prima, non piu' indicative;
+  * minimo di partite (``min_matches``, default 5): se dentro il tetto restano
+    meno di 5 partite valide, la squadra viene dichiarata "dato insufficiente"
+    ed esclusa dal risultato: il consumatore (``get_league_engine``) la tratta
+    come i casi a campione zero di oggi (shrinkage PRIOR_MATCHES verso la
+    media di lega nel ramo di fallback), nessuna statistica inventata.
+
+Il cutoff segue le stesse politiche conservative di ``aggregate_season``
+(``previous_day`` di default). La deduplicazione per id partita e le regole di
+validita' (partite concluse, xG numerici finiti non negativi, 0.0 valido)
+sono le stesse dell'aggregazione stagionale.
 """
 
 from __future__ import annotations
@@ -112,6 +135,14 @@ ARCHIVE_TIMEZONE = timezone.utc
 #                       cutoff. Solo su richiesta esplicita.
 CUTOFF_POLICIES: Tuple[str, ...] = ("previous_day", "kickoff_unsafe")
 DEFAULT_CUTOFF_POLICY = "previous_day"
+
+# Lookup point-in-time a finestra mobile (vedi docstring del modulo).
+# PT-19: finestra trailing di 19 partite (meta' stagione circa), con tetto di
+# eta' 400 giorni (gap da retrocessione verificati a 453-813 giorni) e minimo
+# 5 partite valide entro il tetto, sotto il quale il dato e' insufficiente.
+PT_WINDOW_DEFAULT = 19
+PT_MAX_AGE_DAYS_DEFAULT = 400.0
+PT_MIN_MATCHES_DEFAULT = 5
 
 _DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _OFFSET_RE = re.compile(r"^[+-]\d{2}:?\d{2}$")
@@ -522,6 +553,251 @@ def aggregate_season(
     for team, (sum_xg, sum_xga, n) in sorted(totals.items()):
         if n <= 0:  # difensivo: non dovrebbe accadere
             continue
+        agg.averages[team] = {
+            "xG_avg": round(sum_xg / n, round_digits),
+            "xGA_avg": round(sum_xga / n, round_digits),
+            "matches": n,
+        }
+    return agg
+
+
+# ---------------------------------------------------------------------------
+# Lookup point-in-time a finestra mobile (PT-19) con tetto di eta'
+# ---------------------------------------------------------------------------
+@dataclass
+class PointInTimeAverages:
+    """Medie xG/xGA sulle ultime partite PRIMA del cutoff + diagnostica."""
+
+    league: str
+    cutoff: Optional[datetime] = None
+    cutoff_policy: str = DEFAULT_CUTOFF_POLICY
+    day_timezone: str = "UTC"
+    window: int = PT_WINDOW_DEFAULT
+    max_age_days: Optional[float] = PT_MAX_AGE_DAYS_DEFAULT
+    min_matches: int = PT_MIN_MATCHES_DEFAULT
+    # {squadra: {"xG_avg":.., "xGA_avg":.., "matches":..}}
+    averages: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    skipped: Dict[str, int] = field(default_factory=dict)
+    duplicates: List[dict] = field(default_factory=list)
+    conflicts: List[dict] = field(default_factory=list)
+    unmapped_names: Dict[str, int] = field(default_factory=dict)
+    # squadre con meno di min_matches partite valide entro il tetto:
+    # "dato insufficiente", escluse dal risultato (nessuna statistica inventata)
+    insufficient_data: List[str] = field(default_factory=list)
+    # per squadra: partite della finestra trailing scartate dal tetto di eta'
+    # {squadra: {"dropped": n, "ages_days": [..]}} (solo se dropped > 0)
+    age_cap_impact: Dict[str, dict] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "league": self.league,
+            "cutoff": self.cutoff.isoformat() if self.cutoff else None,
+            "cutoff_policy": self.cutoff_policy,
+            "day_timezone": self.day_timezone,
+            "window": self.window,
+            "max_age_days": self.max_age_days,
+            "min_matches": self.min_matches,
+            "teams": len(self.averages),
+            "skipped": dict(sorted(self.skipped.items())),
+            "duplicates": self.duplicates,
+            "conflicts": self.conflicts,
+            "unmapped_names": dict(sorted(self.unmapped_names.items())),
+            "insufficient_data": self.insufficient_data,
+            "age_cap_impact": dict(sorted(self.age_cap_impact.items())),
+        }
+
+
+def point_in_time_averages(
+    league: str,
+    *,
+    cutoff=None,
+    window: int = PT_WINDOW_DEFAULT,
+    max_age_days: Optional[float] = PT_MAX_AGE_DAYS_DEFAULT,
+    min_matches: int = PT_MIN_MATCHES_DEFAULT,
+    cutoff_policy: str = DEFAULT_CUTOFF_POLICY,
+    day_timezone=ARCHIVE_TIMEZONE,
+    base_dir=None,
+    records: Optional[Sequence[dict]] = None,
+    round_digits: int = 3,
+) -> PointInTimeAverages:
+    """Medie xG/xGA point-in-time sulle ultime ``window`` partite (PT-19).
+
+    Per ogni squadra: le ultime ``window`` partite VALIDE giocate prima del
+    cutoff (politica ``cutoff_policy``, come ``aggregate_season``), ordinate
+    per data, attraversando anche piu' stagioni. Con ``max_age_days`` le
+    partite piu' vecchie del tetto rispetto al cutoff vengono scartate anche
+    se la finestra resta con meno di ``window`` partite; se restano meno di
+    ``min_matches`` partite la squadra e' "dato insufficiente" ed e' esclusa.
+
+    Ritorna medie con la stessa forma delle medie stagionali
+    (``{squadra: {xG_avg, xGA_avg, matches}}``), pronte per lo shrinkage in
+    ``app.get_league_engine``.
+
+    Parameters
+    ----------
+    league:
+        chiave lega di ``ARCHIVE_FILES`` (es. ``"Premier League"``).
+    cutoff:
+        data di calcolo (datetime/date/str ISO). None = riferimento al
+        kickoff piu' recente presente nell'archivio.
+    window:
+        ampiezza della finestra trailing (default 19 = PT-19).
+    max_age_days:
+        tetto di eta' in giorni rispetto al cutoff (default 400). None
+        disattiva il tetto (solo per confronti di audit).
+    min_matches:
+        partite minime valide entro il tetto (default 5); sotto questa soglia
+        la squadra finisce in ``insufficient_data`` e non in ``averages``.
+    cutoff_policy / day_timezone / base_dir / records / round_digits:
+        stesso significato che in ``aggregate_season``.
+    """
+    if cutoff_policy not in CUTOFF_POLICIES:
+        raise ValueError(
+            f"cutoff_policy non valida: {cutoff_policy!r} (attese: {list(CUTOFF_POLICIES)})")
+    window = int(window)
+    if window < 1:
+        raise ValueError(f"window deve essere >= 1, trovato {window}")
+    if min_matches < 0 or min_matches > window:
+        raise ValueError(
+            f"min_matches deve stare in [0, window={window}], trovato {min_matches}")
+    if max_age_days is not None and float(max_age_days) <= 0:
+        raise ValueError(f"max_age_days deve essere positivo o None: {max_age_days!r}")
+
+    data = list(records) if records is not None else load_archive(league, base_dir)
+    day_tz = resolve_timezone(day_timezone)
+
+    # --- Passata 1: partite valide, deduplicate, ordinate per kickoff ---
+    matches: List[dict] = []
+    seen_keys: Dict[object, dict] = {}
+    agg = PointInTimeAverages(
+        league=league, window=window, max_age_days=max_age_days,
+        min_matches=min_matches, cutoff_policy=cutoff_policy,
+        day_timezone=timezone_label(day_tz),
+    )
+
+    for raw in data or []:
+        if not isinstance(raw, dict):
+            _bump(agg.skipped, "record_non_valido")
+            continue
+
+        home_res = resolve_team_name(raw.get("home_team"))
+        away_res = resolve_team_name(raw.get("away_team"))
+        home, away = home_res.canonical, away_res.canonical
+        if not home or not away:
+            _bump(agg.skipped, "squadra_mancante")
+            continue
+        for res in (home_res, away_res):
+            if not res.mapped:
+                _bump(agg.unmapped_names, res.raw)
+
+        if not is_played(raw):
+            _bump(agg.skipped, "non_giocata")
+            continue
+
+        kickoff, has_time = parse_kickoff(raw.get("date"))
+        if kickoff is None:
+            # senza data non c'e' ordine ne' eta': inutilizzabile nel lookup
+            _bump(agg.skipped, "data_illeggibile")
+            continue
+
+        home_xg = parse_xg(raw.get("home_xg"))
+        away_xg = parse_xg(raw.get("away_xg"))
+        if home_xg is None or away_xg is None:
+            _bump(agg.skipped, "xg_mancante_o_non_valido")
+            continue
+
+        match_id = raw.get("id")
+        if match_id is None or isinstance(match_id, bool):
+            season_int = parse_season(raw.get("season"))
+            key = (season_int, home, away, kickoff.date())
+        else:
+            key = ("id", str(match_id))
+        previous = seen_keys.get(key)
+        if previous is not None:
+            same = (
+                previous["home"] == home and previous["away"] == away
+                and math.isclose(previous["home_xg"], home_xg, rel_tol=0, abs_tol=1e-9)
+                and math.isclose(previous["away_xg"], away_xg, rel_tol=0, abs_tol=1e-9)
+            )
+            entry = {
+                "key": list(key) if isinstance(key, tuple) else key,
+                "home": home, "away": away,
+                "kept": {"home_xg": previous["home_xg"], "away_xg": previous["away_xg"]},
+                "discarded": {"home_xg": home_xg, "away_xg": away_xg},
+            }
+            if same:
+                agg.duplicates.append(entry)
+                _bump(agg.skipped, "duplicato")
+            else:
+                agg.conflicts.append(entry)
+                _bump(agg.skipped, "conflitto")
+            continue
+        seen_keys[key] = {"home": home, "away": away,
+                          "home_xg": home_xg, "away_xg": away_xg}
+        matches.append({
+            "kickoff": kickoff, "has_time": has_time,
+            "home": home, "away": away,
+            "home_xg": home_xg, "away_xg": away_xg,
+        })
+
+    matches.sort(key=lambda m: m["kickoff"])  # stable: pari data = ordine file
+
+    # --- Cutoff: esplicito o riferimento al kickoff piu' recente ---
+    cutoff_dt = as_utc(cutoff)
+    if cutoff_dt is None:
+        cutoff_dt = max((m["kickoff"] for m in matches), default=None)
+        if cutoff_dt is None:
+            agg.cutoff = None
+            return agg
+    agg.cutoff = cutoff_dt
+    cutoff_day = cutoff_dt.astimezone(day_tz).date()
+    age_floor = (cutoff_dt - timedelta(days=float(max_age_days))
+                 if max_age_days is not None else None)
+
+    # --- Passata 2: finestra trailing per squadra, con tetto di eta' ---
+    per_team: Dict[str, List[dict]] = {}
+    for m in matches:
+        if cutoff_policy == "kickoff_unsafe" and m["has_time"]:
+            if m["kickoff"] >= cutoff_dt:
+                _bump(agg.skipped, "dopo_cutoff")
+                continue
+        else:
+            if m["kickoff"].astimezone(day_tz).date() >= cutoff_day:
+                _bump(agg.skipped, "giorno_del_cutoff_o_dopo")
+                continue
+        for side in ("home", "away"):
+            per_team.setdefault(m[side], []).append(m)
+
+    for team in sorted(per_team):
+        team_matches = per_team[team]  # gia' ordinate per kickoff
+        # candidata alla finestra: le ultime `window` entro il cutoff
+        tail = team_matches[-window:]
+        if max_age_days is None:
+            kept = tail
+            dropped = []
+        else:
+            kept = [m for m in tail if m["kickoff"] >= age_floor]
+            dropped = [m for m in tail if m["kickoff"] < age_floor]
+        if dropped:
+            ages = sorted(
+                (cutoff_dt - m["kickoff"]).total_seconds() / 86400.0
+                for m in dropped)
+            agg.age_cap_impact[team] = {
+                "dropped": len(dropped),
+                "ages_days": [round(a, 1) for a in ages],
+            }
+        if len(kept) < min_matches:
+            agg.insufficient_data.append(team)
+            continue
+        sum_xg = sum_xga = 0.0
+        for m in kept:
+            if m["home"] == team:
+                sum_xg += m["home_xg"]
+                sum_xga += m["away_xg"]
+            else:
+                sum_xg += m["away_xg"]
+                sum_xga += m["home_xg"]
+        n = len(kept)
         agg.averages[team] = {
             "xG_avg": round(sum_xg / n, round_digits),
             "xGA_avg": round(sum_xga / n, round_digits),
