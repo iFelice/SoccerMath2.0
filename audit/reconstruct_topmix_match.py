@@ -60,10 +60,7 @@ from xg_archive import (  # noqa: E402
     parse_season,
     parse_xg,
     season_averages,
-    point_in_time_averages,
-    PT_WINDOW_DEFAULT,
-    PT_MAX_AGE_DAYS_DEFAULT,
-    PT_MIN_MATCHES_DEFAULT,
+    season_point_in_time_averages,
 )
 
 import app as _prod  # noqa: E402
@@ -716,27 +713,31 @@ def trace_team(
     if source == "unknown":
         source = "goals_fallback"
 
-    # --- Fonte point-in-time PT-19 (testa Totali: att0_pure/def0_pure) ---
+    # --- Fonte point-in-time F_season (testa Totali: att0_pure/def0_pure) ---
     # get_league_engine non legge piu' il file xG stagionale per la testa
-    # Totali: usa il lookup point-in-time con tetto di eta' (xg_archive).
+    # Totali: usa il lookup point-in-time F_season (medie xG della sola
+    # stagione in corso al cutoff, xg_archive.season_point_in_time_averages).
     # Il trace replica la stessa decisione (attivo solo con medie di lega
-    # disponibili; squadra senza dato sufficiente entro il tetto -> fallback
+    # disponibili; squadra senza partite nella stagione in corso -> fallback
     # gol; lookup non disponibile -> comportamento pre-modifica su att/def).
     pt_trace: Optional[Dict[str, Any]] = None
     pt_expected = None
     if league_xg and league_xga:
         try:
-            pt_lookup = point_in_time_averages(
+            pt_lookup = season_point_in_time_averages(
                 league, cutoff=datetime.now(timezone.utc),
-                window=PT_WINDOW_DEFAULT,
-                max_age_days=PT_MAX_AGE_DAYS_DEFAULT,
-                min_matches=PT_MIN_MATCHES_DEFAULT,
             ).averages
             pt_active = True
         except Exception as exc:  # archivio assente/errore -> pre-modifica
             pt_lookup = {}
             pt_active = False
             pt_trace = {"pt_active": False, "error": str(exc)}
+        # Ancora di shrinkage: media di lega derivata dal dizionario F_season
+        # stesso (gate _league_mean_gate di produzione), non dal file xG.
+        _fs_anchor_xg, _fs_anchor_xga = _prod._league_mean_gate(pt_lookup)
+        if _fs_anchor_xg is None:
+            pt_active = False
+            pt_trace = {"pt_active": False, "error": "gate F_season non superato"}
         if pt_active:
             rec = pt_lookup.get(canonical)
             import numpy as np
@@ -755,12 +756,12 @@ def trace_team(
                     pt_ok = False
                 if pt_ok:
                     pt_expected = (
-                        float(_shrunk_ratio(_pxg, league_xg, _pn)),
-                        float(_shrunk_ratio(_pxga, league_xga, _pn)),
+                        float(_shrunk_ratio(_pxg, _fs_anchor_xg, _pn)),
+                        float(_shrunk_ratio(_pxga, _fs_anchor_xga, _pn)),
                     )
                     use_pt = True
             if not use_pt:
-                # dato insufficiente entro il tetto -> ramo a campione zero
+                # squadra senza partite nella stagione in corso -> fallback gol
                 pt_expected = (goals["ratio_att_shrunk"],
                                goals["ratio_def_shrunk"])
             pt_trace = {

@@ -12,7 +12,7 @@ ri-executa ``get_full_poisson_two_heads`` sugli input congelati e pretende
 l'1X2 bit-identico (max abs diff 0.0), come fatto in audit.
 
 Uso:
-    python audit/make_1x2_invariance_fixture.py [--samples-per-league 12]
+    python audit/make_1x2_invariance_fixture.py [--samples-per-league 12] [--out PATH]
 """
 from __future__ import annotations
 
@@ -28,8 +28,8 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 from config import LEAGUES_CONFIG  # noqa: E402
 import app as prod_app  # noqa: E402
 
-OUT_PATH = os.path.join(_REPO_ROOT, "SoccerMath", "test_fixtures",
-                        "1x2_invariance.json")
+DEFAULT_OUT_PATH = os.path.join(_REPO_ROOT, "SoccerMath", "test_fixtures",
+                                "1x2_invariance.json")
 
 STAT_KEYS = ("att", "def", "att0", "def0", "att0_pure", "def0_pure", "val")
 
@@ -55,7 +55,9 @@ def sample_matches(df, stats, n):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples-per-league", type=int, default=12)
+    ap.add_argument("--out", default=DEFAULT_OUT_PATH)
     args = ap.parse_args()
+    out_path = args.out
 
     entries = []
     for camp_key in LEAGUES_CONFIG:
@@ -83,8 +85,8 @@ def main():
         print(f"{camp_key}: {len(idxs)} partite campionate "
               f"(avg_h={avg_h:.4f}, avg_a={avg_a:.4f})")
 
-    os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
-    with open(OUT_PATH, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
             "description": (
                 "Fixture di regressione 1X2: input (stats squadra + medie gol) "
@@ -95,7 +97,7 @@ def main():
             "generated_by": "audit/make_1x2_invariance_fixture.py",
             "entries": entries,
         }, f, ensure_ascii=False, indent=1)
-    print(f"\nScritto {OUT_PATH} ({len(entries)} partite)")
+    print(f"\nScritto {out_path} ({len(entries)} partite)")
 
 
 if __name__ == "__main__":

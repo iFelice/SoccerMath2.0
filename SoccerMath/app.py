@@ -29,10 +29,7 @@ except ImportError:
     Groq = None
 
 from scraper_xg import get_understat_xg, get_market_values
-from xg_archive import (
-    point_in_time_averages, PT_WINDOW_DEFAULT, PT_MAX_AGE_DAYS_DEFAULT,
-    PT_MIN_MATCHES_DEFAULT,
-)
+from xg_archive import season_point_in_time_averages
 from models.elo_engine import get_current_elo, get_elo_leaderboard, predict_elo_probs, get_team_elo_history
 from models.dixon_coles import get_dixon_coles_matrix, predict_dixon_coles_probs, get_dixon_coles_team_strengths
 from models.backtest import run_backtest, compare_models_backtest, detect_value_bets
@@ -457,6 +454,32 @@ def _shrunk_ratio(observed, expected, n_matches, prior=PRIOR_MATCHES):
     return (n_matches * r + prior) / (n_matches + prior)
 
 
+def _league_mean_gate(xg_data):
+    """Medie di lega con gate di sanita', su un qualsiasi dizionario
+    ``{squadra: {xG_avg, xGA_avg, ...}}``. Ritorna ``(mean_xg, mean_xga)``
+    oppure ``(None, None)`` se il gate non passa.
+
+    Stessa logica del gate inline sul file xG stagionale qui sotto (>=10
+    squadre con valori finiti e positivi; medie nel range di sanita'
+    0.5-5.0). Usato per l'ancora di shrinkage della fonte F_season, che
+    deve essere derivata dai dati F_season stessi (fedele all'audit) e non
+    dal file xG statico. Il gate inline resta intatto per la testa 1X2.
+    """
+    if not xg_data:
+        return None, None
+    lx = [v['xG_avg'] for v in xg_data.values()
+          if isinstance(v, dict) and isinstance(v.get('xG_avg'), (int, float))
+          and np.isfinite(v['xG_avg']) and v['xG_avg'] > 0]
+    lxa = [v['xGA_avg'] for v in xg_data.values()
+           if isinstance(v, dict) and isinstance(v.get('xGA_avg'), (int, float))
+           and np.isfinite(v['xGA_avg']) and v['xGA_avg'] > 0]
+    if len(lx) >= 10 and len(lxa) >= 10:
+        mx, mxa = float(np.mean(lx)), float(np.mean(lxa))
+        if 0.5 < mx < 5.0 and 0.5 < mxa < 5.0:
+            return mx, mxa
+    return None, None
+
+
 @st.cache_data(ttl=3600)
 def get_league_engine(camp_key):
     # I file (storici + base + live) vengono risolti in config: solo il pattern
@@ -528,33 +551,41 @@ def get_league_engine(camp_key):
             if 0.5 < _m_xg < 5.0 and 0.5 < _m_xga < 5.0:
                 league_xg, league_xga = _m_xg, _m_xga
 
-    # --- FONTE POINT-IN-TIME PER LA TESTA TOTALI (PT-19 con tetto di eta') ---
-    # att0_pure/def0_pure (testa O/U2.5 e GG/NG) leggono le medie xG sulla
-    # finestra trailing di PT_WINDOW_DEFAULT partite dall'archivio per-partita,
-    # scartando le partite piu' vecchie di PT_MAX_AGE_DAYS_DEFAULT giorni
-    # (difetto dei gap da retrocessione: senza tetto la finestra pescava
-    # partite di due stagioni fa, verificate assenze di 453-813 giorni).
-    # Squadre con meno di PT_MIN_MATCHES_DEFAULT partite valide entro il tetto
-    # sono "dato insufficiente": per loro il ramo qui sotto usa il fallback
-    # gol con shrinkage, lo stesso dei casi a campione zero. La testa 1X2
-    # (att/def/att0/def0) NON usa questa fonte: resta sulla sorgente
-    # stagionale di get_understat_xg(), invariata.
+    # --- FONTE POINT-IN-TIME PER LA TESTA TOTALI (F_season) ---
+    # att0_pure/def0_pure (testa O/U2.5 e GG/NG) leggono le medie xG della
+    # SOLA stagione in corso al cutoff (F_season: point-in-time, no leakage,
+    # nessuna componente cross-season). Scelta validata in audit:
+    # audit/results/pt19_cap_vs_fseason_clean.md — F_season mai peggiore e
+    # migliore in aggregato della finestra trailing multi-stagione con tetto
+    # 400gg (PT19_CAP), e fallback rate 2.74% vs 32.65% dello snapshot
+    # statico; la finestra trailing pescava partite "stantie" nei gap da
+    # retrocessione (verificati 453-813 giorni senza partite nella lega).
+    # Squadre senza partite nella stagione in corso sono "dato insufficiente":
+    # per loro il ramo qui sotto usa il fallback gol con shrinkage, lo stesso
+    # dei casi a campione zero. La testa 1X2 (att/def/att0/def0) NON usa
+    # questa fonte: resta sulla sorgente stagionale di get_understat_xg(),
+    # invariata (1X2 bit-identico, test permanente
+    # SoccerMath/test_pt19_totali_invariance.py).
     # Se il lookup non e' disponibile (archivio assente, errore) il
     # comportamento torna ESATTAMENTE quello precedente alla modifica.
-    pt_lookup = {}
-    pt_active = False
-    if league_xg and league_xga:
-        try:
-            pt_lookup = point_in_time_averages(
-                camp_key, cutoff=datetime.now(timezone.utc),
-                window=PT_WINDOW_DEFAULT,
-                max_age_days=PT_MAX_AGE_DAYS_DEFAULT,
-                min_matches=PT_MIN_MATCHES_DEFAULT,
-            ).averages
-            pt_active = True
-        except Exception as e:
-            logging.warning(f"Lookup point-in-time non disponibile per {camp_key}: {e}")
-            pt_lookup = {}
+    # L'ancora di shrinkage e' la media di lega DERIVATA DAL DIZIONARIO
+    # F_season stesso (gate _league_mean_gate, fedele all'audit), non quella
+    # del file xG statico: la fonte resta interamente point-in-time anche se
+    # lo snapshot stagionale fosse stantio. Il lookup non dipende dal gate
+    # del file xG (sorgenti indipendenti).
+    fs_lookup = {}
+    fs_anchor_xg = None
+    fs_anchor_xga = None
+    fs_active = False
+    try:
+        fs_lookup = season_point_in_time_averages(
+            camp_key, cutoff=datetime.now(timezone.utc),
+        ).averages
+        fs_anchor_xg, fs_anchor_xga = _league_mean_gate(fs_lookup)
+        fs_active = fs_anchor_xg is not None
+    except Exception as e:
+        logging.warning(f"Lookup point-in-time (F_season) non disponibile per {camp_key}: {e}")
+        fs_lookup = {}
 
     # --- PRIOR EMPIRICO PER CAMPIONI PICCOLI (fix NG ~99.8%) ---
     # Il rapporto attacco/difesa usa lo shrinkage verso la media di lega
@@ -628,34 +659,35 @@ def get_league_engine(camp_key):
         # audit/results/form_totali_diagnosis.md): rimuovere la forma a 5
         # gare dai totali abbassa il Brier O/U2.5 da 0.2488 a 0.2401 e GG/NG
         # da 0.2584 a 0.2496.
-        # Fonte: lookup point-in-time PT-19 con tetto di eta' (v. sopra).
-        # Squadra con meno di PT_MIN_MATCHES_DEFAULT partite valide entro il
-        # tetto = "dato insufficiente": stesso trattamento del ramo a
-        # campione zero (fallback gol con shrinkage verso la media di lega).
-        # Se il lookup non e' disponibile, la baseline resta identica a
-        # quella precedente a questa modifica.
-        use_pt = False
-        if pt_active:
-            pt_rec = pt_lookup.get(t)
-            if isinstance(pt_rec, dict):
+        # Fonte: lookup point-in-time F_season (medie xG della sola stagione
+        # in corso al cutoff, v. sopra; ancora di shrinkage = media di lega
+        # derivata dal dizionario F_season). Squadra senza partite nella
+        # stagione in corso = "dato insufficiente": stesso trattamento del
+        # ramo a campione zero (fallback gol con shrinkage verso la media di
+        # lega). Se il lookup non e' disponibile, la baseline resta identica
+        # a quella precedente a questa modifica.
+        use_fs = False
+        if fs_active:
+            fs_rec = fs_lookup.get(t)
+            if isinstance(fs_rec, dict):
                 try:
-                    pt_xg_v = float(pt_rec.get('xG_avg'))
-                    pt_xga_v = float(pt_rec.get('xGA_avg'))
-                    pt_n = pt_rec.get('matches')
-                    pt_ok = (np.isfinite(pt_xg_v) and np.isfinite(pt_xga_v)
-                             and pt_xg_v >= 0 and pt_xga_v >= 0
-                             and isinstance(pt_n, (int, float))
-                             and not isinstance(pt_n, bool)
-                             and np.isfinite(float(pt_n)) and float(pt_n) > 0)
+                    fs_xg_v = float(fs_rec.get('xG_avg'))
+                    fs_xga_v = float(fs_rec.get('xGA_avg'))
+                    fs_n = fs_rec.get('matches')
+                    fs_ok = (np.isfinite(fs_xg_v) and np.isfinite(fs_xga_v)
+                             and fs_xg_v >= 0 and fs_xga_v >= 0
+                             and isinstance(fs_n, (int, float))
+                             and not isinstance(fs_n, bool)
+                             and np.isfinite(float(fs_n)) and float(fs_n) > 0)
                 except (TypeError, ValueError):
-                    pt_ok = False
-                if pt_ok:
-                    att0_pure = _shrunk_ratio(pt_xg_v, league_xg, pt_n)
-                    def0_pure = _shrunk_ratio(pt_xga_v, league_xga, pt_n)
-                    use_pt = True
-        if not use_pt:
-            if pt_active:
-                # dato insufficiente entro il tetto: ramo a campione zero
+                    fs_ok = False
+                if fs_ok:
+                    att0_pure = _shrunk_ratio(fs_xg_v, fs_anchor_xg, fs_n)
+                    def0_pure = _shrunk_ratio(fs_xga_v, fs_anchor_xga, fs_n)
+                    use_fs = True
+        if not use_fs:
+            if fs_active:
+                # dato insufficiente nella stagione in corso: ramo a campione zero
                 att0_pure = fb_att
                 def0_pure = fb_defe
             else:

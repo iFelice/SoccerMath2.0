@@ -43,7 +43,8 @@ from team_names import (  # noqa: E402
 from xg_archive import (  # noqa: E402
     ARCHIVE_FILES, LEAGUES, aggregate_season, compare_snapshots, load_archive,
     match_key, parse_kickoff, parse_season, parse_xg,
-    point_in_time_averages, season_averages, validate_archive,
+    point_in_time_averages, season_averages, season_point_in_time_averages,
+    validate_archive,
 )
 
 DB_DIR = os.path.join(_HERE, "database")
@@ -1230,6 +1231,72 @@ class TestPointInTimeAverages(unittest.TestCase):
                                    min_matches=5)
         with self.assertRaises(ValueError):
             point_in_time_averages("Serie A", records=[], max_age_days=-1)
+
+
+# ---------------------------------------------------------------------------
+# Lookup point-in-time F_season (fonte Totali in produzione)
+# ---------------------------------------------------------------------------
+class TestSeasonPointInTimeAverages(unittest.TestCase):
+    """F_season: medie xG della sola stagione in corso al cutoff."""
+
+    def test_season_derived_from_cutoff(self):
+        # agosto-dicembre: stagione che inizia nell'anno del cutoff
+        agg = season_point_in_time_averages(
+            "Serie A", cutoff=datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc),
+            records=[])
+        self.assertEqual(agg.season, 2026)
+        # gennaio-giugno: stagione iniziata l'anno precedente
+        agg = season_point_in_time_averages(
+            "Serie A", cutoff=datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc),
+            records=[])
+        self.assertEqual(agg.season, 2025)
+
+    def test_only_current_season_matches_count(self):
+        # partite di due stagioni: solo quella in corso (2026) entra
+        recs = [
+            pt_match(1, "2026-09-05 15:00:00", home_xg=2.0, season=2026),
+            pt_match(2, "2026-09-01 15:00:00", home_xg=3.0, season=2026),
+            pt_match(3, "2026-05-10 15:00:00", home_xg=9.0, season=2025),
+        ]
+        agg = season_point_in_time_averages(
+            "Serie A", cutoff=datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc),
+            records=recs)
+        rec = agg.averages.get(canonical_team_name("TeamAlpha"))
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec["matches"], 2)
+        self.assertAlmostEqual(rec["xG_avg"], round((2.0 + 3.0) / 2, 3))
+
+    def test_cutoff_day_excluded(self):
+        # una partita nel GIORNO del cutoff non entra (previous_day)
+        recs = [pt_match(1, "2026-09-08 09:00:00", home_xg=7.0, season=2026),
+                pt_match(2, "2026-09-07 15:00:00", home_xg=2.0, season=2026)]
+        agg = season_point_in_time_averages(
+            "Serie A", cutoff=datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc),
+            records=recs)
+        rec = agg.averages.get(canonical_team_name("TeamAlpha"))
+        self.assertEqual(rec["matches"], 1)
+        self.assertAlmostEqual(rec["xG_avg"], 2.0)
+
+    def test_teams_without_season_matches_absent(self):
+        # nessuna partita nella stagione in corso -> la squadra non compare
+        recs = [pt_match(1, "2026-05-10 15:00:00", home_xg=9.0, season=2025)]
+        agg = season_point_in_time_averages(
+            "Serie A", cutoff=datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc),
+            records=recs)
+        self.assertNotIn(canonical_team_name("TeamAlpha"), agg.averages)
+
+    def test_equivalent_to_season_averages_with_cutoff(self):
+        # F_season == season_averages sulla stagione derivata con stesso cutoff
+        recs = [
+            pt_match(1, "2026-09-05 15:00:00", home_xg=2.0, season=2026),
+            pt_match(2, "2026-09-01 15:00:00", home_xg=3.0, season=2026),
+            pt_match(3, "2026-05-10 15:00:00", home_xg=9.0, season=2025),
+        ]
+        cutoff = datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc)
+        fs = season_point_in_time_averages("Serie A", cutoff=cutoff, records=recs)
+        sa = season_averages("Serie A", 2026, cutoff=cutoff, records=recs)
+        self.assertEqual(fs.averages, sa.averages)
+        self.assertEqual(fs.season, sa.season)
 
 
 if __name__ == "__main__":

@@ -60,8 +60,10 @@ Lookup point-in-time a finestra mobile (PT-19) con tetto di eta'
 ---------------------------------------------------------------
 ``point_in_time_averages()`` ricostruisce, per ogni squadra, le medie xG/xGA
 sulle ULTIME ``window`` partite valide PRIMA del cutoff (default 19 = PT-19),
-attraversando anche piu' stagioni: e' la fonte della testa Totali in
-``app.get_league_engine``. Due protezioni contro le finestre "stantie":
+attraversando anche piu' stagioni. NON e' piu' la fonte della testa Totali in
+produzione (sostituita da ``season_point_in_time_averages``, fonte F_season
+validata in audit/results/pt19_cap_vs_fseason_clean.md): resta disponibile
+come utilita' di audit/confronto. Due protezioni contro le finestre "stantie":
 
   * tetto di eta' (``max_age_days``, default 400): le partite piu' vecchie di
     400 giorni rispetto alla data di calcolo vengono scartate ANCHE se questo
@@ -804,6 +806,58 @@ def point_in_time_averages(
             "matches": n,
         }
     return agg
+
+
+def season_point_in_time_averages(
+    league: str,
+    *,
+    cutoff=None,
+    season: Optional[int] = None,
+    cutoff_policy: str = DEFAULT_CUTOFF_POLICY,
+    day_timezone=ARCHIVE_TIMEZONE,
+    base_dir=None,
+    records: Optional[Sequence[dict]] = None,
+) -> SeasonAggregate:
+    """Fonte F_season: medie xG/xGA della SOLA stagione in corso al cutoff.
+
+    Questa e' la fonte point-in-time della testa Totali (att0_pure/def0_pure)
+    in ``app.get_league_engine``. Per ogni squadra restituisce la media di xG
+    fatti/subiti sulle partite giocate NELLA SOLA STAGIONE IN CORSO prima del
+    cutoff. Nessuna finestra trailing multi-stagione e nessun tetto di eta':
+    il campione di una squadra e' sempre e soltanto la stagione corrente,
+    quindi niente leakage e niente partite "stantie" di due stagioni fa pescate
+    dai gap da retrocessione (il difetto che affliggeva la finestra PT-19).
+
+    Il risultato ha la stessa forma delle medie stagionali
+    (``{squadra: {xG_avg, xGA_avg, matches}}``), pronto per lo shrinkage in
+    ``app.get_league_engine``. Le squadre senza partite nella stagione in
+    corso NON compaiono in ``averages``: il consumatore le tratta come i casi
+    a campione zero (fallback gol con shrinkage PRIOR_MATCHES), nessuna
+    statistica inventata.
+
+    Parameters
+    ----------
+    league:
+        chiave lega di ``ARCHIVE_FILES`` (es. ``"Premier League"``).
+    cutoff:
+        data di calcolo point-in-time (datetime/date/str ISO). None = adesso
+        (UTC). Le partite del giorno del cutoff e successive restano fuori
+        (politica ``cutoff_policy``, come ``aggregate_season``).
+    season:
+        anno di inizio della stagione da aggregare. Se omesso e' DERIVATO dal
+        cutoff (la stagione va da agosto a giugno: da luglio in poi si passa
+        alla stagione che inizia nell'anno del cutoff), con la stessa regola
+        di ``config.get_current_season_start_year``.
+    cutoff_policy / day_timezone / base_dir / records:
+        stesso significato che in ``aggregate_season``.
+    """
+    cutoff_dt = as_utc(cutoff) if cutoff is not None else datetime.now(timezone.utc)
+    if season is None:
+        season = cutoff_dt.year if cutoff_dt.month >= 7 else cutoff_dt.year - 1
+    return season_averages(
+        league, season, cutoff=cutoff_dt, cutoff_policy=cutoff_policy,
+        day_timezone=day_timezone, base_dir=base_dir, records=records,
+    )
 
 
 # ---------------------------------------------------------------------------

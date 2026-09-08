@@ -1,13 +1,19 @@
 """
 test_pt19_totali_invariance.py — Test di regressione PERMANENTE: l'1X2 di
-``get_full_poisson_two_heads`` deve restare bit-identico alla modifica che ha
-spostato la fonte della testa Totali (att0_pure/def0_pure) dal file xG
-stagionale al lookup point-in-time PT-19 con tetto di eta' 400 giorni
-(``xg_archive.point_in_time_averages``).
+``get_full_poisson_two_heads`` deve restare bit-identico (max abs diff 0.0)
+attraverso OGNI cambio di fonte della testa Totali (att0_pure/def0_pure).
 
-Vincolo non negoziabile di questa modifica: la testa Totali (O/U2.5 e GG/NG)
-cambia fonte; la testa 1X2 (att/def/att0/def0) resta ESATTAMENTE quella di
-prima. Questo test lo rende permanente in due modi:
+Finora due cambi di fonte, ciascuno congelato da un fixture generato PRIMA
+della modifica (audit/make_1x2_invariance_fixture.py):
+  * test_fixtures/1x2_invariance.json             (pre PT-19, fonte statica);
+  * test_fixtures/1x2_invariance_pre_fseason.json (pre F_season, fonte PT-19
+    con tetto di eta' 400gg).
+Ogni futuro cambio di fonte della testa Totali aggiunga il suo fixture e
+questo test lo replay-era' automaticamente (glob 1x2_invariance*.json).
+
+Vincolo non negoziabile: la testa Totali (O/U2.5 e GG/NG) puo' cambiare
+fonte; la testa 1X2 (att/def/att0/def0) resta ESATTAMENTE quella di prima.
+Questo test lo rende permanente in due modi:
 
 1. ``test_1x2_bit_identico_campione_reale`` (il controllo fatto in audit):
    per un campione di partite REALI del database attuale, l'1X2 calcolato con
@@ -16,16 +22,17 @@ prima. Questo test lo rende permanente in due modi:
    o con valori arbitrari: la testa 1X2 non legge quei campi, e chiunque in
    futuro li collegasse all'1X2 farebbe fallire questo test.
 
-2. ``test_1x2_bit_identico_fixture_pre_modifica``: il fixture committato
-   (``test_fixtures/1x2_invariance.json``) congela input (dizionari squadra +
-   avg_h/avg_a) ed esiti 1X2 calcolati PRIMA della modifica su partite reali;
-   ri-eseguendo ``get_full_poisson_two_heads`` sugli stessi input l'1X2 deve
-   riprodursi bit-identico (max abs diff 0.0), come verificato in audit.
+2. ``test_1x2_bit_identico_fixture_pre_modifica``: ogni fixture committato
+   congela input (dizionari squadra + avg_h/avg_a) ed esiti 1X2 calcolati
+   PRIMA di una modifica su partite reali; ri-eseguendo
+   ``get_full_poisson_two_heads`` sugli stessi input l'1X2 deve riprodursi
+   bit-identico (max abs diff 0.0), come verificato in audit in piu' round.
 
 Esecuzione:
     python -m pytest SoccerMath/test_pt19_totali_invariance.py -v
     python SoccerMath/test_pt19_totali_invariance.py
 """
+import glob
 import json
 import os
 import sys
@@ -38,7 +45,7 @@ sys.path.insert(0, _REPO_ROOT)
 
 import app as prod_app  # noqa: E402
 
-FIXTURE_PATH = os.path.join(_HERE, "test_fixtures", "1x2_invariance.json")
+FIXTURE_GLOB = os.path.join(_HERE, "test_fixtures", "1x2_invariance*.json")
 LEAGUES_UNDER_TEST = ("Serie A", "Premier League", "La Liga",
                       "Bundesliga", "Ligue 1")
 SAMPLES_PER_LEAGUE = 12
@@ -105,24 +112,30 @@ class Test1X2InvarianzaPT19(unittest.TestCase):
                                 "campione reale troppo piccolo")
 
     def test_1x2_bit_identico_fixture_pre_modifica(self):
-        """Fixture generato PRIMA della modifica: stessi input -> stesso 1X2,
-        bit per bit (max abs diff 0.0, come in audit)."""
-        self.assertTrue(os.path.exists(FIXTURE_PATH),
-                        f"fixture mancante: {FIXTURE_PATH}")
-        with open(FIXTURE_PATH, "r", encoding="utf-8") as f:
-            fixture = json.load(f)
-        entries = fixture["entries"]
-        self.assertGreaterEqual(len(entries), 50)
-        max_diff = 0.0
-        for e in entries:
-            out = prod_app.get_full_poisson_two_heads(
-                e["hs"], e["as"], e["avg_h"], e["avg_a"])
-            for k in KEYS_1X2:
-                max_diff = max(max_diff, abs(out[k] - e["expected"][k]))
-        self.assertEqual(
-            max_diff, 0.0,
-            "l'1X2 sul fixture pre-modifica non e' piu' bit-identico "
-            f"(max abs diff {max_diff})")
+        """Fixture generati PRIMA di ogni cambio di fonte della testa Totali:
+        stessi input -> stesso 1X2, bit per bit (max abs diff 0.0, come in
+        audit in piu' round)."""
+        paths = sorted(glob.glob(FIXTURE_GLOB))
+        self.assertTrue(paths, f"nessun fixture trovato: {FIXTURE_GLOB}")
+        total_entries = 0
+        for path in paths:
+            with open(path, "r", encoding="utf-8") as f:
+                fixture = json.load(f)
+            entries = fixture["entries"]
+            self.assertGreaterEqual(len(entries), 50, f"fixture troppo piccolo: {path}")
+            max_diff = 0.0
+            for e in entries:
+                out = prod_app.get_full_poisson_two_heads(
+                    e["hs"], e["as"], e["avg_h"], e["avg_a"])
+                for k in KEYS_1X2:
+                    max_diff = max(max_diff, abs(out[k] - e["expected"][k]))
+            self.assertEqual(
+                max_diff, 0.0,
+                f"l'1X2 sul fixture {os.path.basename(path)} non e' piu' "
+                f"bit-identico (max abs diff {max_diff})")
+            total_entries += len(entries)
+        self.assertGreaterEqual(total_entries, 100,
+                                "campione complessivo di fixture troppo piccolo")
 
 
 if __name__ == "__main__":

@@ -208,64 +208,87 @@ def _expected_goal_fallback(df, team, avg_h, avg_a):
             _shrunk_ratio(ga, exp_ga, n_played))
 
 
-class _PTStub:
-    """Esito minimo di xg_archive.point_in_time_averages (basta .averages)."""
+class _FSeasonStub:
+    """Esito minimo di xg_archive.season_point_in_time_averages (basta .averages)."""
 
     def __init__(self, averages):
         self.averages = averages
 
 
+def _fs_stub(extra=None, exclude=()):
+    """Dizionario F_season che passa il gate di lega (>=10 squadre, medie nel
+    range di sanita'): 12 squadre stub uniformi + eventuali squadre extra.
+    L'ancora di shrinkage di produzione e' la media di questo dizionario."""
+    averages = {f"Stub Team {i:02d}": {"xG_avg": 1.5, "xGA_avg": 1.2,
+                                       "matches": 3}
+                for i in range(12)}
+    for key in exclude:
+        averages.pop(key, None)
+    if extra:
+        averages.update(extra)
+    return _FSeasonStub(averages)
+
+
 class TestEngineXGPaths(unittest.TestCase):
     """xG normali / mancanti / zero-anomali / NaN, sul database reale.
 
-    Dalla modifica PT-19 la testa Totali (att0_pure/def0_pure) legge il
-    lookup point-in-time ``point_in_time_averages`` invece del file xG
-    stagionale; la testa 1X2 (att/def/att0/def0) resta sul file xG. Questi
-    test fissano il nuovo contratto della fonte Totali, sorgente PT
-    controllata via mock:
-      a) PT con record valido      -> ratio PT con shrinkage (PRIOR_MATCHES);
-      b) PT senza la squadra       -> fallback gol con shrinkage (mai 0.0);
-      c) PT non disponibile        -> comportamento ESATTO pre-modifica.
+    Dalla modifica F_season la testa Totali (att0_pure/def0_pure) legge il
+    lookup point-in-time ``season_point_in_time_averages`` (medie della sola
+    stagione in corso al cutoff) invece del file xG stagionale; la testa 1X2
+    (att/def/att0/def0) resta sul file xG. Questi test fissano il contratto
+    della fonte Totali, sorgente F_season controllata via mock:
+      a) F_season con record valido -> ratio con shrinkage (PRIOR_MATCHES)
+         verso l'ancora = media di lega DERIVATA DAL DIZIONARIO F_season
+         (gate _league_mean_gate, fedele all'audit);
+      b) F_season senza la squadra  -> fallback gol con shrinkage (mai 0.0);
+      c) F_season non disponibile   -> comportamento ESATTO pre-modifica.
     """
 
-    def _stats(self, patched_xg, pt=None):
-        """pt: None = archivio reale; _PTStub = esito controllato;
+    def _stats(self, patched_xg, fs=None):
+        """fs: None = archivio reale; _FSeasonStub = esito controllato;
         Exception = lookup che fallisce (archivio non disponibile)."""
         with mock.patch.object(app, "get_understat_xg", return_value=patched_xg):
-            if isinstance(pt, Exception):
-                with mock.patch.object(app, "point_in_time_averages",
-                                       side_effect=pt):
+            if isinstance(fs, Exception):
+                with mock.patch.object(app, "season_point_in_time_averages",
+                                       side_effect=fs):
                     engine = _engine("Premier League")
-            elif pt is not None:
-                with mock.patch.object(app, "point_in_time_averages",
-                                       return_value=pt):
+            elif fs is not None:
+                with mock.patch.object(app, "season_point_in_time_averages",
+                                       return_value=fs):
                     engine = _engine("Premier League")
             else:
                 engine = _engine("Premier League")
         return engine
 
-    def test_pt_source_used_for_totali(self):
-        """a) PT con record valido: att0_pure/def0_pure = ratio PT con
-        shrinkage verso la media di lega del file xG (ancora di produzione)."""
+    def test_fseason_source_used_for_totali(self):
+        """a) F_season con record valido: att0_pure/def0_pure = ratio con
+        shrinkage verso la media di lega DERIVATA DAL DIZIONARIO F_season
+        (ancora di produzione, fedele all'audit; non quella del file xG)."""
         xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
         xg["Coventry City"] = {"xG_avg": 1.0, "xGA_avg": 1.5, "matches": 2}
-        league_xg = sum(v["xG_avg"] for v in xg.values()) / len(xg)
-        league_xga = sum(v["xGA_avg"] for v in xg.values()) / len(xg)
-        pt = _PTStub({"Coventry City": {"xG_avg": 1.0, "xGA_avg": 1.5,
-                                        "matches": 2}})
-        stats, avg_h, avg_a, _ = self._stats(xg, pt)
+        fs = _fs_stub(extra={"Coventry City": {"xG_avg": 1.0, "xGA_avg": 1.5,
+                                               "matches": 2}})
+        anchor_xg, anchor_xga = app._league_mean_gate(fs.averages)
+        self.assertIsNotNone(anchor_xg)
+        stats, avg_h, avg_a, _ = self._stats(xg, fs)
         self.assertAlmostEqual(
             stats["Coventry City"]["att0_pure"],
-            _shrunk_ratio(1.0, league_xg, 2), places=10)
+            _shrunk_ratio(1.0, anchor_xg, 2), places=10)
         self.assertAlmostEqual(
             stats["Coventry City"]["def0_pure"],
-            _shrunk_ratio(1.5, league_xga, 2), places=10)
+            _shrunk_ratio(1.5, anchor_xga, 2), places=10)
+        # l'ancora NON e' la media del file xG statico
+        league_xg = sum(v["xG_avg"] for v in xg.values()) / len(xg)
+        self.assertNotAlmostEqual(
+            stats["Coventry City"]["att0_pure"],
+            _shrunk_ratio(1.0, league_xg, 2), places=6)
 
-    def test_pt_insufficient_falls_back_to_goals(self):
-        """b) Squadra assente/dato insufficiente nel PT: fallback gol con
+    def test_fseason_insufficient_falls_back_to_goals(self):
+        """b) Squadra assente/dato insufficiente in F_season: fallback gol con
         prior, MAI 0.0 (caso del bug NG ~99.8%)."""
-        pt = _PTStub({})  # nessuna squadra con dato sufficiente
-        stats, avg_h, avg_a, df = self._stats(dict(PL_STALE_XG), pt)
+        # F_season attivo (gate passato) ma senza le due squadre
+        fs = _fs_stub(exclude=("Coventry City", "Hull City"))
+        stats, avg_h, avg_a, df = self._stats(dict(PL_STALE_XG), fs)
         fb_att, fb_def = _expected_goal_fallback(df, "Coventry City",
                                                  avg_h, avg_a)
         self.assertAlmostEqual(stats["Coventry City"]["att0_pure"],
@@ -279,8 +302,8 @@ class TestEngineXGPaths(unittest.TestCase):
                                fb_def_h, places=10)
         self.assertGreater(stats["Hull City"]["att0_pure"], 0.3)
 
-    def test_pt_unavailable_keeps_pre_change_behavior(self):
-        """c) Lookup PT non disponibile (archivio assente/errore): la testa
+    def test_fseason_unavailable_keeps_pre_change_behavior(self):
+        """c) Lookup F_season non disponibile (archivio assente/errore): la testa
         Totali resta ESATTAMENTE sul comportamento pre-modifica: ratio del
         file xG stagionale (shrinkage se 'matches' noto, identico altrimenti)
         o fallback gol."""
@@ -310,7 +333,8 @@ class TestEngineXGPaths(unittest.TestCase):
     def test_missing_xg_no_extreme_ng(self):
         """Con il fallback corretto le partite delle neopromosse non danno
         NG ~ 99.8% (le due partite della giornata 5-6/09/2026)."""
-        stats, avg_h, avg_a, _ = self._stats(dict(PL_STALE_XG), _PTStub({}))
+        fs = _fs_stub(exclude=("Coventry City", "Hull City"))
+        stats, avg_h, avg_a, _ = self._stats(dict(PL_STALE_XG), fs)
         for h, a in [("Man City", "Coventry City"), ("Hull City", "Aston Villa")]:
             m = get_full_poisson_two_heads(stats[clean_name(h)], stats[clean_name(a)],
                                            avg_h, avg_a)
@@ -320,21 +344,22 @@ class TestEngineXGPaths(unittest.TestCase):
     def test_zero_xg_with_matches_shrunk_not_zero(self):
         """xG_avg = 0 autentico (0.00 xG in 2 partite, con 'matches'): con
         shrinkage il ratio non e' mai 0.0, ne' sulla fonte stagionale (1X2)
-        ne' sul PT (Totali, quando il record PT e' esso stesso zero)."""
+        ne' su F_season (Totali, quando il record F_season e' esso stesso zero)."""
         xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
         xg["Coventry City"] = {"xG_avg": 0.0, "xGA_avg": 1.5, "matches": 2}
-        league_xg = sum(v["xG_avg"] for v in xg.values()) / len(xg)
-        pt = _PTStub({"Coventry City": {"xG_avg": 0.0, "xGA_avg": 1.5,
-                                        "matches": 2}})
-        stats, _, _, _ = self._stats(xg, pt)
+        fs = _fs_stub(extra={"Coventry City": {"xG_avg": 0.0, "xGA_avg": 1.5,
+                                               "matches": 2}})
+        anchor_xg, _ = app._league_mean_gate(fs.averages)
+        stats, _, _, _ = self._stats(xg, fs)
         self.assertAlmostEqual(stats["Coventry City"]["att0_pure"],
-                               _shrunk_ratio(0.0, league_xg, 2), places=10)
+                               _shrunk_ratio(0.0, anchor_xg, 2), places=10)
         self.assertGreater(stats["Coventry City"]["att0_pure"], 0.3)
 
     def test_nan_xg_falls_back(self):
         xg = {k: dict(v) for k, v in PL_STALE_XG.items()}
         xg["Hull City"] = {"xG_avg": float("nan"), "xGA_avg": 1.4}
-        stats, avg_h, avg_a, df = self._stats(xg, _PTStub({}))
+        fs = _fs_stub(exclude=("Hull City",))
+        stats, avg_h, avg_a, df = self._stats(xg, fs)
         self.assertTrue(math.isfinite(stats["Hull City"]["att0_pure"]))
         fb_att, _ = _expected_goal_fallback(df, "Hull City", avg_h, avg_a)
         self.assertAlmostEqual(stats["Hull City"]["att0_pure"], fb_att,
