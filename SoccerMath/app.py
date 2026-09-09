@@ -1277,13 +1277,22 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
     return salvate
 
 @st.dialog("STRATEGIC ANALYSIS", width="large")
-def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
+def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
     match_id, match_date_str = None, ""
     for mx in st.session_state.get("live_data", []):
         if clean_name(h) in clean_name(mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name","")):
             match_id = mx.get("id"); match_date_str = format_date_italy(mx["utcDate"], "%d/%m/%Y %H:%M"); break
-    mercato_top = max({f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}, key=lambda k: {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}[k])
-    prob_top = {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}[mercato_top]
+    # Selezione (argmax) sui 5 mercati POISSON PURO (m_poisson calcolato in
+    # tab1 PRIMA del blend): il blend 1X2 dentro l'argmax sposta le scelte
+    # verso i Totali e peggiora la qualita' della selezione
+    # (audit/results/ensemble_scope_analisi_rapida.md); stessa regola di
+    # analisi_rapida_giornata(). m (blendato) resta solo per la probabilita'.
+    mercati_puri = {f"Vittoria {h}": m_poisson['1'], "Pareggio": m_poisson['X'], f"Vittoria {a}": m_poisson['2'], "Over 2.5": 1-m_poisson['u25'], "Under 2.5": m_poisson['u25']}
+    mercato_top = max(mercati_puri, key=mercati_puri.get)
+    # Probabilita' salvata: blendata (m e' l'1X2 Poisson+Elo mostrato nella
+    # card) SOLO se il mercato scelto e' 1X2; per i Totali Poisson puro.
+    prob_1x2_blend = {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2']}
+    prob_top = prob_1x2_blend.get(mercato_top, mercati_puri[mercato_top])
     codice_top = codice_mercato_selezionato(mercato_top, h, a)
 
     if not groq_client:
@@ -1591,10 +1600,12 @@ with tab1:
             dt = format_date_italy(match['utcDate'])
             h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})
             a_s = team_stats.get(clean_name(a_api), {"att": 1.0, "def": 1.0})
-            m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+            m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
             # 1X2 mostrato = ensemble Poisson+Elo (w=ELO_ENSEMBLE_W, validato
-            # in audit); Totali (u25/gg) restano Poisson puro.
-            m = blend_elo_into_1x2(m, h_api, a_api, camp_sel)
+            # in audit); Totali (u25/gg) restano Poisson puro. m_poisson (puro)
+            # viene passato a show_details per la selezione (argmax): il blend
+            # deve restare fuori dall'argmax, come in analisi_rapida_giornata().
+            m = blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel)
             with st.container():
                 st.markdown('<div class="match-card">', unsafe_allow_html=True)
                 c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])
@@ -1609,7 +1620,7 @@ with tab1:
                         st.markdown(f"<div style='text-align:center; color:#28a745; font-weight:800; font-size:18px;'>🏁<br>{gh}-{ga}</div>", unsafe_allow_html=True)
                     else:
                         st.write("<br>", unsafe_allow_html=True)
-                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, camp_sel, g_sel))
+                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, m_poisson, camp_sel, g_sel))
                 st.markdown("</div>", unsafe_allow_html=True)
     else:
         if not engine:

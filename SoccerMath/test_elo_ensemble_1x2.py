@@ -9,10 +9,13 @@ il blend 0.6*Poisson + 0.4*Elo CALIBRA MEGLIO le probabilita' 1X2 mostrate,
 ma NON deve entrare nell'argmax di selezione dei mercati: usato dentro
 l'argmax sposta sistematicamente le scelte verso Over/NG e peggiora
 hit rate/ROI. Percio' in produzione:
-  - analisi_rapida_giornata(): SELEZIONE sui mercati Poisson puro; la
-    probabilita' salvata e' blendata SOLO se il mercato scelto e' 1X2;
+  - analisi_rapida_giornata() e show_details() (tab1): SELEZIONE sui
+    mercati Poisson puro; la probabilita' salvata e' blendata SOLO se
+    il mercato scelto e' 1X2;
   - card giornata (tab1) e Top Mix: restano come da commit d21f5c3
     (blend mostrato; il Top Mix selezionava gia' su Poisson puro).
+    tab1 passa a show_details sia m (blendato, per la probabilita')
+    sia m_poisson (puro, per l'argmax).
 
 Contratti fissati da questo test (per sempre):
 
@@ -33,16 +36,21 @@ Contratti fissati da questo test (per sempre):
    produzione, i Totali restano bit-identici al Poisson puro e tutti i
    ratio restano finiti e positivi.
 
-4. analisi_rapida_giornata(): il mercato scelto e' l'argmax dei mercati
-   POISSON PURO (indipendente dall'Elo); la probabilita' salvata e'
-   blendata se e solo se il mercato scelto e' 1X2; i Totali salvati sono
-   Poisson puro. Guardia di cablaggio anche su tab1 e Top Mix.
+4. analisi_rapida_giornata() e show_details() (tab1): il mercato scelto
+   e' l'argmax dei mercati POISSON PURO (indipendente dall'Elo); la
+   probabilita' salvata (pron, righe Fallback ed Errore AI di
+   show_details) e' blendata se e solo se il mercato scelto e' 1X2; i
+   Totali salvati sono Poisson puro. show_details riceve da tab1 sia m
+   (blendato) sia m_poisson (puro). Guardia di cablaggio anche su tab1
+   (card blendata) e Top Mix. m_adj/p1/pX/p2 del flusso Billy restano
+   fuori scope (Poisson indipendente con moltiplicatori infraset).
 
 Esecuzione:
     python -m pytest SoccerMath/test_elo_ensemble_1x2.py -v
     python SoccerMath/test_elo_ensemble_1x2.py
 """
 
+import contextlib
 import inspect
 import json
 import os
@@ -277,6 +285,112 @@ class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
                                    "essere il Poisson puro")
 
 
+class TestShowDetailsSelezionePuraProbabilitaBlendata(unittest.TestCase):
+    """Opzione (b) in show_details() (tab1): la SELEZIONE (argmax dei 5
+    mercati 1X2+O/U) avviene su m_poisson PURO passato da tab1; la
+    probabilita' salvata (righe Fallback ed Errore AI) e' blendata SOLO se
+    il mercato scelto e' 1X2. m_adj/p1/pX/p2 del flusso Billy restano fuori
+    scope (Poisson indipendente con moltiplicatori infraset)."""
+
+    LIVE_MATCH = {"homeTeam": {"shortName": "TeamH", "name": "TeamH"},
+                  "awayTeam": {"shortName": "TeamA", "name": "TeamA"},
+                  "id": 777, "utcDate": "2026-09-10T15:00:00Z"}
+
+    def _blend(self, m_pure, elo=None, elo_ko=False):
+        """Costruisce m (blendato) come fa tab1 PRIMA di chiamare
+        show_details: blend_elo_into_1x2 sul Poisson puro."""
+        if elo_ko:
+            patch = mock.patch.object(prod_app, "predict_elo_probs",
+                                      side_effect=Exception("Elo ko"))
+        else:
+            patch = mock.patch.object(prod_app, "predict_elo_probs",
+                                      return_value=dict(elo))
+        with patch:
+            return prod_app.blend_elo_into_1x2(dict(m_pure),
+                                               "TeamH", "TeamA", "Serie A")
+
+    def _call(self, m_pure, m_blend, percorso):
+        """Chiama show_details reale; percorso: 'fallback' (groq_client
+        assente) oppure 'errore_ai' (Billy configurato ma contesto ko).
+        show_details e' wrappata da @st.dialog: in bare mode il wrapper non
+        puo' aprire il dialog, quindi si esegue la funzione di produzione
+        vera e propria tramite inspect.unwrap (il corpo testato e' quello
+        spedito; il wrapper e' solo UI)."""
+        prod_app.st.session_state["live_data"] = [dict(self.LIVE_MATCH)]
+        saved = []
+        patches = [mock.patch.object(prod_app, "save_prediction_entry",
+                                     side_effect=lambda *a, **k: saved.append((a, k)))]
+        if percorso == "fallback":
+            patches.append(mock.patch.object(prod_app, "groq_client", None))
+        else:
+            patches.append(mock.patch.object(prod_app, "groq_client", object()))
+            patches.append(mock.patch.object(prod_app, "get_contesto_partita",
+                                             side_effect=Exception("boom")))
+        fn = inspect.unwrap(prod_app.show_details)
+        with patches[0], patches[1], (patches[2] if len(patches) > 2
+                                      else contextlib.nullcontext()):
+            fn("TeamH", "TeamA", m_blend, dict(m_pure), "Serie A", 5)
+        self.assertEqual(len(saved), 1)
+        args, kwargs = saved[0]
+        # save_prediction_entry(m_id, h, a, camp, giornata, date, pron, top3, prob%, ...)
+        self.assertEqual(args[0], 777)
+        return args[6], args[8], kwargs  # pron, prob_percentuale, kwargs
+
+    def test_mercato_1x2_scelto_probabilita_blendata_fallback(self):
+        # Poisson puro: vince "Vittoria TeamH" (0.70 sopra ogni O/U)
+        m_pure = {"1": 0.70, "X": 0.18, "2": 0.12,
+                  "u15": 0.35, "u25": 0.55, "u35": 0.75, "gg": 0.60}
+        m_blend = self._blend(m_pure, elo={"1": 0.50, "X": 0.28, "2": 0.22})
+        pron, prob, kwargs = self._call(m_pure, m_blend, "fallback")
+        attesa = prod_app.ELO_ENSEMBLE_W * 0.70 + (1 - prod_app.ELO_ENSEMBLE_W) * 0.50
+        self.assertTrue(pron.startswith("Vittoria TeamH"),
+                        f"la selezione deve restare sull'argmax Poisson: {pron}")
+        self.assertIn("Fallback", pron)
+        self.assertAlmostEqual(prob, round(attesa * 100, 1), places=6)
+        self.assertNotAlmostEqual(prob, 70.0, places=1,
+                                  msg="salvata la probabilita' pura, non blendata")
+        self.assertEqual(kwargs.get("mercato_standard"), "1")
+
+    def test_selezione_indipendente_dall_elo(self):
+        # Argmax Poisson puro: Over 2.5 (0.55). Con Elo estremo a favore
+        # della casa il blendato darebbe 1=0.68 > 0.55: se la selezione
+        # leggesse il blend la scelta cambierebbe. Non deve cambiare.
+        m_pure = {"1": 0.50, "X": 0.25, "2": 0.25,
+                  "u15": 0.30, "u25": 0.45, "u35": 0.65, "gg": 0.55}
+        m_blend = self._blend(m_pure, elo={"1": 0.95, "X": 0.03, "2": 0.02})
+        self.assertGreater(m_blend["1"], 1 - m_pure["u25"],
+                           "precondizione: il blendato ribalterebbe l'argmax")
+        pron, prob, _ = self._call(m_pure, m_blend, "fallback")
+        self.assertTrue(pron.startswith("Over 2.5"),
+                        f"l'Elo ha cambiato la selezione: {pron}")
+        self.assertAlmostEqual(prob, 55.0, places=6)
+
+    def test_percorso_errore_ai_stessa_logica(self):
+        m_pure = {"1": 0.70, "X": 0.18, "2": 0.12,
+                  "u15": 0.35, "u25": 0.55, "u35": 0.75, "gg": 0.60}
+        m_blend = self._blend(m_pure, elo={"1": 0.50, "X": 0.28, "2": 0.22})
+        pron, prob, _ = self._call(m_pure, m_blend, "errore_ai")
+        attesa = prod_app.ELO_ENSEMBLE_W * 0.70 + (1 - prod_app.ELO_ENSEMBLE_W) * 0.50
+        self.assertTrue(pron.startswith("Vittoria TeamH"),
+                        f"atteso argmax Poisson anche su Errore AI: {pron}")
+        self.assertIn("Errore AI", pron)
+        self.assertAlmostEqual(prob, round(attesa * 100, 1), places=6)
+
+    def test_elo_indisponibile_probabilita_pura(self):
+        # Elo ko in tab1 -> blend_elo_into_1x2 degrada al Poisson puro:
+        # la probabilita' salvata per una scelta 1X2 resta quella pura.
+        m_pure = {"1": 0.70, "X": 0.18, "2": 0.12,
+                  "u15": 0.35, "u25": 0.55, "u35": 0.75, "gg": 0.60}
+        m_blend = self._blend(m_pure, elo_ko=True)
+        for k in ("1", "X", "2"):
+            self.assertEqual(m_blend[k], m_pure[k])
+        pron, prob, _ = self._call(m_pure, m_blend, "fallback")
+        self.assertTrue(pron.startswith("Vittoria TeamH"))
+        self.assertAlmostEqual(prob, 70.0, places=6,
+                               msg="con Elo ko la probabilita' salvata deve "
+                                   "essere il Poisson puro")
+
+
 class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
     """Guardia permanente: l'ensemble resta cablato dove previsto (rimozioni
     accidentali farebbero fallire questo test)."""
@@ -298,6 +412,36 @@ class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
         self.assertIn("blend_elo_into_1x2(", tab1,
                       "il loop card giornata (tab1) deve restare come da "
                       "d21f5c3: 1X2 mostrato blendato")
+
+    def test_tab1_passa_m_poisson_a_show_details(self):
+        src = inspect.getsource(prod_app)
+        tab1 = src[src.index("with tab1:"):src.index("with tab2:")]
+        self.assertIn("m_poisson = get_full_poisson_two_heads(", tab1,
+                      "tab1 deve calcolare il Poisson puro PRIMA del blend")
+        self.assertIn(
+            "args=(h_api, a_api, m, m_poisson, camp_sel, g_sel)", tab1,
+            "show_details deve ricevere sia m (blendato) sia m_poisson "
+            "(puro) da tab1")
+
+    def test_show_details_argmax_su_poisson_puro(self):
+        src_sd = inspect.getsource(prod_app.show_details)
+        self.assertIn("def show_details(h, a, m, m_poisson,", src_sd,
+                      "firma show_details: m_poisson deve essere il "
+                      "quarto argomento")
+        i_dict_puri = src_sd.index("mercati_puri = {")
+        i_argmax = src_sd.index("mercato_top = max(mercati_puri")
+        i_blend_prob = src_sd.index("prob_1x2_blend = {")
+        self.assertLess(i_dict_puri, i_argmax,
+                        "l'argmax di show_details deve leggere i mercati "
+                        "Poisson puro (m_poisson)")
+        self.assertLess(i_argmax, i_blend_prob,
+                        "la probabilita' blendata va calcolata SOLO DOPO "
+                        "la selezione (argmax su Poisson puro)")
+        linea_prob = src_sd[i_blend_prob:src_sd.index("prob_top =")]
+        self.assertIn("m['1']", linea_prob)
+        self.assertNotIn("m_poisson", linea_prob,
+                         "prob_1x2_blend deve leggere m (blendato), mai "
+                         "m_poisson")
 
     def test_analisi_rapida_seleziona_su_poisson_puro(self):
         src_ar = inspect.getsource(prod_app.analisi_rapida_giornata)
