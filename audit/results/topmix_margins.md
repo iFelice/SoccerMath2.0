@@ -1,6 +1,6 @@
 # Margini migliorabili del selettore Top Mix — numeri
 
-*Generato*: 2026-09-09T09:07:18+00:00 · *righe analizzate*: 3422 · *commit codice*: `5aff9553f789`
+*Generato*: 2026-09-09T09:39:54+00:00 · *righe analizzate*: 3422 · *commit codice*: `01260c11c446`
 
 > **Etichetta dei dati.** validation storica GIA' ESAMINATA (2024/25 e 2025/26 sono state usate per scegliere due teste, forma fuori dai totali, shrinkage PRIOR_MATCHES=6 e per confermare i pesi 0.6/0.4): NON e' un test intatto. Non è un hold-out. Nessuna soglia, peso o formula è stata cercata o cambiata in questo giro: le tabelle misurano il **costo di vincoli già esistenti**, non il valore di vincoli alternativi. Fonte: `audit/results/topmix_selector_replay_rows.csv` (output di `audit/topmix_selector_replay.py`, importato come convenzione di pool e di bootstrap, non ricalcolato dal motore).
 

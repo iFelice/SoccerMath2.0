@@ -1,7 +1,7 @@
 {
  "meta": {
-  "generated_at": "2026-09-09T09:07:18+00:00",
-  "git_sha": "5aff9553f789",
+  "generated_at": "2026-09-09T09:39:54+00:00",
+  "git_sha": "01260c11c446",
   "n_rows": 3422,
   "rows_file": "audit/results/topmix_selector_replay_rows.csv",
   "season_status": "validation storica GIA' ESAMINATA (2024/25 e 2025/26 sono state usate per scegliere due teste, forma fuori dai totali, shrinkage PRIOR_MATCHES=6 e per confermare i pesi 0.6/0.4): NON e' un test intatto."

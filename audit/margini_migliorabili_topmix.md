@@ -371,6 +371,55 @@ rende il tracciamento anche testato, non solo registrato.
   installati e il workflow scatta a ogni push su `arena/**` che tocca
   `SoccerMath/app.py`.
 
+---
+
+## 11bis. Stato dopo il commit di «bug gratis + tracciamento»
+
+Questo referto era diagnostico; il commit successivo ha applicato **solo** la
+parte che non tocca formule, soglie o pesi (piano §9 passi 1 e 3, più parte del
+passo 2 come copertura di test). Nessuna riga di §2, §3, §5, §6.2, §6.3, §8 è
+stata toccata: **il gate, la scala dei mercati, `MARKET_VALUES`, la forma,
+l'ancora `S`, la curva del pareggio e l'xG nell'Elo restano esattamente come
+erano**, e restano le uniche cose che potevano cambiare il numero predittivo.
+
+| Riga §1 | Cosa è cambiato | Verifica |
+|---|---|---|
+| 2 — fallback Elo | `elo_disponibile` marcato sulla riga, `except Exception` + `logging.warning`, e **soglia 0,60** quando l'Elo manca (la confidence lì è Poisson puro, non un consenso) | badge `⚠️ Elo n/d · soglia 60%` in UI; ispettore AST `degrado_igiene` |
+| 3 — cache 30 min | il TTL **non** è cambiato (passare `now` come argomento = 5 chiamate API/minuto contro il limite free di 10): le righe cached vengono rifiltrate all'uso con `prediction_registry.righe_non_iniziate()` prima di mostrare e di salvare | `audit/test_topmix_registry_tracking.py::TestCacheNonCongelaIlTempo` |
+| 4 — GET senza timeout | `timeout=15` sulla GET dei calendari | `requests_get_con_timeout == requests_get_total` |
+| 5 — `sleep(6.5)` | la coda ora è **fra** una lega e l'altra (non dopo l'ultima, e non viene saltata dai `continue`) | ispettore AST |
+| 6 — copertura test | `.github/workflows/topmix_audit.yml` esegue ora anche `audit/test_topmix_next_matchday.py` (l'unico che **chiama** `fetch_and_calc_top_mix`), `SoccerMath/test_registry_tracking.py` (34 test, solo stdlib) e `audit/test_topmix_margins.py` | la lista `pytest` del workflow + guard `test_i_test_del_selettore_girano_in_ci` |
+| 7 — dedup per `match_id` | chiave `(match_id, origin, selector_version)` con `upsert_prediction_entry`: le origini diverse coesistono, un ricalcolo aggiorna la propria riga pending, una riga **gia giudicata non viene mai sovrascritta** | 34 test + `test_standardizza_mercato.py` (aggiornato: il vecchio test asseriva il difetto) |
+| 8 — `tipo` dal testo | `origin=` esplicito da tutti e tre i percorsi (Top Mix / Analisi Rapida / Billy); il testo libero resta solo il fallback per i record legacy | `tipo_classification.rule is None` + `origini_esplicite` tutti veri |
+| 9 — PUT non verificato | `save_predictions` ritorna `{"locale", "remoto"}`; `status_code` letto; `except Exception` + log; messaggio di tab2 condizionato (`n_err_remoto`) con conteggio nuove/aggiornate/gia giudicate | `jsonbin_write` + `top_mix_success_toast.gated_on_remote_ok` |
+| 10 — registro solo win rate | il tab Registro espone **Brier medio, prob. media, gap prob−hit** (`compute_calibration_stats`) e una tabella per **mercato × origine**, più il filtro `Origine`: `prob_sicuro` era già persistito, nessuna migrazione | `registro_ui` + i test sulle statistiche di calibrazione |
+| 12 — dialoghetto divergente | argmax su **7** mercati (GG/NG inclusi) e `_two_heads_from_lambdas` riceve le lambda **pure** (`att0_pure`/`def0_pure`), come in produzione | `dialogo_coerente` |
+| 16 — gate duplicato | l'inline di `get_league_engine` è sostituito dalla chiamata a `_league_mean_gate()` (una sola soglia di sanità, 0.5–5.0) | `test_get_league_engine_usa_il_gate_condiviso` |
+| 18 — cache Elo senza scadenza | `_ELO_ENGINES_STAMP` + `ELO_ENGINE_TTL_SECONDS = 3600`, allineato al `ttl` di `get_league_engine`: il veto sul disaccordo non confronta più un Poisson fresco con un Elo vecchio di ore | `models/elo_engine.py` |
+| 22 — grading divergente | i due rami di `aggiorna_risultati_reali` usano la tabella unica `prediction_registry.esito_mercato` (14 mercati, prima il loop per giornata ne conosceva 7) e l'ultimo `except:` muto è diventato un log | `TestGradingUnico` + i casi in `test_registry_tracking.py` |
+
+**Ancora aperti, e perché:**
+
+- **§1 riga 1 (gate) e §3 (scala)**: sono cambiamenti predittivi. Il referto li
+  manda in prospettiva 2026/27, non in un ritocco retroattivo sulla validation.
+- **§1 riga 11 (backtest in-app) e `models/backtest.py` morto**: richiederebbe
+  riscrivere il tab BACKTEST su `models/elo_engine.py` + quote + Brier: lavoro di
+  misura, non un bug gratis.
+- **§1 righe 13–15, 17, 19–21**: `calcola_segnali` orfano, `MARKET_VALUES`
+  statico, forma multi-stagione, ancora `S`, curva del pareggio, xG statico
+  nell'Elo, `X`/`NG` mercati morti. Ognuno sposta numeri: vanno decisi uno per
+  volta con il protocollo del §5, non infilati in un commit di igiene.
+- **Estrazione del selettore** in `seleziona_riga_top_mix()` (piano §9 passo 2):
+  non fatta. Fino ad allora il `test_topmix_next_matchday.py` — che ora gira in
+  CI — copre il corpo della funzione **end-to-end con HTTP/Elo mockati**, ma non
+  asserisce ancora gate e fallback.
+
+Artefatti rigenerati insieme al codice: `audit/results/topmix_registry_tracking.json`
+passa da 5 problemi (3 `blocking`) a **0**, con
+`can_measure_top_mix_in_isolation: true` (prima era un `False` scritto a mano nel
+verdetto: ora è derivato dall'AST, quindi si riaccende da solo se qualcuno
+re-introduce uno di quei percorsi).
+
 ## 12. Riproduzione
 
 ```bash

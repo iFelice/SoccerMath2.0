@@ -40,6 +40,7 @@ from config import (
     LEAGUE_HOME_ADVANTAGE, get_league_db_files,
 )
 from prediction_registry import (
+    origin_of,
     EXCLUDED_FROM_CURRENT_STATS_FIELD,
     MODEL_VERSION_CURRENT,
     MODEL_VERSION_FIELD,
@@ -54,6 +55,21 @@ from prediction_registry import (
     stats_all,
     backup_prediction_file,
     build_registry_datetime_column,
+    # --- tracciamento Top Mix (audit/margini_migliorabili_topmix.md §7) ---
+    SELECTOR_VERSION_CURRENT,
+    ORIGIN_TOP_MIX,
+    ORIGIN_ANALISI_RAPIDA,
+    ORIGIN_BILLY,
+    build_calculation_id,
+    calibration_by_mercato,
+    compute_calibration_stats,
+    esito_mercato,
+    resolve_origin,
+    righe_non_iniziate,
+    snapshot_fingerprint,
+    tipo_for_origin,
+    upsert_prediction_entry,
+    overall_reliability_transfer_warning,
 )
 
 API_KEY_ODDS = ODDS_API_KEY
@@ -182,22 +198,51 @@ def load_predictions():
     return []
 
 def save_predictions(preds):
-    # Backup prima di ogni scrittura: non si sovrascrive mai un registro
-    # esistente senza copia integrale. Il remoto viene aggiornato SOLO dopo
-    # che la scrittura locale e' riuscita.
-    backup_prediction_file(PREDICTIONS_FILE)
-    os.makedirs(DATABASE_DIR, exist_ok=True)
-    with open(PREDICTIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump({"data": preds}, f, ensure_ascii=False, indent=2)
+    """Scrive il registro (locale e, se configurato, remoto) e dice com'e' andata.
+
+    Backup prima di ogni scrittura: non si sovrascrive mai un registro esistente
+    senza copia integrale. Il remoto viene aggiornato SOLO dopo che la scrittura
+    locale e' riuscita.
+
+    Ritorna ``{"locale": bool, "remoto": "ok"|"disattivato"|"errore"|"saltato"}``:
+    il PUT non puo' piu' fallire in silenzio dentro un ``except: pass`` perche'
+    il toast "Top Mix salvati!" verrebbe letto come una conferma di un record
+    che non esiste (problema ``jsonbin_unchecked`` in
+    ``audit/results/topmix_registry_tracking.json``).
+    """
+    esito = {"locale": False, "remoto": "saltato"}
+    try:
+        backup_prediction_file(PREDICTIONS_FILE)
+        os.makedirs(DATABASE_DIR, exist_ok=True)
+        with open(PREDICTIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump({"data": preds}, f, ensure_ascii=False, indent=2)
+        esito["locale"] = True
+    except Exception as e:
+        logging.warning(f"Scrittura registro locale fallita: {e}")
+        esito["remoto"] = "saltato"
+        return esito
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         try:
-            requests.put(
+            r_put = requests.put(
                 f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}",
                 json={"data": preds},
                 headers={"X-Master-Key": JSONBIN_API_KEY, "Content-Type": "application/json"},
-                timeout=5,
+                timeout=10,
             )
-        except: pass
+            if getattr(r_put, "status_code", None) == 200:
+                esito["remoto"] = "ok"
+            else:
+                esito["remoto"] = "errore"
+                logging.warning(
+                    f"PUT JSONBin respinto: HTTP {getattr(r_put, 'status_code', '?')} "
+                    f"(registro locale scritto, remoto NO)"
+                )
+        except Exception as e:
+            esito["remoto"] = "errore"
+            logging.warning(f"PUT JSONBin fallito: {e} (registro locale scritto, remoto NO)")
+    else:
+        esito["remoto"] = "disattivato"
+    return esito
 
 def _mercato_name_tokens(name):
     """Token usati per riconoscere una squadra nel testo libero del pronostico.
@@ -299,22 +344,62 @@ def standardizza_mercato(testo, home=None, away=None):
     
     return "ALTRO"
 
-def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi, mercato_standard=None):
+def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
+                          mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
+                          prob_poisson=None, prob_elo=None, elo_disponibile=None,
+                          snapshot_sha=None):
+    """Scrive UNA previsione nel registro e dice cosa ha fatto.
+
+    Due modifiche puntuali, entrambe richieste da
+    ``audit/margini_migliorabili_topmix.md`` §7 (problemi ``dedup_match_id``,
+    ``origin_collapsed``, ``schema_gaps``):
+
+    - la chiave di unicita' non e' piu' il solo ``match_id`` ma
+      ``(match_id, origin, selector_version)``: se Analisi Rapida o Billy hanno
+      salvato per primi, la riga Top Mix NON sparisce piu', e un ricalcolo
+      aggiorna la propria previsione finche' non e' stata giudicata;
+    - ``tipo`` non e' piu' derivato dal testo libero del pronostico: l'origine
+      la passa il chiamante (``origin=ORIGIN_TOP_MIX`` ecc.) e il testo resta
+      solo il fallback per i record legacy.
+
+    ``prob_poisson``/``prob_elo``/``elo_disponibile`` salvano le DUE componenti
+    della confidence: senza di esse il numero del registro non e' riconducibile
+    a nessun vincolo del selettore (e il fallback Elo silenzioso resta
+    invisibile). Ritorna ``{"azione", "remoto", "record"}``.
+    """
     preds = load_predictions()
-    if any(p.get("match_id") == match_id for p in preds): return
     stagione_reale = calcola_stagione_calcolo(match_date)
     metadata = new_prediction_metadata()
     mercato_code = mercato_standard if mercato_standard else standardizza_mercato(pronostico, h, a)
-    preds.append({
+    orig = resolve_origin(origin, pronostico)
+    sha = snapshot_sha if snapshot_sha is not None else snapshot_fingerprint(DATABASE_DIR)
+    entry = {
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
         "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": mercato_code,
         "top3": top3, "prob_sicuro": prob, "risultati_attesi": ris_attesi,
-        "risultato_reale": None, "esito": "⏳", "tipo": "Top Mix" if "Top Mix" in pronostico else "Analisi", 
+        "risultato_reale": None, "esito": "⏳", "tipo": tipo_for_origin(orig),
         "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
+        "origin": orig,
+        "selector_version": SELECTOR_VERSION_CURRENT,
+        "rank": rank,
+        "kickoff_utc": kickoff_utc or "",
+        "data_snapshot_sha": sha or "",
+        "calculation_id": build_calculation_id(match_id, orig, SELECTOR_VERSION_CURRENT,
+                                               kickoff_utc, sha, rank),
+        "poisson": prob_poisson,
+        "elo": prob_elo,
+        "elo_disponibile": elo_disponibile if elo_disponibile is not None else (prob_elo is not None),
         MODEL_VERSION_FIELD: metadata[MODEL_VERSION_FIELD],
         EXCLUDED_FROM_CURRENT_STATS_FIELD: metadata[EXCLUDED_FROM_CURRENT_STATS_FIELD],
-    })
-    save_predictions(preds)
+    }
+    preds, azione = upsert_prediction_entry(preds, entry)
+    if azione == "gia_graduata":
+        # La previsione e' gia' stata giudicata: NON si tocca, e il record nuovo
+        # non viene scritto (nessuna duplicazione del medesimo esito).
+        return {"azione": azione, "remoto": "nessuna_scrittura", "record": None}
+    esito = save_predictions(preds)
+    remoto = esito.get("remoto") if isinstance(esito, dict) else "ignoto"
+    return {"azione": azione, "remoto": remoto, "record": entry}
 
 def aggiorna_risultati_reali(api_key):
     preds = load_predictions()
@@ -349,26 +434,13 @@ def aggiorna_risultati_reali(api_key):
                 if gh is None:
                     continue
                 p["risultato_reale"] = f"{gh}-{ga}"
-                tot = gh + ga
-                m = p.get("mercato_standard", "").upper()
-                if m == "UNDER_1.5": p["esito"] = "✅" if tot < 2 else "❌"
-                elif m == "OVER_1.5": p["esito"] = "✅" if tot > 1 else "❌"
-                elif m == "UNDER_2.5": p["esito"] = "✅" if tot < 3 else "❌"
-                elif m == "OVER_2.5": p["esito"] = "✅" if tot > 2 else "❌"
-                elif m == "UNDER_3.5": p["esito"] = "✅" if tot < 4 else "❌"
-                elif m == "OVER_3.5": p["esito"] = "✅" if tot > 3 else "❌"
-                elif m == "1X": p["esito"] = "✅" if gh >= ga else "❌"
-                elif m == "X2": p["esito"] = "✅" if ga >= gh else "❌"
-                elif m == "12": p["esito"] = "✅" if gh != ga else "❌"
-                elif m == "GG": p["esito"] = "✅" if gh > 0 and ga > 0 else "❌"
-                elif m == "NG": p["esito"] = "✅" if gh == 0 or ga == 0 else "❌"
-                elif m == "X": p["esito"] = "✅" if gh == ga else "❌"
-                elif m == "1": p["esito"] = "✅" if gh > ga else "❌"
-                elif m == "2": p["esito"] = "✅" if ga > gh else "❌"
-                else: p["esito"] = "⏳"
+                # Grading UNICO ( prediction_registry.esito_mercato ): prima il
+                # ramo per match_id graduava 14 mercati e il loop per giornata
+                # solo 7, quindi un OVER_1.5/1X/X2/12 restava ⏳ per sempre.
+                p["esito"] = esito_mercato(p.get("mercato_standard", ""), gh, ga) or "⏳"
                 aggiornate += 1
-            except:
-                pass
+            except Exception as e:
+                logging.warning(f"Aggiornamento risultato per match_id {m_id} fallito: {e}")
     
     # --- Loop normale per giornata > 0 ---
     for (camp, giornata), camp_pending in grouped.items():
@@ -385,7 +457,10 @@ def aggiorna_risultati_reali(api_key):
             if r.status_code != 200:
                 continue
             risultati_api = {m["id"]: m for m in r.json().get("matches", [])}
-        except:
+        except Exception as e:
+            # Non e' piu' un `except: continue` muto: un fallback sul grading e'
+            # un giorno di risultati che non arriva, e va visto.
+            logging.warning(f"Aggiornamento risultati {camp} giornata {giornata} fallito: {e}")
             continue
         for p in camp_pending:
             m_id = p.get("match_id")
@@ -398,24 +473,9 @@ def aggiorna_risultati_reali(api_key):
             if gh is None:
                 continue
             p["risultato_reale"] = f"{gh}-{ga}"
-            tot = gh + ga
-            m = p.get("mercato_standard", "").upper()
-            if m == "UNDER_2.5":
-                p["esito"] = "✅" if tot < 3 else "❌"
-            elif m == "OVER_2.5":
-                p["esito"] = "✅" if tot > 2 else "❌"
-            elif m == "GG":
-                p["esito"] = "✅" if gh > 0 and ga > 0 else "❌"
-            elif m == "NG":
-                p["esito"] = "✅" if gh == 0 or ga == 0 else "❌"
-            elif m == "X":
-                p["esito"] = "✅" if gh == ga else "❌"
-            elif m == "1":
-                p["esito"] = "✅" if gh > ga else "❌"
-            elif m == "2":
-                p["esito"] = "✅" if ga > gh else "❌"
-            else:
-                p["esito"] = "⏳"
+            # Stessa tabella del ramo per match_id: nessun mercato "non graduato
+            # perche' salvato da un altro percorso".
+            p["esito"] = esito_mercato(p.get("mercato_standard", ""), gh, ga) or "⏳"
             aggiornate += 1
     
     if aggiornate > 0:
@@ -459,11 +519,12 @@ def _league_mean_gate(xg_data):
     ``{squadra: {xG_avg, xGA_avg, ...}}``. Ritorna ``(mean_xg, mean_xga)``
     oppure ``(None, None)`` se il gate non passa.
 
-    Stessa logica del gate inline sul file xG stagionale qui sotto (>=10
-    squadre con valori finiti e positivi; medie nel range di sanita'
-    0.5-5.0). Usato per l'ancora di shrinkage della fonte F_season, che
-    deve essere derivata dai dati F_season stessi (fedele all'audit) e non
-    dal file xG statico. Il gate inline resta intatto per la testa 1X2.
+    Logica UNICA (>=10 squadre con valori finiti e positivi; medie nel range
+    di sanita' 0.5-5.0): usata sia per l'ancora di shrinkage della fonte
+    F_season -- che deve essere derivata dai dati F_season stessi (fedele
+    all'audit) e non dal file xG statico -- sia sul file xG stagionale dentro
+    get_league_engine. Prima il secondo caso era una copia incollata, con il
+    rischio di far divergere le due soglie di sanita'.
     """
     if not xg_data:
         return None, None
@@ -577,16 +638,10 @@ def get_league_engine(camp_key):
         # 0.5-5.0: nessun campionato reale sta fuori da questo intervallo
         # (media xG per squadra/partita ~1.2-1.6 nelle top 5), quindi valori
         # fuori range = file xG corrotto -> si ignora la fonte xG.
-        _lx = [v['xG_avg'] for v in xg_data.values()
-               if isinstance(v, dict) and isinstance(v.get('xG_avg'), (int, float))
-               and np.isfinite(v['xG_avg']) and v['xG_avg'] > 0]
-        _lxa = [v['xGA_avg'] for v in xg_data.values()
-                if isinstance(v, dict) and isinstance(v.get('xGA_avg'), (int, float))
-                and np.isfinite(v['xGA_avg']) and v['xGA_avg'] > 0]
-        if len(_lx) >= 10 and len(_lxa) >= 10:
-            _m_xg, _m_xga = float(np.mean(_lx)), float(np.mean(_lxa))
-            if 0.5 < _m_xg < 5.0 and 0.5 < _m_xga < 5.0:
-                league_xg, league_xga = _m_xg, _m_xga
+        # Stesso gate di _league_mean_gate: prima era riscritto qui a mano
+        # (due copie della medesima soglia di sanita', che potevano divergere:
+        # audit/margini_migliorabili_topmix.md §1 riga 16).
+        league_xg, league_xga = _league_mean_gate(xg_data)
 
     # --- FONTE POINT-IN-TIME PER LA TESTA TOTALI (F_season) ---
     # att0_pure/def0_pure (testa O/U2.5 e GG/NG) leggono le medie xG della
@@ -1176,13 +1231,26 @@ def select_next_matchday_matches(matches, now=None):
 
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top 10...")
 def fetch_and_calc_top_mix():
+    """Top 10 del turno. Nessuna formula qui dentro e' stata toccata.
+
+    Igienizzati solo i percorsi di degrado (audit/margini_migliorabili_topmix.md
+    §4): timeout sulla GET, fallback Elo marcato (prima `elo_prob = poisson_prob`
+    + `except: pass` rendevano vacuo il veto sul disaccordo e abbassavano la
+    soglia 1X2 a 0,55), coda di rate-limit solo FRA le leghe (l'ultima non
+    aspetta piu' nulla) e `rank` sulla riga, cosi' il registro sa in che posizione
+    era finita la previsione.
+    """
     all_preds, missing = [], []
-    for league in LEAGUES_CONFIG.keys():
+    leghe = list(LEAGUES_CONFIG.keys())
+    for i_lega, league in enumerate(leghe):
+        if i_lega:
+            # coda SOLO fra una lega e l'altra (10 richieste/min sul piano free)
+            time.sleep(6.5)
         engine = get_league_engine(league)
         if not engine: missing.append(league); continue
         team_stats, avg_h, avg_a, _ = engine
         try:
-            r = requests.get(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches", headers={'X-Auth-Token': API_KEY_DATA}, params={"status": "TIMED,SCHEDULED"})
+            r = requests.get(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches", headers={'X-Auth-Token': API_KEY_DATA}, params={"status": "TIMED,SCHEDULED"}, timeout=15)
             if r.status_code != 200: continue
             # Fix bug Top Mix: si seleziona la prossima giornata realmente
             # futura per data di gioco, non più il semplice min(matchday).
@@ -1207,7 +1275,7 @@ def fetch_and_calc_top_mix():
             poisson_prob = mercati[best_mkt]
             
             # Elo agreement (solo per 1X2)
-            elo_prob = poisson_prob  # fallback
+            elo_prob, elo_disponibile = poisson_prob, True
             try:
                 elo_p = predict_elo_probs(h, a, league)
                 if best_mkt == f"Vittoria {h}":
@@ -1216,12 +1284,16 @@ def fetch_and_calc_top_mix():
                     elo_prob = elo_p["2"]
                 elif best_mkt == "Pareggio":
                     elo_prob = elo_p["X"]
-            except:
-                pass
+            except Exception as e:
+                # NON e' piu' un `except: pass` silenzioso: la riga viene
+                # marcata e giudicata come un totale (Poisson puro, soglia
+                # 0,60), perche' senza Elo la confidence non e' un consenso.
+                elo_disponibile = False
+                logging.warning(f"Elo non disponibile per {h} vs {a} ({league}): {e}")
             
             # Confidence = media tra Poisson ed Elo (se Elo è vicino, conferma; se lontano, penalizza)
             # Per mercati O/U e GG dove Elo non esiste, usiamo solo Poisson ma richiediamo soglia più alta
-            if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"]:
+            if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:
                 confidence = poisson_prob
                 min_conf = 0.60
             else:
@@ -1240,10 +1312,16 @@ def fetch_and_calc_top_mix():
                     "mercato_standard": codice_mercato_selezionato(best_mkt, h, a),
                     "prob": confidence, "prob_val": round(confidence * 100, 1),
                     "poisson": round(poisson_prob * 100, 1),
-                    "elo": round(elo_prob * 100, 1)
+                    "elo": round(elo_prob * 100, 1),
+                    # False SOLO se predict_elo_probs ha fallito: UI e registro
+                    # devono poter distinguere "Elo d'accordo" da "Elo assente".
+                    "elo_disponibile": elo_disponibile,
+                    "rank": None,
                 })
-        time.sleep(6.5)
-    return sorted(all_preds, key=lambda x: x['prob'], reverse=True)[:10], missing
+    top_10 = sorted(all_preds, key=lambda x: x['prob'], reverse=True)[:10]
+    for i, r in enumerate(top_10):
+        r["rank"] = i + 1
+    return top_10, missing
 
 def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classifica_sess, giornata_n):
     salvate = 0
@@ -1271,9 +1349,14 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
             pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
             top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
-            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a))
+            # Origine esplicita: senza di essa il Record "Poisson Auto" finiva
+            # nel calderone "Analisi" e non era distinguibile dal Top Mix.
+            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a),
+                                  origin=ORIGIN_ANALISI_RAPIDA, kickoff_utc=match.get('utcDate'),
+                                  prob_poisson=round(mercati[best_mkt] * 100, 1))
             salvate += 1
-        except: pass
+        except Exception as e:
+            logging.warning(f"Analisi Rapida: partita {h} vs {a} saltata: {e}")
     return salvate
 
 @st.dialog("STRATEGIC ANALYSIS", width="large")
@@ -1282,12 +1365,15 @@ def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
     for mx in st.session_state.get("live_data", []):
         if clean_name(h) in clean_name(mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name","")):
             match_id = mx.get("id"); match_date_str = format_date_italy(mx["utcDate"], "%d/%m/%Y %H:%M"); break
-    # Selezione (argmax) sui 5 mercati POISSON PURO (m_poisson calcolato in
+    # Selezione (argmax) sui 7 mercati POISSON PURO (m_poisson calcolato in
     # tab1 PRIMA del blend): il blend 1X2 dentro l'argmax sposta le scelte
     # verso i Totali e peggiora la qualita' della selezione
     # (audit/results/ensemble_scope_analisi_rapida.md); stessa regola di
     # analisi_rapida_giornata(). m (blendato) resta solo per la probabilita'.
-    mercati_puri = {f"Vittoria {h}": m_poisson['1'], "Pareggio": m_poisson['X'], f"Vittoria {a}": m_poisson['2'], "Over 2.5": 1-m_poisson['u25'], "Under 2.5": m_poisson['u25']}
+    # GG/NG erano ESCLUSI qui ma non nel Top Mix ne' in Analisi Rapida: il
+    # dialoghetto poteva indicare un mercato diverso dalla card per la stessa
+    # partita (audit/margini_migliorabili_topmix.md §4 punto 4).
+    mercati_puri = {f"Vittoria {h}": m_poisson['1'], "Pareggio": m_poisson['X'], f"Vittoria {a}": m_poisson['2'], "Over 2.5": 1-m_poisson['u25'], "Under 2.5": m_poisson['u25'], "GG": m_poisson['gg'], "NG": 1-m_poisson['gg']}
     mercato_top = max(mercati_puri, key=mercati_puri.get)
     # Probabilita' salvata: blendata (m e' l'1X2 Poisson+Elo mostrato nella
     # card) SOLO se il mercato scelto e' 1X2; per i Totali Poisson puro.
@@ -1297,7 +1383,7 @@ def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
 
     if not groq_client:
         st.error("⚠️ Billy (Groq) non configurato. Devi creare il file .env come spiegato!")
-        if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Fallback", [], round(prob_top*100, 1), "", mercato_standard=codice_top)
+        if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Fallback", [], round(prob_top*100, 1), "", mercato_standard=codice_top, origin=ORIGIN_BILLY)
         return
 
     with st.spinner("Billy sta analizzando..."):
@@ -1316,7 +1402,19 @@ def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
                 mkt_a = as_.get("att", 1.0) * a_mult_att * hs.get("def", 1.0) * h_mult_def * aa
                 base_h = att0_h * h_mult_att * def0_a * a_mult_def * ah
                 base_a = att0_a * a_mult_att * def0_h * h_mult_def * aa
-                m_adj = _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a)
+                # Testa Totali su lambda PURE (M=1, senza forma ne' mercato),
+                # come in produzione (get_full_poisson_two_heads): qui prima si
+                # omettevano base_pure_h/base_pure_a e i totali del dialoghetto
+                # giravano sulla testa con la forma a 5 gare, che l'audit ha
+                # misurato come peggiore sui totali
+                # (audit/results/form_totali_diagnosis.md: Brier O/U 0,2488 ->
+                # 0,2401 senza forma).
+                # _stat_num (non .get): un campo assente o NaN non deve far
+                # esplodere il blocco e trasformare Billy in "Errore AI".
+                attp_h = _stat_num(hs, "att0_pure", att0_h); defp_h = _stat_num(hs, "def0_pure", def0_h)
+                attp_a = _stat_num(as_, "att0_pure", att0_a); defp_a = _stat_num(as_, "def0_pure", def0_a)
+                m_adj = _two_heads_from_lambdas(base_h, base_a, mkt_h, mkt_a,
+                                                 attp_h * defp_a * ah, attp_a * defp_h * aa)
             else:
                 # fallback senza engine: testa singola neutra
                 m_adj = get_full_poisson(1.3, 1.1)
@@ -1404,7 +1502,7 @@ RISPONDI IN ITALIANO. Sii diretto e concreto, niente frasi generiche."""
                     st.error("❌ Nessun valore")
         except Exception as e:
             st.error(f"Errore AI: {e}")
-            if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "", mercato_standard=codice_top)
+            if match_id: save_prediction_entry(match_id, h, a, camp_sel, giornata_n, match_date_str, f"{mercato_top} - Errore AI", [], round(prob_top*100, 1), "", mercato_standard=codice_top, origin=ORIGIN_BILLY)
 
 # Banner
 st.markdown("""<div class="safari-safe-banner"></div>""", unsafe_allow_html=True)
@@ -1633,12 +1731,48 @@ with tab1:
 with tab2:
     if st.button("🚀 Calcola Top 10", type="primary"):
         top_10, missing = fetch_and_calc_top_mix()
+        # fetch_and_calc_top_mix e' cached (ttl=1800) e il suo `now` e' congelato:
+        # si rifiltra contro l'orologio reale PRIMA di mostrare e di salvare, cosi'
+        # nessuna partita gia' iniziata puo' entrare nel registro (problema
+        # `cache_30min` in audit/results/topmix_registry_tracking.json).
+        top_10, scartate_inizio = righe_non_iniziate(top_10)
+        if scartate_inizio:
+            st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
         if missing: st.warning(f"⚠️ Mancanti: {', '.join(missing)}")
+        esiti_save = []
         for i, p in enumerate(top_10):
             dt = format_date_italy(p['utcDate'], "%d/%m %H:%M")
-            st.markdown(f"<div class='top-mix-row'><div><b>#{i+1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
-            if p.get('match_id'): save_prediction_entry(p['match_id'], p['home'], p['away'], p['league'], p['giornata'], format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"), f"{p['market']} - Top Mix", [], p['prob_val'], "", mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']))
-        st.success("✅ Top Mix salvati!")
+            # Un'Elo assente non e' un consenso: lo si dice, in UI e nel registro.
+            badge_elo = "" if p.get("elo_disponibile", True) else " · <small>⚠️ Elo n/d · soglia 60%</small>"
+            st.markdown(f"<div class='top-mix-row'><div><b>#{i+1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
+            if not p.get('match_id'):
+                continue
+            esiti_save.append(save_prediction_entry(
+                p['match_id'], p['home'], p['away'], p['league'], p['giornata'],
+                format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"),
+                f"{p['market']} - Top Mix", [], p['prob_val'], "",
+                mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']),
+                origin=ORIGIN_TOP_MIX, rank=p.get("rank") or i + 1,
+                kickoff_utc=p.get('utcDate'), prob_poisson=p.get('poisson'),
+                prob_elo=p.get('elo'), elo_disponibile=p.get("elo_disponibile", True)))
+        # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
+        # quando il PUT remoto era fallito dentro un `except: pass`.
+        n_err_remoto = sum(1 for e in esiti_save if e.get("remoto") == "errore")
+        n_nuove = sum(1 for e in esiti_save if e.get("azione") == "aggiunta")
+        n_agg = sum(1 for e in esiti_save if e.get("azione") == "aggiornata")
+        n_gia = sum(1 for e in esiti_save if e.get("azione") == "gia_graduata")
+        n_senza_id = sum(1 for e in esiti_save if e.get("azione") == "senza_chiave")
+        if not esiti_save:
+            st.info("Nessuna previsione da salvare: nessuna riga del Top Mix ha un match_id valido.")
+        else:
+            dettaglio = f"{n_nuove} nuove, {n_agg} aggiornate, {n_gia} gia' giudicate (non toccate)"
+            if n_senza_id:
+                dettaglio += f", {n_senza_id} senza match_id"
+            if n_err_remoto:
+                st.warning(f"⚠️ {n_err_remoto}/{len(esiti_save)} righe salvate SOLO in locale: "
+                           f"PUT remoto fallito (vedi log). Registro: {dettaglio}.")
+            else:
+                st.success(f"✅ Top Mix nel registro: {dettaglio}.")
 
 with tab3:
     st.subheader(f"⚡ Elo - {camp_sel}")
@@ -1725,6 +1859,10 @@ with tab5:
         # Classificazione esplicita: i record senza model_version restano
         # "Legacy" e NON vengono considerati automaticamente post-fix.
         df_preds['modello'] = [model_label(p) for p in preds]
+        # Origine della previsione (Top Mix / Analisi Rapida / Billy): i record
+        # scritti prima del campo `origin` vi risalgono dal testo, cosi' la
+        # colonna non e' vuota per il passato e la misura e' separabile.
+        df_preds['origine'] = [tipo_for_origin(origin_of(p)) for p in preds]
 
         # FIX ordinamento Registro: 'data' e' persistito come stringa italiana
         # ("05/09/2026 16:00") e sortarla come testo confronta prima il giorno
@@ -1735,13 +1873,18 @@ with tab5:
         # valori mancanti/non validi diventano NaT e finiscono in fondo.
         df_preds['data'] = build_registry_datetime_column(df_preds['data'])
 
-        f_col1, f_col2, f_col3 = st.columns(3)
+        f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         with f_col1:
             camp_options = ["Tutti"] + list(LEAGUES_CONFIG.keys())
             filter_camp = st.selectbox("Campionato", camp_options, index=0)
         with f_col2: 
             filter_status = st.selectbox("Esito", ["Tutti", "In Attesa (⏳)", "Vinte (✅)", "Perse (❌)"])
-        with f_col3: 
+        with f_col3:
+            # Senza questo filtro il win rate del Top Mix non e' separabile da
+            # quello di Analisi Rapida/Billy (problema `origin_collapsed`).
+            # Le etichette esistono gia' nei dati: nessuna lista hardcoded.
+            filter_origine = st.selectbox("Origine", ["Tutti"] + sorted(set(df_preds["origine"].tolist())), index=0)
+        with f_col4:
             stagioni_reali = sorted(df_preds['stagione'].unique().tolist(), reverse=True)
             default_stagione_idx = 1 if len(stagioni_reali) > 0 else 0
             filter_stagione = st.selectbox("Stagione", ["Tutti"] + stagioni_reali, index=default_stagione_idx)
@@ -1751,6 +1894,7 @@ with tab5:
         elif filter_status == "Vinte (✅)": df_preds = df_preds[df_preds["esito"] == "✅"]
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
+        if filter_origine != "Tutti": df_preds = df_preds[df_preds["origine"] == filter_origine]
 
         filtered_records = df_preds.to_dict("records")
         current_stats = stats_current_model(filtered_records)
@@ -1787,6 +1931,39 @@ with tab5:
             f"Perse {all_stats['losses']}, Attesa {all_stats['pending']}."
         )
 
+        # --- AFFIDABILITA' (Brier), non solo win rate ---
+        # `prob_sicuro` era gia' persistito: expose the calibration for free.
+        cal_stat = compute_calibration_stats(filtered_records)
+        if cal_stat["decise"]:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Partite decise", cal_stat["decise"])
+            c2.metric("Brier medio", f"{cal_stat['brier']:.4f}" if cal_stat["brier"] is not None else "n/d",
+                      help="Media di (probabilita' dichiarata - esito)^2 sulle partite gia' giudicate e con prob_sicuro valido. 0,25 = scommessa alla pari; sotto = meglio del caso per eventi binari.")
+            c3.metric("Prob. media", f"{cal_stat['prob_media']:.1f}%" if cal_stat["prob_media"] is not None else "n/d")
+            c4.metric("Gap prob - hit", f"{cal_stat['gap']:+.1f} pp" if cal_stat["gap"] is not None else "n/d",
+                      help="Positivo = il modello SI ESPONE piu' di quanto realizza (sovrastima la coda). E' LA STESSA GRANDAZZA misurata in audit/results/topmix_margins.md §2, ma qui sui dati LIVE del registro.")
+            cal_by = calibration_by_mercato(filtered_records, min_decise=5)
+            if cal_by:
+                st.caption("Affidabilita' per mercato e per origine (solo i tagli con almeno 5 partite decise). "
+                           "Il gap positivo e' il costo di esporre il massimo fra 7 mercati.")
+                st.dataframe(
+                    pd.DataFrame([{
+                        "Mercato": r["mercato"], "Origine": tipo_for_origin(r["origine"]),
+                        "Decise": r["decise"], "Prob. media": r["prob_media"],
+                        "Hit": r["hit_rate"], "Gap (pp)": r["gap"], "Brier": r["brier"],
+                    } for r in cal_by]),
+                    width="stretch", hide_index=True,
+                    column_config={
+                        "Prob. media": st.column_config.NumberColumn(format="%.1f%%"),
+                        "Hit": st.column_config.NumberColumn("Hit", format="%.1f%%"),
+                        "Gap (pp)": st.column_config.NumberColumn("Gap (pp)", format="%+.1f"),
+                        "Brier": st.column_config.NumberColumn("Brier", format="%.4f"),
+                    },
+                )
+            avvertenza = overall_reliability_transfer_warning(cal_stat)
+            if avvertenza:
+                st.caption("⚠️ " + avvertenza)
+
         # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
         df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
         st.caption(
@@ -1796,7 +1973,7 @@ with tab5:
         st.dataframe(
             df_display[
                 ["data", "stagione", "campionato", "home", "away", "mercato_standard",
-                 "prob_sicuro", "risultato_reale", "esito", "modello"]
+                 "prob_sicuro", "risultato_reale", "esito", "origine", "modello"]
             ].sort_values(by="data", ascending=False, na_position="last"),
             width="stretch",
             height=500,

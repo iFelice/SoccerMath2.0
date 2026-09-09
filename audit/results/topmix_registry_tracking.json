@@ -1,32 +1,6 @@
 {
-  "can_measure_top_mix_in_isolation": false,
-  "problems": [
-    {
-      "id": "dedup_match_id",
-      "severity": "blocking",
-      "summary": "save_prediction_entry ritorna subito se match_id e' gia' nel registro: Analisi Rapida o Billy salvati prima bloccano il Top Mix; un ricalcolo Top Mix non aggiorna la prima previsione."
-    },
-    {
-      "id": "origin_collapsed",
-      "severity": "blocking",
-      "summary": "Il campo tipo vale 'Top Mix' solo se la stringa 'Top Mix' compare nel pronostico; altrimenti e' 'Analisi'. Billy e Analisi Rapida non sono distinguibili da un tipo dedicato."
-    },
-    {
-      "id": "cache_30min",
-      "severity": "high",
-      "summary": "fetch_and_calc_top_mix e' cache_data(ttl=1800) senza argomenti: il now interno e' congelato 30 minuti. Partite nel frattempo iniziate restano nel risultato cached e possono essere mostrate e salvate."
-    },
-    {
-      "id": "jsonbin_unchecked",
-      "severity": "high",
-      "summary": "save_predictions fa PUT su JSONBin senza leggere status_code; l'except e' nudo (pass). Il toast 'Top Mix salvati!' non e' condizionato al successo remoto."
-    },
-    {
-      "id": "schema_gaps",
-      "severity": "blocking",
-      "summary": "Campi assenti dal salvataggio, necessari per misurare il Top Mix: calculation_id, origin, selector_version, rank, kickoff_utc, data_snapshot_sha, poisson, elo, position"
-    }
-  ],
+  "can_measure_top_mix_in_isolation": true,
+  "problems": [],
   "facts": {
     "app_path": "/home/user/SoccerMath2.0/SoccerMath/app.py",
     "functions_found": {
@@ -39,16 +13,24 @@
       "select_next_matchday_matches": true
     },
     "dedup_by_match_id": {
-      "present": true,
-      "early_return": true,
-      "source": "def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi):\n    preds = load_predictions()\n    if any((p.get('match_id') == match_id for p in preds)):\n        return\n    stagione_reale = calcola_stagione_calcolo(match_date)\n    metadata = new_prediction_metadata()\n    preds.append({'match_id': match_id, 'home': h, 'away': a, 'campionato': camp, 'giorn"
+      "present": false,
+      "early_return": false,
+      "source": "def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi, mercato_standard=None, origin=None, rank=None, kickoff_utc=None, prob_poisson=None, prob_elo=None, elo_disponibile=None, snapshot_sha=None):\n    \"\"\"Scrive UNA previsione nel registro e dice cosa ha fatto.\n\n    Due modifiche puntuali, entrambe richieste da\n    ``audit/margini_migliorabili_topmi",
+      "chiave_completa": true,
+      "passa_origine": true
     },
     "tipo_classification": {
       "field": "tipo",
       "top_mix_marker": true,
       "billy_tipo_esplicito": false,
       "fallback_label": "Analisi",
-      "rule": "'Top Mix' if 'Top Mix' in pronostico else 'Analisi'"
+      "rule": null,
+      "origini_esplicite": {
+        "ORIGIN_TOP_MIX": true,
+        "ORIGIN_ANALISI_RAPIDA": true,
+        "ORIGIN_BILLY": true
+      },
+      "usato_resolve_origin": true
     },
     "new_entry_fields_in_save": [
       "match_id",
@@ -66,35 +48,39 @@
       "esito",
       "tipo",
       "stagione",
-      "salvato_il"
-    ],
-    "missing_from_save": [
-      "calculation_id",
+      "salvato_il",
       "origin",
       "selector_version",
       "rank",
       "kickoff_utc",
       "data_snapshot_sha",
+      "calculation_id",
       "poisson",
       "elo",
-      "position"
+      "elo_disponibile"
     ],
+    "missing_from_save": [],
     "jsonbin_write": {
       "put_present": true,
-      "response_assigned": false,
-      "status_code_checked": false,
-      "except_pass": true,
-      "bare_put_swallowed": true
+      "response_assigned": true,
+      "status_code_checked": true,
+      "except_pass": false,
+      "bare_put_swallowed": false,
+      "bare_excepts": 0,
+      "ritorna_esito": true
     },
     "top_mix_cache": {
       "ttl_seconds": 1800,
-      "no_arguments": true
+      "no_arguments": true,
+      "rifiltrata_all_uso": true,
+      "righe_iniziate_scartate": true
     },
     "top_mix_success_toast": {
-      "message": "✅ Top Mix salvati!",
+      "message": "✅ Top Mix nel registro: N nuove, M aggiornate, K gia' giudicate",
       "present_in_module": true,
-      "gated_on_remote_ok": false,
-      "gated_on_save_count": false
+      "vecchio_message_incondizionato": false,
+      "gated_on_remote_ok": true,
+      "gated_on_save_count": true
     },
     "analisi_rapida_calls_save": true,
     "billy_calls_save": true,
@@ -116,13 +102,46 @@
       "disagree": true,
       "global_top10": true
     },
+    "degrado_igiene": {
+      "requests_get_total": 1,
+      "requests_get_con_timeout": 1,
+      "bare_excepts": 0,
+      "elo_flag_disponibilita": true,
+      "soglia_totali_se_elo_manca": true,
+      "rank_sulla_riga": true,
+      "sleep_guardato_da_indice": true
+    },
+    "dialogo_coerente": {
+      "mercati_puri_chiavi": [
+        "Pareggio",
+        "Over 2.5",
+        "Under 2.5",
+        "GG",
+        "NG"
+      ],
+      "argmax_su_n_mercati": 7,
+      "argmax_su_7_mercati": true,
+      "due_teste_chiamate": 1,
+      "due_teste_con_pure": true
+    },
+    "grading": {
+      "esito_mercato_chiamato": 2,
+      "catene_elif_superate": 0,
+      "bare_excepts_in_aggiorna": 0
+    },
+    "registro_ui": {
+      "brier_in_registro": true,
+      "win_rate_e_brier_insieme": true,
+      "colonna_origine": true,
+      "filtro_origine": true
+    },
     "round_window_days": 5
   },
   "registry_module": {
     "model_version_current": true,
     "new_prediction_metadata": true,
-    "has_origin_field": false,
-    "has_selector_version": false,
-    "has_calculation_id": false
+    "has_origin_field": true,
+    "has_selector_version": true,
+    "has_calculation_id": true
   }
 }

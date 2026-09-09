@@ -19,6 +19,10 @@ from app import (
     save_prediction_entry,
     standardizza_mercato,
 )
+from prediction_registry import (
+    ORIGIN_TOP_MIX,
+    SELECTOR_VERSION_CURRENT,
+)
 
 _OTHER = "__NoSuchTeam__"
 
@@ -136,12 +140,85 @@ class TestCodiceMercatoAllaGenerazione(unittest.TestCase):
 
     @patch("app.save_predictions")
     @patch("app.load_predictions", return_value=[{"match_id": 999003}])
-    def test_dedup_by_match_id_unchanged(self, _load, save):
-        save_prediction_entry(
+    def test_il_top_mix_non_piu_bloccato_da_un_record_altr_origine(self, _load, save):
+        """Chiave di dedup = (match_id, origin, selector_version).
+
+        Il vecchio dedup per solo ``match_id`` faceva ``return`` e la riga Top
+        Mix sparava se Analisi Rapida/Billy avevano salvato prima (problema
+        ``dedup_match_id``, blocking, in results/topmix_registry_tracking.json).
+        Il record qui sopra non ha ``origin``: e' "Analisi" legacy, quindi la
+        riga Top Mix DEVE essere scritta.
+        """
+        esito = save_prediction_entry(
             999003, "H", "A", "Serie A", 1, "05/09/2026 18:00",
             "Over 2.5 - Top Mix", [], 61.0, "", mercato_standard="OVER_2.5",
         )
+        save.assert_called_once()
+        self.assertEqual(esito["azione"], "aggiunta")
+        self.assertEqual(len(save.call_args[0][0]), 2)   # legacy + Top Mix
+
+    @patch("app.save_predictions")
+    @patch("app.load_predictions")
+    def test_ricalcolo_della_stessa_origine_aggiorna_senza_duplicare(self, load, save):
+        load.return_value = [{
+            "match_id": 999004, "origin": "top_mix",
+            "selector_version": SELECTOR_VERSION_CURRENT,
+            "esito": "⏳", "prob_sicuro": 55.0,
+        }]
+        esito = save_prediction_entry(
+            999004, "H", "A", "Serie A", 1, "05/09/2026 18:00",
+            "Over 2.5 - Top Mix", [], 61.0, "", mercato_standard="OVER_2.5",
+            origin=ORIGIN_TOP_MIX,
+        )
+        self.assertEqual(esito["azione"], "aggiornata")
+        self.assertEqual(len(save.call_args[0][0]), 1)
+        self.assertEqual(save.call_args[0][0][0]["prob_sicuro"], 61.0)
+
+    @patch("app.save_predictions")
+    @patch("app.load_predictions")
+    def test_record_gia_giudicato_non_viene_sovrascritto(self, load, save):
+        load.return_value = [{
+            "match_id": 999005, "origin": "top_mix",
+            "selector_version": SELECTOR_VERSION_CURRENT,
+            "esito": "✅", "prob_sicuro": 61.0,
+        }]
+        esito = save_prediction_entry(
+            999005, "H", "A", "Serie A", 1, "05/09/2026 18:00",
+            "Over 2.5 - Top Mix", [], 90.0, "", mercato_standard="OVER_2.5",
+            origin=ORIGIN_TOP_MIX,
+        )
+        self.assertEqual(esito["azione"], "gia_graduata")
         save.assert_not_called()
+
+    @patch("app.save_predictions")
+    @patch("app.load_predictions", return_value=[])
+    def test_top_mix_salva_le_componenti_e_il_rank(self, _load, save):
+        save_prediction_entry(
+            999006, "H", "A", "Serie A", 1, "05/09/2026 18:00",
+            "Vittoria H - Top Mix", [], 66.0, "", mercato_standard="1",
+            origin=ORIGIN_TOP_MIX, rank=4, kickoff_utc="2026-09-12T18:00:00Z",
+            prob_poisson=70.0, prob_elo=60.0, elo_disponibile=True,
+            snapshot_sha="deadbeef",
+        )
+        e = save.call_args[0][0][0]
+        self.assertEqual((e["origin"], e["tipo"]), ("top_mix", "Top Mix"))
+        self.assertEqual((e["rank"], e["kickoff_utc"]), (4, "2026-09-12T18:00:00Z"))
+        self.assertEqual((e["poisson"], e["elo"], e["elo_disponibile"]), (70.0, 60.0, True))
+        self.assertEqual(e["data_snapshot_sha"], "deadbeef")
+        self.assertEqual(e["selector_version"], SELECTOR_VERSION_CURRENT)
+        self.assertEqual(len(e["calculation_id"]), 16)
+
+    @patch("app.save_predictions")
+    @patch("app.load_predictions", return_value=[])
+    def test_elo_assente_e_marca_la_soglia_dei_totali(self, _load, save):
+        save_prediction_entry(
+            999007, "H", "A", "Serie A", 1, "05/09/2026 18:00",
+            "Vittoria H - Top Mix", [], 66.0, "", mercato_standard="1",
+            origin=ORIGIN_TOP_MIX, prob_elo=None, elo_disponibile=False,
+        )
+        e = save.call_args[0][0][0]
+        self.assertFalse(e["elo_disponibile"])
+        self.assertIsNone(e["elo"])
 
 
 class TestPersistenzaAllaGenerazioneAST(unittest.TestCase):
