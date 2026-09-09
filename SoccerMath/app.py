@@ -70,6 +70,11 @@ from prediction_registry import (
     tipo_for_origin,
     upsert_prediction_entry,
     overall_reliability_transfer_warning,
+    # --- gate shadow (referto §11quater, piano §9 punto 4) ---
+    GATE_SHADOW_CONFIDENCE_FIELD,
+    GATE_SHADOW_AMMESSA_FIELD,
+    gate_shadow_confidence,
+    gate_shadow_fields_from_row,
 )
 
 API_KEY_ODDS = ODDS_API_KEY
@@ -347,7 +352,8 @@ def standardizza_mercato(testo, home=None, away=None):
 def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
                           mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
                           prob_poisson=None, prob_elo=None, elo_disponibile=None,
-                          snapshot_sha=None):
+                          snapshot_sha=None,
+                          gate_shadow_confidence=None, gate_shadow_ammessa=None):
     """Scrive UNA previsione nel registro e dice cosa ha fatto.
 
     Due modifiche puntuali, entrambe richieste da
@@ -365,7 +371,11 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     ``prob_poisson``/``prob_elo``/``elo_disponibile`` salvano le DUE componenti
     della confidence: senza di esse il numero del registro non e' riconducibile
     a nessun vincolo del selettore (e il fallback Elo silenzioso resta
-    invisibile). Ritorna ``{"azione", "remoto", "record"}``.
+    invisibile). ``gate_shadow_confidence``/``gate_shadow_ammessa`` sono i campi
+    della modalita' ombra del veto (referto §11quater): OPZIONALI, aggiunti al
+    record SOLO quando ``gate_shadow_confidence`` non e' ``None``, senza
+    toccare nessun campo gia' salvato. Ritorna ``{"azione", "remoto",
+    "record"}``.
     """
     preds = load_predictions()
     stagione_reale = calcola_stagione_calcolo(match_date)
@@ -392,6 +402,12 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
         MODEL_VERSION_FIELD: metadata[MODEL_VERSION_FIELD],
         EXCLUDED_FROM_CURRENT_STATS_FIELD: metadata[EXCLUDED_FROM_CURRENT_STATS_FIELD],
     }
+    # --- Gate shadow (referto §11quater): campi OPZIONALI e puramente
+    # aggiuntivi. Se mancano o il calcolo e' fallito (None) il record resta
+    # identico a prima: nessun campo reale (market/prob/rank/…) viene toccato.
+    if gate_shadow_confidence is not None:
+        entry[GATE_SHADOW_CONFIDENCE_FIELD] = gate_shadow_confidence
+        entry[GATE_SHADOW_AMMESSA_FIELD] = bool(gate_shadow_ammessa)
     preds, azione = upsert_prediction_entry(preds, entry)
     if azione == "gia_graduata":
         # La previsione e' gia' stata giudicata: NON si tocca, e il record nuovo
@@ -1319,6 +1335,86 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
     return None
 
 
+def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away=None):
+    """Versione OMBRA del selettore per UNA candidate: gate come penalita' continua.
+
+    Referto ``audit/margini_migliorabili_topmix.md`` §9 punto 4 e §11quater.
+    Il veto di produzione ``abs(poisson_prob - elo_prob) < 0.25`` (che in
+    ``seleziona_riga_top_mix`` fa sparire l'intera partita) qui NON scarta:
+    al suo posto la confidence viene scalata dal fattore continuo
+    ``0.25 / (0.25 + d)`` (``prediction_registry.gate_shadow_confidence``) e
+    l'ammissione ombra e' il SOLO confronto ``conf_shadow >= min_conf``: i due
+    filtri di oggi (soglia + veto) collassano in uno, senza nessun secondo
+    taglio secco a un'altra soglia.
+
+    Funzione PURA (stessi divieti di ``seleziona_riga_top_mix``: niente HTTP,
+    cache, logging o scritture) e speculare alla sua matematica di selezione:
+    ripercorre le stesse righe (7 mercati, argmax, estrazione Elo, blend,
+    ``min_conf``) SOLO per ricavare ``confidence`` e ``d`` su cui applicare la
+    penalita'. La specularita' e' intenzionale e tenuta viva dal test di
+    coerenza ``test_topmix_shadow_gate.py`` (sulle stesse griglie della
+    parita' il lato reale di questa funzione deve coincidere con l'output di
+    ``seleziona_riga_top_mix``); il selettore reale NON viene toccato.
+
+    Ritorna SEMPRE un dict (mai ``None``): la candidate non viene mai
+    scartata qui, l'ammissione ombra viaggia nel campo ``ammessa_shadow``.
+    Chiavi: ``market``, ``mercato_standard``, ``prob`` (confidence REALE),
+    ``prob_val``, ``poisson``, ``elo``, ``elo_disponibile``, ``min_conf``,
+    ``disaccordo`` (d = |P-E|; 0 per totali o Elo assente), ``conf_shadow``
+    (confidence penalizzata), ``ammessa_shadow`` (``conf_shadow >= min_conf``)
+    e ``gate_avrebbe_scartato`` (``d >= 0.25``, cioe' la riga che oggi il veto
+    blocca).
+    """
+    # Copia speculare della selezione reale (vedi docstring): stessa argmax,
+    # stesso blend, stesse soglie -- MAI il veto.
+    mercati = {
+        f"Vittoria {home}": m["1"], "Pareggio": m["X"], f"Vittoria {away}": m["2"],
+        "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"],
+        "GG": m["gg"], "NG": 1 - m["gg"]
+    }
+    best_mkt = max(mercati, key=mercati.get)
+    poisson_prob = mercati[best_mkt]
+
+    elo_prob = poisson_prob  # fallback, come nel selettore reale
+    if elo_disponibile:
+        chiave_elo = None
+        if best_mkt == f"Vittoria {home}":
+            chiave_elo = "1"
+        elif best_mkt == f"Vittoria {away}":
+            chiave_elo = "2"
+        elif best_mkt == "Pareggio":
+            chiave_elo = "X"
+        if chiave_elo is not None:
+            valore = (elo_probs or {}).get(chiave_elo)
+            if isinstance(valore, (int, float)) and not isinstance(valore, bool):
+                elo_prob = valore
+            else:
+                elo_disponibile = False
+
+    if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:
+        confidence = poisson_prob
+        min_conf = 0.60
+    else:
+        confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
+        min_conf = 0.55
+
+    disaccordo = abs(poisson_prob - elo_prob)
+    conf_shadow = gate_shadow_confidence(confidence, disaccordo)
+    return {
+        "market": best_mkt,
+        "mercato_standard": codice_mercato_selezionato(best_mkt, home, away),
+        "prob": confidence, "prob_val": round(confidence * 100, 1),
+        "poisson": round(poisson_prob * 100, 1),
+        "elo": round(elo_prob * 100, 1),
+        "elo_disponibile": elo_disponibile,
+        "min_conf": min_conf,
+        "disaccordo": disaccordo,
+        "conf_shadow": conf_shadow,
+        "ammessa_shadow": bool(conf_shadow is not None and conf_shadow >= min_conf),
+        "gate_avrebbe_scartato": disaccordo >= 0.25,
+    }
+
+
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top 10...")
 def fetch_and_calc_top_mix():
     """Top 10 del turno: HTTP, motore, Elo per partita, poi ``seleziona_riga_top_mix``.
@@ -1808,6 +1904,15 @@ with tab2:
             st.markdown(f"<div class='top-mix-row'><div><b>#{i+1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
             if not p.get('match_id'):
                 continue
+            # Gate shadow (referto §11quater): la riga GIOCATA porta anche i
+            # campi ombra (confidenza penalizzata dal disaccordo |P-E| e
+            # ammissione sotto il solo filtro conf_shadow >= soglia). Se il
+            # calcolo fallisce -> None -> campi assenti, record identico a
+            # prima. Nessun effetto su market/prob/rank/ammissione reali.
+            campi_shadow = gate_shadow_fields_from_row(
+                p.get("market"), p.get("prob"), p.get("poisson"), p.get("elo"),
+                p.get("elo_disponibile", True),
+            )
             esiti_save.append(save_prediction_entry(
                 p['match_id'], p['home'], p['away'], p['league'], p['giornata'],
                 format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"),
@@ -1815,7 +1920,9 @@ with tab2:
                 mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']),
                 origin=ORIGIN_TOP_MIX, rank=p.get("rank") or i + 1,
                 kickoff_utc=p.get('utcDate'), prob_poisson=p.get('poisson'),
-                prob_elo=p.get('elo'), elo_disponibile=p.get("elo_disponibile", True)))
+                prob_elo=p.get('elo'), elo_disponibile=p.get("elo_disponibile", True),
+                gate_shadow_confidence=(campi_shadow or {}).get(GATE_SHADOW_CONFIDENCE_FIELD),
+                gate_shadow_ammessa=(campi_shadow or {}).get(GATE_SHADOW_AMMESSA_FIELD)))
         # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
         # quando il PUT remoto era fallito dentro un `except: pass`.
         n_err_remoto = sum(1 for e in esiti_save if e.get("remoto") == "errore")

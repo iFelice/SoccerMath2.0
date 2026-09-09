@@ -138,6 +138,31 @@ TIPO_BY_ORIGIN = {
 SELECTOR_VERSION_FIELD = "selector_version"
 SELECTOR_VERSION_CURRENT = "topmix_gate025_ens06_v1"
 
+# ---------------------------------------------------------------------------
+# Gate shadow (audit/margini_migliorabili_topmix.md §11quater, piano §9 punto 4)
+# ---------------------------------------------------------------------------
+# Modalita' OMBRA del veto di disaccordo ``abs(poisson - elo) < 0.25``: il gate
+# non scarta piu' la partita, ma applica una penalita' CONTINUA alla confidence
+# (mai un secondo taglio secco a un'altra soglia). Nessuna di queste costanti
+# tocca il selettore reale (``seleziona_riga_top_mix`` resta esattamente come
+# in 32e3eda): servono solo ai campi shadow persistiti nel registro e agli
+# strumenti di audit che li leggono.
+GATE_SHADOW_CONFIDENCE_FIELD = "gate_shadow_confidence"
+GATE_SHADOW_AMMESSA_FIELD = "gate_shadow_ammessa"
+# Tolleranza del veto di produzione |P-E| < 0.25: la penalita' ombra ci si
+# ancora. A d = 0.25 la confidence si DIMEZZA invece di azzerarsi
+# (fattore 0.25/(0.25+0.25) = 1/2); a d = 0 resta identica (fattore 1).
+GATE_SHADOW_TOLLERANZA = 0.25
+# Soglie minime di ammissione della variante ombra: STESSI valori letterali
+# del selettore (0.55 blend 1X2 con Elo, 0.60 altrimenti). L'ammissione ombra
+# e' un solo confronto ``conf_shadow >= min_conf``: la penalita' ha gia'
+# assorbito il veto, quindi i due filtri di oggi collassano in uno.
+GATE_SHADOW_MIN_CONF_1X2 = 0.55
+GATE_SHADOW_MIN_CONF_TOTALI = 0.60
+# Mercati su cui l'Elo non viene mai letto (O/U, GG/NG): li' il disaccordo e'
+# zero per costruzione e la variante ombra coincide con la confidence reale.
+MERCATI_SENZA_ELO = ("Over 2.5", "Under 2.5", "GG", "NG")
+
 CALCULATION_ID_FIELD = "calculation_id"
 RANK_FIELD = "rank"
 KICKOFF_UTC_FIELD = "kickoff_utc"
@@ -153,6 +178,108 @@ MERCATO_FIELD = "mercato_standard"
 ESITO_VINTO = "\u2705"
 ESITO_PERSO = "\u274c"
 ESITO_ATTESA = "\u23f3"
+
+
+# ---------------------------------------------------------------------------
+# Formula del gate shadow (funzioni pure, importabili anche senza app.py)
+# ---------------------------------------------------------------------------
+def _in_frazione(valore: Any) -> Optional[float]:
+    """Riconduce un valore salvato nel registro a una frazione in [0, 1].
+
+    Stessa convenzione di ``prob_of_entry``: i campi ``poisson``/``elo`` sono
+    persistiti in percentuale (es. 70.0), ``prob_sicuro`` come frazione.
+    """
+    if isinstance(valore, bool) or not isinstance(valore, (int, float)):
+        return None
+    v = float(valore)
+    return v / 100.0 if v > 1.0 else v
+
+
+def gate_shadow_confidence(confidence: Any, disaccordo: Any) -> Optional[float]:
+    """Confidence della variante OMBRA: ``conf * 0.25 / (0.25 + d)``.
+
+    Definizione esatta (referto ``audit/margini_migliorabili_topmix.md``
+    §11quater). ``d = |poisson - elo|`` e' il disaccordo fra i due modelli; la
+    tolleranza 0.25 e' quella del veto di produzione. Proprieta':
+
+    - moltiplicativa e mai negativa: resta in (0, 1] per ogni ``d`` finito,
+      senza clamp (una penalita' sottrattiva richiederebbe un secondo taglio
+      secco a zero per ``d`` grande: qui non esiste);
+    - monotona decrescente in ``d`` (piu' i modelli divergono, meno fiducia);
+    - continua anche al punto di veto: ``g(0)=1``, ``g(0.25)=1/2``, ``g(d)``
+      non ha salti, quindi non e' un secondo taglio a un'altra soglia;
+    - per i mercati senza Elo (O/U, GG/NG) o a Elo assente ``d = 0`` per
+      costruzione: la confidence ombra coincide con quella reale.
+
+    ``None`` se gli ingressi non sono numerici (il chiamante omette i campi
+    shadow: il salvataggio reale non viene toccato).
+    """
+    conf = _in_frazione(confidence)
+    if conf is None:
+        return None
+    if isinstance(disaccordo, bool) or not isinstance(disaccordo, (int, float)):
+        d = 0.0
+    else:
+        d = float(disaccordo)
+        if d < 0.0 or d != d:          # disaccordo negativo o NaN: nessun disaccordo
+            d = 0.0
+    return conf * (GATE_SHADOW_TOLLERANZA / (GATE_SHADOW_TOLLERANZA + d))
+
+
+def gate_shadow_min_conf(market: Any, elo_disponibile: Any) -> float:
+    """Soglia della variante ombra per una riga: 0.55 solo per 1X2 con Elo.
+
+    Ricalca il ramo del selettore reale: i totali (e l'1X2 a Elo assente)
+    pretendono 0.60 perche' la confidence e' Poisson puro.
+    """
+    if market not in MERCATI_SENZA_ELO and elo_disponibile is True:
+        return GATE_SHADOW_MIN_CONF_1X2
+    return GATE_SHADOW_MIN_CONF_TOTALI
+
+
+def gate_shadow_fields_from_row(market: Any, prob: Any, poisson: Any, elo: Any,
+                                elo_disponibile: Any) -> Optional[Dict[str, Any]]:
+    """Campi shadow calcolati sui VALORI PERSISTITI di una riga del registro.
+
+    Ritorna ``{GATE_SHADOW_CONFIDENCE_FIELD: float, GATE_SHADOW_AMMESSA_FIELD:
+    bool}`` oppure ``None`` se la riga non permette il calcolo (chiamante: il
+    salvataggio reale resta identico, i campi semplicemente non vengono
+    aggiunti).
+
+    Il disaccordo e' ricavato dalle componenti ``poisson``/``elo`` della riga
+    stessa, cosi' il valore persistito e' riproducibile dal solo record: le
+    componenti sono arrotondate allo 0.1 pp dal selettore, quindi ``d`` (e di
+    conseguenza ``gate_shadow_confidence``) coincide con il valore esatto a
+    meno di <= 0.001 di disaccordo (<= ~0.005 sulla confidence nel caso
+    peggiore). Dove l'Elo non e' stato letto il selettore salva ``elo ==
+    poisson`` (o ``elo`` assente con ``elo_disponibile=False``): in entrambi i
+    casi ``d = 0``.
+    """
+    if market is None:
+        return None
+    conf = _in_frazione(prob)
+    p = _in_frazione(poisson)
+    if conf is None or p is None:
+        return None
+    if elo_disponibile is True:
+        e = _in_frazione(elo)
+        if e is None:
+            # Flag dice che l'Elo e' stato letto ma il valore manca: riga
+            # anomala, meglio non inventare un numero -> campi assenti.
+            return None
+        d = abs(p - e)
+    else:
+        # L'Elo non e' stato letto: il selettore ha usato elo_prob =
+        # poisson_prob, quindi per costruzione il disaccordo e' zero.
+        d = 0.0
+    min_conf = gate_shadow_min_conf(market, elo_disponibile)
+    conf_shadow = gate_shadow_confidence(conf, d)
+    if conf_shadow is None:
+        return None
+    return {
+        GATE_SHADOW_CONFIDENCE_FIELD: conf_shadow,
+        GATE_SHADOW_AMMESSA_FIELD: conf_shadow >= min_conf,
+    }
 
 
 # ---------------------------------------------------------------------------
