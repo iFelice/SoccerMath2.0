@@ -1255,14 +1255,23 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             match_date_str = format_date_italy(match['utcDate'], "%d/%m/%Y %H:%M")
             h_s, a_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0}), team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
             m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
-            # 1X2 salvato = ensemble Poisson+Elo (w=ELO_ENSEMBLE_W); i Totali
-            # restano Poisson puro.
-            m = blend_elo_into_1x2(m, h, a, camp_sel)
+            # Selezione (argmax) sui mercati POISSON PURO: il blend 1X2 dentro
+            # l'argmax sposta sistematicamente la scelta verso Over/NG e
+            # peggiora hit rate/ROI (audit/results/ensemble_scope_analisi_rapida.md:
+            # 22.6% di flip, ROI flip PRE +3.6% vs POST -6.0%, Serie A Brier +0.0119).
             mercati = {f"Vittoria {h}": m["1"], "Pareggio": m["X"], f"Vittoria {a}": m["2"], "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"], "GG": m["gg"], "NG": 1 - m["gg"]}
             best_mkt = max(mercati, key=mercati.get)
-            pron = f"{best_mkt} - {mercati[best_mkt]:.0%} - Poisson Auto"
+            # Probabilita' salvata: SOLO se il mercato scelto e' 1X2 si usa la
+            # probabilita' blendata 0.6*Poisson+0.4*Elo (calibrazione validata
+            # in audit/diagnose_elo_ensemble.py); i Totali restano Poisson puro.
+            # Se l'Elo non e' disponibile blend_elo_into_1x2 ritorna il Poisson
+            # puro bit-identico.
+            m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
+            prob_1x2_blend = {f"Vittoria {h}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a}": m_blend["2"]}
+            prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
+            pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
             top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
-            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(mercati[best_mkt]*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a))
+            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a))
             salvate += 1
         except: pass
     return salvate
