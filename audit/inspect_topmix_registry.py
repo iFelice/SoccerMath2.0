@@ -143,6 +143,20 @@ def _toast_uses(text: str, mod: ast.AST, calls: Tuple[str, ...] = ("success", "w
     return False
 
 
+def _chiave_poisson(src: str, chiave: str) -> bool:
+    """L'1X2 resta agganciato alla ``chiave`` del vettore Poisson normalizzato.
+
+    Accetta sia la forma inline di una volta (``m_poisson["1"]``) sia quella
+    della funzione pura (``m["1"]``): cio' che conta e' che la probabilita' sia
+    letta dal vettore a due teste, non come si chiama la variabile locale.
+    """
+    for base in ("m_poisson", "m"):
+        for q in ('"', "'"):
+            if f'{base}[{q}{chiave}{q}]' in src:
+                return True
+    return False
+
+
 def _bare_excepts(fn: Optional[ast.AST]) -> int:
     """Numero di ``except:`` nudi (senza tipo) dentro ``fn``."""
     if fn is None:
@@ -185,6 +199,11 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     save_preds = _fn(tree, "save_predictions")
     load_preds = _fn(tree, "load_predictions")
     top_mix = _fn(tree, "fetch_and_calc_top_mix")
+    # Dal refactor (referto §9 punto 2) la selezione di riga e' una funzione pura
+    # a parte: le guardie leggono il PERCORSO COMPLETO, perche' altrimenti basta
+    # "spostare" una soglia nell'altra funzione per metterla fuori portata.
+    selez = _fn(tree, "seleziona_riga_top_mix")
+    src_topmix = chr(10).join(ast.unparse(n) for n in (top_mix, selez) if n is not None)
     analisi = _fn(tree, "analisi_rapida_giornata")
     show = _fn(tree, "show_details")
     select_md = _fn(tree, "select_next_matchday_matches")
@@ -196,6 +215,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "save_predictions": save_preds is not None,
             "load_predictions": load_preds is not None,
             "fetch_and_calc_top_mix": top_mix is not None,
+            "seleziona_riga_top_mix": selez is not None,
             "analisi_rapida_giornata": analisi is not None,
             "show_details": show is not None,
             "select_next_matchday_matches": select_md is not None,
@@ -347,11 +367,11 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     # --- mercati Top Mix (sette) ---
     seven = None
     if top_mix is not None:
-        src = ast.unparse(top_mix)
+        src = src_topmix
         seven = {
-            "has_1": 'm_poisson["1"]' in src or "m_poisson['1']" in src,
-            "has_X": 'm_poisson["X"]' in src or "m_poisson['X']" in src,
-            "has_2": 'm_poisson["2"]' in src or "m_poisson['2']" in src,
+            "has_1": _chiave_poisson(src, "1"),
+            "has_X": _chiave_poisson(src, "X"),
+            "has_2": _chiave_poisson(src, "2"),
             "has_over": "Over 2.5" in src,
             "has_under": "Under 2.5" in src,
             "has_gg": '"GG"' in src or "'GG'" in src,
@@ -366,21 +386,72 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "min_conf_1x2": "min_conf = 0.55" in src or "min_conf = 0.55" in raw_src,
             "disagree": "abs(poisson_prob - elo_prob) < 0.25" in src,
             "global_top10": "[:10]" in src,
+            # La selezione deve stare in UN solo posto: se vive nella funzione
+            # pura, il chiamante non deve piu' costruire i 7 mercati (altrimenti
+            # restano due copie che possono divergere in silenzio).
+            "selezione_in_un_solo_punto": ("mercati = {" in ast.unparse(top_mix))
+                                          != (selez is not None
+                                              and "mercati = {" in ast.unparse(selez)),
+            "codice_mercato_chiamato": "codice_mercato_selezionato(" in src,
         }
     facts["top_mix_selector"] = seven
+
+    # --- il selettore come funzione PURA (referto §9 punto 2) ---
+    # L'estrazione ha senso solo se la funzione resta isolabile. Se un domani ci
+    # rimettesse una chiamata HTTP o un salvataggio, il test di parita' potrebbe
+    # restare verde perche' gli stub la nascondono: questa e' la guardia che
+    # tiene chiusa la ragione per cui l'estrazione e' stata fatta.
+    puro: Dict[str, Any] = {"presente": selez is not None}
+    if selez is not None:
+        # Moduli che fanno I/O e nomi che scrivono: un ATTRIBUTO chiamato su di
+        # essi squalifica la purezza. `mercati.get(...)` resta lecito perche' la
+        # lista nera guarda il RICEVENTE, non il nome del metodo.
+        moduli_io = {"requests", "st", "logging", "time", "os", "json", "subprocess"}
+        scrittori = {"save_prediction_entry", "save_predictions", "predict_elo_probs",
+                     "get_league_engine", "load_predictions", "load_prediction_registry",
+                     "open", "print"}
+        accessi = {n.value.id + "." + n.attr for n in ast.walk(selez)
+                   if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)}
+        chiamate_io = sorted({n.value.id for n in ast.walk(selez)
+                              if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                              and n.value.id in moduli_io})
+        chiamate_scrittrici = sorted({n.func.id for n in ast.walk(selez)
+                                      if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                                      and n.func.id in scrittori})
+        ritorni = [n.value for n in ast.walk(selez) if isinstance(n, ast.Return)]
+        firme = [a.arg for a in selez.args.args]
+        puro.update({
+            "firma": firme,
+            "chiamate_io": chiamate_io,
+            "chiamate_scrittrici": chiamate_scrittrici,
+            "io_vietato_assente": not chiamate_io and not chiamate_scrittrici,
+            "niente_try": not any(isinstance(n, ast.Try) for n in ast.walk(selez)),
+            "niente_streamlit": not any(a.startswith("st.") for a in accessi),
+            "ritorna_dett_o_none": bool(ritorni) and all(
+                isinstance(r, ast.Dict) or (isinstance(r, ast.Constant) and r.value is None)
+                for r in ritorni),
+            # L'Elo deve ENTRARE come argomento: se venisse riletto dentro con un
+            # default magico la funzione non sarebbe piu' testabile in isolamento.
+            "elo_iniettato": "elo_probs" in firme and "elo_disponibile" in firme,
+            "soglia_totali_condizionata_alelo": "or not elo_disponibile:" in ast.unparse(selez),
+        })
+        puro["pura_davvero"] = all(puro[k] for k in (
+            "io_vietato_assente", "niente_try", "niente_streamlit", "ritorna_dett_o_none",
+            "elo_iniettato"))
+    facts["selettore_puro"] = puro
 
     # --- igiene dei percorsi di degrado (audit §4 punti 1-3) ---
     igiene: Dict[str, Any] = {}
     if top_mix is not None:
-        src_tm = ast.unparse(top_mix)
-        getters = [n for n in ast.walk(top_mix)
+        src_tm = src_topmix
+        getters = [n for node in (top_mix, selez) if node is not None for n in ast.walk(node)
                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
                    and n.func.attr == "get" and isinstance(n.func.value, ast.Name)
                    and n.func.value.id == "requests"]
         igiene["requests_get_total"] = len(getters)
         igiene["requests_get_con_timeout"] = sum(
             1 for g in getters if any(kw.arg == "timeout" for kw in g.keywords))
-        igiene["bare_excepts"] = _bare_excepts(top_mix)
+        igiene["bare_excepts"] = _bare_excepts(top_mix) + _bare_excepts(selez)
         igiene["elo_flag_disponibilita"] = ("elo_disponibile" in src_tm
                                            and "elo_disponibile = False" in src_tm)
         # senza Elo la confidence e' Poisson puro: deve valere la soglia 0,60
@@ -556,6 +627,36 @@ def tracking_verdict(app_facts: Optional[Dict[str, Any]] = None) -> Dict[str, An
                 "severity": "high",
                 "summary": "Percorsi di degrado del Top Mix: " + "; ".join(guasti),
             })
+
+    sel = facts.get("top_mix_selector") or {}
+    if sel and not sel.get("selezione_in_un_solo_punto", True):
+        problems.append({
+            "id": "selezione_duplicata",
+            "severity": "high",
+            "summary": (
+                "La costruzione dei 7 mercati compare in piu' di un punto del "
+                "percorso Top Mix: due copie possono divergere in silenzio, e' "
+                "esattamente il rischio che l'estrazione in "
+                "`seleziona_riga_top_mix` voleva togliere."
+            ),
+        })
+
+    puro = facts.get("selettore_puro") or {}
+    if puro.get("presente") and not puro.get("pura_davvero"):
+        guasti_puri = [k for k in ("io_vietato_assente", "niente_try", "niente_streamlit",
+                                   "ritorna_dett_o_none", "elo_iniettato")
+                       if not puro.get(k)]
+        problems.append({
+            "id": "selettore_non_piu_puro",
+            "severity": "medium",
+            "summary": (
+                "`seleziona_riga_top_mix` esiste ma non e' piu' una funzione pura "
+                "(" + ", ".join(guasti_puri) + "): il test di parita' la esercita "
+                "con gli stub, quindi un I/O reintrodotto qui dentro la renderebbe "
+                "di nuovo non misurabile in isolamento - e' la ragione per cui era "
+                "stata estratta (referto §9 punto 2)."
+            ),
+        })
 
     dl = facts.get("dialogo_coerente") or {}
     if dl and (not dl.get("argmax_su_7_mercati") or not dl.get("due_teste_con_pure")):

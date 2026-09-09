@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import os
 import sys
+import tempfile
 import unittest
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,7 +56,8 @@ class TestTracciamentoCorretto(unittest.TestCase):
         found = self.facts["functions_found"]
         for name in (
             "save_prediction_entry", "save_predictions", "load_predictions",
-            "fetch_and_calc_top_mix", "analisi_rapida_giornata", "show_details",
+            "fetch_and_calc_top_mix", "seleziona_riga_top_mix",
+            "analisi_rapida_giornata", "show_details",
         ):
             self.assertTrue(found[name], name)
 
@@ -225,6 +227,71 @@ class TestSelettoreInvariato(unittest.TestCase):
                          "il gate di sanita' duplicato e' tornato dentro get_league_engine")
 
 
+class TestSelettorePuro(unittest.TestCase):
+    """L'estrazione deve restare un'estrazione, non un travestimento.
+
+    Il perche' (referto §9 punto 2): la selezione di riga era l'unica parte del
+    Top Mix senza test di comportamento, perche' era incastrata fra HTTP e cache
+    di Streamlit. Ora ha ``SoccerMath/test_topmix_selector_parity.py``; questa
+    classe impedisce che il beneficio si dissipi: I/O reintrodotto dentro la
+    funzione (e la parita' verrebbe misurata sugli stub, non sulla realta'), o
+    - peggio - il corpo copiato sia nel chiamante sia nella funzione pura, cioe'
+    due fonti di verita' che possono divergere in silenzio.
+    """
+
+    def test_il_selettore_e_isolato_e_non_duplicato(self):
+        f = inspect_app()
+        puro = f["selettore_puro"]
+        self.assertTrue(puro["presente"],
+                        "seleziona_riga_top_mix rimossa: il test di parita' non puo' piu' girare")
+        self.assertTrue(puro["pura_davvero"], puro)
+        self.assertEqual(["m", "elo_probs", "elo_disponibile", "home", "away"], puro["firma"],
+                         "la firma e' il contratto del test di parita': cambiarla rompe il confronto")
+        self.assertEqual([], puro["chiamate_io"])
+        self.assertEqual([], puro["chiamate_scrittrici"])
+        self.assertTrue(puro["ritorna_dett_o_none"])
+        self.assertTrue(f["top_mix_selector"]["selezione_in_un_solo_punto"],
+                        "i 7 mercati vengono costruiti in due punti")
+        self.assertTrue(f["top_mix_selector"]["codice_mercato_chiamato"])
+
+    def test_le_guardie_scattano_su_un_sorgente_mutato(self):
+        """Una guardia che non puo' fallire non e' una guardia: qui si prova il fuoco."""
+        src = _src(APP_PATH)
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "app.py")
+
+            def ispeziona(mutato: str) -> dict:
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(mutato)
+                return inspect_app(p)
+
+            # (a) I/O reintrodotto nella funzione pura
+            con_sleep = src.replace(
+                "    best_mkt = max(mercati, key=mercati.get)",
+                "    time.sleep(0.1)\n    best_mkt = max(mercati, key=mercati.get)", 1)
+            self.assertNotEqual(con_sleep, src, "la mutazione (a) non e' stata applicata")
+            f2 = ispeziona(con_sleep)
+            self.assertFalse(f2["selettore_puro"]["pura_davvero"], f2["selettore_puro"])
+            self.assertEqual(["time"], f2["selettore_puro"]["chiamate_io"])
+            self.assertIn("selettore_non_piu_puro",
+                          [x["id"] for x in tracking_verdict(f2)["problems"]])
+
+            # (b) corpo duplicato nel chiamante: due copie della selezione
+            duplicato = src.replace(
+                "    all_preds, missing = [], []",
+                '    mercati = {"GG": 0.5}  # duplicato mutato\n'
+                "    all_preds, missing = [], []", 1)
+            self.assertNotEqual(duplicato, src, "la mutazione (b) non e' stata applicata")
+            f3 = ispeziona(duplicato)
+            self.assertFalse(f3["top_mix_selector"]["selezione_in_un_solo_punto"],
+                             f3["top_mix_selector"])
+            self.assertIn("selezione_duplicata",
+                          [x["id"] for x in tracking_verdict(f3)["problems"]])
+
+            # (c) il codice vero non deve avere nessuno di questi problemi
+            self.assertEqual([], tracking_verdict(ispeziona(src))["problems"])
+
+
 class TestReadOnlyWorkflow(unittest.TestCase):
     def test_github_action_is_read_only(self):
         path = os.path.join(_REPO_ROOT, ".github", "workflows", "topmix_audit.yml")
@@ -248,6 +315,7 @@ class TestReadOnlyWorkflow(unittest.TestCase):
             src = f.read()
         for richiesto in ("audit/test_topmix_next_matchday.py",
                           "SoccerMath/test_registry_tracking.py",
+                          "SoccerMath/test_topmix_selector_parity.py",
                           "audit/test_topmix_margins.py"):
             self.assertIn(richiesto, src, f"{richiesto} non eseguito in CI")
 

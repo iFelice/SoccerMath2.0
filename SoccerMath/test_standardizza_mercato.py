@@ -236,8 +236,15 @@ class TestPersistenzaAllaGenerazioneAST(unittest.TestCase):
         self.fail(name)
 
     def test_fetch_and_calc_stores_mercato_standard(self):
-        src = ast.unparse(self._fn("fetch_and_calc_top_mix"))
-        self.assertIn("mercato_standard", src)
+        # `mercato_standard` lo scrive l'orchestratore, `codice_mercato_selezionato`
+        # lo chiama il selettore puro (referto §9 punto 2): la guardia legge il
+        # percorso completo, cosi' nessuno dei due pezzi puo' sparire in silenzio.
+        # `ast.unparse` normalizza gli apici a ', quindi anche il confronto
+        # structurale si fa su testo normalizzato allo stesso modo.
+        fetch = ast.unparse(self._fn("fetch_and_calc_top_mix")).replace("'", '"')
+        src = fetch + ast.unparse(self._fn("seleziona_riga_top_mix")).replace("'", '"')
+        self.assertIn("mercato_standard", fetch)
+        self.assertIn('"mercato_standard": riga["mercato_standard"]', fetch)
         self.assertIn("codice_mercato_selezionato", src)
 
     def test_analisi_rapida_passes_code(self):

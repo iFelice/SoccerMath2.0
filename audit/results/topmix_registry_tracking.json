@@ -8,6 +8,7 @@
       "save_predictions": true,
       "load_predictions": true,
       "fetch_and_calc_top_mix": true,
+      "seleziona_riga_top_mix": true,
       "analisi_rapida_giornata": true,
       "show_details": true,
       "select_next_matchday_matches": true
@@ -100,7 +101,28 @@
       "min_conf_ou_gg": true,
       "min_conf_1x2": true,
       "disagree": true,
-      "global_top10": true
+      "global_top10": true,
+      "selezione_in_un_solo_punto": true,
+      "codice_mercato_chiamato": true
+    },
+    "selettore_puro": {
+      "presente": true,
+      "firma": [
+        "m",
+        "elo_probs",
+        "elo_disponibile",
+        "home",
+        "away"
+      ],
+      "chiamate_io": [],
+      "chiamate_scrittrici": [],
+      "io_vietato_assente": true,
+      "niente_try": true,
+      "niente_streamlit": true,
+      "ritorna_dett_o_none": true,
+      "elo_iniettato": true,
+      "soglia_totali_condizionata_alelo": true,
+      "pura_davvero": true
     },
     "degrado_igiene": {
       "requests_get_total": 1,

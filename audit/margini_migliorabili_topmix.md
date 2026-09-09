@@ -311,6 +311,8 @@ rende il tracciamento anche testato, non solo registrato.
    non verificabili.
 2. **Estrazione del selettore** in `seleziona_riga_top_mix(mercati, elo, soglie, pesi)
    -> dict`, chiamata sia da `fetch_and_calc_top_mix` sia dall'harness di audit.
+   → **fatto** (salvo la seconda metà: l'harness resta una trascrizione indipendente
+   *di proposito*, §11ter).
    Oggi `apply_selector_A` ne è una trascrizione e il solo vincolo fra le due è
    il guard testuale di §4 punto 7: estrarre la funzione lo trasforma in un test
    di comportamento (gate, fallback, argmax sui 7 mercati) eseguibile anche senza
@@ -410,9 +412,9 @@ erano**, e restano le uniche cose che potevano cambiare il numero predittivo.
   nell'Elo, `X`/`NG` mercati morti. Ognuno sposta numeri: vanno decisi uno per
   volta con il protocollo del §5, non infilati in un commit di igiene.
 - **Estrazione del selettore** in `seleziona_riga_top_mix()` (piano §9 passo 2):
-  non fatta. Fino ad allora il `test_topmix_next_matchday.py` — che ora gira in
-  CI — copre il corpo della funzione **end-to-end con HTTP/Elo mockati**, ma non
-  asserisce ancora gate e fallback.
+  **fatta nel passo successivo**, con test di parità bit-per-bit sul corpo
+  pre-refactor: §11ter. Rimaneva aperto, fin lì, solo il gate e la scala (§1 riga 1
+  e §3), che sono cambiamenti predittivi.
 
 Verifica: **93 test verdi nel sandbox** (quelli che non dipendono da
 `streamlit`/`numpy`: 35 + 25 + 33) e **CI verde** su `topmix_audit.yml`
@@ -429,6 +431,114 @@ passa da 5 problemi (3 `blocking`) a **0**, con
 verdetto: ora è derivato dall'AST, quindi si riaccende da solo se qualcuno
 re-introduce uno di quei percorsi).
 
+## 11ter. Stato dopo l'estrazione del selettore (piano §9 passo 2)
+
+Il corpo di `fetch_and_calc_top_mix` è stato diviso in due, senza toccare un numero:
+
+| Pezzo | Righe in `app.py` | Cosa fa |
+|---|---|---|
+| `seleziona_riga_top_mix(m, elo_probs, elo_disponibile, home, away)` | 1232–1317 | **funzione pura**: i 7 mercati, `best_mkt = max(mercati, key=mercati.get)`, estrazione Elo per `1/X/2`, blend `0,6·Poisson + 0,4·Elo`, `min_conf` 0,60 (totali o Elo assente) / 0,55, veto `|P−E| < 0,25`. Ritorna il dizionario di riga o `None`. Nessun `requests`, nessun `st.`, nessun `logging`, nessun `save_prediction*`, zero `try/except` |
+| `fetch_and_calc_top_mix()` | 1321–1383 (decorata `@st.cache_data(ttl=1800)`, invariata) | solo GET con `timeout=15`, motore, `predict_elo_probs` in `try/except` (con `elo_disponibile=False` e log), assemblaggio dei campi del match nell'**identico ordine di chiavi** di prima, `sorted(...)[:10]` e `rank` |
+
+**Come è stato dimostrato che è un refactor.** `SoccerMath/test_topmix_selector_parity.py`
+(26 test, **solo stdlib**: gira anche qui, dove `streamlit`/`numpy`/`scipy` non ci
+sono) esegue il corpo **PRIMA** e il percorso **DOPO** sugli stessi identici stub
+e confronta l'output con `json.dumps` senza `sort_keys`, cioè carattere per
+carattere, ordine delle chiavi compreso (che è quello che decide l'ordine delle
+colonne del DataFrame in UI):
+
+- il corpo pre-refactor non è una parafrasi: è il **testo del blob**
+  `16d4e73:SoccerMath/app.py`, scritto in
+  `SoccerMath/test_fixtures/topmix_selettore_pre_refactor.py` da
+  `audit/make_topmix_selector_fixture.py` (`--check` rigenera e confronta, così
+  il fixture non può essere aggiustato a mano). Il test di provenienza riverifica
+  il confronto col blob quando git ha quell'oggetto (CI usa `fetch-depth: 0`);
+- **griglia**: 1 400 partite sintetiche a seed fisso, un caso per ogni mercato
+  come argmax, un caso su quattro **esattamente** su 0,55 / 0,5499 / 0,60 /
+  0,5999, e cinque facce dell'Elo (concorde, in disaccordo, dict senza la chiave
+  del mercato scelto, `{}`/`None`, eccezione). Output identico;
+- **casi limite**: soglia `>=` sul bordo, `|P−E| = 0,25` esatto (rifiutato) vs
+  `0,2499999` (ammesso), soglia dei totali a 0,60 esatta, `Pareggio` e
+  `Vittoria {trasferta}` con lo stesso codice mercato, griglia dedicata in cui
+  l'Elo manca **sempre** (lì il ramo debole è quello che arriva in top 10);
+- **guardie di testo**: ogni riga della matematica di selezione del fixture deve
+  riapparire nel nuovo `app.py` o essere elencata in `DICHIARATE` con il motivo
+  (le uniche 8 sono l'I/O Elo uscito dal selettore e i tre accessi `elo_p[...]`
+  sostituiti da `.get` + controllo sul tipo). Una soglia riscritta fa fallire il
+  test: verificato — mutando `min_conf` a 0,56, il gate a 0,35, il peso
+  dell'ensemble o invertendo l'ordine delle chiavi, il test di parità **fallisce**.
+
+**Due differenze volute, entrambe non predittive.**
+
+1. `elo_probs` con un valore **non numerico** (es. `"0.70"`): prima propagava un
+   `TypeError` fuori dal `try` (l'accesso era fuori dal `try`, che copriva la sola
+   chiamata) e perdeva l'intero batch di 5 leghe; ora la riga è marcata
+   `elo_disponibile=False` e coincide **riga per riga** con ciò che il selettore
+   già fa con l'Elo assente (`test_valore_elo_non_numerico_non_fa_piu_esplodere_il_batch`
+   asserisce entrambe le metà).
+2. Un `logging.warning("Elo non disponibile…")` in meno quando il dict Elo è
+   *presente ma senza la chiave* del mercato scelto: l'informazione ora viaggia
+   sul flag della riga, dove il registro la legge davvero. La guardia
+   `assert_solo_elo_in_meno` ammette solo questo: nessun avviso nuovo, nessun
+   avviso di fetch diverso.
+
+**Guardie ritarrettate (altrimenti la CI era rossa, e per un buon motivo).** Le
+soglie non vivono più in una funzione sola, quindi *ogni* guardia che leggeva il
+solo `fetch_and_calc_top_mix` è stata estesa al **percorso completo** — se fosse
+restata sul chiamante, bastava spostare una soglia per metterla fuori portata:
+
+- `audit/test_reconstruct_topmix_match.py::_app_topmix_source()` → unisce
+  `fetch_and_calc_top_mix` + `seleziona_riga_top_mix` (la trascrizione
+  `apply_selector_A` resta **indipendente di proposito**: è il confronto esterno
+  che tiene in vita la coerenza 24/24 di §0, non va saldata al codice di produzione);
+- `audit/inspect_topmix_registry.py`: `top_mix_selector` e `degrado_igiene`
+  calcolati sul testo combinato; `_chiave_poisson` accetta `m_poisson["1"]` *o*
+  `m["1"]` (ciò che conta è che l'1X2 resti agganciato al vettore a due teste,
+  non il nome della variabile);
+- `SoccerMath/test_standardizza_mercato.py::test_fetch_and_calc_stores_mercato_standard`
+  → `mercato_standard` verificato sull'orchestratore, `codice_mercato_selezionato`
+  sul percorso (con la normalizzazione degli apici di `ast.unparse`);
+- `audit/test_topmix_registry_tracking.py`: nuova classe `TestSelettorePuro` sui
+  fatti `selettore_puro` / `selezione_in_un_solo_punto` / `codice_mercato_chiamato`
+  dell'ispettore, **compreso il test che spara**: su due sorgenti mutati in una
+  copia temporanea (un `time.sleep` dentro la funzione pura; un secondo
+  `mercati = {` nel chiamante) le guardie scattano e `tracking_verdict` riporta
+  `selettore_non_piu_puro` (`medium`) e `selezione_duplicata` (`high`). Il codice
+  vero resta a 0 problemi.
+
+**CI.** `SoccerMath/test_topmix_selector_parity.py` è stato aggiunto alla lista
+`pytest` di `topmix_audit.yml` (e ai suoi `paths:`), quindi la parità è verificata
+a ogni push su `arena/**` insieme al resto. L'ordine consigliato del §9 resta
+invariato: passo 4 (gate in prospettiva) e passo 5 (`MARKET_VALUES` versionato)
+sono ancora aperti.
+
+Verifica di questo passo: **227 test verdi nel sandbox** — 26 parità + 27
+guardie tracciamento + 35 registro + 33 harness margini + 16
+`test_prediction_registry` + 36 pre-shrinkage + 54 race condition — e CI su
+`topmix_audit.yml`, dove girano anche i tre file che richiedono l'ambiente
+completo (`test_topmix_next_matchday.py`, `test_reconstruct_topmix_match.py`,
+`test_standardizza_mercato.py`).
+
+Artefatto rigenerato: `audit/results/topmix_registry_tracking.json` (0 problemi,
+`can_measure_top_mix_in_isolation: true`), nuove chiavi `facts.selettore_puro` e
+due chiavi in `facts.top_mix_selector`; nessuna delle chiavi preesistenti cambia
+valore. Comando (identico al passo CI, `git diff --exit-code -- SoccerMath
+audit/results` che chiude il workflow verifica che sia aggiornata):
+
+```
+python - <<'PY'
+import json, sys
+sys.path.insert(0, "audit")
+from inspect_topmix_registry import tracking_verdict, inspect_registry_module
+v = tracking_verdict()
+src = v["facts"]["dedup_by_match_id"].get("source")
+v["facts"]["dedup_by_match_id"]["source"] = src[:400] if src else src
+v["registry_module"] = inspect_registry_module()
+with open("audit/results/topmix_registry_tracking.json", "w", encoding="utf-8") as f:
+    json.dump(v, f, ensure_ascii=False, indent=2); f.write("\n")
+PY
+```
+
 ## 12. Riproduzione
 
 ```bash
@@ -438,4 +548,9 @@ python -m pytest audit/test_topmix_margins.py -q   # equivalente, se pytest è i
 
 # per rigenerare anche la fonte:
 python audit/topmix_selector_replay.py --out audit/results    # ~2 min
+
+# parità del selettore dopo l'estrazione in funzione pura (§11ter) — solo stdlib:
+python SoccerMath/test_topmix_selector_parity.py                     # 26 test
+python audit/make_topmix_selector_fixture.py --check                # fixture == blob git
+# (senza --check rigenera il fixture: si fa solo se `app.py` di ORIGINE cambia, cioè mai)
 ```

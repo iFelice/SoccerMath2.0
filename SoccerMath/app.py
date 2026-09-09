@@ -1229,16 +1229,106 @@ def select_next_matchday_matches(matches, now=None):
             if md == next_matchday and dt <= window_end]
 
 
+def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, away=None):
+    """Riga Top Mix di UNA partita: argmax, blend 1X2, soglie e veto.
+
+    Funzione PURA (nessuna richiesta HTTP, nessuna cache, nessun logging,
+    nessuna scrittura nel registro): riceve solo i dati gia' calcolati per la
+    partita e ritorna il dizionario della riga, oppure ``None`` se la partita
+    va scartata. I campi legati al match (league, giornata, home, away,
+    match_id, utcDate, rank) li aggiunge il chiamante.
+
+    Perche' esiste: era il corpo di ``fetch_and_calc_top_mix``, cioe' l'unica
+    parte di produzione senza test di comportamento -- esisteva solo la
+    trascrizione ``apply_selector_A`` in ``audit/reconstruct_topmix_match.py``,
+    allineata da un guard testuale sull'AST (referto
+    ``audit/margini_migliorabili_topmix.md`` §4 punto 7 e §9 punto 2). Da qui il
+    guard diventa un confronto di comportamento
+    (``SoccerMath/test_topmix_selector_parity.py``). L'harness di audit RESTA una
+    sua trascrizione, di proposito: e' il confronto esterno che tiene in vita la
+    coerenza dei numeri, e unire le due copie lo distruggerebbe.
+
+    Parametri
+    ---------
+    m : dict
+        Output di ``get_full_poisson_two_heads``: chiavi "1", "X", "2", "u25", "gg".
+    elo_probs : dict | None
+        Output di ``predict_elo_probs`` (chiavi "1", "X", "2"); ``None`` se l'Elo
+        non e' disponibile.
+    elo_disponibile : bool
+        False quando ``predict_elo_probs`` ha fallito: la confidence e' allora
+        Poisson puro e vale la soglia dei totali (0,60), non 0,55.
+    home, away : str
+        Nomi (``shortName`` API) usati per le etichette "Vittoria {squadra}" e
+        per il codice mercato.
+
+    Ritorna ``dict | None`` con chiavi ``market``, ``mercato_standard``,
+    ``prob``, ``prob_val``, ``poisson``, ``elo``, ``elo_disponibile``.
+    """
+    # Poisson a due teste: 1X2 da mercato normalizzato, O/U e GG da lambda base
+    mercati = {
+        f"Vittoria {home}": m["1"], "Pareggio": m["X"], f"Vittoria {away}": m["2"],
+        "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"],
+        "GG": m["gg"], "NG": 1 - m["gg"]
+    }
+    best_mkt = max(mercati, key=mercati.get)
+    poisson_prob = mercati[best_mkt]
+
+    # Elo agreement (solo per 1X2). Con elo_probs assente/malformato la riga
+    # resta Poisson puro: come il vecchio `except` che avvolgeva l'accesso.
+    elo_prob = poisson_prob  # fallback
+    if elo_disponibile:
+        chiave_elo = None
+        if best_mkt == f"Vittoria {home}":
+            chiave_elo = "1"
+        elif best_mkt == f"Vittoria {away}":
+            chiave_elo = "2"
+        elif best_mkt == "Pareggio":
+            chiave_elo = "X"
+        if chiave_elo is not None:
+            valore = (elo_probs or {}).get(chiave_elo)
+            if isinstance(valore, (int, float)) and not isinstance(valore, bool):
+                elo_prob = valore
+            else:
+                elo_disponibile = False
+
+    # Confidence = media tra Poisson ed Elo (se Elo è vicino, conferma; se lontano, penalizza)
+    # Per mercati O/U e GG dove Elo non esiste, usiamo solo Poisson ma richiediamo soglia più alta
+    if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:
+        confidence = poisson_prob
+        min_conf = 0.60
+    else:
+        # Per 1X2: media armonica pesata (stesso peso dell'ensemble
+        # ELO_ENSEMBLE_W: la confidence coincide con la probabilita'
+        # 1X2 ensemble usata ovunque)
+        confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
+        min_conf = 0.55
+
+    # Filtro qualità: confidence minima e nessun disaccordo estremo
+    if confidence >= min_conf and abs(poisson_prob - elo_prob) < 0.25:
+        return {
+            "market": best_mkt,
+            "mercato_standard": codice_mercato_selezionato(best_mkt, home, away),
+            "prob": confidence, "prob_val": round(confidence * 100, 1),
+            "poisson": round(poisson_prob * 100, 1),
+            "elo": round(elo_prob * 100, 1),
+            # False SOLO se predict_elo_probs ha fallito: UI e registro
+            # devono poter distinguere "Elo d'accordo" da "Elo assente".
+            "elo_disponibile": elo_disponibile,
+        }
+    return None
+
+
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top 10...")
 def fetch_and_calc_top_mix():
-    """Top 10 del turno. Nessuna formula qui dentro e' stata toccata.
+    """Top 10 del turno: HTTP, motore, Elo per partita, poi ``seleziona_riga_top_mix``.
 
-    Igienizzati solo i percorsi di degrado (audit/margini_migliorabili_topmix.md
-    §4): timeout sulla GET, fallback Elo marcato (prima `elo_prob = poisson_prob`
-    + `except: pass` rendevano vacuo il veto sul disaccordo e abbassavano la
-    soglia 1X2 a 0,55), coda di rate-limit solo FRA le leghe (l'ultima non
-    aspetta piu' nulla) e `rank` sulla riga, cosi' il registro sa in che posizione
-    era finita la previsione.
+    La selezione di riga (7 mercati, argmax, blend, soglie, veto) NON e' piu'
+    qui dentro: e' nella funzione pura sopra, testata in
+    ``SoccerMath/test_topmix_selector_parity.py``. Qui restano solo I/O e
+    assemblaggio. Igienizzati in precedenza (referto §4): timeout sulla GET,
+    fallback Elo marcato, coda di rate-limit solo FRA le leghe (l'ultima non
+    aspetta piu' nulla) e `rank` sulla riga.
     """
     all_preds, missing = [], []
     leghe = list(LEAGUES_CONFIG.keys())
@@ -1263,59 +1353,30 @@ def fetch_and_calc_top_mix():
             a = match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
             h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})
             a_s = team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
-            
+
             # Poisson a due teste: 1X2 da mercato normalizzato, O/U e GG da lambda base
             m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
-            mercati = {
-                f"Vittoria {h}": m_poisson["1"], "Pareggio": m_poisson["X"], f"Vittoria {a}": m_poisson["2"],
-                "Over 2.5": 1 - m_poisson["u25"], "Under 2.5": m_poisson["u25"],
-                "GG": m_poisson["gg"], "NG": 1 - m_poisson["gg"]
-            }
-            best_mkt = max(mercati, key=mercati.get)
-            poisson_prob = mercati[best_mkt]
-            
-            # Elo agreement (solo per 1X2)
-            elo_prob, elo_disponibile = poisson_prob, True
+
+            # Elo agreement (solo per 1X2): qui e' I/O (engine/cache Elo), la
+            # decisione resta nella funzione pura.
+            elo_probs, elo_disponibile = None, False
             try:
-                elo_p = predict_elo_probs(h, a, league)
-                if best_mkt == f"Vittoria {h}":
-                    elo_prob = elo_p["1"]
-                elif best_mkt == f"Vittoria {a}":
-                    elo_prob = elo_p["2"]
-                elif best_mkt == "Pareggio":
-                    elo_prob = elo_p["X"]
+                elo_probs = predict_elo_probs(h, a, league)
+                elo_disponibile = True
             except Exception as e:
-                # NON e' piu' un `except: pass` silenzioso: la riga viene
-                # marcata e giudicata come un totale (Poisson puro, soglia
-                # 0,60), perche' senza Elo la confidence non e' un consenso.
-                elo_disponibile = False
                 logging.warning(f"Elo non disponibile per {h} vs {a} ({league}): {e}")
-            
-            # Confidence = media tra Poisson ed Elo (se Elo è vicino, conferma; se lontano, penalizza)
-            # Per mercati O/U e GG dove Elo non esiste, usiamo solo Poisson ma richiediamo soglia più alta
-            if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:
-                confidence = poisson_prob
-                min_conf = 0.60
-            else:
-                # Per 1X2: media armonica pesata (stesso peso dell'ensemble
-                # ELO_ENSEMBLE_W: la confidence coincide con la probabilita'
-                # 1X2 ensemble usata ovunque)
-                confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
-                min_conf = 0.55
-            
-            # Filtro qualità: confidence minima e nessun disaccordo estremo
-            if confidence >= min_conf and abs(poisson_prob - elo_prob) < 0.25:
+
+            riga = seleziona_riga_top_mix(m_poisson, elo_probs, elo_disponibile, h, a)
+            if riga is not None:
                 all_preds.append({
                     "league": league, "giornata": match['matchday'],
                     "home": h, "away": a, "match_id": match.get("id"),
-                    "utcDate": match['utcDate'], "market": best_mkt,
-                    "mercato_standard": codice_mercato_selezionato(best_mkt, h, a),
-                    "prob": confidence, "prob_val": round(confidence * 100, 1),
-                    "poisson": round(poisson_prob * 100, 1),
-                    "elo": round(elo_prob * 100, 1),
-                    # False SOLO se predict_elo_probs ha fallito: UI e registro
-                    # devono poter distinguere "Elo d'accordo" da "Elo assente".
-                    "elo_disponibile": elo_disponibile,
+                    "utcDate": match['utcDate'],
+                    "market": riga["market"],
+                    "mercato_standard": riga["mercato_standard"],
+                    "prob": riga["prob"], "prob_val": riga["prob_val"],
+                    "poisson": riga["poisson"], "elo": riga["elo"],
+                    "elo_disponibile": riga["elo_disponibile"],
                     "rank": None,
                 })
     top_10 = sorted(all_preds, key=lambda x: x['prob'], reverse=True)[:10]
