@@ -29,6 +29,7 @@ except ImportError:
     Groq = None
 
 from scraper_xg import get_understat_xg, get_market_values
+from xg_archive import season_point_in_time_averages
 from models.elo_engine import get_current_elo, get_elo_leaderboard, predict_elo_probs, get_team_elo_history
 from models.dixon_coles import get_dixon_coles_matrix, predict_dixon_coles_probs, get_dixon_coles_team_strengths
 from models.backtest import run_backtest, compare_models_backtest, detect_value_bets
@@ -453,6 +454,69 @@ def _shrunk_ratio(observed, expected, n_matches, prior=PRIOR_MATCHES):
     return (n_matches * r + prior) / (n_matches + prior)
 
 
+def _league_mean_gate(xg_data):
+    """Medie di lega con gate di sanita', su un qualsiasi dizionario
+    ``{squadra: {xG_avg, xGA_avg, ...}}``. Ritorna ``(mean_xg, mean_xga)``
+    oppure ``(None, None)`` se il gate non passa.
+
+    Stessa logica del gate inline sul file xG stagionale qui sotto (>=10
+    squadre con valori finiti e positivi; medie nel range di sanita'
+    0.5-5.0). Usato per l'ancora di shrinkage della fonte F_season, che
+    deve essere derivata dai dati F_season stessi (fedele all'audit) e non
+    dal file xG statico. Il gate inline resta intatto per la testa 1X2.
+    """
+    if not xg_data:
+        return None, None
+    lx = [v['xG_avg'] for v in xg_data.values()
+          if isinstance(v, dict) and isinstance(v.get('xG_avg'), (int, float))
+          and np.isfinite(v['xG_avg']) and v['xG_avg'] > 0]
+    lxa = [v['xGA_avg'] for v in xg_data.values()
+           if isinstance(v, dict) and isinstance(v.get('xGA_avg'), (int, float))
+           and np.isfinite(v['xGA_avg']) and v['xGA_avg'] > 0]
+    if len(lx) >= 10 and len(lxa) >= 10:
+        mx, mxa = float(np.mean(lx)), float(np.mean(lxa))
+        if 0.5 < mx < 5.0 and 0.5 < mxa < 5.0:
+            return mx, mxa
+    return None, None
+
+
+# --- ENSEMBLE POISSON+ELO SULL'1X2 (leva validata in audit) ---
+# Peso della componente Poisson nell'ensemble 1X2. Scelto in
+# audit/diagnose_elo_ensemble.py (walk-forward no-leakage, 5 leghe,
+# VALIDATION 2024/25 + TEST 2025/26): Brier 1X2 0.5893 (solo Poisson) ->
+# 0.5830 con w=0.6, migliore tra tutti i pesi testati e mai peggiore del
+# solo Poisson in TEST. Lo stesso blend 0.6/0.4 era gia' usato come
+# confidence del Top Mix; da qui in avanti e' la probabilita' 1X2 mostrata.
+# L'ensemble tocca SOLO le probabilita' 1X2 finali: stats del motore
+# (att/def/att0/def0/att0_pure/def0_pure), Totali (O/U, GG/NG) e la
+# funzione get_full_poisson_two_heads restano bit-identici.
+ELO_ENSEMBLE_W = 0.6
+
+
+def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W):
+    """Ritorna una COPIA del dizionario Poisson con l'1X2 nella forma
+    ``w*Poisson + (1-w)*Elo`` (peso Poisson = ``ELO_ENSEMBLE_W``, validato
+    in audit/diagnose_elo_ensemble.py). I Totali (u15/u25/u35/gg) e ogni
+    altra chiave passano invariati. Se l'Elo non e' disponibile (errore del
+    motore) ritorna il Poisson puro bit-identico: il degrado e' sempre
+    controllato verso il comportamento pre-modifica.
+    """
+    out = dict(m)
+    try:
+        elo_p = predict_elo_probs(home, away, league)
+    except Exception:
+        return out
+    for k in ("1", "X", "2"):
+        try:
+            e = float(elo_p[k])
+        except (KeyError, TypeError, ValueError):
+            return dict(m)
+        if not np.isfinite(e) or e < 0:
+            return dict(m)
+        out[k] = w * float(m[k]) + (1.0 - w) * e
+    return out
+
+
 @st.cache_data(ttl=3600)
 def get_league_engine(camp_key):
     # I file (storici + base + live) vengono risolti in config: solo il pattern
@@ -524,6 +588,42 @@ def get_league_engine(camp_key):
             if 0.5 < _m_xg < 5.0 and 0.5 < _m_xga < 5.0:
                 league_xg, league_xga = _m_xg, _m_xga
 
+    # --- FONTE POINT-IN-TIME PER LA TESTA TOTALI (F_season) ---
+    # att0_pure/def0_pure (testa O/U2.5 e GG/NG) leggono le medie xG della
+    # SOLA stagione in corso al cutoff (F_season: point-in-time, no leakage,
+    # nessuna componente cross-season). Scelta validata in audit:
+    # audit/results/pt19_cap_vs_fseason_clean.md — F_season mai peggiore e
+    # migliore in aggregato della finestra trailing multi-stagione con tetto
+    # 400gg (PT19_CAP), e fallback rate 2.74% vs 32.65% dello snapshot
+    # statico; la finestra trailing pescava partite "stantie" nei gap da
+    # retrocessione (verificati 453-813 giorni senza partite nella lega).
+    # Squadre senza partite nella stagione in corso sono "dato insufficiente":
+    # per loro il ramo qui sotto usa il fallback gol con shrinkage, lo stesso
+    # dei casi a campione zero. La testa 1X2 (att/def/att0/def0) NON usa
+    # questa fonte: resta sulla sorgente stagionale di get_understat_xg(),
+    # invariata (1X2 bit-identico, test permanente
+    # SoccerMath/test_pt19_totali_invariance.py).
+    # Se il lookup non e' disponibile (archivio assente, errore) il
+    # comportamento torna ESATTAMENTE quello precedente alla modifica.
+    # L'ancora di shrinkage e' la media di lega DERIVATA DAL DIZIONARIO
+    # F_season stesso (gate _league_mean_gate, fedele all'audit), non quella
+    # del file xG statico: la fonte resta interamente point-in-time anche se
+    # lo snapshot stagionale fosse stantio. Il lookup non dipende dal gate
+    # del file xG (sorgenti indipendenti).
+    fs_lookup = {}
+    fs_anchor_xg = None
+    fs_anchor_xga = None
+    fs_active = False
+    try:
+        fs_lookup = season_point_in_time_averages(
+            camp_key, cutoff=datetime.now(timezone.utc),
+        ).averages
+        fs_anchor_xg, fs_anchor_xga = _league_mean_gate(fs_lookup)
+        fs_active = fs_anchor_xg is not None
+    except Exception as e:
+        logging.warning(f"Lookup point-in-time (F_season) non disponibile per {camp_key}: {e}")
+        fs_lookup = {}
+
     # --- PRIOR EMPIRICO PER CAMPIONI PICCOLI (fix NG ~99.8%) ---
     # Il rapporto attacco/difesa usa lo shrinkage verso la media di lega
     # definito a livello di modulo (_shrunk_ratio, PRIOR_MATCHES): senza
@@ -563,21 +663,25 @@ def get_league_engine(camp_key):
                     att = xg_v / league_xg
                     defe = xga_v / league_xga
                 use_xg = True
+        # --- Fallback gol dal DB: rapporto pooled con shrinkage ---
+        # Gol osservati e gol attesi da una squadra "media di lega"
+        # (media casa in casa, media trasferta in trasferta), aggregati
+        # su entrambi i ruoli: un solo ratio stabile invece della media
+        # di ratio casa/trasferta separati (che con 1-2 partite e' rumore).
+        # Calcolato sempre: serve alla testa 1X2 quando manca l'xG E alla
+        # testa Totali quando il dato point-in-time e' insufficiente.
+        h_gf = h_h['FTHG'].dropna(); a_gf = a_h['FTAG'].dropna()
+        h_ga = h_h['FTAG'].dropna(); a_ga = a_h['FTHG'].dropna()
+        n_played = len(h_gf) + len(a_gf)
+        gf = float(h_gf.sum() + a_gf.sum())
+        ga = float(h_ga.sum() + a_ga.sum())
+        exp_gf = float(avg_h * len(h_gf) + avg_a * len(a_gf))
+        exp_ga = float(avg_a * len(h_ga) + avg_h * len(a_ga))
+        fb_att = _shrunk_ratio(gf, exp_gf, n_played)
+        fb_defe = _shrunk_ratio(ga, exp_ga, n_played)
         if not use_xg:
-            # --- Fallback gol dal DB: rapporto pooled con shrinkage ---
-            # Gol osservati e gol attesi da una squadra "media di lega"
-            # (media casa in casa, media trasferta in trasferta), aggregati
-            # su entrambi i ruoli: un solo ratio stabile invece della media
-            # di ratio casa/trasferta separati (che con 1-2 partite e' rumore).
-            h_gf = h_h['FTHG'].dropna(); a_gf = a_h['FTAG'].dropna()
-            h_ga = h_h['FTAG'].dropna(); a_ga = a_h['FTHG'].dropna()
-            n_played = len(h_gf) + len(a_gf)
-            gf = float(h_gf.sum() + a_gf.sum())
-            ga = float(h_ga.sum() + a_ga.sum())
-            exp_gf = float(avg_h * len(h_gf) + avg_a * len(a_gf))
-            exp_ga = float(avg_a * len(h_ga) + avg_h * len(a_ga))
-            att = _shrunk_ratio(gf, exp_gf, n_played)
-            defe = _shrunk_ratio(ga, exp_ga, n_played)
+            att = fb_att
+            defe = fb_defe
 
         # --- Sanitizzazione finale: nessun ratio non-finito o <= 0 puo'
         # raggiungere le lambda (att/def == 0 => lambda 0 => NG 99.8%).
@@ -585,15 +689,52 @@ def get_league_engine(camp_key):
             att = 1.0
         if not (np.isfinite(defe) and defe > 0):
             defe = 1.0
-        
-        # Baseline pura di lungo periodo (xG/gol storici puliti), SENZA forma:
-        # alimenta la testa Totali (O/U2.5 e GG/NG). Evidenza empirica su 5
-        # campionati (40 confronti, vedi audit/diagnose_form_totali.py e
-        # audit/results/form_totali_diagnosis.md): rimuovere la forma a 5 gare
-        # dai totali abbassa il Brier O/U2.5 da 0.2488 a 0.2401 e GG/NG da
-        # 0.2584 a 0.2496.
-        att0_pure = att
-        def0_pure = defe
+
+        # Baseline pura di lungo periodo, SENZA forma: alimenta la testa
+        # Totali (O/U2.5 e GG/NG). Evidenza empirica su 5 campionati
+        # (40 confronti, vedi audit/diagnose_form_totali.py e
+        # audit/results/form_totali_diagnosis.md): rimuovere la forma a 5
+        # gare dai totali abbassa il Brier O/U2.5 da 0.2488 a 0.2401 e GG/NG
+        # da 0.2584 a 0.2496.
+        # Fonte: lookup point-in-time F_season (medie xG della sola stagione
+        # in corso al cutoff, v. sopra; ancora di shrinkage = media di lega
+        # derivata dal dizionario F_season). Squadra senza partite nella
+        # stagione in corso = "dato insufficiente": stesso trattamento del
+        # ramo a campione zero (fallback gol con shrinkage verso la media di
+        # lega). Se il lookup non e' disponibile, la baseline resta identica
+        # a quella precedente a questa modifica.
+        use_fs = False
+        if fs_active:
+            fs_rec = fs_lookup.get(t)
+            if isinstance(fs_rec, dict):
+                try:
+                    fs_xg_v = float(fs_rec.get('xG_avg'))
+                    fs_xga_v = float(fs_rec.get('xGA_avg'))
+                    fs_n = fs_rec.get('matches')
+                    fs_ok = (np.isfinite(fs_xg_v) and np.isfinite(fs_xga_v)
+                             and fs_xg_v >= 0 and fs_xga_v >= 0
+                             and isinstance(fs_n, (int, float))
+                             and not isinstance(fs_n, bool)
+                             and np.isfinite(float(fs_n)) and float(fs_n) > 0)
+                except (TypeError, ValueError):
+                    fs_ok = False
+                if fs_ok:
+                    att0_pure = _shrunk_ratio(fs_xg_v, fs_anchor_xg, fs_n)
+                    def0_pure = _shrunk_ratio(fs_xga_v, fs_anchor_xga, fs_n)
+                    use_fs = True
+        if not use_fs:
+            if fs_active:
+                # dato insufficiente nella stagione in corso: ramo a campione zero
+                att0_pure = fb_att
+                def0_pure = fb_defe
+            else:
+                # lookup non disponibile: comportamento pre-modifica
+                att0_pure = att
+                def0_pure = defe
+        if not (np.isfinite(att0_pure) and att0_pure > 0):
+            att0_pure = 1.0
+        if not (np.isfinite(def0_pure) and def0_pure > 0):
+            def0_pure = 1.0
 
         # La forma resta SOLO nella testa 1X2 (att/def): att0/def0 continuano a
         # includerla perche' fanno da ancora (S = base_h + base_a) alla
@@ -1084,8 +1225,10 @@ def fetch_and_calc_top_mix():
                 confidence = poisson_prob
                 min_conf = 0.60
             else:
-                # Per 1X2: media armonica pesata (Elo ha peso 40%, Poisson 60%)
-                confidence = 0.6 * poisson_prob + 0.4 * elo_prob
+                # Per 1X2: media armonica pesata (stesso peso dell'ensemble
+                # ELO_ENSEMBLE_W: la confidence coincide con la probabilita'
+                # 1X2 ensemble usata ovunque)
+                confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
                 min_conf = 0.55
             
             # Filtro qualità: confidence minima e nessun disaccordo estremo
@@ -1112,23 +1255,44 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             match_date_str = format_date_italy(match['utcDate'], "%d/%m/%Y %H:%M")
             h_s, a_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0}), team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
             m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+            # Selezione (argmax) sui mercati POISSON PURO: il blend 1X2 dentro
+            # l'argmax sposta sistematicamente la scelta verso Over/NG e
+            # peggiora hit rate/ROI (audit/results/ensemble_scope_analisi_rapida.md:
+            # 22.6% di flip, ROI flip PRE +3.6% vs POST -6.0%, Serie A Brier +0.0119).
             mercati = {f"Vittoria {h}": m["1"], "Pareggio": m["X"], f"Vittoria {a}": m["2"], "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"], "GG": m["gg"], "NG": 1 - m["gg"]}
             best_mkt = max(mercati, key=mercati.get)
-            pron = f"{best_mkt} - {mercati[best_mkt]:.0%} - Poisson Auto"
+            # Probabilita' salvata: SOLO se il mercato scelto e' 1X2 si usa la
+            # probabilita' blendata 0.6*Poisson+0.4*Elo (calibrazione validata
+            # in audit/diagnose_elo_ensemble.py); i Totali restano Poisson puro.
+            # Se l'Elo non e' disponibile blend_elo_into_1x2 ritorna il Poisson
+            # puro bit-identico.
+            m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
+            prob_1x2_blend = {f"Vittoria {h}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a}": m_blend["2"]}
+            prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
+            pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
             top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
-            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(mercati[best_mkt]*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a))
+            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a))
             salvate += 1
         except: pass
     return salvate
 
 @st.dialog("STRATEGIC ANALYSIS", width="large")
-def show_details(h, a, m, camp_sel="Serie A", giornata_n=0):
+def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
     match_id, match_date_str = None, ""
     for mx in st.session_state.get("live_data", []):
         if clean_name(h) in clean_name(mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name","")):
             match_id = mx.get("id"); match_date_str = format_date_italy(mx["utcDate"], "%d/%m/%Y %H:%M"); break
-    mercato_top = max({f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}, key=lambda k: {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}[k])
-    prob_top = {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2'], "Over 2.5": 1-m['u25'], "Under 2.5": m['u25']}[mercato_top]
+    # Selezione (argmax) sui 5 mercati POISSON PURO (m_poisson calcolato in
+    # tab1 PRIMA del blend): il blend 1X2 dentro l'argmax sposta le scelte
+    # verso i Totali e peggiora la qualita' della selezione
+    # (audit/results/ensemble_scope_analisi_rapida.md); stessa regola di
+    # analisi_rapida_giornata(). m (blendato) resta solo per la probabilita'.
+    mercati_puri = {f"Vittoria {h}": m_poisson['1'], "Pareggio": m_poisson['X'], f"Vittoria {a}": m_poisson['2'], "Over 2.5": 1-m_poisson['u25'], "Under 2.5": m_poisson['u25']}
+    mercato_top = max(mercati_puri, key=mercati_puri.get)
+    # Probabilita' salvata: blendata (m e' l'1X2 Poisson+Elo mostrato nella
+    # card) SOLO se il mercato scelto e' 1X2; per i Totali Poisson puro.
+    prob_1x2_blend = {f"Vittoria {h}": m['1'], "Pareggio": m['X'], f"Vittoria {a}": m['2']}
+    prob_top = prob_1x2_blend.get(mercato_top, mercati_puri[mercato_top])
     codice_top = codice_mercato_selezionato(mercato_top, h, a)
 
     if not groq_client:
@@ -1436,7 +1600,12 @@ with tab1:
             dt = format_date_italy(match['utcDate'])
             h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})
             a_s = team_stats.get(clean_name(a_api), {"att": 1.0, "def": 1.0})
-            m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+            m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+            # 1X2 mostrato = ensemble Poisson+Elo (w=ELO_ENSEMBLE_W, validato
+            # in audit); Totali (u25/gg) restano Poisson puro. m_poisson (puro)
+            # viene passato a show_details per la selezione (argmax): il blend
+            # deve restare fuori dall'argmax, come in analisi_rapida_giornata().
+            m = blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel)
             with st.container():
                 st.markdown('<div class="match-card">', unsafe_allow_html=True)
                 c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])
@@ -1451,7 +1620,7 @@ with tab1:
                         st.markdown(f"<div style='text-align:center; color:#28a745; font-weight:800; font-size:18px;'>🏁<br>{gh}-{ga}</div>", unsafe_allow_html=True)
                     else:
                         st.write("<br>", unsafe_allow_html=True)
-                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, camp_sel, g_sel))
+                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, m_poisson, camp_sel, g_sel))
                 st.markdown("</div>", unsafe_allow_html=True)
     else:
         if not engine:
