@@ -388,8 +388,8 @@ erano**, e restano le uniche cose che potevano cambiare il numero predittivo.
 | 3 — cache 30 min | il TTL **non** è cambiato (passare `now` come argomento = 5 chiamate API/minuto contro il limite free di 10): le righe cached vengono rifiltrate all'uso con `prediction_registry.righe_non_iniziate()` prima di mostrare e di salvare | `audit/test_topmix_registry_tracking.py::TestCacheNonCongelaIlTempo` |
 | 4 — GET senza timeout | `timeout=15` sulla GET dei calendari | `requests_get_con_timeout == requests_get_total` |
 | 5 — `sleep(6.5)` | la coda ora è **fra** una lega e l'altra (non dopo l'ultima, e non viene saltata dai `continue`) | ispettore AST |
-| 6 — copertura test | `.github/workflows/topmix_audit.yml` esegue ora anche `audit/test_topmix_next_matchday.py` (l'unico che **chiama** `fetch_and_calc_top_mix`), `SoccerMath/test_registry_tracking.py` (34 test, solo stdlib) e `audit/test_topmix_margins.py` | la lista `pytest` del workflow + guard `test_i_test_del_selettore_girano_in_ci` |
-| 7 — dedup per `match_id` | chiave `(match_id, origin, selector_version)` con `upsert_prediction_entry`: le origini diverse coesistono, un ricalcolo aggiorna la propria riga pending, una riga **gia giudicata non viene mai sovrascritta** | 34 test + `test_standardizza_mercato.py` (aggiornato: il vecchio test asseriva il difetto) |
+| 6 — copertura test | `.github/workflows/topmix_audit.yml` esegue ora anche `audit/test_topmix_next_matchday.py` (l'unico che **chiama** `fetch_and_calc_top_mix`), `SoccerMath/test_registry_tracking.py` (35 test, solo stdlib) e `audit/test_topmix_margins.py` | la lista `pytest` del workflow + guard `test_i_test_del_selettore_girano_in_ci` |
+| 7 — dedup per `match_id` | chiave `(match_id, origin, selector_version)` con `upsert_prediction_entry`: le origini diverse coesistono, un ricalcolo aggiorna la propria riga pending, una riga **gia giudicata non viene mai sovrascritta** | 35 test + `test_standardizza_mercato.py` (aggiornato: il vecchio test asseriva il difetto) |
 | 8 — `tipo` dal testo | `origin=` esplicito da tutti e tre i percorsi (Top Mix / Analisi Rapida / Billy); il testo libero resta solo il fallback per i record legacy | `tipo_classification.rule is None` + `origini_esplicite` tutti veri |
 | 9 — PUT non verificato | `save_predictions` ritorna `{"locale", "remoto"}`; `status_code` letto; `except Exception` + log; messaggio di tab2 condizionato (`n_err_remoto`) con conteggio nuove/aggiornate/gia giudicate | `jsonbin_write` + `top_mix_success_toast.gated_on_remote_ok` |
 | 10 — registro solo win rate | il tab Registro espone **Brier medio, prob. media, gap prob−hit** (`compute_calibration_stats`) e una tabella per **mercato × origine**, più il filtro `Origine`: `prob_sicuro` era già persistito, nessuna migrazione | `registro_ui` + i test sulle statistiche di calibrazione |
@@ -413,6 +413,15 @@ erano**, e restano le uniche cose che potevano cambiare il numero predittivo.
   non fatta. Fino ad allora il `test_topmix_next_matchday.py` — che ora gira in
   CI — copre il corpo della funzione **end-to-end con HTTP/Elo mockati**, ma non
   asserisce ancora gate e fallback.
+
+Verifica: **93 test verdi nel sandbox** (quelli che non dipendono da
+`streamlit`/`numpy`: 35 + 25 + 33) e **CI verde** su `topmix_audit.yml`
+(run `34336124351`) dove i requisiti sono installati — quindi girano anche
+`test_topmix_next_matchday.py` (end-to-end su `fetch_and_calc_top_mix` con HTTP
+ed Elo mockati), `test_reconstruct_topmix_match.py` (guard letterali sulle
+soglie) e `test_standardizza_mercato.py`. Il passo "Nessuna modifica ai
+dati/codice di produzione" del workflow è verde: l'audit non ha scritto nel
+registro.
 
 Artefatti rigenerati insieme al codice: `audit/results/topmix_registry_tracking.json`
 passa da 5 problemi (3 `blocking`) a **0**, con
