@@ -514,10 +514,12 @@ sono ancora aperti.
 
 Verifica di questo passo: **227 test verdi nel sandbox** — 26 parità + 27
 guardie tracciamento + 35 registro + 33 harness margini + 16
-`test_prediction_registry` + 36 pre-shrinkage + 54 race condition — e CI su
-`topmix_audit.yml`, dove girano anche i tre file che richiedono l'ambiente
-completo (`test_topmix_next_matchday.py`, `test_reconstruct_topmix_match.py`,
-`test_standardizza_mercato.py`).
+`test_prediction_registry` + 36 pre-shrinkage + 54 race condition — e **CI verde**
+su `topmix_audit.yml` (run `34358112737`, 57 s, `conclusion: success`): lì il
+passo «Test diagnostici» esegue **171 test in 8 file**, quindi girano anche i tre
+che esigono l'ambiente completo (`test_topmix_next_matchday.py` 8,
+`test_reconstruct_topmix_match.py` 20, `test_standardizza_mercato.py` 21) e il
+check «Nessuna modifica ai dati/codice di produzione» resta verde.
 
 Artefatto rigenerato: `audit/results/topmix_registry_tracking.json` (0 problemi,
 `can_measure_top_mix_in_isolation: true`), nuove chiavi `facts.selettore_puro` e
