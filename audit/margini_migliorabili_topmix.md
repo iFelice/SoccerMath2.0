@@ -1,0 +1,383 @@
+# Margini migliorabili del selettore Top Mix (e del motore che lo alimenta)
+
+**Esito in una riga: il margine più grande e misurato non è l'ordine del
+selettore (già testato e non promosso) ma il filtro `abs(poisson − elo) < 0,25`
+usato come *cancellazione della partita*; il margine più grande *strutturale* è
+che il Top Mix non è misurabile — tre problemi bloccanti nel registro — e il
+backtest dell'app non misura il motore di produzione.**
+
+Documento di analisi. Nessuna formula, soglia, peso, registro o file di
+`SoccerMath/` è stato modificato: `git status` mostra solo file nuovi in
+`audit/`. I numeri sono rigenerabili con l'harness
+[`audit/topmix_margins.py`](topmix_margins.py) (sola lettura) e il loro output
+completo è in [`audit/results/topmix_margins.md`](results/topmix_margins.md).
+
+| Pezzo | Dove |
+|---|---|
+| Harness | `audit/topmix_margins.py` |
+| Test dell'harness (33, offline) | `audit/test_topmix_margins.py` |
+| Numeri generati | `audit/results/topmix_margins.md` · `.json` |
+| Fonte dei dati | `audit/results/topmix_selector_replay_rows.csv` (output di `audit/topmix_selector_replay.py`) |
+| Protocollo di riferimento | [`topmix_selector_audit_protocol.md`](topmix_selector_audit_protocol.md) |
+| Rapporto del confronto A vs B | [`topmix_selector_replay_report.md`](topmix_selector_replay_report.md) |
+
+> **Etichetta obbligatoria.** 2024/25 e 2025/26 sono **validation storica già
+> esaminata** (protocollo §3): sono le stagioni su cui sono già stati scelti
+> Poisson a due teste, forma fuori dai totali, `PRIOR_MATCHES=6`, e confermati i
+> pesi 0.6/0.4. Quello che segue **non è taratura**: misura il **costo di
+> vincoli già esistenti** e segnala incoerenze logiche indipendenti dai dati.
+> L'unica via non contaminata per *incassare* un margine predittivo resta la
+> conferma prospettica 2026/27, che richiede prima il tracciamento (§7).
+
+---
+
+## 0. Come è stato verificato che i numeri siano gli stessi del replay
+
+L'harness **ricalcola** le headline del report committato e le confronta con
+`topmix_selector_replay.json`: **24/24 grandezze coincidono** (candidate 3 422,
+A ammesse 1 865, Brier A 0,2312, top 10 A: 740 righe, prob 73,2 %, hit 71,8 %,
+Brier 0,2013, mix per mercato, 74 pool, slot medi 10,00). Se una di quelle
+grandezze derivasse, §4 di questo documento non sarebbe a confronto con il
+replay ma con una reinterpretazione silenziosa di esso. Il controllo è anche un
+test (`TestConsistenzaConIlReplayCommittato`).
+
+---
+
+## 1. Tabella sinottica
+
+Classificazione: **B** = bug/incoerenza, si corregge senza toccare formule;
+**M** = margine misurato ma non dimostrato (serve prospettiva);
+**P** = lavoro di misura, sblocca tutto il resto; **N** = nessun margine
+(verificato negativo: non toccare).
+
+| # | Funzione | Difetto | Evidenza | Tipo |
+|---|---|---|---|:--:|
+| 1 | `fetch_and_calc_top_mix` (app.py:1178–1246) | `abs(poisson−elo) < 0,25` **esclude la partita intera** invece di penalizzarla | replay §2/§3 + `topmix_margins.md` §1, §1a, §4, §4a | M |
+| 2 | `fetch_and_calc_top_mix` (1211–1220) | se l'Elo fallisce, `elo_prob = poisson_prob`: soglia 1X2 scende a 0,55, il disaccordo diventa 0, la UI mostra un consenso inesistente, `except:` nudo | codice; §7 del file generato (in replay non accade mai: `elo_available` vero su 3 422/3 422 → rischio non misurabile retrospettivamente) | B |
+| 3 | `fetch_and_calc_top_mix` (1177) | `@st.cache_data(ttl=1800)` senza argomenti congela `now`: partite già iniziate restano in top 10 e vengono salvate | `results/topmix_registry_tracking.json → cache_30min` (high) | B |
+| 4 | `fetch_and_calc_top_mix` (1185) | `requests.get` **senza `timeout`** dentro una funzione cached: una lega che non risponde congela il calcolo | codice | B |
+| 5 | `fetch_and_calc_top_mix` (1245) | `time.sleep(6.5)` per lega (5 leghe → 32 s) dentro il cache-miss | codice | B |
+| 6 | `fetch_and_calc_top_mix` | il **gate**, il fallback Elo e la cache non sono coperti da nessun test: l'unico test che esegue la funzione asserisce solo giornata/ordinamento, e non è nella lista pytest del workflow | `audit/test_topmix_next_matchday.py:218` (unico `app.fetch_and_calc_top_mix()` dei 394 test) vs `.github/workflows/topmix_audit.yml` (4 file, non quel file) | B |
+| 7 | `save_prediction_entry` (302) | dedup per solo `match_id`: se Analisi Rapida/Billy hanno già salvato, il Top Mix **non viene registrato**; un ricalcolo non aggiorna | `topmix_registry_tracking.json` (3 problemi `blocking`) | P |
+| 8 | `save_prediction_entry` (312) | `tipo = "Top Mix" if "Top Mix" in pronostico` | idem | P |
+| 9 | `save_predictions` (184–200) + toast (1641) | `PUT` senza leggere `status_code`, `except: pass`, "✅ Top Mix salvati!" non condizionato | idem | P |
+| 10 | `registro` (tab5) + `prediction_registry.stats_*` | calcola **solo win rate**; `prob_sicuro` è già persistito | codice | P |
+| 11 | `run_historical_backtest` (769) | testa un **altro modello** (`get_full_poisson` a testa singola, Elo proprio senza `margin_mult` né xG) e senza quote/Brier; `models/backtest.py` è importato (35) e mai chiamato | review §1.2, mai eseguito | P |
+| 12 | `analisi_rapida_giornata` (1248) vs `show_details` (1280) | dialoghetto: argmax su **5** mercati (manca GG/NG) e `_two_heads_from_lambdas` chiamato **senza** `base_pure_*` (app.py:1319) → testa Totali con la forma, cioè la configurazione misurata come peggiore | `results/form_totali_diagnosis.md` (Brier O/U 0,2488 → 0,2401 senza forma) | B |
+| 13 | `calcola_segnali` (1010) | stanchezza infrasettimanale applicata **solo** dentro `show_details`, mai in Top Mix/Analisi Rapida; costanti 0,04/0,05/0,02 mai validate; `stand` e `*args` ignorati | codice | B |
+| 14 | `get_league_engine` (750–751) + `config.MARKET_VALUES` (263) | dizionario scritto a mano, non versionato per stagione → **leakage** su ogni valutazione storica, ed è l'unico componente che sposta il ROI | `market_value_comparison.txt` (Poisson val −17,4 % → con mercato −1,5 %) | B |
+| 15 | `get_league_engine` (551–569) | forma `tail(5)` sul df multi-stagione (neopromosse: partite di stagioni precedenti), senza split casa/trasferta | `topmix_selector_replay.md` §9 | M |
+| 16 | `get_league_engine` (574–589) vs `_league_mean_gate` (457) | stesso gate duplicato (inline "resta intatto per la testa 1X2") | codice | B |
+| 17 | `_two_heads_from_lambdas` (941–972) | l'ancora `S = base_h + base_a` **include la forma** mentre la testa Totali usa le lambda pure: le due teste hanno due diverse somma-attesa dei gol, e `argmax` su 7 mercati confronta scale prodotte da due modelli. S alternativa mai testata | nessun audit copre S | M |
+| 18 | `blend_elo_into_1x2` (496) + `predict_elo_probs` | pesi ok (0,6/0,4 validato), ma l'Elo che entra nella confidence è **stale**: `_ELO_ENGINES_CACHE` (elo_engine.py:212) senza TTL vs `get_league_engine` cached 3 600 s | codice | B |
+| 19 | `EloEngine.compute_ratings` (elo_engine.py:126–134) | `xg_adj` legge lo **snapshot statico** `xg_<lega>.json` (media stagionale) mentre la testa Totali è migrata a `season_point_in_time_averages`; fattori 0,15 e clamp ±100 mai sweepati | `xg_rolling_walkforward_results.txt` (rolling non promove) | M |
+| 20 | `predict_elo_probs` (elo_engine.py:242, duplicato in app.py:871) | curva del pareggio fissa `0,27·exp(−(dr/320)²)` clip [0,06,0,34]: governa il mercato più disallineato (`X` 22,1 % dichiarato vs 25,2 % reale) ed è duplicata in due file | `topmix_selector_replay.md` §6 | M |
+| 21 | Top Mix come prodotto | `X` non è mai argmax (0/3 422) e non può superare 0,55 → **mercato morto**; `NG` sopravvive solo nominalmente (2 righe su 1 865) | `topmix_margins.md` §6 | B |
+| 22 | `aggiorna_risultati_reali` (319–424) | due rami di grading con coperture diverse (`OVER_1.5`, `1X`, `X2`, `12` graduati solo nel ramo `match_id`) + `except: pass` | codice | B |
+| 23 | soglie 0,55/0,60 | sotto soglia la frequenza reale è in linea con la dichiarazione: allargare = volume, non valore | `topmix_margins.md` §1b | **N** |
+| 24 | ordine A → B | non promove (hit 66,2 % vs 56,8 % sui 74 casi in disaccordo; top 10 indistinguibile) | `topmix_selector_replay_report.md` §2, §4 | **N** |
+| 25 | `PRIOR_MATCHES` 6 → 8/10 | zona di equivalenza 6–10, ΔBrier 0,0004 | `prior_matches_audit_report.md` §H | **N** |
+| 26 | numero 10 della top 10 | le righe 11–15 fanno hit 56,4 % contro 71,9 %: il taglio è netto | `topmix_margins.md` §4b | **N** |
+| 27 | correzione del numero esposto (curva globale o bias per mercato) | trasferita fra stagioni non migliora (ΔBrier +0,0007/+0,0016) o peggiora (+0,0037/+0,0066) | `topmix_margins.md` §5, §5b | **N** |
+
+---
+
+## 2. Il margine «gate» sul selettore (§1–§4 di `results/topmix_margins.md`)
+
+**Cosa fa oggi.** Per ogni partita: argmax Poisson sui 7 mercati → se 1X2,
+`confidence = 0,6·Poisson + 0,4·Elo` → doppia verifica `confidence ≥ soglia` **e**
+`|poisson − elo| < 0,25`. Se una delle due fallisce, la partita sparisce: nessun
+altro mercato viene considerato.
+
+**Quanto costa**, sulle 3 422 partite candidate rianalizzate:
+
+| Scartata per | n | prob dichiarata | hit se accettata | Brier |
+|---|---:|---:|---:|---:|
+| soglia 0,55/0,60 (solo) | 1 326 | 55,5 % | 57,0 % | 0,2452 |
+| **disaccordo Elo ≥ 0,25 (solo)** | **194** | 65,8 % | **64,9 %** | **0,2203** |
+| entrambi i vincoli | 37 | 50,7 % | 27,0 % | 0,2640 |
+
+Le ammesse fanno hit 62,0 % e Brier 0,2312: il gate butta via partite **migliori
+della media**, la soglia no (è in linea con la propria dichiarazione, quindi
+allargarla porterebbe volume e non valore).
+
+Il danno non è uniforme, ed è qui il segnale più interessante:
+
+| Mercato bloccato solo dal gate | n | prob | hit | gap |
+|---|---:|---:|---:|---:|
+| `1` | 87 | 67,3 % | **73,6 %** | **−6,3 pp** |
+| `2` | 107 | 64,6 % | 57,9 % | +6,6 pp |
+
+Sulle vittorie interne il disaccordo Elo **segnala proprio le partite sbagliate
+da scartare**: la loro frequenza reale è 6,3 pp *sopra* la probabilità dichiarata.
+Sulle vittorie esterne funziona. Il gate, essendo un numero unico applicato a
+entrambi i lati, butta via informazione in un caso e rumore nell'altro.
+
+**Sull'oggetto reale (top 10, pool = settimana ISO del cutoff, 74 pool):**
+
+| | righe | prob media | hit | Brier |
+|---|---:|---:|---:|---:|
+| con il gate (produzione) | 740 | 73,2 % | 71,8 % | 0,2013 |
+| senza il gate (stesse soglie) | 740 | 73,8 % | **72,6 %** | **0,1978** |
+
+Cambiano **74 slot su 740** (10 % degli slot riempiti): entrano righe con hit
+74,3 % / Brier 0,1846, escono righe con hit 66,2 % / Brier 0,2199 — e sono
+**tutte 1X2** (42 volte `1`, 32 volte `2`). Bootstrap a blocchi sul pool
+(2 000 draw, seed fisso): **ΔBrier −0,0035 (IC95 % −0,0080…+0,0011)**,
+**Δhit +0,8 pp (IC95 % −0,4…+1,9 pp)**.
+
+**Cosa questo non dice.** Non dice «togliere il gate è meglio»: l'intervallo
+include lo zero, il confronto non è appaiato (insiemi diversi di partite), e le
+due stagioni sono validation riusata. Dice che il gate è l'unico vincolo del
+selettore il cui **costo stimato è negativo** e il cui meccanismo è capito, mentre
+l'ordine (già testato) non ha mostrato nulla. È il primo candidato per la
+conferma prospettica, con una specifica: se il gate diventa *soft*, il blend
+0,6/0,4 resta l'unico posto dove il disaccordo agisce — va verificato che non si
+trasformi in una fiducia più alta proprio dove i due modelli divergono.
+
+Una terza opzione, intermedia e testabile con lo stesso harness, è **lasciar
+vivere la partita ma non mostrare la riga**: oggi un `|Δ| ≥ 0,25` cancella la
+partita, e in quelle 194 il secondo mercato (quello che B recuperava) era peggiore
+del primo. Il selettore non ha un concetto di «riga ammessa con avvertenza».
+
+---
+
+## 3. La scala della `confidence`: margine reale, non incassabile (§2, §5, §5b)
+
+`confidence` non è una quantità confrontabile fra mercati: 1X2 è una miscela,
+totali sono Poisson puro con soglia più alta e disaccordo nullo per costruzione.
+La top 10 però **ordina su quel numero**. Il gap medio (prob − hit) per mercato
+sulle righe ammesse:
+
+| Mercato | n | gap |
+|---|---:|---:|
+| GG | 372 | +3,5 pp |
+| `1` | 806 | +3,9 pp |
+| `2` | 318 | +4,4 pp |
+| U2.5 | 235 | +5,6 pp |
+| O2.5 | 132 | +7,6 pp |
+| NG | 2 | +12,4 pp |
+
+Per confronto, la baseline dei 7 mercati sulle *stesse* candidate prima di ogni
+selettore è calibrata (gap ≤ 3,1 pp, `topmix_selector_replay.md` §6): la
+disparità di cui sopra nasce dal **selezionare il massimo**, cioè dalla coda.
+
+Ho verificato se la correzione fosse trasferibile, in due modi:
+
+- **bias per mercato** stimato su una stagione e applicato all'altra → scarto
+  medio fra stagioni **5,4 pp** (O2.5: +0,8 pp in 2024/25, +16,6 pp in 2025/26);
+  riordinare la top 10 con la correzione **peggiora** il Brier (Δ +0,0037 e
+  +0,0066, a seconda della direzione);
+- **curva isotona globale** (monotona: non tocca l'ordine, solo il numero
+  esposto) → ΔBrier +0,0007/+0,0016, cioè **nessun guadagno**: si passa un gap
+  di +1,5 pp a uno di segno opposto (sovra-correzione della coda alta).
+
+Quindi: **rendere confrontabili le scale è il lavoro giusto, ma non si fa con
+queste due stagioni.** Va fatto (a) stimando una mappa per mercato
+sull'intero campione di base dove la densità è reale e non selezionata, e (b)
+validato in prospettiva. Il margine che intanto si può cogliere gratis è
+esporre in UI la *componente* del numero (Poisson ed Elo sono già calcolati e
+salvati nel dizionario `all_preds`) invece di un solo valore che mescola due
+scale.
+
+---
+
+## 4. Margini «gratis»: degrado silenzioso e coerenza fra schermate
+
+Nessuno di questi tocca formule o soglie, e ognuno cambia ciò che l'utente
+vede o ciò che viene registrato.
+
+1. **Elo che non risponde** (app.py:1211–1220). Oggi `elo_prob = poisson_prob`
+   + `except: pass`: la riga 1X2 passa con soglia **0,55** invece di 0,60, il
+   filtro di disaccordo è neutralizzato, e la UI mostra `elo == poisson` come
+   consenso. Minimo intervento: marcare la riga (`elo_disponibile=False`),
+   applicare la soglia dei totali (0,60) perché la confidence è Poisson puro,
+   e loggare.
+2. **Cache che congela il tempo** (app.py:1177). `fetch_and_calc_top_mix` è
+   `@st.cache_data(ttl=1800)` senza argomenti → `now` è fermo per 30 minuti.
+   `select_next_matchday_matches` riceve `now` opzionale: basta passare una
+   chiave (o rifiltrare al render). È classificato *high* dal report di
+   tracciamento.
+3. **Rete senza `timeout` + `sleep(6.5)`** (app.py:1185, 1245). Un solo league
+   endpoint lento tiene bloccato un calcolo cached e brucia 32 s di coda di
+   rate-limit a ogni miss.
+4. **Il dialoghetto dice un'altra cosa** (app.py:1290, 1319). Argmax su 5 mercati
+   (GG/NG fuori) e `_two_heads_from_lambdas` senza `base_pure_*`: la testa Totali
+   del dialoghetto usa la forma a 5 gare, che l'audit ha misurato come
+   **migliore da rimuovere** sui totali. Stessa partita → numeri diversi fra
+   card, Top Mix e dialogo.
+5. **`calcola_segnali` è orfano** (app.py:1010, chiamato solo a 1306–1307):
+   il segnale di stanchezza infrasettimanale esiste ma non entra mai nel Top Mix.
+   O lo si collega e lo si misura, o si toglie: tenerlo a metà è il costo peggiore
+   (un numero che nessuno valida ma che cambia le risposte).
+6. **Gradings divergenti** (app.py:319–424): due rami, elenchi di mercati diversi.
+   Un record con `OVER_1.5`/`1X`/`X2`/`12` salvato da un percorso diverso dal
+   `match_id` diretto resta `⏳` per sempre, silenziosamente.
+7. **La guardia esiste ma non guarda il selettore.** `audit/test_reconstruct_topmix_match.py`
+   confronta le costanti della trascrizione con l'AST di `app.py`
+   (`test_weights_and_thresholds_match_fetch_and_calc_top_mix`: cerca i testi
+   letterali `min_conf = 0.55`, `abs(poisson_prob - elo_prob) < 0.25`, `[:10]`)
+   e `topmix_audit.yml` la esegue in CI con i requisiti installati: bene, ma è
+   un guard **sul testo**, non sul comportamento — e il file che invece esegue la
+   funzione con HTTP mockato (`test_topmix_next_matchday.py:218`) **non è** nella
+   lista `pytest` del workflow. Conseguenza pratica: il punto 1 di questo elenco
+   (fallback Elo) e il gate di §2 vivono nella parte che nessun test eseguito in
+   CI tocca; e qualunque correzione del blend dovrà aggiornare anche il guard
+   testuale.
+
+---
+
+## 5. Motore e dati: i margini strutturali (non del selettore)
+
+| Funzione | Cosa si può fare | Perché è un margine |
+|---|---|---|
+| `get_league_engine` + `config.MARKET_VALUES` | versionare i valori per stagione (o escludere il fattore mercato dal giudizio storico) | `market_value_comparison.txt`: con il fattore mercato il ROI 1X2 passa da −17,4 % a −1,5 % in validation. **Tutto il valore misurato dipende da un numero scritto a mano e fermo a una data**, e il replay lo dichiara come leakage (`topmix_selector_replay.md` §9). È il singolo punto dove un dato nuovo (Transfermarkt archiviato per anno) cambia la valutazione di *ogni* leva provata finora |
+| `get_league_engine`, forma | forma su sola stagione corrente + split casa/trasferta; la forma a 5 è validata **solo** per la testa 1X2 | il replay dichiara che per una neopromossa le «ultime 5» includono partite di stagioni precedenti |
+| `get_league_engine`, `avg_h/avg_a` | media di lega su un solo campione recente (oggi è pooling su 4 stagioni con `peso=1.0`) | `time_decay_diagnosis.md`: il decay per-lega migliora Premier/La Liga/Ligue 1 e peggiora Serie A/Bundesliga → la recency *non* è un guadagno libero, ma il fatto che l'ancora di lega sia multi-stagione non è mai stato un decision point |
+| `_two_heads_from_lambdas` | testare l'ancora `S` (forma vs pura) e la coerenza fra teste | le due teste usano somma-attesa dei gol diversa; `argmax` su 7 mercati confronta probabilità di due modelli. Nessun audit misura S |
+| `_clip_lambda` (894) | clip superiore `exp(3)` ≈ 20 gol: inerte | il valore utile è solo il lato basso; non è un rischio, è un decorativo |
+| `_league_mean_gate` (457) vs gate inline (574–589) | unificare | stesso gate scritto due volte: divergerà |
+
+---
+
+## 6. Elo: il 40 % della confidence mostrata, con i suoi margini
+
+1. `_ELO_ENGINES_CACHE` (elo_engine.py:212) non ha scadenza: in una sessione
+   lunga il filtro di disaccordo confronta un Poisson fresco (ttl 3 600) con un
+   Elo vecchio. Allineare le due cache è gratis.
+2. `xg_adj = ((h_xg − h_xga) − (a_xg − a_xga)) * 0,15` con `xg_elo_boost =
+   clamp(±100)` (elo_engine.py:132–136): legge `xg_<lega>.json`, cioè la **media
+   stagionale dello snapshot corrente**, non point-in-time. La testa Totali è già
+   migrata a `season_point_in_time_averages` (`xg_archive.py:811`): la stessa
+   migrazione sull'Elo è il passo naturale, e i due fattori (0,15 e ±100) non
+   hanno mai avuto un confronto prima/dopo.
+3. `p_draw = 0,27·exp(−(dr/320)²)` clip [0,06,0,34], duplicato in `app.py:871`:
+   parametri a mano. È il mercato con il maggiore disallineamento della baseline
+   (X −3,1 pp). `draw_correction.py` ha dato esito misto (ROI Premier +10,7 pp,
+   Serie A −8,1 pp): nessun verdetto, ma la duplicazione del codice va eliminata
+   prima di qualunque esperimento.
+4. `run_historical_backtest` usa un **Elo diverso** (K=24 senza `margin_mult` e
+   senza xG, app.py:855–875) da `models/elo_engine.py`: il protocollo
+   («vietato sostituire in silenzio il motore live con un Elo da backtest
+   in-app diverso da `models/elo_engine.py`») lo vieta esplicitamente, eppure il
+   tab BACKTEST dell'app lo fa.
+
+---
+
+## 7. Margine P: senza tracciamento non si incassa niente
+
+Da `results/topmix_registry_tracking.json`, tre problemi **blocking** e uno
+high, tutti già citati sopra:
+
+- `save_prediction_entry` ritorna subito se il `match_id` è già nel registro →
+  il Top Mix non è distinguibile da Analisi Rapida/Billy e non si può misurare
+  *in cieco* la sua selezione;
+- `tipo` derivato da sottostringa del pronostico → origini collassati;
+- campi assenti: `calculation_id`, `origin`, `selector_version`, `rank`,
+  `kickoff_utc`, `data_snapshot_sha`, `poisson`, `elo` → senza questi il §5 del
+  protocollo non ha oggetto misurabile;
+- `save_predictions`: PUT senza `status_code` e `except: pass`, toast non
+  condizionato → si può credere di avere un record e non averlo.
+
+Aggiungo un punto non presente in quel referto: **`prob_sicuro` è già salvato**,
+quindi una riga di **Brier/affidabilità per mercato** nel tab Registro è
+gratuita e darebbe un numero live di calibrazione, che oggi non esiste da
+nessuna parte. E l'intervento 6 di §1 (estrarre la selezione in funzione pura)
+rende il tracciamento anche testato, non solo registrato.
+
+---
+
+## 8. Anti-margini (dove l'evidenza dice «non toccare»)
+
+| Leva | Verdetto | Fonte |
+|---|---|---|
+| ordine A → B (confidence su tutti i mercati) | non promove: sui 74 casi in disaccordo A hit 66,2 % vs B 56,8 %; top 10 indistinguibile (ΔBrier +0,0004); le 155 righe in più sono di qualità peggiore e non entrano | `topmix_selector_replay_report.md` §2–§4 |
+| soglie 0,55/0,60 | sotto soglia hit in linea con la dichiarazione (57,0 % vs 55,5 %) e lo slot #10 si chiude in media a 66,6 % → volume, non valore | `results/topmix_margins.md` §1b, §4 |
+| ricalibrazione del numero esposto | per mercato peggiora, globale non migliora | §5, §5b del file generato |
+| `PRIOR_MATCHES` 6→8/10 | ΔBrier 0,0004, zona 6–10 indistinguibile: tenere 6 | `prior_matches_audit_report.md` §H |
+| finestra rolling 38 partite | peggiora in 4 leghe su 5; la metrica che l'aveva motivata era **statisticamente scorretta** | `results/lambda_compression_diagnosis.md`, `results/ou_gg_diagnosis.md` (CORREZIONE) |
+| xG rolling nell'Elo | misto/negativo (promuove solo Bundesliga) | `xg_rolling_walkforward_results.txt` |
+| Dixon-Coles `rho`, time-decay | guadagni sotto il rumore, segno non stabile per lega | `results/dixon_coles_rho_diagnosis.md`, `results/time_decay_diagnosis.md` |
+| dimensione 10 della top 10 | 11ª–15ª riga a hit 56,4 % contro 71,9 %: il taglio è dove deve essere | §4b del file generato |
+| import di `models/backtest.py` / Dixon-Coles in produzione | `models/backtest.py` non contiene un motore (solo `run_backtest`/`compare_models_backtest`/`detect_value_bets`/metriche, mai chiamate); il motore «più sofisticato» è `models/dixon_coles.py`, che in produzione non gira, e i suoi parametri `xi=0,0019` + `recent_boost=1,3` (righe 92–97) sono due meccanismi di recency sovrapposti e mai disgiunti: prima di discuterne l'ingresso, vanno separati | `soccermath_probability_review.md` §1.1, §1.3, §1.2 |
+
+---
+
+## 9. Piano, nell'ordine in cui lo consiglierei
+
+1. **Tracciamento** (§7): schema §5 del protocollo + dedup per
+   `(match_id, origin, selector_version)` + `status_code` verificato + Brier nel
+   Registro. Nessun rischio predittivo; senza questo, i passi 2–5 restano
+   non verificabili.
+2. **Estrazione del selettore** in `seleziona_riga_top_mix(mercati, elo, soglie, pesi)
+   -> dict`, chiamata sia da `fetch_and_calc_top_mix` sia dall'harness di audit.
+   Oggi `apply_selector_A` ne è una trascrizione e il solo vincolo fra le due è
+   il guard testuale di §4 punto 7: estrarre la funzione lo trasforma in un test
+   di comportamento (gate, fallback, argmax sui 7 mercati) eseguibile anche senza
+   `streamlit`/`numpy`, cioè dentro l'harness.
+3. **Bug gratis** (§4, punti 1–3 e 5–7; §5 ultimo punto; §6 punto 1):
+   timeout, cache con `now`, fallback Elo marcato, grading unificato, cache Elo
+   allineata, dialoghetto sulle 7 teste con `base_pure_*`. Nessuno di questi può
+   «peggiorare il modello»: allineano ciò che l'app dice a ciò che l'app fa. Nello
+   stesso passo, una riga in `.github/workflows/topmix_audit.yml`: aggiungere
+   `audit/test_topmix_next_matchday.py` (e `audit/test_topmix_margins.py`) alla
+   lista di `python -m pytest`, così il corpo del selettore e le tabelle di
+   questo referto girano a ogni push su `arena/**`. Non l'ho modificato: è
+   fuori dal perimetro «nessun file toccato», ma è il punto col miglior
+   rapporto rischio/valore dopo il tracciamento.
+4. **Un solo cambiamento predittivo per volta, in prospettiva**: il gate (§2) è
+   il candidato con il punto stimato favorevole. Definire *prima* l'esito
+   atteso (hit/Brier della top 10 su 2026/27, Δ contro la controparte che resta
+   in produzione) e accettare che su 10 giornate il campione sia piccolo: è il
+   motivo per cui va fatto in parallelo, non in sostituzione.
+5. **`MARKET_VALUES` versionato** (§5): finché non esiste, ogni ROI storico —
+   anche quelli citati in questo documento — va letto come *struttura*, non come
+   edge.
+
+---
+
+## 10. Cosa questo lavoro NON ha fatto
+
+- Nessuna modifica a `SoccerMath/` (né formule, né soglie 0,55/0,60/0,25, né
+  pesi 0,6/0.4, né registro, né JSONBin) e nessuna a `.github/`. Nessun
+  `--apply`, nessuna PR.
+- Nessuna chiamata di rete, nessuna scrittura nel database, nessuna riga
+  aggiunta al registro (verificato dai test di sola lettura).
+- Nessuna soglia cercata: le bande sotto soglia in §1b sono **descrizione** del
+  taglio esistente, non una proposta di nuovo valore.
+- Nessun ricalcolo del motore: l'harness legge il CSV del replay, non riesegue
+  Poisson/Elo.
+
+## 11. Limiti
+
+- I candidati vengono dai CSV (nessuno snapshot API TIMED/SCHEDULED);
+  `match_id` è la chiave del replay, non l'id football-data.org; `MARKET_VALUES`
+  statico applicato a stagioni passate (leakage dichiarato); xG Understat rivisi
+  dopo la partita; orari CSV come UTC; forma a 5 sul df multi-stagione; pool
+  della top 10 = settimana ISO del cutoff. Valgono identici per ogni confronto
+  interno, ma **impediscono di chiamare tutto questo un replay bit-identico del
+  Top Mix live** (elenco completo: `topmix_selector_replay.md` §9).
+- `elo_available` è `True` su 3 422/3 422 righe e `team_stats_missing` è non
+  nullo in 14 partite: l'analisi del §2 non può quindi dirci nulla sul percorso
+  di degrado (punto 1 di §4), che resta motivato da lettura del codice.
+- 10/384 giornate del replay giravano senza xG point-in-time (2,6 %), tutte la
+  1ª giornata: la testa Totali era su fallback-gol solo a campionato appena
+  aperto.
+- 74 swap su 740 slot su 3 422 partite: la potenza è bassa per costruzione.
+- I due file di test che importano `app` (`test_topmix_next_matchday.py`,
+  `test_reconstruct_topmix_match.py`) **non sono eseguibili in questo sandbox**
+  (manca `streamlit`/`numpy`); i 33 test dell'harness girano invece tutti, perché
+  importano solo `csv`/`statistics`. Sono verdi in CI, dove i requisiti sono
+  installati e il workflow scatta a ogni push su `arena/**` che tocca
+  `SoccerMath/app.py`.
+
+## 12. Riproduzione
+
+```bash
+python audit/topmix_margins.py            # scrive audit/results/topmix_margins.{md,json}
+python audit/test_topmix_margins.py       # 33 test, offline
+python -m pytest audit/test_topmix_margins.py -q   # equivalente, se pytest è installato
+
+# per rigenerare anche la fonte:
+python audit/topmix_selector_replay.py --out audit/results    # ~2 min
+```
