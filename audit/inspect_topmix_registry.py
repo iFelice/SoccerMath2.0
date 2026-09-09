@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -108,14 +109,101 @@ def _put_is_bare_in_try_except_pass(fn: ast.FunctionDef) -> bool:
     return False
 
 
+def _calls_function(fn: Optional[ast.AST], name: str) -> bool:
+    if fn is None:
+        return False
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Name) and f.id == name:
+                return True
+            if isinstance(f, ast.Attribute) and f.attr == name:
+                return True
+    return False
+
+
+def _assigns_call_to(fn: Optional[ast.AST], attr: str) -> bool:
+    """True se il risultato della chiamata ``.<attr>(...)`` viene assegnato."""
+    if fn is None:
+        return False
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            f = node.value.func
+            if isinstance(f, ast.Attribute) and f.attr == attr:
+                return True
+    return False
+
+
+def _toast_uses(text: str, mod: ast.AST, calls: Tuple[str, ...] = ("success", "warning", "error", "info")) -> bool:
+    """True se una chiamata st.<calls...> CONTIENE `text` (f-string inclusive)."""
+    for node in ast.walk(mod):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr in calls and text in ast.unparse(node):
+                return True
+    return False
+
+
+def _chiave_poisson(src: str, chiave: str) -> bool:
+    """L'1X2 resta agganciato alla ``chiave`` del vettore Poisson normalizzato.
+
+    Accetta sia la forma inline di una volta (``m_poisson["1"]``) sia quella
+    della funzione pura (``m["1"]``): cio' che conta e' che la probabilita' sia
+    letta dal vettore a due teste, non come si chiama la variabile locale.
+    """
+    for base in ("m_poisson", "m"):
+        for q in ('"', "'"):
+            if f'{base}[{q}{chiave}{q}]' in src:
+                return True
+    return False
+
+
+def _bare_excepts(fn: Optional[ast.AST]) -> int:
+    """Numero di ``except:`` nudi (senza tipo) dentro ``fn``."""
+    if fn is None:
+        return 0
+    n = 0
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Try):
+            for h in node.handlers:
+                if h.type is None:
+                    n += 1
+    return n
+
+
+def _if_gates_call(module_tree: ast.AST, test_token: str, ok_call: str,
+                   ko_call: str) -> bool:
+    """True se esiste un ``if`` il cui test contiene ``test_token`` e che ha un
+    ramo con ``ok_call`` e un ``else`` con ``ko_call`` (o viceversa).
+
+    Usato per verificare che il messaggio "salvato" sia CONDITIONATO
+    all'esito reale della scrittura, non stampato a prescindere.
+    """
+    for node in ast.walk(module_tree):
+        if not isinstance(node, ast.If):
+            continue
+        if test_token not in ast.unparse(node.test):
+            continue
+        corpo = ast.unparse(ast.Module(body=list(node.body), type_ignores=[]))
+        orelse = ast.unparse(ast.Module(body=list(node.orelse), type_ignores=[])) if node.orelse else ""
+        if (ok_call in corpo and ko_call in orelse) or (ko_call in corpo and ok_call in orelse):
+            return True
+    return False
+
+
 def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         raw_src = f.read()
     tree = ast.parse(raw_src, filename=path)
+    module_src_raw = ast.unparse(tree)
     save_entry = _fn(tree, "save_prediction_entry")
     save_preds = _fn(tree, "save_predictions")
     load_preds = _fn(tree, "load_predictions")
     top_mix = _fn(tree, "fetch_and_calc_top_mix")
+    # Dal refactor (referto §9 punto 2) la selezione di riga e' una funzione pura
+    # a parte: le guardie leggono il PERCORSO COMPLETO, perche' altrimenti basta
+    # "spostare" una soglia nell'altra funzione per metterla fuori portata.
+    selez = _fn(tree, "seleziona_riga_top_mix")
+    src_topmix = chr(10).join(ast.unparse(n) for n in (top_mix, selez) if n is not None)
     analisi = _fn(tree, "analisi_rapida_giornata")
     show = _fn(tree, "show_details")
     select_md = _fn(tree, "select_next_matchday_matches")
@@ -127,6 +215,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "save_predictions": save_preds is not None,
             "load_predictions": load_preds is not None,
             "fetch_and_calc_top_mix": top_mix is not None,
+            "seleziona_riga_top_mix": selez is not None,
             "analisi_rapida_giornata": analisi is not None,
             "show_details": show is not None,
             "select_next_matchday_matches": select_md is not None,
@@ -138,6 +227,8 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         "present": False,
         "early_return": False,
         "source": None,
+        "chiave_completa": False,
+        "passa_origine": False,
     }
     if save_entry is not None:
         src = ast.unparse(save_entry)
@@ -153,6 +244,13 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
                             dedup["early_return"] = True
                         elif node.body and isinstance(node.body[0], ast.Return):
                             dedup["early_return"] = True
+    if save_entry is not None:
+        dedup["chiave_completa"] = ("origin" in src and "selector_version" in src
+                                    and _calls_function(save_entry, "upsert_prediction_entry"))
+        dedup["passa_origine"] = "resolve_origin(" in src
+    else:
+        dedup["chiave_completa"] = False
+        dedup["passa_origine"] = False
     facts["dedup_by_match_id"] = dedup
 
     # --- tipo: Top Mix vs Analisi (Billy non ha un tipo proprio) ---
@@ -163,6 +261,8 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         "fallback_label": "Analisi",
         "rule": None,
     }
+    src_save = ast.unparse(save_entry) if save_entry is not None else ""
+    module_blob = ast.unparse(tree)
     if save_entry is not None:
         for node in ast.walk(save_entry):
             if isinstance(node, ast.IfExp):
@@ -170,6 +270,11 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
                 if "Top Mix" in text and "Analisi" in text:
                     tipo["rule"] = text
                     tipo["billy_tipo_esplicito"] = "Billy" in text
+    tipo["origini_esplicite"] = {
+        o: (f'origin={o},' in module_blob or f'origin={o})' in module_blob)
+        for o in ("ORIGIN_TOP_MIX", "ORIGIN_ANALISI_RAPIDA", "ORIGIN_BILLY")
+    }
+    tipo["usato_resolve_origin"] = bool(save_entry is not None and "resolve_origin(" in src_save)
     facts["tipo_classification"] = tipo
 
     # --- metadata nuove predizioni ---
@@ -181,14 +286,19 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "pronostico_sicuro", "mercato_standard", "top3", "prob_sicuro",
             "risultati_attesi", "risultato_reale", "esito", "tipo", "stagione",
             "salvato_il", "model_version", "excluded_from_current_model_stats",
+            "origin", "selector_version", "rank", "kickoff_utc",
+            "data_snapshot_sha", "calculation_id", "poisson", "elo",
+            "elo_disponibile",
         ):
             if f'"{field}"' in src or f"'{field}'" in src:
                 facts["new_entry_fields_in_save"].append(field)
+        # `position` (posizione di classifica) NON e' in lista: non serve a
+        # misurare il selettore, e' un dato contestuale del solo dialogo Billy.
         facts["missing_from_save"] = [
             f for f in (
                 "calculation_id", "origin", "selector_version", "rank",
                 "kickoff_utc", "data_snapshot_sha", "poisson", "elo",
-                "position",
+                "elo_disponibile",
             ) if f'"{f}"' not in src and f"'{f}'" not in src
         ]
 
@@ -199,6 +309,8 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         "status_code_checked": False,
         "except_pass": False,
         "bare_put_swallowed": False,
+        "bare_excepts": 0,
+        "ritorna_esito": False,
     }
     if save_preds is not None:
         src = ast.unparse(save_preds)
@@ -206,38 +318,60 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         jsonbin["status_code_checked"] = "status_code" in src
         jsonbin["except_pass"] = _put_is_bare_in_try_except_pass(save_preds)
         jsonbin["bare_put_swallowed"] = jsonbin["except_pass"]
-        jsonbin["response_assigned"] = "r = requests.put" in src or "resp = requests.put" in src
+        jsonbin["response_assigned"] = _assigns_call_to(save_preds, "put")
+        jsonbin["bare_excepts"] = _bare_excepts(save_preds)
+        # L'esito della scrittura deve TORNA.RE al chiamante, altrimenti il
+        # messaggio all'utente non puo' essere condizionato a nulla.
+        jsonbin["ritorna_esito"] = bool(
+            [n for n in ast.walk(save_preds) if isinstance(n, ast.Return) and n.value is not None]
+        )
     facts["jsonbin_write"] = jsonbin
 
     # --- cache Top Mix ---
-    cache = {"ttl_seconds": None, "no_arguments": None}
+    # Il difetto reale non e' il TTL in se': e' che il `now` calcolato DENTRO la
+    # funzione cached resta congelato per tutta la TTL. La mitigazione corretta
+    # non e' passare un argomento (farebbe 5 chiamate API al minuto contro il
+    # limite free di 10) ma rifiltrare le righe al momento dell'uso.
+    cache = {"ttl_seconds": None, "no_arguments": None,
+             "rifiltrata_all_uso": False, "righe_iniziate_scartate": False}
     if top_mix is not None:
         cache["ttl_seconds"] = _decorator_ttl(top_mix)
         cache["no_arguments"] = len(top_mix.args.args) == 0
+    cache["rifiltrata_all_uso"] = "righe_non_iniziate(" in module_src_raw
+    cache["righe_iniziate_scartate"] = "righe_non_iniziate(" in module_src_raw
     facts["top_mix_cache"] = cache
 
     # --- success toast ---
     facts["top_mix_success_toast"] = {
-        "message": "✅ Top Mix salvati!",
-        "present_in_module": _contains_str(tree, "Top Mix salvati"),
+        # Il messaggio, DOPO la correzione, dice cosa e' successo davvero (quante
+        # righe, e se il remoto ha risposto) invece di "salvati!" a prescindere.
+        "message": "✅ Top Mix nel registro: N nuove, M aggiornate, K gia' giudicate",
+        # Si cercano le CHIAMATE di messaggio, non il testo ovunque: i
+        # docstring dei due fix citano il vecchio toast e darebbero falsi positivi.
+        "present_in_module": _toast_uses("Top Mix nel registro", tree),
+        "vecchio_message_incondizionato": _toast_uses("Top Mix salvati!", tree),
         "gated_on_remote_ok": False,  # verificato sotto
         "gated_on_save_count": False,
     }
     # Il toast vive nel corpo modulo (tab2), non in una funzione.
-    module_src = ast.unparse(tree)
-    # Non c'e' if su status_code intorno al success.
-    facts["top_mix_success_toast"]["gated_on_remote_ok"] = False
+    module_src = module_src_raw
+    facts["top_mix_success_toast"]["gated_on_remote_ok"] = _if_gates_call(
+        tree, "n_err_remoto", "st.warning", "st.success"
+    )
+    facts["top_mix_success_toast"]["gated_on_save_count"] = _if_gates_call(
+        tree, "esiti_save", "st.info", "st.success"
+    ) or facts["top_mix_success_toast"]["gated_on_remote_ok"]
     facts["analisi_rapida_calls_save"] = analisi is not None and "save_prediction_entry" in ast.unparse(analisi)
     facts["billy_calls_save"] = show is not None and "save_prediction_entry" in ast.unparse(show)
 
     # --- mercati Top Mix (sette) ---
     seven = None
     if top_mix is not None:
-        src = ast.unparse(top_mix)
+        src = src_topmix
         seven = {
-            "has_1": 'm_poisson["1"]' in src or "m_poisson['1']" in src,
-            "has_X": 'm_poisson["X"]' in src or "m_poisson['X']" in src,
-            "has_2": 'm_poisson["2"]' in src or "m_poisson['2']" in src,
+            "has_1": _chiave_poisson(src, "1"),
+            "has_X": _chiave_poisson(src, "X"),
+            "has_2": _chiave_poisson(src, "2"),
             "has_over": "Over 2.5" in src,
             "has_under": "Under 2.5" in src,
             "has_gg": '"GG"' in src or "'GG'" in src,
@@ -252,8 +386,128 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "min_conf_1x2": "min_conf = 0.55" in src or "min_conf = 0.55" in raw_src,
             "disagree": "abs(poisson_prob - elo_prob) < 0.25" in src,
             "global_top10": "[:10]" in src,
+            # La selezione deve stare in UN solo posto: se vive nella funzione
+            # pura, il chiamante non deve piu' costruire i 7 mercati (altrimenti
+            # restano due copie che possono divergere in silenzio).
+            "selezione_in_un_solo_punto": ("mercati = {" in ast.unparse(top_mix))
+                                          != (selez is not None
+                                              and "mercati = {" in ast.unparse(selez)),
+            "codice_mercato_chiamato": "codice_mercato_selezionato(" in src,
         }
     facts["top_mix_selector"] = seven
+
+    # --- il selettore come funzione PURA (referto §9 punto 2) ---
+    # L'estrazione ha senso solo se la funzione resta isolabile. Se un domani ci
+    # rimettesse una chiamata HTTP o un salvataggio, il test di parita' potrebbe
+    # restare verde perche' gli stub la nascondono: questa e' la guardia che
+    # tiene chiusa la ragione per cui l'estrazione e' stata fatta.
+    puro: Dict[str, Any] = {"presente": selez is not None}
+    if selez is not None:
+        # Moduli che fanno I/O e nomi che scrivono: un ATTRIBUTO chiamato su di
+        # essi squalifica la purezza. `mercati.get(...)` resta lecito perche' la
+        # lista nera guarda il RICEVENTE, non il nome del metodo.
+        moduli_io = {"requests", "st", "logging", "time", "os", "json", "subprocess"}
+        scrittori = {"save_prediction_entry", "save_predictions", "predict_elo_probs",
+                     "get_league_engine", "load_predictions", "load_prediction_registry",
+                     "open", "print"}
+        accessi = {n.value.id + "." + n.attr for n in ast.walk(selez)
+                   if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)}
+        chiamate_io = sorted({n.value.id for n in ast.walk(selez)
+                              if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                              and n.value.id in moduli_io})
+        chiamate_scrittrici = sorted({n.func.id for n in ast.walk(selez)
+                                      if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                                      and n.func.id in scrittori})
+        ritorni = [n.value for n in ast.walk(selez) if isinstance(n, ast.Return)]
+        firme = [a.arg for a in selez.args.args]
+        puro.update({
+            "firma": firme,
+            "chiamate_io": chiamate_io,
+            "chiamate_scrittrici": chiamate_scrittrici,
+            "io_vietato_assente": not chiamate_io and not chiamate_scrittrici,
+            "niente_try": not any(isinstance(n, ast.Try) for n in ast.walk(selez)),
+            "niente_streamlit": not any(a.startswith("st.") for a in accessi),
+            "ritorna_dett_o_none": bool(ritorni) and all(
+                isinstance(r, ast.Dict) or (isinstance(r, ast.Constant) and r.value is None)
+                for r in ritorni),
+            # L'Elo deve ENTRARE come argomento: se venisse riletto dentro con un
+            # default magico la funzione non sarebbe piu' testabile in isolamento.
+            "elo_iniettato": "elo_probs" in firme and "elo_disponibile" in firme,
+            "soglia_totali_condizionata_alelo": "or not elo_disponibile:" in ast.unparse(selez),
+        })
+        puro["pura_davvero"] = all(puro[k] for k in (
+            "io_vietato_assente", "niente_try", "niente_streamlit", "ritorna_dett_o_none",
+            "elo_iniettato"))
+    facts["selettore_puro"] = puro
+
+    # --- igiene dei percorsi di degrado (audit §4 punti 1-3) ---
+    igiene: Dict[str, Any] = {}
+    if top_mix is not None:
+        src_tm = src_topmix
+        getters = [n for node in (top_mix, selez) if node is not None for n in ast.walk(node)
+                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                   and n.func.attr == "get" and isinstance(n.func.value, ast.Name)
+                   and n.func.value.id == "requests"]
+        igiene["requests_get_total"] = len(getters)
+        igiene["requests_get_con_timeout"] = sum(
+            1 for g in getters if any(kw.arg == "timeout" for kw in g.keywords))
+        igiene["bare_excepts"] = _bare_excepts(top_mix) + _bare_excepts(selez)
+        igiene["elo_flag_disponibilita"] = ("elo_disponibile" in src_tm
+                                           and "elo_disponibile = False" in src_tm)
+        # senza Elo la confidence e' Poisson puro: deve valere la soglia 0,60
+        igiene["soglia_totali_se_elo_manca"] = "or not elo_disponibile:" in src_tm
+        igiene["rank_sulla_riga"] = bool(re.search(r"\['rank'\]\s*=\s*i \+ 1", src_tm)
+                                          or re.search(r'\["rank"\]\s*=\s*i \+ 1', src_tm))
+        # la coda di rate-limit serve FRA le leghe, non dopo l'ultima
+        igiene["sleep_guardato_da_indice"] = bool(re.search(r"if i_lega:\s*\n\s*time\.sleep", src_tm))
+    facts["degrado_igiene"] = igiene
+
+    # --- coerenza dialoghetto / card (audit §4 punto 4) ---
+    dialogo: Dict[str, Any] = {}
+    if show is not None:
+        src_sh = ast.unparse(show)
+        # Conteggio STRUTTURALE delle chiavi del dizionario usato per l'argmax
+        # (ast.unparse normalizza le virgolette, quindi non si cerca testo).
+        chiavi: list = []
+        for node in ast.walk(show):
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict):
+                for tgt in node.targets:
+                    # chiavi = numero di mercati su cui viene fatto l'argmax;
+                    # le chiavi f-string ("Vittoria {h}") non sono Costanti e
+                    # contano solo nel totale.
+                    if isinstance(tgt, ast.Name) and tgt.id == "mercati_puri":
+                        chiavi = [k.value for k in node.value.keys
+                                  if isinstance(k, ast.Constant)] + [None] * sum(
+                            1 for k in node.value.keys if not isinstance(k, ast.Constant))
+        dialogo["mercati_puri_chiavi"] = [c for c in chiavi if c]
+        dialogo["argmax_su_n_mercati"] = len(chiavi)
+        dialogo["argmax_su_7_mercati"] = len(chiavi) == 7 and {"GG", "NG"} <= set(chiavi)
+        th = [n for n in ast.walk(show) if isinstance(n, ast.Call)
+              and isinstance(n.func, ast.Name) and n.func.id == "_two_heads_from_lambdas"]
+        dialogo["due_teste_chiamate"] = len(th)
+        dialogo["due_teste_con_pure"] = bool(th) and all(
+            len(c.args) >= 5 or any(kw.arg in ("base_pure_h", "base_pure_a") for kw in c.keywords)
+            for c in th
+        )
+    facts["dialogo_coerente"] = dialogo
+
+    # --- grading unico (audit §4 punto 6) e Brier nel registro (§7) ---
+    grading: Dict[str, Any] = {"esito_mercato_chiamato": 0, "catene_elif_superate": 0,
+                               "bare_excepts_in_aggiorna": 0}
+    agg = _fn(tree, "aggiorna_risultati_reali")
+    if agg is not None:
+        src_agg = ast.unparse(agg)
+        grading["esito_mercato_chiamato"] = src_agg.count("esito_mercato(")
+        grading["catene_elif_superate"] = src_agg.count('elif m == "X2"')
+        grading["bare_excepts_in_aggiorna"] = _bare_excepts(agg)
+    facts["grading"] = grading
+    facts["registro_ui"] = {
+        "brier_in_registro": "calibration_by_mercato(" in module_src_raw,
+        "win_rate_e_brier_insieme": "compute_calibration_stats(" in module_src_raw,
+        "colonna_origine": ("df_preds['origine']" in module_src_raw
+                            or 'df_preds["origine"]' in module_src_raw),
+        "filtro_origine": "filter_origine" in module_src_raw,
+    }
     facts["round_window_days"] = None
     for node in tree.body:
         if isinstance(node, ast.Assign):
@@ -278,55 +532,66 @@ def inspect_registry_module(path: str = REGISTRY_PATH) -> Dict[str, Any]:
 
 
 def tracking_verdict(app_facts: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Sintesi: il Registro NON permette di misurare il Top Mix in isolamento."""
+    """Sintesi: il Registro permette di misurare il Top Mix in isolamento?
+
+    Prima di ``audit/margini_migliorabili_topmix.md`` §7 questa funzione
+    restituiva `can_measure_top_mix_in_isolation: False` **perche' il codice non
+    permetteva la misura** (dedup per solo match_id, tipo derivato dal testo,
+    PUT non verificato, campi assenti). Ora i problemi sono derivati dal codice
+    e la bandiera e' calcolata: se qualcuno re-introduce un `except: pass` o
+    il vecchio `return` sul match_id, il verdetto torna `False` e i test
+    dell'audit falliscono.
+    """
     facts = app_facts or inspect_app()
     problems: List[Dict[str, str]] = []
 
-    if facts["dedup_by_match_id"].get("present") and facts["dedup_by_match_id"].get("early_return"):
+    ded = facts.get("dedup_by_match_id") or {}
+    if (ded.get("present") and ded.get("early_return")) or not ded.get("chiave_completa"):
         problems.append({
             "id": "dedup_match_id",
             "severity": "blocking",
             "summary": (
-                "save_prediction_entry ritorna subito se match_id e' gia' nel "
-                "registro: Analisi Rapida o Billy salvati prima bloccano il Top Mix; "
-                "un ricalcolo Top Mix non aggiorna la prima previsione."
+                "save_prediction_entry non usa la chiave (match_id, origin, "
+                "selector_version): una riga Top Mix puo' di nuovo non essere "
+                "registrata perche' Analisi Rapida o Billy hanno salvato prima."
             ),
         })
 
     tipo = facts.get("tipo_classification") or {}
-    if tipo.get("rule") and not tipo.get("billy_tipo_esplicito"):
+    origini = tipo.get("origini_esplicite") or {}
+    if not (tipo.get("usato_resolve_origin") and origini and all(origini.values())):
         problems.append({
             "id": "origin_collapsed",
             "severity": "blocking",
             "summary": (
-                "Il campo tipo vale 'Top Mix' solo se la stringa 'Top Mix' compare "
-                "nel pronostico; altrimenti e' 'Analisi'. Billy e Analisi Rapida "
-                "non sono distinguibili da un tipo dedicato."
+                "L'origine della previsione non e' passata esplicitamente da "
+                "tutti i percorsi (Top Mix / Analisi Rapida / Billy): il campo "
+                "tipo torna a dipendere dal testo libero del pronostico."
             ),
         })
 
     cache = facts.get("top_mix_cache") or {}
-    if cache.get("ttl_seconds") == 1800 and cache.get("no_arguments"):
+    if cache.get("ttl_seconds") == 1800 and cache.get("no_arguments") and not cache.get("rifiltrata_all_uso"):
         problems.append({
             "id": "cache_30min",
             "severity": "high",
             "summary": (
-                "fetch_and_calc_top_mix e' cache_data(ttl=1800) senza argomenti: "
-                "il now interno e' congelato 30 minuti. Partite nel frattempo "
-                "iniziate restano nel risultato cached e possono essere mostrate "
-                "e salvate."
+                "fetch_and_calc_top_mix e' cache_data(ttl=1800) senza argomenti "
+                "e il risultato non viene rifiltrato contro l'orologio reale al "
+                "momento dell'uso: partite gia' iniziate possono restare in Top "
+                "Mix ed essere salvate."
             ),
         })
 
     jb = facts.get("jsonbin_write") or {}
-    if jb.get("put_present") and not jb.get("status_code_checked"):
+    if jb.get("put_present") and not (jb.get("status_code_checked") and jb.get("ritorna_esito")):
         problems.append({
             "id": "jsonbin_unchecked",
             "severity": "high",
             "summary": (
-                "save_predictions fa PUT su JSONBin senza leggere status_code; "
-                "l'except e' nudo (pass). Il toast 'Top Mix salvati!' non e' "
-                "condizionato al successo remoto."
+                "save_predictions non verifica status_code del PUT o non ne "
+                "restituisce l'esito: un messaggio 'salvato' puo' di nuovo "
+                "descrivere un record che non esiste nel remoto."
             ),
         })
 
@@ -341,8 +606,98 @@ def tracking_verdict(app_facts: Optional[Dict[str, Any]] = None) -> Dict[str, An
             ),
         })
 
+    ig = facts.get("degrado_igiene") or {}
+    if ig:
+        guasti = []
+        if ig.get("bare_excepts"):
+            guasti.append(f"{ig['bare_excepts']} except: nudi")
+        if ig.get("requests_get_con_timeout", 0) < ig.get("requests_get_total", 0):
+            guasti.append("richieste senza timeout")
+        if not ig.get("elo_flag_disponibilita"):
+            guasti.append("fallback Elo non marcato")
+        if not ig.get("soglia_totali_se_elo_manca"):
+            guasti.append("soglia 1X2 non rialzata quando l'Elo manca")
+        if not ig.get("rank_sulla_riga"):
+            guasti.append("rank non persistito sulla riga")
+        if not ig.get("sleep_guardato_da_indice"):
+            guasti.append("rate-limit sleep non condizionato alla lega in coda")
+        if guasti:
+            problems.append({
+                "id": "topmix_degrado_silenzioso",
+                "severity": "high",
+                "summary": "Percorsi di degrado del Top Mix: " + "; ".join(guasti),
+            })
+
+    sel = facts.get("top_mix_selector") or {}
+    if sel and not sel.get("selezione_in_un_solo_punto", True):
+        problems.append({
+            "id": "selezione_duplicata",
+            "severity": "high",
+            "summary": (
+                "La costruzione dei 7 mercati compare in piu' di un punto del "
+                "percorso Top Mix: due copie possono divergere in silenzio, e' "
+                "esattamente il rischio che l'estrazione in "
+                "`seleziona_riga_top_mix` voleva togliere."
+            ),
+        })
+
+    puro = facts.get("selettore_puro") or {}
+    if puro.get("presente") and not puro.get("pura_davvero"):
+        guasti_puri = [k for k in ("io_vietato_assente", "niente_try", "niente_streamlit",
+                                   "ritorna_dett_o_none", "elo_iniettato")
+                       if not puro.get(k)]
+        problems.append({
+            "id": "selettore_non_piu_puro",
+            "severity": "medium",
+            "summary": (
+                "`seleziona_riga_top_mix` esiste ma non e' piu' una funzione pura "
+                "(" + ", ".join(guasti_puri) + "): il test di parita' la esercita "
+                "con gli stub, quindi un I/O reintrodotto qui dentro la renderebbe "
+                "di nuovo non misurabile in isolamento - e' la ragione per cui era "
+                "stata estratta (referto §9 punto 2)."
+            ),
+        })
+
+    dl = facts.get("dialogo_coerente") or {}
+    if dl and (not dl.get("argmax_su_7_mercati") or not dl.get("due_teste_con_pure")):
+        problems.append({
+            "id": "dialogo_divergente",
+            "severity": "medium",
+            "summary": (
+                "show_details non coincide con la card/Top Mix: "
+                + ("argmax non sui 7 mercati. " if not dl.get("argmax_su_7_mercati") else "")
+                + ("_two_heads_from_lambdas chiamato senza lambda pure."
+                   if not dl.get("due_teste_con_pure") else "")
+            ),
+        })
+
+    gr = facts.get("grading") or {}
+    if gr and (gr.get("esito_mercato_chiamato", 0) < 2 or gr.get("catene_elif_superate", 0) > 0
+               or gr.get("bare_excepts_in_aggiorna", 0) > 0):
+        problems.append({
+            "id": "grading_duplicato",
+            "severity": "medium",
+            "summary": (
+                "aggiorna_risultati_reali non usa la tabella unica "
+                "prediction_registry.esito_mercato in entrambi i rami: alcuni "
+                "mercati possono tornare a restare \u23f3 per sempre."
+            ),
+        })
+
+    reg = facts.get("registro_ui") or {}
+    if reg and not (reg.get("brier_in_registro") and reg.get("colonna_origine")):
+        problems.append({
+            "id": "registro_solo_win_rate",
+            "severity": "medium",
+            "summary": (
+                "Il registro non espone il Brier/calibrazione per mercato e per "
+                "origine, anche se prob_sicuro e' persistito: la misura live di "
+                "affidabilita' non e' visibile."
+            ),
+        })
+
     return {
-        "can_measure_top_mix_in_isolation": False,
+        "can_measure_top_mix_in_isolation": not problems,
         "problems": problems,
         "facts": facts,
     }

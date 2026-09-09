@@ -3,6 +3,7 @@ models/elo_engine.py - Motore di Calcolo Elo Rating Dinamico per M4-analist
 """
 
 import math
+import time
 from datetime import datetime
 from typing import Dict, List
 
@@ -210,14 +211,25 @@ class EloEngine:
 
 
 _ELO_ENGINES_CACHE: Dict[str, EloEngine] = {}
+# Etá (monotonic) di costruzione per lega: la cache senza scadenza faceva
+# girare, in una sessione lunga, il veto di disaccordo del Top Mix su un Elo
+# vecchio contro un Poisson rinfrescato ogni 3600 s (get_league_engine).
+# allineare le due finestre (audit/margini_migliorabili_topmix.md  §6.1).
+_ELO_ENGINES_STAMP: Dict[str, float] = {}
+ELO_ENGINE_TTL_SECONDS = 3600
 
 
-def get_elo_engine(league_name: str) -> EloEngine:
-    if league_name not in _ELO_ENGINES_CACHE:
-        engine = EloEngine(league_name)
-        engine.compute_ratings()
-        _ELO_ENGINES_CACHE[league_name] = engine
-    return _ELO_ENGINES_CACHE[league_name]
+def get_elo_engine(league_name: str, ttl_seconds: float = ELO_ENGINE_TTL_SECONDS) -> EloEngine:
+    engine = _ELO_ENGINES_CACHE.get(league_name)
+    if engine is not None:
+        eta = time.monotonic() - _ELO_ENGINES_STAMP.get(league_name, 0.0)
+        if eta < ttl_seconds:
+            return engine
+    engine = EloEngine(league_name)
+    engine.compute_ratings()
+    _ELO_ENGINES_CACHE[league_name] = engine
+    _ELO_ENGINES_STAMP[league_name] = time.monotonic()
+    return engine
 
 
 def get_current_elo(league_name: str) -> Dict[str, float]:

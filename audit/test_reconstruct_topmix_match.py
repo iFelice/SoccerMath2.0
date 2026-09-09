@@ -36,13 +36,29 @@ APP_PATH = os.path.join(_SOCCER, "app.py")
 RECON_PATH = os.path.join(_AUDIT_DIR, "reconstruct_topmix_match.py")
 
 
+APP_FUNZIONI_TOPMIX = ("fetch_and_calc_top_mix", "seleziona_riga_top_mix")
+
+
 def _app_topmix_source() -> str:
+    """Testo AST di TUTTO il percorso Top Mix, non solo del chiamante.
+
+    Dal refactor richiesto da ``margini_migliorabili_topmix.md`` §9 punto 2 la
+    selezione di riga vive in ``seleziona_riga_top_mix`` (funzione pura) e
+    ``fetch_and_calc_top_mix`` fa solo I/O + assemblaggio. Queste guardie
+    servono a impedire che qualcuno cambi soglie o mercati: devono quindi
+    leggere l'insieme, altrimenti si potrebbe "spostare" la soglia fuori dalla
+    portata della guardia senza cambiare comportamento.
+    """
     with open(APP_PATH, encoding="utf-8") as f:
         tree = ast.parse(f.read())
+    trovati = {}
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == "fetch_and_calc_top_mix":
-            return ast.unparse(node)
-    raise AssertionError("fetch_and_calc_top_mix non trovata")
+        if isinstance(node, ast.FunctionDef) and node.name in APP_FUNZIONI_TOPMIX:
+            trovati[node.name] = ast.unparse(node)
+    mancanti = [n for n in APP_FUNZIONI_TOPMIX if n not in trovati]
+    if mancanti:
+        raise AssertionError(f"funzioni Top Mix non trovate in app.py: {mancanti}")
+    return "\n".join(trovati[n] for n in APP_FUNZIONI_TOPMIX)
 
 
 class TestNoWriteSideEffects(unittest.TestCase):

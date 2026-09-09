@@ -1,0 +1,817 @@
+{
+ "meta": {
+  "generated_at": "2026-09-09T09:39:54+00:00",
+  "git_sha": "01260c11c446",
+  "n_rows": 3422,
+  "rows_file": "audit/results/topmix_selector_replay_rows.csv",
+  "season_status": "validation storica GIA' ESAMINATA (2024/25 e 2025/26 sono state usate per scegliere due teste, forma fuori dai totali, shrinkage PRIOR_MATCHES=6 e per confermare i pesi 0.6/0.4): NON e' un test intatto."
+ },
+ "payload": {
+  "consistency": [
+   {
+    "nome": "candidate",
+    "ricalcolato": 3422.0,
+    "atteso": 3422.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "A ammesse",
+    "ricalcolato": 1865.0,
+    "atteso": 1865.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "B ammesse",
+    "ricalcolato": 2020.0,
+    "atteso": 2020.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "A mostrate · prob media",
+    "ricalcolato": 0.6639371383378024,
+    "atteso": 0.6639371383378024,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "A mostrate · hit rate",
+    "ricalcolato": 0.6198391420911528,
+    "atteso": 0.6198391420911528,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "A mostrate · Brier",
+    "ricalcolato": 0.23117228563629533,
+    "atteso": 0.23117228563629533,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "A mostrate · gap",
+    "ricalcolato": 0.04409799624664967,
+    "atteso": 0.04409799624664967,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "A mostrate · mix 1",
+    "ricalcolato": 806.0,
+    "atteso": 806.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "A mostrate · mix 2",
+    "ricalcolato": 318.0,
+    "atteso": 318.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "A mostrate · mix GG",
+    "ricalcolato": 372.0,
+    "atteso": 372.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "A mostrate · mix NG",
+    "ricalcolato": 2.0,
+    "atteso": 2.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "A mostrate · mix O2.5",
+    "ricalcolato": 132.0,
+    "atteso": 132.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "A mostrate · mix U2.5",
+    "ricalcolato": 235.0,
+    "atteso": 235.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "top 10 · n pool",
+    "ricalcolato": 74.0,
+    "atteso": 74.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "top 10 A · n",
+    "ricalcolato": 740.0,
+    "atteso": 740.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "top 10 A · slot medi",
+    "ricalcolato": 10.0,
+    "atteso": 10.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "top 10 A · prob media",
+    "ricalcolato": 0.7323756256756755,
+    "atteso": 0.7323756256756755,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "top 10 A · hit rate",
+    "ricalcolato": 0.7175675675675676,
+    "atteso": 0.7175675675675676,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "top 10 A · Brier",
+    "ricalcolato": 0.20132826313782046,
+    "atteso": 0.20132826313782046,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "tol 0.0005"
+   },
+   {
+    "nome": "top 10 A · mix 1",
+    "ricalcolato": 455.0,
+    "atteso": 455.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "top 10 A · mix 2",
+    "ricalcolato": 110.0,
+    "atteso": 110.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "top 10 A · mix GG",
+    "ricalcolato": 58.0,
+    "atteso": 58.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "top 10 A · mix O2.5",
+    "ricalcolato": 72.0,
+    "atteso": 72.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   },
+   {
+    "nome": "top 10 A · mix U2.5",
+    "ricalcolato": 45.0,
+    "atteso": 45.0,
+    "delta": 0.0,
+    "ok": true,
+    "nota": "conteggio"
+   }
+  ],
+  "rejection": {
+   "n_candidates": 3422,
+   "n_admitted": 1865,
+   "reasons": {
+    "soglia": 1326,
+    "disaccordo": 194,
+    "entrambi": 37
+   },
+   "only_soglia": {
+    "n": 1326,
+    "mean_prob": 0.5551045211161387,
+    "hit_rate": 0.5701357466063348,
+    "brier": 0.2451531245658692,
+    "gap": -0.015031225490196087,
+    "markets": {
+     "GG": 626,
+     "U2.5": 470,
+     "1": 84,
+     "O2.5": 31,
+     "2": 110,
+     "NG": 5
+    }
+   },
+   "only_disaccordo": {
+    "n": 194,
+    "mean_prob": 0.6578188711340207,
+    "hit_rate": 0.6494845360824743,
+    "brier": 0.22033294711103604,
+    "gap": 0.00833433505154646,
+    "markets": {
+     "1": 87,
+     "2": 107
+    }
+   },
+   "only_entrambi": {
+    "n": 37,
+    "mean_prob": 0.5067824324324324,
+    "hit_rate": 0.2702702702702703,
+    "brier": 0.2640276433534594,
+    "gap": 0.2365121621621621,
+    "markets": {
+     "2": 29,
+     "1": 8
+    }
+   }
+  },
+  "admitted": {
+   "overall": {
+    "n": 1865,
+    "mean_prob": 0.6639371383378024,
+    "hit_rate": 0.6198391420911528,
+    "brier": 0.23117228563629533,
+    "gap": 0.04409799624664967
+   },
+   "by_market": {
+    "1": {
+     "n": 806,
+     "mean_prob": 0.694336447890819,
+     "hit_rate": 0.6550868486352357,
+     "brier": 0.21908928041614056,
+     "gap": 0.039249599255583356
+    },
+    "GG": {
+     "n": 372,
+     "mean_prob": 0.6293283575268822,
+     "hit_rate": 0.5940860215053764,
+     "brier": 0.24318020357244338,
+     "gap": 0.03524233602150584
+    },
+    "2": {
+     "n": 318,
+     "mean_prob": 0.6475024150943401,
+     "hit_rate": 0.6037735849056604,
+     "brier": 0.23121127810293085,
+     "gap": 0.04372883018867979
+    },
+    "U2.5": {
+     "n": 235,
+     "mean_prob": 0.6351991148936167,
+     "hit_rate": 0.5787234042553191,
+     "brier": 0.24648135472515748,
+     "gap": 0.056475710638297594
+    },
+    "O2.5": {
+     "n": 132,
+     "mean_prob": 0.6672146893939394,
+     "hit_rate": 0.5909090909090909,
+     "brier": 0.24335677784103787,
+     "gap": 0.07630559848484841
+    },
+    "NG": {
+     "n": 2,
+     "mean_prob": 0.623769,
+     "hit_rate": 0.5,
+     "brier": 0.257958747586,
+     "gap": 0.12376900000000002
+    }
+   }
+  },
+  "admitted_by_disagreement": [
+   {
+    "band": [
+     0.0,
+     0.05
+    ],
+    "n": 974,
+    "mean_prob": 0.6470930277207393,
+    "hit_rate": 0.6036960985626283,
+    "brier": 0.23720807929284937,
+    "gap": 0.043396929158111
+   },
+   {
+    "band": [
+     0.05,
+     0.15
+    ],
+    "n": 499,
+    "mean_prob": 0.6861056252505011,
+    "hit_rate": 0.6492985971943888,
+    "brier": 0.22119309156089975,
+    "gap": 0.036807028056112356
+   },
+   {
+    "band": [
+     0.15,
+     0.25
+    ],
+    "n": 392,
+    "mean_prob": 0.6775700178571434,
+    "hit_rate": 0.6224489795918368,
+    "brier": 0.22887829283563013,
+    "gap": 0.05512103826530668
+   }
+  ],
+  "gate_only": {
+   "n": 194,
+   "mean_prob": 0.6578188711340207,
+   "hit_rate": 0.6494845360824743,
+   "brier": 0.22033294711103604,
+   "gap": 0.00833433505154646,
+   "markets": {
+    "1": 87,
+    "2": 107
+   },
+   "per_market": {
+    "1": {
+     "n": 87,
+     "mean_prob": 0.6728341954022987,
+     "hit_rate": 0.735632183908046,
+     "brier": 0.1930399113194827,
+     "gap": -0.06279798850574725
+    },
+    "2": {
+     "n": 107,
+     "mean_prob": 0.64561014953271,
+     "hit_rate": 0.5794392523364486,
+     "brier": 0.24252448088547662,
+     "gap": 0.06617089719626146
+    }
+   }
+  },
+  "threshold_bands": [
+   {
+    "band": [
+     0.45,
+     0.5
+    ],
+    "famiglia": "1X2",
+    "soglia_attuale": 0.55,
+    "n": 32,
+    "mean_prob": 0.48422675,
+    "hit_rate": 0.46875,
+    "brier": 0.250753329832125,
+    "gap": 0.015476749999999984
+   },
+   {
+    "band": [
+     0.45,
+     0.5
+    ],
+    "famiglia": "totali",
+    "soglia_attuale": 0.6,
+    "n": 0,
+    "mean_prob": null,
+    "hit_rate": null,
+    "brier": null,
+    "gap": null
+   },
+   {
+    "band": [
+     0.5,
+     0.55
+    ],
+    "famiglia": "1X2",
+    "soglia_attuale": 0.55,
+    "n": 161,
+    "mean_prob": 0.528956639751553,
+    "hit_rate": 0.5714285714285714,
+    "brier": 0.2470582429760561,
+    "gap": -0.04247193167701835
+   },
+   {
+    "band": [
+     0.5,
+     0.55
+    ],
+    "famiglia": "totali",
+    "soglia_attuale": 0.6,
+    "n": 410,
+    "mean_prob": 0.5355839829268296,
+    "hit_rate": 0.5487804878048781,
+    "brier": 0.24785380753940212,
+    "gap": -0.013196504878048465
+   },
+   {
+    "band": [
+     0.55,
+     0.6
+    ],
+    "famiglia": "1X2",
+    "soglia_attuale": 0.55,
+    "n": 0,
+    "mean_prob": null,
+    "hit_rate": null,
+    "brier": null,
+    "gap": null
+   },
+   {
+    "band": [
+     0.55,
+     0.6
+    ],
+    "famiglia": "totali",
+    "soglia_attuale": 0.6,
+    "n": 722,
+    "mean_prob": 0.5753205263157893,
+    "hit_rate": 0.5872576177285319,
+    "brier": 0.24301729533424643,
+    "gap": -0.011937091412742573
+   },
+   {
+    "band": [
+     0.6,
+     0.65
+    ],
+    "famiglia": "1X2",
+    "soglia_attuale": 0.55,
+    "n": 0,
+    "mean_prob": null,
+    "hit_rate": null,
+    "brier": null,
+    "gap": null
+   },
+   {
+    "band": [
+     0.6,
+     0.65
+    ],
+    "famiglia": "totali",
+    "soglia_attuale": 0.6,
+    "n": 0,
+    "mean_prob": null,
+    "hit_rate": null,
+    "brier": null,
+    "gap": null
+   }
+  ],
+  "top10_gate": {
+   "gate": 0.25,
+   "n_pools": 74,
+   "pool_rule": "settimana ISO del cutoff + stagione, 5 leghe insieme, taglio a 10",
+   "con_gate": {
+    "n": 740,
+    "mean_prob": 0.7323756256756755,
+    "hit_rate": 0.7175675675675676,
+    "brier": 0.20132826313782046,
+    "gap": 0.014808058108107924,
+    "mean_slots_filled": 10.0,
+    "market_mix": {
+     "1": 455,
+     "2": 110,
+     "GG": 58,
+     "O2.5": 72,
+     "U2.5": 45
+    }
+   },
+   "senza_gate": {
+    "n": 740,
+    "mean_prob": 0.737996609459459,
+    "hit_rate": 0.7256756756756757,
+    "brier": 0.19780354876438527,
+    "gap": 0.012320933783783294,
+    "mean_slots_filled": 10.0,
+    "market_mix": {
+     "1": 476,
+     "2": 134,
+     "GG": 40,
+     "O2.5": 57,
+     "U2.5": 33
+    }
+   },
+   "delta": {
+    "brier": -0.003524714373435184,
+    "hit_rate": 0.008108108108108136,
+    "mean_prob": 0.005620983783783506
+   },
+   "slot10": {
+    "n_pools": 74,
+    "mean": 0.6663861756756755,
+    "min": 0.560408,
+    "p10": 0.640499
+   },
+   "swap": {
+    "n": 74,
+    "entrano": {
+     "n": 74,
+     "mean_prob": 0.7225304189189189,
+     "hit_rate": 0.7432432432432432,
+     "brier": 0.18464504043849997,
+     "gap": -0.020712824324324308,
+     "markets": {
+      "1": 42,
+      "2": 32
+     }
+    },
+    "escono": {
+     "n": 74,
+     "mean_prob": 0.6663205810810809,
+     "hit_rate": 0.6621621621621622,
+     "brier": 0.2198921841728514,
+     "gap": 0.0041584189189187715,
+     "markets": {
+      "O2.5": 15,
+      "1": 21,
+      "U2.5": 12,
+      "GG": 18,
+      "2": 8
+     }
+    }
+   },
+   "bootstrap": {
+    "n_boot": 2000,
+    "seed": 20260905,
+    "n_blocks": 74,
+    "brier": {
+     "point": -0.003524714373435184,
+     "ci95": [
+      -0.008024181127179758,
+      0.0010715315559635397
+     ]
+    },
+    "hit_rate": {
+     "point": 0.008108108108108136,
+     "ci95": [
+      -0.004054054054054013,
+      0.018918918918918948
+     ]
+    }
+   }
+  },
+  "slot_marginality": {
+   "in_top10": {
+    "n": 720,
+    "mean_prob": 0.7341526833333333,
+    "hit_rate": 0.7194444444444444,
+    "brier": 0.20040802315863349,
+    "gap": 0.014708238888888836
+   },
+   "rank_11_15": {
+    "n": 360,
+    "mean_prob": 0.6467470333333335,
+    "hit_rate": 0.5638888888888889,
+    "brier": 0.2521364457611611,
+    "gap": 0.08285814444444461
+   }
+  },
+  "cross_season": {
+   "seasons": [
+    "2024/25",
+    "2025/26"
+   ],
+   "available": true,
+   "bias": {
+    "2024/25": {
+     "2": 0.00909084246575309,
+     "U2.5": 0.0696793714285715,
+     "1": 0.034944099502488,
+     "GG": 0.030362376470587926,
+     "O2.5": 0.00802426666666689
+    },
+    "2025/26": {
+     "U2.5": 0.037017684210526314,
+     "2": 0.07313084302325601,
+     "1": 0.04353378465346547,
+     "GG": 0.03934923267326729,
+     "O2.5": 0.1661494561403507
+    }
+   },
+   "mercati_comuni": [
+    "1",
+    "2",
+    "GG",
+    "O2.5",
+    "U2.5"
+   ],
+   "mean_abs_bias_diff": 0.05448068372057775,
+   "esperimenti": [
+    {
+     "target": "2025/26",
+     "bias_usato": "stagione opposta",
+     "top10_rank_su_prob_grezza": {
+      "n": 370,
+      "mean_prob": 0.7280611729729731,
+      "hit_rate": 0.7135135135135136,
+      "brier": 0.20194825139970288,
+      "gap": 0.014547659459459572
+     },
+     "top10_rank_su_prob_corretta": {
+      "n": 370,
+      "mean_prob": 0.7268591837837841,
+      "hit_rate": 0.7,
+      "brier": 0.20563047707905965,
+      "gap": 0.026859183783784157
+     },
+     "delta_brier_ranking": 0.0036822256793567765,
+     "delta_hit_ranking": -0.013513513513513598,
+     "stesse_righe_prob_esposta_corretta": {
+      "n": 370,
+      "mean_prob": 0.698301974621248,
+      "hit_rate": 0.7135135135135136,
+      "brier": 0.20226909298650347,
+      "gap": -0.015211538892265564
+     },
+     "delta_brier_esposizione": 0.0003208415868005965
+    },
+    {
+     "target": "2024/25",
+     "bias_usato": "stagione opposta",
+     "top10_rank_su_prob_grezza": {
+      "n": 370,
+      "mean_prob": 0.7366900783783781,
+      "hit_rate": 0.7216216216216216,
+      "brier": 0.20070827487593781,
+      "gap": 0.015068456756756499
+     },
+     "top10_rank_su_prob_corretta": {
+      "n": 370,
+      "mean_prob": 0.7315273945945945,
+      "hit_rate": 0.7,
+      "brier": 0.20726531620903238,
+      "gap": 0.03152739459459453
+     },
+     "delta_brier_ranking": 0.006557041333094565,
+     "delta_hit_ranking": -0.021621621621621623,
+     "stesse_righe_prob_esposta_corretta": {
+      "n": 370,
+      "mean_prob": 0.6762413790469464,
+      "hit_rate": 0.7216216216216216,
+      "brier": 0.20467575206123653,
+      "gap": -0.04538024257467521
+     },
+     "delta_brier_esposizione": 0.003967477185298718
+    }
+   ]
+  },
+  "global_reliability": {
+   "seasons": [
+    "2024/25",
+    "2025/26"
+   ],
+   "available": true,
+   "esperimenti": [
+    {
+     "target": "2024/25",
+     "fit_su": "2025/26",
+     "n": 370,
+     "grezza": {
+      "n": 370,
+      "mean_prob": 0.7366900783783781,
+      "hit_rate": 0.7216216216216216,
+      "brier": 0.20070827487593781,
+      "gap": 0.015068456756756499
+     },
+     "calibrata": {
+      "n": 370,
+      "mean_prob": 0.7090681286334122,
+      "hit_rate": 0.7216216216216216,
+      "brier": 0.20233057086070508,
+      "gap": -0.012553492988209403
+     },
+     "delta_brier": 0.0016222959847672636,
+     "delta_prob": -0.0276219497449659
+    },
+    {
+     "target": "2025/26",
+     "fit_su": "2024/25",
+     "n": 370,
+     "grezza": {
+      "n": 370,
+      "mean_prob": 0.7280611729729731,
+      "hit_rate": 0.7135135135135136,
+      "brier": 0.20194825139970288,
+      "gap": 0.014547659459459572
+     },
+     "calibrata": {
+      "n": 370,
+      "mean_prob": 0.70782730794475,
+      "hit_rate": 0.7135135135135136,
+      "brier": 0.20266656998185012,
+      "gap": -0.005686205568763536
+     },
+     "delta_brier": 0.0007183185821472426,
+     "delta_prob": -0.020233865028223108
+    }
+   ]
+  },
+  "coverage": [
+   {
+    "league": "Bundesliga",
+    "candidate": 603,
+    "ammessa": 419,
+    "copertura": 0.6948590381426202,
+    "prob_media": 0.6723138066825783,
+    "hit": 0.6372315035799523,
+    "brier": 0.22836668751621705
+   },
+   {
+    "league": "La Liga",
+    "candidate": 723,
+    "ammessa": 380,
+    "copertura": 0.5255878284923928,
+    "prob_media": 0.6651070210526318,
+    "hit": 0.6473684210526316,
+    "brier": 0.21591769022761587
+   },
+   {
+    "league": "Ligue 1",
+    "candidate": 610,
+    "ammessa": 281,
+    "copertura": 0.460655737704918,
+    "prob_media": 0.6584722775800713,
+    "hit": 0.6120996441281139,
+    "brier": 0.2355096349882634
+   },
+   {
+    "league": "Premier League",
+    "candidate": 742,
+    "ammessa": 422,
+    "copertura": 0.568733153638814,
+    "prob_media": 0.6593903033175358,
+    "hit": 0.5971563981042654,
+    "brier": 0.23867306040330824
+   },
+   {
+    "league": "Serie A",
+    "candidate": 744,
+    "ammessa": 363,
+    "copertura": 0.4879032258064516,
+    "prob_media": 0.662559757575757,
+    "hit": 0.6033057851239669,
+    "brier": 0.23830222984574112
+   }
+  ],
+  "market_mix": {
+   "argmax_poisson_tutte_le_candidate": {
+    "2": 564,
+    "GG": 998,
+    "U2.5": 705,
+    "1": 985,
+    "O2.5": 163,
+    "NG": 7
+   },
+   "mostrate_dopo_i_filtri": {
+    "2": 318,
+    "U2.5": 235,
+    "1": 806,
+    "GG": 372,
+    "O2.5": 132,
+    "NG": 2
+   }
+  },
+  "data_quality": {
+   "n": 3422,
+   "match_id_distinti": 3422,
+   "match_id_duplicati": 0,
+   "elo_non_disponibile": 0,
+   "team_stats_mancanti": 14,
+   "mercati_ammessi_per_partita_B": {
+    "1": 1183,
+    "0": 1402,
+    "2": 614,
+    "3": 223
+   }
+  },
+  "units_fallback": {
+   "n_units": 384,
+   "n_senza_xg": 10,
+   "quota": 0.026041666666666668,
+   "solo_prima_giornata": true,
+   "dettaglio": {
+    "Bundesliga 2024": 1,
+    "Bundesliga 2025": 1,
+    "La Liga 2024": 1,
+    "La Liga 2025": 1,
+    "Ligue 1 2024": 1,
+    "Ligue 1 2025": 1,
+    "Premier League 2024": 1,
+    "Premier League 2025": 1,
+    "Serie A 2024": 1,
+    "Serie A 2025": 1
+   }
+  }
+ }
+}

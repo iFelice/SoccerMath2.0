@@ -19,6 +19,13 @@ on:
       - 'audit/test_topmix_registry_tracking.py'
       - 'audit/test_jsonbin_readonly_get.py'
       - 'SoccerMath/test_standardizza_mercato.py'
+      - 'SoccerMath/test_registry_tracking.py'
+      - 'SoccerMath/test_topmix_selector_parity.py'
+      - 'SoccerMath/test_fixtures/topmix_selettore_pre_refactor.py'
+      - 'audit/make_topmix_selector_fixture.py'
+      - 'audit/test_topmix_next_matchday.py'
+      - 'audit/test_topmix_margins.py'
+      - 'audit/topmix_margins.py'
       - 'audit/topmix_selector_audit_protocol.md'
       - 'SoccerMath/app.py'
       - 'SoccerMath/prediction_registry.py'
@@ -57,6 +64,9 @@ jobs:
       - name: Cartella report (non versionata)
         run: mkdir -p "$AUDIT_OUT"
 
+      # `test_topmix_selector_parity.py` ha bisogno di `fetch-depth: 0` solo per il
+      # test di provenienza del fixture (confronto col blob): gli altri girano con
+      # la sola stdlib. Il check finale `git diff` resta l'unico guard di non-scrittura.
       - name: Test diagnostici (nessuna scrittura registro)
         run: |
           python -m pytest \
@@ -64,6 +74,10 @@ jobs:
             audit/test_reconstruct_topmix_match.py \
             audit/test_jsonbin_readonly_get.py \
             SoccerMath/test_standardizza_mercato.py \
+            SoccerMath/test_registry_tracking.py \
+            audit/test_topmix_next_matchday.py \
+            audit/test_topmix_margins.py \
+            SoccerMath/test_topmix_selector_parity.py \
             -q --tb=short
 
       - name: GET JSONBin Schalke–Bayern (sola lettura, mai PUT)

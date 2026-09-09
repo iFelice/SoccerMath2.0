@@ -45,6 +45,7 @@ Quindi:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import datetime, timezone
@@ -106,6 +107,52 @@ CURRENT_MODEL_TOOLTIP = (
     f"Predizione generata con il motore corrente ({MODEL_VERSION_CURRENT}). "
     "Inclusa nelle statistiche del modello attuale."
 )
+
+
+# ---------------------------------------------------------------------------
+# Tracciamento dell'origine (audit/margini_migliorabili_topmix.md §7)
+# ---------------------------------------------------------------------------
+# I tre problemi "blocking" del Registro si riducono a uno: le righe generate da
+# Top Mix / Analisi Rapida / Billy condividono una sola chiave (match_id) e un
+# solo campo (tipo) derivato dal testo libero del pronostico. Qui stanno le
+# chiavi esplicite: ``origin`` (chi ha generato la previsione) e
+# ``selector_version`` (QUALE selettore l'ha generata).
+ORIGIN_FIELD = "origin"
+ORIGIN_TOP_MIX = "top_mix"
+ORIGIN_ANALISI_RAPIDA = "analisi_rapida"
+ORIGIN_BILLY = "billy"
+ORIGIN_UNKNOWN = "unknown"
+ORIGINI_NOTE = (ORIGIN_TOP_MIX, ORIGIN_ANALISI_RAPIDA, ORIGIN_BILLY, ORIGIN_UNKNOWN)
+
+# Etichetta mostrata nel Registro: sostituisce il test ``"Top Mix" in pronostico``.
+TIPO_BY_ORIGIN = {
+    ORIGIN_TOP_MIX: "Top Mix",
+    ORIGIN_ANALISI_RAPIDA: "Analisi Rapida",
+    ORIGIN_BILLY: "Billy",
+    ORIGIN_UNKNOWN: "Analisi",
+}
+
+# Versione del SELETTORE (non del modello): va alzata OGNI volta che cambiano
+# argmax sui mercati, soglie 0,55/0,60, peso del blend o il filtro di
+# disaccordo, perche' e' parte della chiave di dedup e dell'aggregazione.
+SELECTOR_VERSION_FIELD = "selector_version"
+SELECTOR_VERSION_CURRENT = "topmix_gate025_ens06_v1"
+
+CALCULATION_ID_FIELD = "calculation_id"
+RANK_FIELD = "rank"
+KICKOFF_UTC_FIELD = "kickoff_utc"
+SNAPSHOT_SHA_FIELD = "data_snapshot_sha"
+# Nomi identici alle chiavi gia' usate dalle righe del Top Mix
+# (``fetch_and_calc_top_mix`` ritorna "poisson"/"elo" in percentuale).
+POISSON_FIELD = "poisson"
+ELO_FIELD = "elo"
+ELO_DISPONIBILE_FIELD = "elo_disponibile"
+PROB_FIELD = "prob_sicuro"
+ESITO_FIELD = "esito"
+MERCATO_FIELD = "mercato_standard"
+ESITO_VINTO = "\u2705"
+ESITO_PERSO = "\u274c"
+ESITO_ATTESA = "\u23f3"
 
 
 # ---------------------------------------------------------------------------
@@ -564,3 +611,377 @@ def tag_pre_fix(entry: Dict[str, Any]) -> Dict[str, Any]:
     updated[MODEL_VERSION_FIELD] = MODEL_VERSION_PRE_FIX
     updated[EXCLUDED_FROM_CURRENT_STATS_FIELD] = True
     return updated
+
+
+# ---------------------------------------------------------------------------
+# Origine, chiavi di dedup, upsert
+# ---------------------------------------------------------------------------
+def origin_from_text(pronostico: Any) -> str:
+    """Fallback storico: ricava l'origine dal testo libero del pronostico.
+
+    Usato SOLO quando il chiamante non passa ``origin`` esplicito (record
+    legacy o percorsi di scrittura vecchi). Il testo e' un'euristica: le
+    scritture nuove devono sempre passare l'origine esplicita.
+    """
+    t = str(pronostico or "").lower()
+    if "top mix" in t:
+        return ORIGIN_TOP_MIX
+    if "billy" in t or "fallback" in t:
+        return ORIGIN_BILLY
+    if "poisson auto" in t or "analisi" in t:
+        return ORIGIN_ANALISI_RAPIDA
+    return ORIGIN_UNKNOWN
+
+
+def resolve_origin(origin: Any = None, pronostico: Any = None) -> str:
+    """Origine normalizzata: quella esplicita vince, il testo e' il fallback."""
+    if origin:
+        o = str(origin).strip().lower()
+        if o in ORIGINI_NOTE:
+            return o
+        return ORIGIN_UNKNOWN
+    return origin_from_text(pronostico)
+
+
+def tipo_for_origin(origin: Any) -> str:
+    """Etichetta da mostrare nel Registro (sostituisce il test sul pronostico)."""
+    return TIPO_BY_ORIGIN.get(str(origin or "").strip().lower(), TIPO_BY_ORIGIN[ORIGIN_UNKNOWN])
+
+
+def origin_of(entry: Any) -> str:
+    if not is_dict(entry):
+        return ORIGIN_UNKNOWN
+    o = str(entry.get(ORIGIN_FIELD) or "").strip().lower()
+    if o in ORIGINI_NOTE:
+        return o
+    # Record scritti prima del campo origin: si risale dal tipo/ dal testo.
+    tipo = str(entry.get("tipo") or "").strip().lower()
+    if tipo == "top mix":
+        return ORIGIN_TOP_MIX
+    if tipo == "billy":
+        return ORIGIN_BILLY
+    if tipo == "analisi rapida":
+        return ORIGIN_ANALISI_RAPIDA
+    return origin_from_text(entry.get("pronostico_sicuro"))
+
+
+def selector_version_of(entry: Any) -> str:
+    if not is_dict(entry):
+        return ""
+    return str(entry.get(SELECTOR_VERSION_FIELD) or "")
+
+
+def dedup_key(entry: Any) -> Tuple[Any, str, str]:
+    """Chiave di unicita' di una previsione.
+
+    Non piu' il solo ``match_id``: la stessa partita puo' legittimamente avere
+    UNA riga per origine (Top Mix, Analisi Rapida, Billy) e una riga per versione
+    del selettore. Il dedup per solo match_id faceva perdere la riga Top Mix
+    quando Analisi Rapida aveva salvato per prima (problema ``dedup_match_id``,
+    blocking, in results/topmix_registry_tracking.json).
+    """
+    if not is_dict(entry):
+        return (None, ORIGIN_UNKNOWN, "")
+    mid = entry.get("match_id")
+    return (None if mid is None else str(mid), origin_of(entry), selector_version_of(entry))
+
+
+def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
+                            entry: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
+    """Inserisce o aggiorna una previsione, senza mai toccarne una gia' giudicata.
+
+    Ritorna ``(lista_aggiornata, azione)`` con azione in
+    ``{"aggiunta", "aggiornata", "gia_graduata", "senza_chiave"}``.
+
+    - un ricalcolo della STESSA previsione (stesso match_id + origine +
+      selector_version) la SOSTITUISCE: prima il record restava congelato alla
+      prima scrittura, quindi il registro non descriveva piu' il modello live;
+    - una previsione con esito gia' ``\\u2705``/``\\u274c`` NON viene mai
+      sovrascritta: e' l'unica riga che costa denaro in prospettiva;
+    - origini diverse sulla stessa partita coesistono (e' il dato che serve per
+      confrontare Top Mix vs Analisi Rapida).
+    """
+    lst = list(preds or [])
+    chiave = dedup_key(entry)
+    if chiave[0] is None:
+        lst.append(entry)
+        return lst, "senza_chiave"
+    for i, p in enumerate(lst):
+        if dedup_key(p) != chiave:
+            continue
+        if is_dict(p) and p.get(ESITO_FIELD) in (ESITO_VINTO, ESITO_PERSO):
+            return lst, "gia_graduata"
+        aggiornato = dict(entry)
+        # Conserva la prima scrittura: un ricalcolo non cancella quando la
+        # previsione era stata presa.
+        if is_dict(p) and p.get(SALVATO_IL_FIELD):
+            aggiornato.setdefault("salvato_il_originario", p[SALVATO_IL_FIELD])
+        lst[i] = aggiornato
+        return lst, "aggiornata"
+    lst.append(entry)
+    return lst, "aggiunta"
+
+
+# ---------------------------------------------------------------------------
+# Identita' del calcolo e fingerprint dei dati
+# ---------------------------------------------------------------------------
+def build_calculation_id(match_id: Any, origin: Any, selector_version: Any,
+                         kickoff_utc: Any = None, snapshot_sha: Any = None,
+                         rank: Any = None) -> str:
+    """Id deterministico di una scrittura: stesso input -> stesso id."""
+    parti = [str(match_id), str(origin or ""), str(selector_version or ""),
+             str(kickoff_utc or ""), str(snapshot_sha or ""), str(rank if rank is not None else "")]
+    return hashlib.sha1("|".join(parti).encode("utf-8")).hexdigest()[:16]
+
+
+# Il registro e' l'OUTPUT del calcolo: includerlo nel fingerprint dei dati di
+# input lo farebbe cambiare a ogni scrittura (e il calculation_id di una stessa
+# previsione non sarebbe piu' deterministico).
+NOMI_ESCLUSI_DAI_DATI = ("predictions.json",)
+
+
+def snapshot_fingerprint(directory: Any, estensioni: Tuple[str, ...] = (".csv", ".json"),
+                         max_file: int = 500, escludi: Tuple[str, ...] = NOMI_ESCLUSI_DAI_DATI) -> str:
+    """Hash breve dei file di dati usati dal calcolo (12 caratteri esadecimali).
+
+    Solo il livello ``directory`` immediato (niente ricorsione negli archivi
+    partita, che sono migliaia di file): una chiamata costa pochi ``stat()`` e
+    basta a dire SE il database e' cambiato fra due salvataggi. Serve per
+    distinguere un dato vecchio da un ricalcolo a dati invariati.
+    """
+    p = Path(str(directory)) if directory else None
+    if p is None or not p.is_dir():
+        return ""
+    righe = []
+    try:
+        for child in sorted(p.iterdir(), key=lambda x: x.name):
+            if len(righe) >= max_file:
+                break
+            if not child.is_file():
+                continue
+            if estensioni and child.suffix.lower() not in estensioni:
+                continue
+            if child.name in escludi:
+                continue
+            try:
+                st = child.stat()
+            except OSError:
+                continue
+            righe.append(f"{child.name}:{st.st_size}:{st.st_mtime_ns}")
+    except OSError:
+        return ""
+    if not righe:
+        return ""
+    return hashlib.sha1("\n".join(righe).encode("utf-8")).hexdigest()[:12]
+
+
+# ---------------------------------------------------------------------------
+# Grading unico (elimina la divergenza fra i due rami di aggiorna_risultati_reali)
+# ---------------------------------------------------------------------------
+def _as_goal(value: Any) -> Optional[int]:
+    """Gol come intero non negativo; float integri accettati, NaN/None/str no."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            return None
+        return int(value) if float(value).is_integer() and value >= 0 else None
+    return None
+
+
+# Il ramo "giornata 0" (chiamata per match_id) graduava 14 mercati, il ramo
+# "loop per giornata" solo 7: un record OVER_1.5/1X/X2/12 salvato dal secondo
+# ramo restava ⏳ per sempre, in silenzio. Unica fonte: questa tabella.
+_GRADING = {
+    "UNDER_1.5": lambda gh, ga: (gh + ga) < 2,
+    "OVER_1.5": lambda gh, ga: (gh + ga) > 1,
+    "UNDER_2.5": lambda gh, ga: (gh + ga) < 3,
+    "OVER_2.5": lambda gh, ga: (gh + ga) > 2,
+    "UNDER_3.5": lambda gh, ga: (gh + ga) < 4,
+    "OVER_3.5": lambda gh, ga: (gh + ga) > 3,
+    "1X": lambda gh, ga: gh >= ga,
+    "X2": lambda gh, ga: ga >= gh,
+    "12": lambda gh, ga: gh != ga,
+    "GG": lambda gh, ga: gh > 0 and ga > 0,
+    "NG": lambda gh, ga: gh == 0 or ga == 0,
+    "X": lambda gh, ga: gh == ga,
+    "1": lambda gh, ga: gh > ga,
+    "2": lambda gh, ga: ga > gh,
+}
+
+MERCATI_GRADABILI = tuple(sorted(_GRADING))
+
+
+def esito_mercato(mercato: Any, gol_casa: Any, gol_trasferta: Any) -> Optional[str]:
+    """ESITO (``\\u2705``/``\\u274c``) di un mercato sul risultato finale.
+
+    Ritorna ``None`` se il mercato non e' riconosciuto o i gol non sono due
+    interi: il chiamante deve tenere ``\\u23f3``, mai inventare un esito.
+    """
+    code = str(mercato or "").strip().upper()
+    if code == "ALTRO":
+        return None
+    fn = _GRADING.get(code)
+    if fn is None:
+        return None
+    h = _as_goal(gol_casa)
+    a = _as_goal(gol_trasferta)
+    if h is None or a is None:
+        return None
+    return ESITO_VINTO if fn(h, a) else ESITO_PERSO
+
+
+# ---------------------------------------------------------------------------
+# Igiene delle righe mostrate/salvate (Top Mix)
+# ---------------------------------------------------------------------------
+def parse_kickoff(value: Any) -> Optional[datetime]:
+    """``utcDate`` ISO (con o senza ``Z``) in datetime aware UTC; None se assente/non valido."""
+    if isinstance(value, datetime):
+        dt = value
+    elif not value or not isinstance(value, str):
+        return None
+    else:
+        try:
+            dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def righe_non_iniziate(righe: Iterable[Dict[str, Any]], ora: Any = None,
+                       campo_kickoff: str = "utcDate") -> Tuple[List[Dict[str, Any]], int]:
+    """Scarta le righe il cui kickoff e' gia' passato.
+
+    ``fetch_and_calc_top_mix`` e' ``@st.cache_data(ttl=1800)`` SENZA argomenti:
+    il ``now`` calcolato dentro la funzione e' congelato per 30 minuti, quindi
+    il risultato cached puo' contenere partite gia' iniziate (problema
+    ``cache_30min``). Non si tocca ne' il TTL ne' gli argomenti della cache
+    (un argomento per minuto = 5 chiamate API al minuto, contro il limite di
+    10/min free di football-data): si rifiltra qui, a costo zero, prima di
+    mostrare e di salvare.
+
+    Le righe senza kickoff interpretabile RESTANO (un dato mancante non deve
+    far sparire una previsione gia' presa): torna ``(tenute, scartate)``.
+    """
+    if ora is None:
+        ora = datetime.now(timezone.utc)
+    ora = parse_kickoff(ora) or datetime.now(timezone.utc)
+    tenute: List[Dict[str, Any]] = []
+    scartate = 0
+    for r in righe or []:
+        if not is_dict(r):
+            continue
+        kickoff = parse_kickoff(r.get(campo_kickoff))
+        if kickoff is not None and kickoff <= ora:
+            scartate += 1
+            continue
+        tenute.append(r)
+    return tenute, scartate
+
+
+# ---------------------------------------------------------------------------
+# Affidabilita' (Brier) del Registro: dato gia' presente, mai esposto
+# ---------------------------------------------------------------------------
+def prob_of_entry(entry: Any) -> Optional[float]:
+    """Probabilita' dichiarata in [0,1] dal campo ``prob_sicuro``.
+
+    Il campo e' persistito in percentuale (61.0). I valori in (1, 100] sono
+    letti come percentuale, quelli in [0, 1] come frazione: una previsione sotto
+    l'1% non esiste (soglie 0,55/0,60), quindi la zona ambigua non e' raggiunta
+    dai dati reali.
+    """
+    if not is_dict(entry):
+        return None
+    v = entry.get(PROB_FIELD)
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    p = float(v) / 100.0 if float(v) > 1.0 else float(v)
+    if not 0.0 <= p <= 1.0:
+        return None
+    return p
+
+
+def outcome_of_entry(entry: Any) -> Optional[int]:
+    """1 se vinta, 0 se persa, ``None`` se ancora in attesa o non riconosciuta."""
+    if not is_dict(entry):
+        return None
+    esito = entry.get(ESITO_FIELD)
+    if esito == ESITO_VINTO:
+        return 1
+    if esito == ESITO_PERSO:
+        return 0
+    return None
+
+
+def brier_of_entry(entry: Any) -> Optional[float]:
+    p = prob_of_entry(entry)
+    y = outcome_of_entry(entry)
+    if p is None or y is None:
+        return None
+    return (p - y) ** 2
+
+
+def compute_calibration_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """Win rate + Brier + gap di calibrazione sullo stesso sottoinsieme.
+
+    Il Registro finora esponeva SOLO il win rate, mentre ``prob_sicuro`` e'
+    persistito da sempre: il Brier non richiede nessuna migrazione.
+    """
+    lst = [e for e in (entries or []) if is_dict(e)]
+    decise = [e for e in lst if outcome_of_entry(e) is not None]
+    coppie = [(prob_of_entry(e), outcome_of_entry(e)) for e in decise]
+    coppie = [(p, y) for p, y in coppie if p is not None]
+    n_prob = len(coppie)
+    hit = (sum(y for _, y in coppie) / n_prob) if n_prob else None
+    mean_p = (sum(p for p, _ in coppie) / n_prob) if n_prob else None
+    brier = (sum((p - y) ** 2 for p, y in coppie) / n_prob) if n_prob else None
+    return {
+        "total": len(lst),
+        "decise": len(decise),
+        "con_probabilita": n_prob,
+        "hit_rate": (hit * 100.0) if hit is not None else None,
+        "prob_media": (mean_p * 100.0) if mean_p is not None else None,
+        "gap": ((mean_p - hit) * 100.0) if (mean_p is not None and hit is not None) else None,
+        "brier": brier,
+    }
+
+
+def calibration_by_mercato(entries: Iterable[Dict[str, Any]], min_decise: int = 10,
+                           per_origine: bool = True) -> List[Dict[str, Any]]:
+    """Tabella di affidabilita' per mercato (e per origine).
+
+    ``min_decise`` scarta i tagli con troppi pochi risultati giudicati: una
+    riga con 3 partite decise darebbe un Brier a +-0,3 senza significato.
+    """
+    from collections import defaultdict
+    gruppi = defaultdict(list)
+    for e in entries or []:
+        if not is_dict(e):
+            continue
+        mkt = str(e.get(MERCATO_FIELD) or "ALTRO")
+        if per_origine:
+            gruppi[(mkt, origin_of(e))].append(e)
+        else:
+            gruppi[(mkt, "")].append(e)
+    righe = []
+    for (mkt, org), elems in gruppi.items():
+        st = compute_calibration_stats(elems)
+        if st["decise"] < min_decise:
+            continue
+        righe.append({"mercato": mkt, "origine": org, **st})
+    righe.sort(key=lambda r: (-r["decise"], r["mercato"]))
+    return righe
+
+
+def overall_reliability_transfer_warning(stats: Dict[str, Any]) -> Optional[str]:
+    """Nota leggibile per la UI: ricorda che il Brier del registro NON e' out-of-sample."""
+    if not stats or stats.get("brier") is None:
+        return None
+    if stats.get("con_probabilita", 0) < 30:
+        return ("Campione sotto 30 partite giudicate con probabilita': il Brier "
+                "e' un indizio, non una misura.")
+    return None
