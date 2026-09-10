@@ -21,6 +21,7 @@ on:
       - 'SoccerMath/test_standardizza_mercato.py'
       - 'SoccerMath/test_registry_tracking.py'
       - 'SoccerMath/test_topmix_selector_parity.py'
+      - 'SoccerMath/test_topmix_shadow_gate.py'
       - 'SoccerMath/test_fixtures/topmix_selettore_pre_refactor.py'
       - 'audit/make_topmix_selector_fixture.py'
       - 'audit/test_topmix_next_matchday.py'
@@ -78,6 +79,7 @@ jobs:
             audit/test_topmix_next_matchday.py \
             audit/test_topmix_margins.py \
             SoccerMath/test_topmix_selector_parity.py \
+            SoccerMath/test_topmix_shadow_gate.py \
             -q --tb=short
 
       - name: GET JSONBin Schalke–Bayern (sola lettura, mai PUT)

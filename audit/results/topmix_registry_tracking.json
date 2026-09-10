@@ -16,7 +16,7 @@
     "dedup_by_match_id": {
       "present": false,
       "early_return": false,
-      "source": "def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi, mercato_standard=None, origin=None, rank=None, kickoff_utc=None, prob_poisson=None, prob_elo=None, elo_disponibile=None, snapshot_sha=None):\n    \"\"\"Scrive UNA previsione nel registro e dice cosa ha fatto.\n\n    Due modifiche puntuali, entrambe richieste da\n    ``audit/margini_migliorabili_topmi",
+      "source": "def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi, mercato_standard=None, origin=None, rank=None, kickoff_utc=None, prob_poisson=None, prob_elo=None, elo_disponibile=None, snapshot_sha=None, gate_shadow_confidence=None, gate_shadow_ammessa=None, gate_off_confidence=None, gate_off_ammessa=None):\n    \"\"\"Scrive UNA previsione nel registro e dice ",
       "chiave_completa": true,
       "passa_origine": true
     },
