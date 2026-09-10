@@ -3,7 +3,9 @@
     "n_rows": 3422,
     "rows_file": "topmix_selector_replay_rows.csv",
     "shadow_formula": "conf * 0.25 / (0.25 + |P-E|)",
-    "sorgente": "prediction_registry.gate_shadow_confidence"
+    "sorgente": "prediction_registry.gate_shadow_confidence",
+    "gate_off_formula": "conf (identita', nessuno sconto)",
+    "sorgente_gate_off": "prediction_registry.gate_off_confidence"
   },
   "payload": {
     "n_candidates": 3422,
@@ -49,6 +51,13 @@
         "atteso": 0.23117228563629533,
         "ok": true,
         "nota": "tol 1e-6 (margini.json)"
+      },
+      {
+        "nome": "gate_off riammette le 194",
+        "ricalcolato": 194.0,
+        "atteso": 194,
+        "ok": true,
+        "nota": "per costruzione: A_conf >= min_conf (margini.json)"
       }
     ],
     "shadow_admitted": {
@@ -91,8 +100,11 @@
       "hit_rate": 0.6494845360824743,
       "brier": 0.22033294711103607,
       "max_conf_shadow": 0.4124352779742978,
-      "n_ammesse_shadow": 0
+      "n_ammesse_shadow": 0,
+      "n_ammesse_off": 194,
+      "mean_conf_off": 0.6578188711340206
     },
-    "nota": "Nessuna riga bloccata dal gate puo' essere riammessa dalla variante ombra: d >= 0.25 implica fattore <= 1/2, quindi conf_shadow <= conf/2 <= 0.5 < 0.55 (soglia 1X2)."
+    "nota": "Nessuna riga bloccata dal gate puo' essere riammessa dalla variante ombra: d >= 0.25 implica fattore <= 1/2, quindi conf_shadow <= conf/2 <= 0.5 < 0.55 (soglia 1X2).",
+    "nota_gate_off": "Il secondo segnale (gate assente) riammette per costruzione tutte le 194: hanno A_conf >= min_conf e il veto e' l'unico motivo di scarto. Zero parametri liberi; conf_off == A_conf."
   }
 }

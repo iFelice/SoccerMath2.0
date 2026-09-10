@@ -91,6 +91,8 @@ def analizza(rows_path: str, margins_path: str) -> dict:
             continue
         r["conf_shadow"] = R.gate_shadow_confidence(conf, d)
         r["ammessa_shadow"] = bool(r["conf_shadow"] is not None and r["conf_shadow"] >= mc)
+        r["conf_off"] = R.gate_off_confidence(conf, d)
+        r["ammessa_off"] = bool(r["conf_off"] is not None and r["conf_off"] >= mc)
         if r["A_admitted"]:
             ammesse.append(r)
         elif conf >= mc and d >= 0.25:
@@ -99,6 +101,9 @@ def analizza(rows_path: str, margins_path: str) -> dict:
     robuste = [r for r in ammesse if r["ammessa_shadow"]]
     fragili = [r for r in ammesse if not r["ammessa_shadow"]]
     gate_solo_ammesse = [r for r in gate_solo if r["ammessa_shadow"]]
+    # Secondo segnale (gate assente): per costruzione le 194 hanno conf >= min_conf,
+    # quindi tutte rientrano. E' il controllo di coerenza col numero di §2.
+    gate_solo_ammesse_off = [r for r in gate_solo if r["ammessa_off"]]
 
     # --- consistenza con l'artefatto committato (margini) ---
     atteso = {c["nome"]: c["atteso"] for c in cons}
@@ -115,6 +120,9 @@ def analizza(rows_path: str, margins_path: str) -> dict:
          "tol 1e-6 (margini.json)"),
         ("ammesse: brier", _gruppo(ammesse)["brier"], attesi_ammesse["brier"],
          "tol 1e-6 (margini.json)"),
+        ("gate_off riammette le 194", float(len(gate_solo_ammesse_off)),
+         attesi_rejection["reasons"]["disaccordo"],
+         "per costruzione: A_conf >= min_conf (margini.json)"),
     ]
     consistency = []
     for nome, ricalcolato, att, nota in controlli:
@@ -141,16 +149,26 @@ def analizza(rows_path: str, margins_path: str) -> dict:
             "n_ammesse_shadow": len(gate_solo_ammesse),
             # Per riferimento: hit/Brier "se giocate" sono gia' in margini §2
             # (gate_only). Qui interessa solo la scala conf_shadow.
+            "n_ammesse_off": len(gate_solo_ammesse_off),
+            "mean_conf_off": (statistics.mean(r["conf_off"] for r in gate_solo)
+                               if gate_solo else None),
         },
         "nota": (
             "Nessuna riga bloccata dal gate puo' essere riammessa dalla "
             "variante ombra: d >= 0.25 implica fattore <= 1/2, quindi "
             "conf_shadow <= conf/2 <= 0.5 < 0.55 (soglia 1X2)."
         ),
+        "nota_gate_off": (
+            "Il secondo segnale (gate assente) riammette per costruzione tutte "
+            "le 194: hanno A_conf >= min_conf e il veto e' l'unico motivo di "
+            "scarto. Zero parametri liberi; conf_off == A_conf."
+        ),
     }
     return {"meta": {"n_rows": len(rows), "rows_file": os.path.basename(rows_path),
                      "shadow_formula": "conf * 0.25 / (0.25 + |P-E|)",
-                     "sorgente": "prediction_registry.gate_shadow_confidence"},
+                     "sorgente": "prediction_registry.gate_shadow_confidence",
+                     "gate_off_formula": "conf (identita', nessuno sconto)",
+                     "sorgente_gate_off": "prediction_registry.gate_off_confidence"},
             "payload": payload}
 
 
@@ -185,6 +203,7 @@ def render_md(res: dict) -> str:
                  f"{ad['n_fragili']} ({_fmt_pct(ad['quote']['fragili'], 0)}) |")
     righe.append(f"| righe bloccate dal gate (d >= 0.25) | {g['n']} |")
     righe.append(f"| ...riammesse dall'ombra | {g['n_ammesse_shadow']} |")
+    righe.append(f"| ...riammesse dal secondo segnale (gate assente) | {g['n_ammesse_off']} |")
     righe.append("")
     righe.append("### Ammesse: robuste vs fragili\n")
     righe.append("| gruppo | n | prob media | conf_shadow media | d medio | hit | Brier |")

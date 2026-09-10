@@ -149,6 +149,15 @@ SELECTOR_VERSION_CURRENT = "topmix_gate025_ens06_v1"
 # strumenti di audit che li leggono.
 GATE_SHADOW_CONFIDENCE_FIELD = "gate_shadow_confidence"
 GATE_SHADOW_AMMESSA_FIELD = "gate_shadow_ammessa"
+# Secondo segnale OMBRA, parallelo e indipendente dal primo (referto §11quinquies):
+# simula il gate ASSENTE. Zero parametri liberi, nessuno sconto: la confidence
+# ombra coincide con quella reale e l'ammissione e' il solo confronto
+# ``conf >= min_conf``. Risponde alla domanda di §2 ("il gate scarta partite
+# che in realta' erano buone?"), che la penalita' continua di §11quater non
+# puo' affrontare (a d >= 0.25 quella dimezza e non riammette mai). I campi
+# e la formula di §11quater restano intatti.
+GATE_OFF_CONFIDENCE_FIELD = "gate_off_confidence"
+GATE_OFF_AMMESSA_FIELD = "gate_off_ammessa"
 # Tolleranza del veto di produzione |P-E| < 0.25: la penalita' ombra ci si
 # ancora. A d = 0.25 la confidence si DIMEZZA invece di azzerarsi
 # (fattore 0.25/(0.25+0.25) = 1/2); a d = 0 resta identica (fattore 1).
@@ -226,6 +235,27 @@ def gate_shadow_confidence(confidence: Any, disaccordo: Any) -> Optional[float]:
     return conf * (GATE_SHADOW_TOLLERANZA / (GATE_SHADOW_TOLLERANZA + d))
 
 
+def gate_off_confidence(confidence: Any, disaccordo: Any) -> Optional[float]:
+    """Nessuno sconto: simula il gate assente.
+
+    Referto ``audit/margini_migliorabili_topmix.md`` §11quinquies. ``confidence``
+    e' gia' quella calcolata (blend Poisson+Elo dove applicabile); l'ammissione
+    ombra e' semplicemente ``confidence >= min_conf``, senza il veto
+    ``|P-E| < 0.25``. Zero parametri liberi: riproduce esattamente la
+    popolazione delle 194 partite storicamente scartate gia' misurata in
+    ``topmix_margins.md``. ``disaccordo`` e' nella firma per simmetria con
+    ``gate_shadow_confidence`` e viene ignorato per costruzione.
+
+    ``None`` se gli ingressi della confidence non sono numerici (stessa
+    convenzione del primo segnale: il chiamante omette i campi, il
+    salvataggio reale non viene toccato).
+    """
+    conf = _in_frazione(confidence)
+    if conf is None:
+        return None
+    return conf
+
+
 def gate_shadow_min_conf(market: Any, elo_disponibile: Any) -> float:
     """Soglia della variante ombra per una riga: 0.55 solo per 1X2 con Elo.
 
@@ -237,14 +267,14 @@ def gate_shadow_min_conf(market: Any, elo_disponibile: Any) -> float:
     return GATE_SHADOW_MIN_CONF_TOTALI
 
 
-def gate_shadow_fields_from_row(market: Any, prob: Any, poisson: Any, elo: Any,
-                                elo_disponibile: Any) -> Optional[Dict[str, Any]]:
-    """Campi shadow calcolati sui VALORI PERSISTITI di una riga del registro.
+def _riga_ombra_ingressi(market: Any, prob: Any, poisson: Any, elo: Any,
+                         elo_disponibile: Any) -> Optional[Tuple[float, float, float]]:
+    """``(conf, d, min_conf)`` dai valori persistiti di una riga, o ``None``.
 
-    Ritorna ``{GATE_SHADOW_CONFIDENCE_FIELD: float, GATE_SHADOW_AMMESSA_FIELD:
-    bool}`` oppure ``None`` se la riga non permette il calcolo (chiamante: il
-    salvataggio reale resta identico, i campi semplicemente non vengono
-    aggiunti).
+    Condiviso dai due segnali ombra: il parsing della riga e' identico, cambia
+    solo la formula applicata a ``(conf, d)``. Ritorna ``None`` se la riga non
+    permette il calcolo (chiamante: i campi ombra non vengono aggiunti, il
+    record reale resta identico).
 
     Il disaccordo e' ricavato dalle componenti ``poisson``/``elo`` della riga
     stessa, cosi' il valore persistito e' riproducibile dal solo record: le
@@ -272,13 +302,51 @@ def gate_shadow_fields_from_row(market: Any, prob: Any, poisson: Any, elo: Any,
         # L'Elo non e' stato letto: il selettore ha usato elo_prob =
         # poisson_prob, quindi per costruzione il disaccordo e' zero.
         d = 0.0
-    min_conf = gate_shadow_min_conf(market, elo_disponibile)
+    return conf, d, gate_shadow_min_conf(market, elo_disponibile)
+
+
+def gate_shadow_fields_from_row(market: Any, prob: Any, poisson: Any, elo: Any,
+                                elo_disponibile: Any) -> Optional[Dict[str, Any]]:
+    """Campi del PRIMO segnale ombra sui VALORI PERSISTITI di una riga.
+
+    Ritorna ``{GATE_SHADOW_CONFIDENCE_FIELD: float, GATE_SHADOW_AMMESSA_FIELD:
+    bool}`` oppure ``None`` se la riga non permette il calcolo (chiamante: il
+    salvataggio reale resta identico, i campi semplicemente non vengono
+    aggiunti). I due campi di §11quater restano gli unici di questo dict:
+    il secondo segnale vive in ``gate_off_fields_from_row``.
+    """
+    parsed = _riga_ombra_ingressi(market, prob, poisson, elo, elo_disponibile)
+    if parsed is None:
+        return None
+    conf, d, min_conf = parsed
     conf_shadow = gate_shadow_confidence(conf, d)
     if conf_shadow is None:
         return None
     return {
         GATE_SHADOW_CONFIDENCE_FIELD: conf_shadow,
         GATE_SHADOW_AMMESSA_FIELD: conf_shadow >= min_conf,
+    }
+
+
+def gate_off_fields_from_row(market: Any, prob: Any, poisson: Any, elo: Any,
+                             elo_disponibile: Any) -> Optional[Dict[str, Any]]:
+    """Campi del SECONDO segnale ombra (gate assente) sui valori persistiti.
+
+    Stesso parsing di ``gate_shadow_fields_from_row``, formula diversa:
+    ``gate_off_confidence`` (identita'). Ritorna
+    ``{GATE_OFF_CONFIDENCE_FIELD: float, GATE_OFF_AMMESSA_FIELD: bool}``
+    oppure ``None``. I campi di §11quater non vengono toccati.
+    """
+    parsed = _riga_ombra_ingressi(market, prob, poisson, elo, elo_disponibile)
+    if parsed is None:
+        return None
+    conf, d, min_conf = parsed
+    conf_off = gate_off_confidence(conf, d)
+    if conf_off is None:
+        return None
+    return {
+        GATE_OFF_CONFIDENCE_FIELD: conf_off,
+        GATE_OFF_AMMESSA_FIELD: conf_off >= min_conf,
     }
 
 

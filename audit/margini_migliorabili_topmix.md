@@ -651,6 +651,75 @@ intatte. Nel venv completo la lista CI di §11ter più il nuovo file fa **194
 test verdi**; nel sandbox ridotto i 2 test che importano `app.py` (streamlit)
 vengono saltati, gli altri 21 girano con la sola stdlib.
 
+## 11quinquies. Gate off: il veto assente, modalità ombra (secondo segnale, parallelo a §11quater)
+
+**Cosa è stato aggiunto, in una riga.** Accanto alla penalità continua di
+§11quater vive un **secondo** segnale ombra, indipendente, che simula il gate
+**assente**: nessuno sconto sulla confidence, ammissione = `conf >= min_conf`.
+I campi `gate_shadow_confidence` / `gate_shadow_ammessa` e la formula
+`conf · 0.25 / (0.25 + d)` **non sono stati toccati**. Nessun cambio a cosa la
+produzione mostra/gioca.
+
+**Perché un secondo segnale e non un parametro del primo.** Le due domande
+non possono condividere una formula. Il primo segnale (dimezza a `d = 0.25`)
+risponde a: *tra le ammesse, quelle vicino al bordo sono più fragili?* Il
+secondo risponde alla domanda originale di §2: *il gate scarta partite che in
+realtà erano buone?* Verificato sui dati: a un `d_half` che farebbe rientrare
+una quota sensata delle 194 bloccate, il primo segnale perde quasi tutto il
+potere distintivo sulle ammesse. Due formule, due campi, due confronti in
+cieco sul 2026/27.
+
+**Definizione esatta.** Zero parametri liberi:
+
+```
+conf_off = confidence                         (identità: nessuno sconto)
+ammessa_off = (conf_off >= min_conf)          min_conf = 0.55 (1X2 con Elo) / 0.60
+```
+
+`confidence` è già quella calcolata (blend 0.6·Poisson + 0.4·Elo per 1X2,
+Poisson puro per i totali). Il disaccordo `d` entra in firma per simmetria
+con `gate_shadow_confidence` e viene **ignorato**. Conseguenza: la
+popolazione riammessa coincide esattamente con le 194 storicamente scartate
+dal solo veto (`A_conf >= min_conf` e `d >= 0.25`) già misurate in
+`topmix_margins.md` §2 — è il controllo di coerenza, non un risultato nuovo.
+
+**Dove vive e come viene salvata.** Formula unica in
+`prediction_registry.gate_off_confidence`. `app.riga_top_mix_shadow` calcola
+anche `conf_off` / `ammessa_off` (stessa funzione speculare, mai nel percorso
+live). Nel registro i due campi `gate_off_confidence` / `gate_off_ammessa`
+sono opzionali e puramente aggiuntivi, stesso pattern del primo segnale:
+`save_prediction_entry` li scrive **solo** se `gate_off_confidence` non è
+`None`; i chiamanti che non li passano producono un record bit-identico.
+Solo il salvataggio Top Mix live li passa, calcolati da
+`gate_off_fields_from_row` sui valori della riga.
+
+**Limite strutturale (identico a §11quater).** Le 194 bloccate non arrivano
+al registro live: la misura su di esse resta harness/ex-post
+(`audit/topmix_shadow_gate.py`). Sulle righe giocate il campo `ammessa_off`
+è sempre `True` (sono ammesse, quindi `conf >= min_conf`): il valore
+prospettico del secondo segnale sta nel confronto *se il veto fosse stato
+assente* sulle candidate che il live non mostra, non nel frazionare le
+ammesse.
+
+**Numeri sulla validation (rigenerabili, non una taratura).** Sulle 194
+bloccate dal solo gate (`topmix_selector_replay_rows.csv`):
+
+| gruppo | n | conf_off media | riammesse da gate_off |
+|---|---:|---:|---:|
+| bloccate dal gate (solo harness) | 194 | 65.8% | **194** (per costruzione) |
+
+Hit se accettate 64.9%, Brier 0.2203: identici a `topmix_margins.md` §2,
+perché `conf_off == A_conf`. Il primo segnale, sulle stesse 194, riammette
+**0** (max `conf_shadow` 41.2%). Le due colonne nel registro renderanno il
+confronto misurabile in cieco sul 2026/27, una domanda per volta.
+
+**Verifica.** Stesso file `SoccerMath/test_topmix_shadow_gate.py`:
+`gate_off_confidence(c, d) == c` per qualunque `d`; indipendenza dal primo
+segnale (a `d = 0.25` il primo dimezza, il secondo resta); campi da riga
+riammettono la bloccata e bocciano sotto soglia; salvataggio bit-identico
+con e senza i nuovi campi (e i campi del primo segnale restano assenti se
+non passati). Parità di 32e3eda e §11quater: intatte.
+
 ## 12. Riproduzione
 
 ```bash
@@ -658,9 +727,9 @@ python audit/topmix_margins.py            # scrive audit/results/topmix_margins.
 python audit/test_topmix_margins.py       # 33 test, offline
 python -m pytest audit/test_topmix_margins.py -q   # equivalente, se pytest è installato
 
-# gate shadow (§11quater): formula + numeri robuste/fragili/bloccate
+# gate shadow (§11quater) + gate off (§11quinquies): due segnali paralleli
 python audit/topmix_shadow_gate.py        # scrive audit/results/topmix_shadow_gate.{md,json}
-python -m pytest SoccerMath/test_topmix_shadow_gate.py -q   # 23 test (2 richiedono l'ambiente completo)
+python -m pytest SoccerMath/test_topmix_shadow_gate.py -q   # formula, mirror, salvataggio bit-identico (2 richiedono l'ambiente completo)
 
 # per rigenerare anche la fonte:
 python audit/topmix_selector_replay.py --out audit/results    # ~2 min

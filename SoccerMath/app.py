@@ -73,8 +73,12 @@ from prediction_registry import (
     # --- gate shadow (referto §11quater, piano §9 punto 4) ---
     GATE_SHADOW_CONFIDENCE_FIELD,
     GATE_SHADOW_AMMESSA_FIELD,
+    GATE_OFF_CONFIDENCE_FIELD,
+    GATE_OFF_AMMESSA_FIELD,
     gate_shadow_confidence,
     gate_shadow_fields_from_row,
+    gate_off_confidence,
+    gate_off_fields_from_row,
 )
 
 API_KEY_ODDS = ODDS_API_KEY
@@ -353,7 +357,8 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
                           mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
                           prob_poisson=None, prob_elo=None, elo_disponibile=None,
                           snapshot_sha=None,
-                          gate_shadow_confidence=None, gate_shadow_ammessa=None):
+                          gate_shadow_confidence=None, gate_shadow_ammessa=None,
+                          gate_off_confidence=None, gate_off_ammessa=None):
     """Scrive UNA previsione nel registro e dice cosa ha fatto.
 
     Due modifiche puntuali, entrambe richieste da
@@ -374,8 +379,10 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     invisibile). ``gate_shadow_confidence``/``gate_shadow_ammessa`` sono i campi
     della modalita' ombra del veto (referto §11quater): OPZIONALI, aggiunti al
     record SOLO quando ``gate_shadow_confidence`` non e' ``None``, senza
-    toccare nessun campo gia' salvato. Ritorna ``{"azione", "remoto",
-    "record"}``.
+    toccare nessun campo gia' salvato. ``gate_off_confidence``/
+    ``gate_off_ammessa`` sono il SECONDO segnale ombra (referto §11quinquies:
+    gate assente, nessuno sconto), stesso pattern, indipendente dal primo.
+    Ritorna ``{"azione", "remoto", "record"}``.
     """
     preds = load_predictions()
     stagione_reale = calcola_stagione_calcolo(match_date)
@@ -408,6 +415,11 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     if gate_shadow_confidence is not None:
         entry[GATE_SHADOW_CONFIDENCE_FIELD] = gate_shadow_confidence
         entry[GATE_SHADOW_AMMESSA_FIELD] = bool(gate_shadow_ammessa)
+    # --- Gate off (referto §11quinquies): secondo segnale, indipendente.
+    # Stesso pattern del primo: se manca, il record resta identico.
+    if gate_off_confidence is not None:
+        entry[GATE_OFF_CONFIDENCE_FIELD] = gate_off_confidence
+        entry[GATE_OFF_AMMESSA_FIELD] = bool(gate_off_ammessa)
     preds, azione = upsert_prediction_entry(preds, entry)
     if azione == "gia_graduata":
         # La previsione e' gia' stata giudicata: NON si tocca, e il record nuovo
@@ -1363,7 +1375,8 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
     ``disaccordo`` (d = |P-E|; 0 per totali o Elo assente), ``conf_shadow``
     (confidence penalizzata), ``ammessa_shadow`` (``conf_shadow >= min_conf``)
     e ``gate_avrebbe_scartato`` (``d >= 0.25``, cioe' la riga che oggi il veto
-    blocca).
+    blocca). Accanto, il SECONDO segnale (referto §11quinquies): ``conf_off``
+    (identita': nessuno sconto) e ``ammessa_off`` (``conf_off >= min_conf``).
     """
     # Copia speculare della selezione reale (vedi docstring): stessa argmax,
     # stesso blend, stesse soglie -- MAI il veto.
@@ -1400,6 +1413,7 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
 
     disaccordo = abs(poisson_prob - elo_prob)
     conf_shadow = gate_shadow_confidence(confidence, disaccordo)
+    conf_off = gate_off_confidence(confidence, disaccordo)
     return {
         "market": best_mkt,
         "mercato_standard": codice_mercato_selezionato(best_mkt, home, away),
@@ -1412,6 +1426,8 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
         "conf_shadow": conf_shadow,
         "ammessa_shadow": bool(conf_shadow is not None and conf_shadow >= min_conf),
         "gate_avrebbe_scartato": disaccordo >= 0.25,
+        "conf_off": conf_off,
+        "ammessa_off": bool(conf_off is not None and conf_off >= min_conf),
     }
 
 
@@ -1913,6 +1929,10 @@ with tab2:
                 p.get("market"), p.get("prob"), p.get("poisson"), p.get("elo"),
                 p.get("elo_disponibile", True),
             )
+            campi_off = gate_off_fields_from_row(
+                p.get("market"), p.get("prob"), p.get("poisson"), p.get("elo"),
+                p.get("elo_disponibile", True),
+            )
             esiti_save.append(save_prediction_entry(
                 p['match_id'], p['home'], p['away'], p['league'], p['giornata'],
                 format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"),
@@ -1922,7 +1942,9 @@ with tab2:
                 kickoff_utc=p.get('utcDate'), prob_poisson=p.get('poisson'),
                 prob_elo=p.get('elo'), elo_disponibile=p.get("elo_disponibile", True),
                 gate_shadow_confidence=(campi_shadow or {}).get(GATE_SHADOW_CONFIDENCE_FIELD),
-                gate_shadow_ammessa=(campi_shadow or {}).get(GATE_SHADOW_AMMESSA_FIELD)))
+                gate_shadow_ammessa=(campi_shadow or {}).get(GATE_SHADOW_AMMESSA_FIELD),
+                gate_off_confidence=(campi_off or {}).get(GATE_OFF_CONFIDENCE_FIELD),
+                gate_off_ammessa=(campi_off or {}).get(GATE_OFF_AMMESSA_FIELD)))
         # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
         # quando il PUT remoto era fallito dentro un `except: pass`.
         n_err_remoto = sum(1 for e in esiti_save if e.get("remoto") == "errore")

@@ -13,6 +13,7 @@ Fonte: `topmix_selector_replay_rows.csv` (3422 candidate). Sola lettura: nessuna
 | ...che l'ombra NON ammetterebbe (**fragili**) | 836 (45%) |
 | righe bloccate dal gate (d >= 0.25) | 194 |
 | ...riammesse dall'ombra | 0 |
+| ...riammesse dal secondo segnale (gate assente) | 194 |
 
 ### Ammesse: robuste vs fragili
 

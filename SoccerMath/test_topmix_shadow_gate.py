@@ -56,6 +56,7 @@ def _carica_mirror():
         "ELO_ENSEMBLE_W": ELO_W,
         "codice_mercato_selezionato": _codice_stub,
         "gate_shadow_confidence": R.gate_shadow_confidence,
+        "gate_off_confidence": R.gate_off_confidence,
     }
     exec(_blocco(SRC, "riga_top_mix_shadow"), ns)
     return ns["riga_top_mix_shadow"]
@@ -177,6 +178,53 @@ class TestFormulaShadow(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 1b. Secondo segnale: gate assente (nessuno sconto, referto §11quinquies)
+# ---------------------------------------------------------------------------
+class TestFormulaGateOff(unittest.TestCase):
+    """gate_off_confidence(c, d) == c per qualunque d: zero parametri liberi."""
+
+    def test_nessuno_sconto_per_qualunque_d(self):
+        for conf in (0.55, 0.60, 0.70, 0.80, 0.99):
+            for d in (0.0, 0.10, 0.2499, 0.25, 0.30, 0.90, 10.0):
+                self.assertEqual(R.gate_off_confidence(conf, d), conf)
+
+    def test_percentuali_e_frazioni(self):
+        self.assertAlmostEqual(R.gate_off_confidence(66.0, 0.90), 0.66, places=12)
+        self.assertAlmostEqual(R.gate_off_confidence(0.66, 0.90), 0.66, places=12)
+
+    def test_indipendente_dal_primo_segnale(self):
+        # A d = 0.25 il primo dimezza, il secondo resta identico.
+        self.assertAlmostEqual(R.gate_shadow_confidence(0.60, 0.25), 0.30, places=12)
+        self.assertEqual(R.gate_off_confidence(0.60, 0.25), 0.60)
+
+    def test_ingressi_sporchi_non_esplodono(self):
+        self.assertIsNone(R.gate_off_confidence(None, 0.25))
+        self.assertIsNone(R.gate_off_confidence("0.70", 0.25))
+        self.assertIsNone(R.gate_off_confidence(True, 0.25))
+
+    def test_campi_da_riga_riammette_le_bloccate(self):
+        # d = |0.70-0.45| = 0.25, conf 0.60 >= 0.55: il veto blocca, l'off ammette.
+        campi = R.gate_off_fields_from_row("Vittoria Casa", 0.60, 70.0, 45.0, True)
+        self.assertIsNotNone(campi)
+        self.assertEqual(campi[R.GATE_OFF_CONFIDENCE_FIELD], 0.60)
+        self.assertTrue(campi[R.GATE_OFF_AMMESSA_FIELD])
+        # Il primo segnale, sulla STESSA riga, boccia (dimezza a 0.30).
+        shadow = R.gate_shadow_fields_from_row("Vittoria Casa", 0.60, 70.0, 45.0, True)
+        self.assertFalse(shadow[R.GATE_SHADOW_AMMESSA_FIELD])
+
+    def test_campi_da_riga_sotto_soglia_resta_bocciata(self):
+        # conf 0.52 < 0.55: entrambi i segnali bocciano (l'off non inventa ammissioni).
+        campi = R.gate_off_fields_from_row("Vittoria Casa", 0.52, 60.0, 40.0, True)
+        self.assertEqual(campi[R.GATE_OFF_CONFIDENCE_FIELD], 0.52)
+        self.assertFalse(campi[R.GATE_OFF_AMMESSA_FIELD])
+
+    def test_campi_mancanti_restituiscono_none(self):
+        self.assertIsNone(R.gate_off_fields_from_row(None, 0.66, 70.0, 60.0, True))
+        self.assertIsNone(R.gate_off_fields_from_row("Vittoria Casa", None, 70.0, 60.0, True))
+        self.assertIsNone(R.gate_off_fields_from_row("Vittoria Casa", 0.66, 70.0, None, True))
+
+
+# ---------------------------------------------------------------------------
 # 2. Mirror (riga_top_mix_shadow) sugli stessi casi noti della parita'
 # ---------------------------------------------------------------------------
 class TestMirrorCasiNoti(unittest.TestCase):
@@ -198,6 +246,9 @@ class TestMirrorCasiNoti(unittest.TestCase):
         self.assertFalse(r["ammessa_shadow"])
         self.assertTrue(r["gate_avrebbe_scartato"])
         self.assertEqual(r["min_conf"], 0.55)
+        # Secondo segnale: nessuno sconto, quindi ammette (conf 0.60 >= 0.55).
+        self.assertEqual(r["conf_off"], r["prob"])
+        self.assertTrue(r["ammessa_off"])
 
     def test_appena_sotto_il_veto_il_selettore_ammette_l_ombra_no(self):
         # delta = 0.2499999: oggi la riga si GIOCA; sotto il solo filtro ombra
@@ -282,6 +333,9 @@ class TestMirrorCasiNoti(unittest.TestCase):
             self.assertIn("conf_shadow", r)
             self.assertIn("ammessa_shadow", r)
             self.assertIn("disaccordo", r)
+            self.assertIn("conf_off", r)
+            self.assertIn("ammessa_off", r)
+            self.assertEqual(r["conf_off"], r["prob"])
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +477,37 @@ class TestSalvataggioBitIdentico(unittest.TestCase):
         self.assertFalse(entry_con[R.GATE_SHADOW_AMMESSA_FIELD])
         self.assertAlmostEqual(entry_con[R.GATE_SHADOW_CONFIDENCE_FIELD],
                                0.66 * 0.25 / 0.35, places=9)
+        self.assertNotIn(R.GATE_OFF_CONFIDENCE_FIELD, entry_con)
+        self.assertNotIn(R.GATE_OFF_AMMESSA_FIELD, entry_con)
+
+    def test_con_e_senza_gate_off_reali_bit_identici(self):
+        from unittest.mock import patch
+        with patch("app.save_predictions"), patch("app.load_predictions", return_value=[]):
+            esito_con = save_prediction_entry(
+                777003, "Casa", "Trasferta", "Serie A", 12, "12/09/2026 18:00",
+                "Vittoria Casa - Top Mix", [], 66.0, "", mercato_standard="1",
+                origin=R.ORIGIN_TOP_MIX, rank=3, kickoff_utc="2026-09-12T18:00:00Z",
+                prob_poisson=70.0, prob_elo=60.0, elo_disponibile=True,
+                snapshot_sha="cafebabe",
+                gate_off_confidence=0.66, gate_off_ammessa=True)
+            esito_senza = save_prediction_entry(
+                777003, "Casa", "Trasferta", "Serie A", 12, "12/09/2026 18:00",
+                "Vittoria Casa - Top Mix", [], 66.0, "", mercato_standard="1",
+                origin=R.ORIGIN_TOP_MIX, rank=3, kickoff_utc="2026-09-12T18:00:00Z",
+                prob_poisson=70.0, prob_elo=60.0, elo_disponibile=True,
+                snapshot_sha="cafebabe")
+        entry_con, entry_senza = esito_con["record"], esito_senza["record"]
+        for chiave in _CHIAVI_REALI:
+            self.assertEqual(entry_con[chiave], entry_senza[chiave], chiave)
+        json_con = json.dumps({k: entry_con[k] for k in _CHIAVI_REALI})
+        json_senza = json.dumps({k: entry_senza[k] for k in _CHIAVI_REALI})
+        self.assertEqual(json_con, json_senza)
+        self.assertEqual(sorted(set(entry_con) - set(entry_senza)),
+                         sorted([R.GATE_OFF_CONFIDENCE_FIELD,
+                                 R.GATE_OFF_AMMESSA_FIELD]))
+        self.assertTrue(entry_con[R.GATE_OFF_AMMESSA_FIELD])
+        self.assertEqual(entry_con[R.GATE_OFF_CONFIDENCE_FIELD], 0.66)
+        self.assertNotIn(R.GATE_SHADOW_CONFIDENCE_FIELD, entry_con)
 
     def test_calcolo_fallito_record_identico_a_prima(self):
         from unittest.mock import patch
@@ -431,13 +516,15 @@ class TestSalvataggioBitIdentico(unittest.TestCase):
                 777002, "Casa", "Trasferta", "Serie A", 12, "12/09/2026 18:00",
                 "Over 2.5 - Top Mix", [], 62.0, "", mercato_standard="OVER_2.5",
                 origin=R.ORIGIN_TOP_MIX, rank=7,
-                gate_shadow_confidence=None, gate_shadow_ammessa=None)
+                gate_shadow_confidence=None, gate_shadow_ammessa=None,
+                gate_off_confidence=None, gate_off_ammessa=None)
             esito_base = save_prediction_entry(
                 777002, "Casa", "Trasferta", "Serie A", 12, "12/09/2026 18:00",
                 "Over 2.5 - Top Mix", [], 62.0, "", mercato_standard="OVER_2.5",
                 origin=R.ORIGIN_TOP_MIX, rank=7)
         self.assertEqual(esito_ko["record"], esito_base["record"])
-        for campo in (R.GATE_SHADOW_CONFIDENCE_FIELD, R.GATE_SHADOW_AMMESSA_FIELD):
+        for campo in (R.GATE_SHADOW_CONFIDENCE_FIELD, R.GATE_SHADOW_AMMESSA_FIELD,
+                      R.GATE_OFF_CONFIDENCE_FIELD, R.GATE_OFF_AMMESSA_FIELD):
             self.assertNotIn(campo, esito_ko["record"])
 
 
