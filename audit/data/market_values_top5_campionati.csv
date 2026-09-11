@@ -1,0 +1,773 @@
+Lega,Stagione,Periodo,Data_Rilevazione,Squadra,Valore_Mercato_Mln
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,Bayern Munich,841.4
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,Bayer 04 Leverkusen,480.9
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,RB Leipzig,479.78
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,Borussia Dortmund,472.68
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,TSG 1899 Hoffenheim,222.9
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,Eintracht Frankfurt,221.55
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,Borussia Mönchengladbach,205.68
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,VfL Wolfsburg,202.0
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,SC Freiburg,138.5
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,VfB Stuttgart,126.73
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,FC Augsburg,119.6
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,1.FSV Mainz 05,100.7
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,1.FC Union Berlin,99.5
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,Hertha BSC,83.5
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,1.FC Köln,80.45
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,FC Schalke 04,69.0
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,SV Werder Bremen,60.5
+Bundesliga,2022/2023,Post-Estivo,2022-09-15,VfL Bochum,44.83
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,Bayern Munich,923.4
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,Borussia Dortmund,518.0
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,RB Leipzig,495.1
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,Bayer 04 Leverkusen,423.9
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,Eintracht Frankfurt,267.05
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,Borussia Mönchengladbach,238.1
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,TSG 1899 Hoffenheim,192.35
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,VfL Wolfsburg,191.7
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,SC Freiburg,162.13
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,1.FC Union Berlin,126.3
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,FC Augsburg,123.1
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,VfB Stuttgart,115.9
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,1.FSV Mainz 05,103.2
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,1.FC Köln,92.1
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,Hertha BSC,87.5
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,SV Werder Bremen,73.7
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,FC Schalke 04,63.2
+Bundesliga,2022/2023,Post-Invernale,2023-02-15,VfL Bochum,47.83
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,Bayern Munich,962.7
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,Bayer 04 Leverkusen,457.8
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,Borussia Dortmund,445.8
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,RB Leipzig,371.0
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,Eintracht Frankfurt,282.7
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,VfL Wolfsburg,230.4
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,Borussia Mönchengladbach,180.65
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,1.FC Union Berlin,179.65
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,SC Freiburg,169.83
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,FC Augsburg,129.75
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,TSG 1899 Hoffenheim,128.53
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,1.FSV Mainz 05,126.88
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,VfB Stuttgart,120.63
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,SV Werder Bremen,113.15
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,1.FC Köln,93.45
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,VfL Bochum,54.2
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,SV Darmstadt 98,37.35
+Bundesliga,2023/2024,Post-Estivo,2023-09-15,1. Fußballclub Heidenheim 1846,28.35
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,Bayern Munich,1001.95
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,Bayer 04 Leverkusen,564.5
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,RB Leipzig,477.0
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,Borussia Dortmund,434.0
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,Eintracht Frankfurt,301.85
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,VfL Wolfsburg,244.9
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,VfB Stuttgart,214.75
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,Borussia Mönchengladbach,194.3
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,SC Freiburg,181.65
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,1.FC Union Berlin,159.2
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,TSG 1899 Hoffenheim,135.75
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,FC Augsburg,135.07
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,1.FSV Mainz 05,114.6
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,SV Werder Bremen,114.2
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,1.FC Köln,94.05
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,VfL Bochum,56.4
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,1. Fußballclub Heidenheim 1846,48.6
+Bundesliga,2023/2024,Post-Invernale,2024-02-15,SV Darmstadt 98,44.65
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,Bayern Munich,945.7
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,Bayer 04 Leverkusen,626.5
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,RB Leipzig,550.5
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,Borussia Dortmund,449.2
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,VfB Stuttgart,294.25
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,Eintracht Frankfurt,288.2
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,VfL Wolfsburg,201.0
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,SC Freiburg,183.1
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,Borussia Mönchengladbach,137.85
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,TSG 1899 Hoffenheim,137.63
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,1.FC Union Berlin,132.13
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,SV Werder Bremen,123.0
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,FC Augsburg,107.9
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,1.FSV Mainz 05,99.0
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,VfL Bochum,64.63
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,1. Fußballclub Heidenheim 1846,41.5
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,FC St. Pauli,38.53
+Bundesliga,2024/2025,Post-Estivo,2024-09-15,Holstein Kiel,32.7
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,Bayern Munich,888.0
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,Bayer 04 Leverkusen,608.0
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,RB Leipzig,558.35
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,Borussia Dortmund,472.6
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,Eintracht Frankfurt,344.85
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,VfB Stuttgart,339.3
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,VfL Wolfsburg,211.5
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,SC Freiburg,177.65
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,TSG 1899 Hoffenheim,144.82
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,Borussia Mönchengladbach,140.0
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,SV Werder Bremen,131.0
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,1.FC Union Berlin,124.53
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,1.FSV Mainz 05,113.6
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,FC Augsburg,105.75
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,1. Fußballclub Heidenheim 1846,62.23
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,VfL Bochum,57.45
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,FC St. Pauli,44.45
+Bundesliga,2024/2025,Post-Invernale,2025-02-15,Holstein Kiel,36.0
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,Bayern Munich,907.5
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,Borussia Dortmund,418.6
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,RB Leipzig,395.0
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,Bayer 04 Leverkusen,383.5
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,Eintracht Frankfurt,350.68
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,VfB Stuttgart,317.9
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,VfL Wolfsburg,285.85
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,SV Werder Bremen,190.85
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,Borussia Mönchengladbach,153.8
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,1.FSV Mainz 05,153.35
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,TSG 1899 Hoffenheim,148.95
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,SC Freiburg,140.3
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,FC Augsburg,124.1
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,1.FC Union Berlin,121.3
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,Hamburger SV,118.23
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,1.FC Köln,81.3
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,1. Fußballclub Heidenheim 1846,65.25
+Bundesliga,2025/2026,Post-Estivo,2025-09-15,FC St. Pauli,46.4
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,Bayern Munich,986.8
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,Borussia Dortmund,486.5
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,RB Leipzig,470.0
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,Bayer 04 Leverkusen,448.2
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,Eintracht Frankfurt,401.85
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,VfB Stuttgart,394.7
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,VfL Wolfsburg,254.0
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,TSG 1899 Hoffenheim,200.3
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,SV Werder Bremen,190.1
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,SC Freiburg,174.43
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,Borussia Mönchengladbach,152.8
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,Hamburger SV,143.28
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,1.FC Köln,137.8
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,FC Augsburg,137.0
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,1.FSV Mainz 05,136.05
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,1.FC Union Berlin,124.75
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,1. Fußballclub Heidenheim 1846,69.3
+Bundesliga,2025/2026,Post-Invernale,2026-02-15,FC St. Pauli,61.4
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Real Madrid,839.9
+La_Liga,2022/2023,Post-Estivo,2022-09-15,FC Barcelona,735.25
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Atlético de Madrid,662.5
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Real Sociedad,354.8
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Sevilla FC,329.0
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Villarreal CF,303.1
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Real Betis Balompié,245.6
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Athletic Bilbao,221.6
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Valencia CF,209.1
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Getafe CF,157.4
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Celta de Vigo,126.45
+La_Liga,2022/2023,Post-Estivo,2022-09-15,CA Osasuna,119.5
+La_Liga,2022/2023,Post-Estivo,2022-09-15,RCD Espanyol Barcelona,114.35
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Girona FC,110.6
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Elche CF,88.6
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Rayo Vallecano,84.9
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Real Valladolid CF,80.35
+La_Liga,2022/2023,Post-Estivo,2022-09-15,Cádiz CF,73.75
+La_Liga,2022/2023,Post-Estivo,2022-09-15,RCD Mallorca,69.2
+La_Liga,2022/2023,Post-Estivo,2022-09-15,UD Almería,66.9
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Real Madrid,903.0
+La_Liga,2022/2023,Post-Invernale,2023-02-15,FC Barcelona,778.8
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Atlético de Madrid,539.25
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Real Sociedad,386.4
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Villarreal CF,312.4
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Sevilla FC,267.18
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Real Betis Balompié,265.9
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Valencia CF,255.2
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Athletic Bilbao,224.5
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Getafe CF,141.5
+La_Liga,2022/2023,Post-Invernale,2023-02-15,CA Osasuna,127.35
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Celta de Vigo,126.65
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Girona FC,119.6
+La_Liga,2022/2023,Post-Invernale,2023-02-15,RCD Espanyol Barcelona,107.0
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Rayo Vallecano,88.4
+La_Liga,2022/2023,Post-Invernale,2023-02-15,RCD Mallorca,80.63
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Real Valladolid CF,77.53
+La_Liga,2022/2023,Post-Invernale,2023-02-15,UD Almería,76.7
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Elche CF,70.2
+La_Liga,2022/2023,Post-Invernale,2023-02-15,Cádiz CF,66.95
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Real Madrid,999.45
+La_Liga,2023/2024,Post-Estivo,2023-09-15,FC Barcelona,861.7
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Atlético de Madrid,483.1
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Real Sociedad,417.15
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Sevilla FC,252.45
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Villarreal CF,249.9
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Real Betis Balompié,223.2
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Athletic Bilbao,202.75
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Celta de Vigo,160.9
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Valencia CF,146.5
+La_Liga,2023/2024,Post-Estivo,2023-09-15,CA Osasuna,138.7
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Getafe CF,127.08
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Girona FC,123.7
+La_Liga,2023/2024,Post-Estivo,2023-09-15,RCD Mallorca,105.0
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Granada CF,101.8
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Rayo Vallecano,101.1
+La_Liga,2023/2024,Post-Estivo,2023-09-15,UD Almería,97.65
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Cádiz CF,79.8
+La_Liga,2023/2024,Post-Estivo,2023-09-15,Deportivo Alavés,51.18
+La_Liga,2023/2024,Post-Estivo,2023-09-15,UD Las Palmas,50.5
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Real Madrid,1042.75
+La_Liga,2023/2024,Post-Invernale,2024-02-15,FC Barcelona,878.6
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Real Sociedad,493.05
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Atlético de Madrid,485.1
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Athletic Bilbao,243.65
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Villarreal CF,224.6
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Girona FC,223.4
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Sevilla FC,219.4
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Real Betis Balompié,213.95
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Valencia CF,197.7
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Celta de Vigo,143.0
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Getafe CF,117.95
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Granada CF,110.6
+La_Liga,2023/2024,Post-Invernale,2024-02-15,CA Osasuna,108.65
+La_Liga,2023/2024,Post-Invernale,2024-02-15,RCD Mallorca,89.9
+La_Liga,2023/2024,Post-Invernale,2024-02-15,UD Almería,87.1
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Rayo Vallecano,81.0
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Deportivo Alavés,74.28
+La_Liga,2023/2024,Post-Invernale,2024-02-15,UD Las Palmas,73.9
+La_Liga,2023/2024,Post-Invernale,2024-02-15,Cádiz CF,65.05
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Real Madrid,1340.45
+La_Liga,2024/2025,Post-Estivo,2024-09-15,FC Barcelona,880.5
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Atlético de Madrid,523.0
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Real Sociedad,421.5
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Athletic Bilbao,321.3
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Valencia CF,291.45
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Real Betis Balompié,217.28
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Girona FC,210.8
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Villarreal CF,205.7
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Sevilla FC,197.9
+La_Liga,2024/2025,Post-Estivo,2024-09-15,UD Las Palmas,111.2
+La_Liga,2024/2025,Post-Estivo,2024-09-15,CA Osasuna,101.2
+La_Liga,2024/2025,Post-Estivo,2024-09-15,RCD Mallorca,86.0
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Deportivo Alavés,84.55
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Celta de Vigo,81.85
+La_Liga,2024/2025,Post-Estivo,2024-09-15,RCD Espanyol Barcelona,68.9
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Rayo Vallecano,67.6
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Getafe CF,65.05
+La_Liga,2024/2025,Post-Estivo,2024-09-15,CD Leganés,56.8
+La_Liga,2024/2025,Post-Estivo,2024-09-15,Real Valladolid CF,47.73
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Real Madrid,1236.1
+La_Liga,2024/2025,Post-Invernale,2025-02-15,FC Barcelona,1015.5
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Atlético de Madrid,493.3
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Real Sociedad,424.0
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Athletic Bilbao,360.6
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Valencia CF,244.7
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Villarreal CF,220.6
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Real Betis Balompié,199.05
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Sevilla FC,197.1
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Girona FC,182.4
+La_Liga,2024/2025,Post-Invernale,2025-02-15,UD Las Palmas,121.5
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Celta de Vigo,96.2
+La_Liga,2024/2025,Post-Invernale,2025-02-15,CA Osasuna,92.3
+La_Liga,2024/2025,Post-Invernale,2025-02-15,RCD Mallorca,85.85
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Deportivo Alavés,77.8
+La_Liga,2024/2025,Post-Invernale,2025-02-15,RCD Espanyol Barcelona,75.2
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Real Valladolid CF,66.55
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Rayo Vallecano,62.6
+La_Liga,2024/2025,Post-Invernale,2025-02-15,Getafe CF,60.95
+La_Liga,2024/2025,Post-Invernale,2025-02-15,CD Leganés,46.8
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Real Madrid,1363.2
+La_Liga,2025/2026,Post-Estivo,2025-09-15,FC Barcelona,1112.55
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Atlético de Madrid,630.1
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Athletic Bilbao,379.9
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Real Sociedad,298.1
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Villarreal CF,219.8
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Real Betis Balompié,215.5
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Girona FC,203.2
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Valencia CF,184.3
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Sevilla FC,142.2
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Celta de Vigo,114.3
+La_Liga,2025/2026,Post-Estivo,2025-09-15,CA Osasuna,91.4
+La_Liga,2025/2026,Post-Estivo,2025-09-15,RCD Espanyol Barcelona,90.9
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Getafe CF,84.0
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Rayo Vallecano,80.2
+La_Liga,2025/2026,Post-Estivo,2025-09-15,RCD Mallorca,79.9
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Elche CF,69.5
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Real Oviedo,68.35
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Deportivo Alavés,62.8
+La_Liga,2025/2026,Post-Estivo,2025-09-15,Levante UD,62.75
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Real Madrid,1362.0
+La_Liga,2025/2026,Post-Invernale,2026-02-15,FC Barcelona,1110.2
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Atlético de Madrid,571.6
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Athletic Bilbao,302.4
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Real Sociedad,257.5
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Villarreal CF,238.0
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Real Betis Balompié,228.6
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Girona FC,189.95
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Valencia CF,163.7
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Sevilla FC,152.85
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Celta de Vigo,150.8
+La_Liga,2025/2026,Post-Invernale,2026-02-15,RCD Espanyol Barcelona,110.7
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Elche CF,100.5
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Rayo Vallecano,96.8
+La_Liga,2025/2026,Post-Invernale,2026-02-15,CA Osasuna,90.5
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Levante UD,88.65
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Getafe CF,86.05
+La_Liga,2025/2026,Post-Invernale,2026-02-15,RCD Mallorca,82.1
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Deportivo Alavés,70.3
+La_Liga,2025/2026,Post-Invernale,2026-02-15,Real Oviedo,68.03
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Paris Saint-Germain,852.9
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,AS Monaco,331.2
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Stade Rennais FC,287.1
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Olympique Marseille,284.9
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Olympique Lyon,279.2
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,LOSC Lille,200.05
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,OGC Nice,194.75
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,RC Lens,146.65
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,FC Nantes,133.15
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,RC Strasbourg Alsace,116.6
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Montpellier HSC,103.85
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Stade Brestois 29,91.08
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Stade Reims,68.72
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Angers SCO,67.45
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,ESTAC Troyes,66.75
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,FC Lorient,58.65
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,AJ Auxerre,44.55
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,FC Toulouse,41.83
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,Clermont Foot 63,30.65
+Ligue_1,2022/2023,Post-Estivo,2022-09-15,AC Ajaccio,24.8
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Paris Saint-Germain,884.9
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Stade Rennais FC,329.0
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,AS Monaco,322.7
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Olympique Marseille,291.9
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Olympique Lyon,265.2
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,LOSC Lille,204.95
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,OGC Nice,198.65
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,RC Lens,170.1
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,FC Nantes,121.5
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Montpellier HSC,104.55
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,RC Strasbourg Alsace,103.35
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Stade Reims,82.25
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Stade Brestois 29,79.65
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,FC Lorient,78.3
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,ESTAC Troyes,70.35
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Angers SCO,66.65
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,FC Toulouse,61.9
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,AJ Auxerre,39.7
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,Clermont Foot 63,36.65
+Ligue_1,2022/2023,Post-Invernale,2023-02-15,AC Ajaccio,26.35
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Paris Saint-Germain,908.5
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,AS Monaco,326.8
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Stade Rennais FC,291.2
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Olympique Lyon,267.9
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Olympique Marseille,265.3
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,OGC Nice,220.6
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,LOSC Lille,186.8
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,RC Lens,151.8
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Montpellier HSC,121.55
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,FC Lorient,109.85
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,FC Nantes,106.65
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,RC Strasbourg Alsace,105.25
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Stade Reims,95.45
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,FC Toulouse,75.15
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Stade Brestois 29,67.5
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Clermont Foot 63,54.95
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,Le Havre AC,50.95
+Ligue_1,2023/2024,Post-Estivo,2023-09-15,FC Metz,45.5
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Paris Saint-Germain,927.0
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,AS Monaco,343.2
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Stade Rennais FC,312.7
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Olympique Marseille,258.6
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,OGC Nice,252.7
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Olympique Lyon,252.4
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,LOSC Lille,220.3
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,RC Lens,159.0
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Montpellier HSC,137.45
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Stade Reims,129.0
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,RC Strasbourg Alsace,127.5
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,FC Lorient,126.65
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,FC Nantes,101.75
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,FC Toulouse,101.45
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Stade Brestois 29,82.05
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Le Havre AC,61.35
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,Clermont Foot 63,51.9
+Ligue_1,2023/2024,Post-Invernale,2024-02-15,FC Metz,50.2
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Paris Saint-Germain,884.5
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,AS Monaco,366.6
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Olympique Marseille,296.1
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Olympique Lyon,293.0
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,LOSC Lille,263.3
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,OGC Nice,236.7
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Stade Rennais FC,215.7
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,RC Strasbourg Alsace,170.2
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,RC Lens,158.9
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Stade Brestois 29,125.4
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Stade Reims,110.45
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,FC Nantes,109.45
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,FC Toulouse,94.75
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Le Havre AC,82.35
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Montpellier HSC,78.1
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,AJ Auxerre,58.55
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,AS Saint-Étienne,39.75
+Ligue_1,2024/2025,Post-Estivo,2024-09-15,Angers SCO,32.2
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Paris Saint-Germain,885.5
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,AS Monaco,413.7
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,LOSC Lille,299.3
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Olympique Marseille,287.0
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Olympique Lyon,276.0
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,OGC Nice,235.25
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Stade Rennais FC,208.6
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,RC Strasbourg Alsace,208.05
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,RC Lens,168.7
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Stade Reims,122.5
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Stade Brestois 29,121.05
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,FC Nantes,108.75
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,FC Toulouse,99.5
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Le Havre AC,79.35
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Montpellier HSC,69.8
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,AJ Auxerre,66.85
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,AS Saint-Étienne,45.35
+Ligue_1,2024/2025,Post-Invernale,2025-02-15,Angers SCO,37.5
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Paris Saint-Germain,1070.5
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Olympique Marseille,411.9
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,AS Monaco,373.5
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,RC Strasbourg Alsace,271.35
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Olympique Lyon,228.2
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,LOSC Lille,199.1
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Stade Rennais FC,196.4
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,OGC Nice,188.4
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Paris FC,124.0
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,RC Lens,108.65
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Stade Brestois 29,93.15
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,FC Toulouse,79.65
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,FC Nantes,78.9
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,AJ Auxerre,75.8
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,FC Lorient,72.0
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Le Havre AC,57.95
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,FC Metz,50.95
+Ligue_1,2025/2026,Post-Estivo,2025-09-15,Angers SCO,39.4
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Paris Saint-Germain,1197.5
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Olympique Marseille,408.0
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,AS Monaco,375.3
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,RC Strasbourg Alsace,343.25
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Olympique Lyon,259.4
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,LOSC Lille,240.7
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Stade Rennais FC,212.5
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,OGC Nice,171.85
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,RC Lens,123.9
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Paris FC,117.0
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,FC Toulouse,107.35
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,FC Nantes,96.35
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Stade Brestois 29,88.9
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,AJ Auxerre,82.5
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,FC Lorient,76.7
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Angers SCO,72.6
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,Le Havre AC,58.4
+Ligue_1,2025/2026,Post-Invernale,2026-02-15,FC Metz,52.3
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Manchester City,1063.5
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Liverpool FC,936.0
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Chelsea FC,868.2
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Manchester United,744.5
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Tottenham Hotspur,723.6
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Arsenal FC,703.5
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Wolverhampton Wanderers,507.25
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Aston Villa,477.0
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Leicester City,465.5
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Newcastle United,450.3
+Premier_League,2022/2023,Post-Estivo,2022-09-15,West Ham United,426.1
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Everton FC,405.5
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Southampton FC,394.8
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Nottingham Forest,312.1
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Brentford FC,309.0
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Brighton & Hove Albion,294.23
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Crystal Palace,277.9
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Leeds United,276.5
+Premier_League,2022/2023,Post-Estivo,2022-09-15,Fulham FC,248.3
+Premier_League,2022/2023,Post-Estivo,2022-09-15,AFC Bournemouth,186.2
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Manchester City,1118.5
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Chelsea FC,955.5
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Liverpool FC,904.35
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Arsenal FC,797.0
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Manchester United,712.3
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Tottenham Hotspur,711.1
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Newcastle United,476.3
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Wolverhampton Wanderers,468.8
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Aston Villa,457.0
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Leicester City,448.6
+Premier_League,2022/2023,Post-Invernale,2023-02-15,West Ham United,414.25
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Southampton FC,389.6
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Everton FC,381.8
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Brighton & Hove Albion,345.23
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Brentford FC,318.2
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Crystal Palace,295.45
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Nottingham Forest,292.7
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Leeds United,270.0
+Premier_League,2022/2023,Post-Invernale,2023-02-15,Fulham FC,254.5
+Premier_League,2022/2023,Post-Invernale,2023-02-15,AFC Bournemouth,201.5
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Manchester City,1148.0
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Arsenal FC,1090.0
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Chelsea FC,845.2
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Manchester United,817.8
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Liverpool FC,803.65
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Tottenham Hotspur,688.8
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Newcastle United,595.45
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Aston Villa,568.6
+Premier_League,2023/2024,Post-Estivo,2023-09-15,West Ham United,419.25
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Brighton & Hove Albion,379.43
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Nottingham Forest,366.28
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Everton FC,364.45
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Brentford FC,364.1
+Premier_League,2023/2024,Post-Estivo,2023-09-15,AFC Bournemouth,345.3
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Crystal Palace,332.85
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Wolverhampton Wanderers,315.9
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Fulham FC,292.0
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Burnley FC,243.7
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Sheffield United,131.1
+Premier_League,2023/2024,Post-Estivo,2023-09-15,Luton Town,87.5
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Manchester City,1241.0
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Arsenal FC,1113.5
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Chelsea FC,892.1
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Liverpool FC,833.65
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Tottenham Hotspur,769.3
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Manchester United,739.9
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Newcastle United,639.8
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Aston Villa,634.5
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Brighton & Hove Albion,501.5
+Premier_League,2023/2024,Post-Invernale,2024-02-15,West Ham United,444.3
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Brentford FC,394.3
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Wolverhampton Wanderers,379.1
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Crystal Palace,378.4
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Nottingham Forest,371.3
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Everton FC,365.5
+Premier_League,2023/2024,Post-Invernale,2024-02-15,AFC Bournemouth,340.1
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Fulham FC,310.0
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Burnley FC,272.3
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Sheffield United,133.4
+Premier_League,2023/2024,Post-Invernale,2024-02-15,Luton Town,104.7
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Manchester City,1281.0
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Arsenal FC,1188.1
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Liverpool FC,924.0
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Chelsea FC,904.1
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Manchester United,888.5
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Tottenham Hotspur,771.9
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Aston Villa,652.75
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Newcastle United,634.5
+Premier_League,2024/2025,Post-Estivo,2024-09-15,West Ham United,563.4
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Brighton & Hove Albion,487.8
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Crystal Palace,433.55
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Wolverhampton Wanderers,380.95
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Everton FC,368.0
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Nottingham Forest,364.5
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Brentford FC,346.23
+Premier_League,2024/2025,Post-Estivo,2024-09-15,AFC Bournemouth,339.0
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Fulham FC,333.15
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Southampton FC,278.0
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Leicester City,263.8
+Premier_League,2024/2025,Post-Estivo,2024-09-15,Ipswich Town,184.55
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Manchester City,1231.0
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Arsenal FC,1165.1
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Chelsea FC,969.0
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Liverpool FC,959.8
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Manchester United,834.3
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Tottenham Hotspur,791.1
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Aston Villa,647.65
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Newcastle United,623.5
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Brighton & Hove Albion,562.8
+Premier_League,2024/2025,Post-Invernale,2025-02-15,West Ham United,495.2
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Crystal Palace,428.55
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Nottingham Forest,402.0
+Premier_League,2024/2025,Post-Invernale,2025-02-15,AFC Bournemouth,386.2
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Wolverhampton Wanderers,384.95
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Brentford FC,375.23
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Everton FC,361.0
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Fulham FC,338.8
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Southampton FC,315.5
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Leicester City,271.7
+Premier_League,2024/2025,Post-Invernale,2025-02-15,Ipswich Town,256.75
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Manchester City,1248.5
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Arsenal FC,1220.0
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Liverpool FC,1091.0
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Chelsea FC,1031.8
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Tottenham Hotspur,811.5
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Manchester United,714.0
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Newcastle United,627.3
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Aston Villa,572.3
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Nottingham Forest,532.5
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Crystal Palace,476.3
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Brighton & Hove Albion,439.0
+Premier_League,2025/2026,Post-Estivo,2025-09-15,West Ham United,392.2
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Brentford FC,381.7
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Everton FC,370.8
+Premier_League,2025/2026,Post-Estivo,2025-09-15,AFC Bournemouth,336.75
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Wolverhampton Wanderers,332.2
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Fulham FC,314.5
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Leeds United,286.0
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Sunderland AFC,263.13
+Premier_League,2025/2026,Post-Estivo,2025-09-15,Burnley FC,211.25
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Manchester City,1246.8
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Arsenal FC,1191.0
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Chelsea FC,1145.8
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Liverpool FC,1010.0
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Tottenham Hotspur,808.5
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Manchester United,711.4
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Newcastle United,641.3
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Nottingham Forest,580.8
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Crystal Palace,575.0
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Aston Villa,540.8
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Brighton & Hove Albion,501.65
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Brentford FC,441.9
+Premier_League,2025/2026,Post-Invernale,2026-02-15,AFC Bournemouth,422.95
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Everton FC,412.5
+Premier_League,2025/2026,Post-Invernale,2026-02-15,West Ham United,394.8
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Sunderland AFC,349.88
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Fulham FC,332.75
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Wolverhampton Wanderers,332.25
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Leeds United,308.8
+Premier_League,2025/2026,Post-Invernale,2026-02-15,Burnley FC,243.45
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Inter Milan,600.75
+Serie_A,2022/2023,Post-Estivo,2022-09-15,AC Milan,555.4
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Juventus FC,496.0
+Serie_A,2022/2023,Post-Estivo,2022-09-15,SSC Napoli,448.35
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Associazione Sportiva Roma,409.75
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Atalanta BC,322.8
+Serie_A,2022/2023,Post-Estivo,2022-09-15,ACF Fiorentina,276.15
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Società Sportiva Lazio S.p.A.,270.7
+Serie_A,2022/2023,Post-Estivo,2022-09-15,US Sassuolo,202.5
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Bologna Football Club 1909,137.5
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Torino FC,135.9
+Serie_A,2022/2023,Post-Estivo,2022-09-15,AC Monza,125.1
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Udinese Calcio,115.03
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Hellas Verona,111.35
+Serie_A,2022/2023,Post-Estivo,2022-09-15,US Salernitana 1919,102.15
+Serie_A,2022/2023,Post-Estivo,2022-09-15,FC Empoli,89.95
+Serie_A,2022/2023,Post-Estivo,2022-09-15,Spezia Calcio,89.8
+Serie_A,2022/2023,Post-Estivo,2022-09-15,UC Sampdoria,84.55
+Serie_A,2022/2023,Post-Estivo,2022-09-15,US Cremonese,76.08
+Serie_A,2022/2023,Post-Estivo,2022-09-15,US Lecce,63.35
+Serie_A,2022/2023,Post-Invernale,2023-02-15,AC Milan,573.9
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Inter Milan,553.65
+Serie_A,2022/2023,Post-Invernale,2023-02-15,SSC Napoli,541.8
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Juventus FC,466.2
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Associazione Sportiva Roma,371.8
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Atalanta BC,315.35
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Società Sportiva Lazio S.p.A.,260.0
+Serie_A,2022/2023,Post-Invernale,2023-02-15,ACF Fiorentina,246.75
+Serie_A,2022/2023,Post-Invernale,2023-02-15,US Sassuolo,193.6
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Udinese Calcio,151.38
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Torino FC,139.2
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Bologna Football Club 1909,124.9
+Serie_A,2022/2023,Post-Invernale,2023-02-15,AC Monza,112.4
+Serie_A,2022/2023,Post-Invernale,2023-02-15,US Salernitana 1919,102.68
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Hellas Verona,99.8
+Serie_A,2022/2023,Post-Invernale,2023-02-15,FC Empoli,92.1
+Serie_A,2022/2023,Post-Invernale,2023-02-15,Spezia Calcio,84.3
+Serie_A,2022/2023,Post-Invernale,2023-02-15,US Cremonese,74.95
+Serie_A,2022/2023,Post-Invernale,2023-02-15,UC Sampdoria,73.4
+Serie_A,2022/2023,Post-Invernale,2023-02-15,US Lecce,72.35
+Serie_A,2023/2024,Post-Estivo,2023-09-15,SSC Napoli,558.0
+Serie_A,2023/2024,Post-Estivo,2023-09-15,AC Milan,534.25
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Inter Milan,527.15
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Juventus FC,466.55
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Associazione Sportiva Roma,396.9
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Atalanta BC,304.45
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Società Sportiva Lazio S.p.A.,275.0
+Serie_A,2023/2024,Post-Estivo,2023-09-15,ACF Fiorentina,239.85
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Torino FC,184.6
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Bologna Football Club 1909,180.85
+Serie_A,2023/2024,Post-Estivo,2023-09-15,US Sassuolo,170.93
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Udinese Calcio,138.6
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Genoa CFC,130.18
+Serie_A,2023/2024,Post-Estivo,2023-09-15,US Salernitana 1919,107.05
+Serie_A,2023/2024,Post-Estivo,2023-09-15,AC Monza,97.7
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Hellas Verona,91.0
+Serie_A,2023/2024,Post-Estivo,2023-09-15,FC Empoli,86.1
+Serie_A,2023/2024,Post-Estivo,2023-09-15,US Lecce,75.1
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Cagliari Calcio,62.98
+Serie_A,2023/2024,Post-Estivo,2023-09-15,Frosinone Calcio,59.45
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Inter Milan,589.65
+Serie_A,2023/2024,Post-Invernale,2024-02-15,AC Milan,540.05
+Serie_A,2023/2024,Post-Invernale,2024-02-15,SSC Napoli,518.0
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Juventus FC,473.1
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Associazione Sportiva Roma,339.0
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Atalanta BC,327.5
+Serie_A,2023/2024,Post-Invernale,2024-02-15,ACF Fiorentina,247.0
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Società Sportiva Lazio S.p.A.,237.0
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Bologna Football Club 1909,227.05
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Torino FC,184.4
+Serie_A,2023/2024,Post-Invernale,2024-02-15,US Sassuolo,167.8
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Udinese Calcio,141.1
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Genoa CFC,138.32
+Serie_A,2023/2024,Post-Invernale,2024-02-15,AC Monza,111.2
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Frosinone Calcio,97.6
+Serie_A,2023/2024,Post-Invernale,2024-02-15,US Salernitana 1919,92.5
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Hellas Verona,90.25
+Serie_A,2023/2024,Post-Invernale,2024-02-15,US Lecce,88.8
+Serie_A,2023/2024,Post-Invernale,2024-02-15,Cagliari Calcio,77.88
+Serie_A,2023/2024,Post-Invernale,2024-02-15,FC Empoli,75.2
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Inter Milan,673.8
+Serie_A,2024/2025,Post-Estivo,2024-09-15,AC Milan,670.03
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Juventus FC,581.95
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Atalanta BC,432.3
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Associazione Sportiva Roma,346.7
+Serie_A,2024/2025,Post-Estivo,2024-09-15,ACF Fiorentina,302.2
+Serie_A,2024/2025,Post-Estivo,2024-09-15,SSC Napoli,297.0
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Bologna Football Club 1909,278.4
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Società Sportiva Lazio S.p.A.,231.5
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Torino FC,157.9
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Udinese Calcio,142.95
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Genoa CFC,140.15
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Como 1907,114.2
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Parma Calcio 1913,112.65
+Serie_A,2024/2025,Post-Estivo,2024-09-15,AC Monza,92.48
+Serie_A,2024/2025,Post-Estivo,2024-09-15,US Lecce,90.2
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Hellas Verona,87.95
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Cagliari Calcio,74.22
+Serie_A,2024/2025,Post-Estivo,2024-09-15,Venezia FC,67.33
+Serie_A,2024/2025,Post-Estivo,2024-09-15,FC Empoli,66.83
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Inter Milan,676.3
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Juventus FC,627.0
+Serie_A,2024/2025,Post-Invernale,2025-02-15,AC Milan,601.23
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Atalanta BC,497.3
+Serie_A,2024/2025,Post-Invernale,2025-02-15,ACF Fiorentina,323.8
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Associazione Sportiva Roma,300.5
+Serie_A,2024/2025,Post-Invernale,2025-02-15,SSC Napoli,289.0
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Società Sportiva Lazio S.p.A.,277.5
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Bologna Football Club 1909,276.4
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Torino FC,159.1
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Udinese Calcio,156.25
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Parma Calcio 1913,152.1
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Genoa CFC,148.2
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Como 1907,119.65
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Hellas Verona,97.75
+Serie_A,2024/2025,Post-Invernale,2025-02-15,US Lecce,94.8
+Serie_A,2024/2025,Post-Invernale,2025-02-15,FC Empoli,87.35
+Serie_A,2024/2025,Post-Invernale,2025-02-15,AC Monza,84.08
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Cagliari Calcio,73.97
+Serie_A,2024/2025,Post-Invernale,2025-02-15,Venezia FC,71.95
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Inter Milan,732.15
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Juventus FC,602.5
+Serie_A,2025/2026,Post-Estivo,2025-09-15,AC Milan,491.3
+Serie_A,2025/2026,Post-Estivo,2025-09-15,SSC Napoli,474.9
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Associazione Sportiva Roma,380.65
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Atalanta BC,361.3
+Serie_A,2025/2026,Post-Estivo,2025-09-15,ACF Fiorentina,310.13
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Società Sportiva Lazio S.p.A.,304.65
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Bologna Football Club 1909,245.0
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Como 1907,235.3
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Genoa CFC,152.55
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Torino FC,152.3
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Parma Calcio 1913,144.68
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Udinese Calcio,142.9
+Serie_A,2025/2026,Post-Estivo,2025-09-15,US Sassuolo,137.3
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Pisa Sporting Club,116.2
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Cagliari Calcio,105.53
+Serie_A,2025/2026,Post-Estivo,2025-09-15,Hellas Verona,93.0
+Serie_A,2025/2026,Post-Estivo,2025-09-15,US Cremonese,77.35
+Serie_A,2025/2026,Post-Estivo,2025-09-15,US Lecce,72.05
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Inter Milan,691.25
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Juventus FC,578.0
+Serie_A,2025/2026,Post-Invernale,2026-02-15,AC Milan,511.0
+Serie_A,2025/2026,Post-Invernale,2026-02-15,SSC Napoli,444.9
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Associazione Sportiva Roma,408.5
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Atalanta BC,355.5
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Como 1907,314.5
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Società Sportiva Lazio S.p.A.,274.75
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Bologna Football Club 1909,266.7
+Serie_A,2025/2026,Post-Invernale,2026-02-15,ACF Fiorentina,260.05
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Udinese Calcio,158.05
+Serie_A,2025/2026,Post-Invernale,2026-02-15,US Sassuolo,156.45
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Genoa CFC,155.8
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Parma Calcio 1913,154.9
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Cagliari Calcio,140.25
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Torino FC,133.4
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Pisa Sporting Club,120.5
+Serie_A,2025/2026,Post-Invernale,2026-02-15,Hellas Verona,100.4
+Serie_A,2025/2026,Post-Invernale,2026-02-15,US Lecce,91.7
+Serie_A,2025/2026,Post-Invernale,2026-02-15,US Cremonese,78.15

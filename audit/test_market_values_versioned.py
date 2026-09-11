@@ -83,6 +83,37 @@ class TestParsing(unittest.TestCase):
         # Ligue 1 riconosciuta dal nome italiano
         self.assertEqual(lookup[("Ligue 1", 2022, "Post-Estivo", "Marseille")], 150.0)
 
+    def test_alias_espliciti_nomi_ufficiali(self):
+        lookup, meta = M.parse_market_csv(self._tmp_csv(CSV_MINIMO))
+        self.assertIn("Olympique Marseille", M.MARKET_NAME_FIX)
+        self.assertEqual(M.normalize_team("Olympique Marseille"), "Marseille")
+        self.assertEqual(M.normalize_team("1.FC Köln"), "Koln")
+        self.assertEqual(M.normalize_team("Società Sportiva Lazio S.p.A."), "Lazio")
+        self.assertEqual(M.normalize_team("Sunderland AFC"), "Sunderland")
+        self.assertEqual(M.normalize_team("Hamburger SV"), "Hamburg")
+
+    @unittest.skipUnless(os.path.exists(M.DATA_PATH),
+                         "CSV valori di mercato non presente")
+    def test_join_completo_csv_reale(self):
+        """Ogni (Lega, Squadra) del CSV reale mappa nel set canonico del DB
+        di quella lega (union stagioni): zero squadre perse nel join."""
+        import diagnose_clv_pinnacle as CLV
+        import pandas as pd
+        csv = pd.read_csv(M.DATA_PATH)
+        # mappa id lega CSV -> prefix del loader
+        id_to_prefix = {"Serie_A": "SerieA", "Premier_League": "Premier",
+                        "La_Liga": "LaLiga", "Bundesliga": "Bundesliga",
+                        "Ligue_1": "Ligue1"}
+        for lega_raw in csv.Lega.unique():
+            camp_key = M.match_league(lega_raw)[1]
+            prefix = id_to_prefix.get(lega_raw, camp_key)
+            db_names = set()
+            d = CLV.load_league(prefix)
+            db_names |= set(d.HomeClean) | set(d.AwayClean)
+            for squadra in csv[csv.Lega == lega_raw].Squadra.unique():
+                self.assertIn(M.normalize_team(squadra), db_names,
+                              msg=f"{lega_raw}: '{squadra}'")
+
     def test_colonne_flessibili(self):
         alt = "League;Season;Club;Survey;Value\nPremier;2023/24;Arsenal;Post-Estivo;600\n"
         lookup, meta = M.parse_market_csv(self._tmp_csv(alt))
@@ -258,6 +289,60 @@ class TestWalkerVariants(unittest.TestCase):
         self.assertGreater(M.market_factor(M.MARKET_VALUES[hi]),
                            M.market_factor(M.MARKET_VALUES[lo]))
         self.assertGreater(float((mine["static_1"] - mine["none_1"]).abs().max()), 1e-9)
+
+    def test_dfac_colonne(self):
+        df = self._mini_df()
+        lookup, _ = M.parse_market_csv(self._mini_csv())
+        mine, _ = M.run_market_variants(df, "Serie A", {}, lookup)
+        # Alpha=400 vs MARKET_VALUES.get('Alpha',50): dfac_h = |f(400)-f(50)|
+        exp = abs(M.market_factor(400.0) - M.market_factor(M.MARKET_VALUES.get("Alpha", 50)))
+        self.assertAlmostEqual(float(mine["dfac_h"].iloc[0]), exp, places=12)
+
+
+class TestBootDeltas(unittest.TestCase):
+
+    def _d(self, n=200, seed=7):
+        rng = np.random.default_rng(seed)
+        p = rng.dirichlet([2, 2, 2], size=n)
+        y = rng.choice(3, size=n)
+        outcomes = ("1", "X", "2")
+        rec = {"real_1x2": [outcomes[int(i)] for i in y]}
+        for tag, prob in (("static", p), ("ver", p + rng.normal(0, 0.02, p.shape)),
+                          ("none", rng.dirichlet([2, 2, 2], size=n))):
+            prob = np.clip(prob, 0.01, None)
+            prob = prob / prob.sum(axis=1, keepdims=True)
+            rec[f"{tag}_1"], rec[f"{tag}_X"], rec[f"{tag}_2"] = prob[:, 0], prob[:, 1], prob[:, 2]
+        for o in ("B365H", "B365D", "B365A"):
+            rec[o] = rng.uniform(2.0, 4.5, size=n)
+        for f in ("fair_b365_1", "fair_b365_X", "fair_b365_2"):
+            rec[f] = rng.uniform(0.2, 0.5, size=n)
+        return pd.DataFrame(rec)
+
+    def test_deterministico_e_appaiato(self):
+        d = self._d()
+        b1 = M._boot_deltas(d)
+        b2 = M._boot_deltas(d)
+        self.assertEqual(b1, b2)   # stesso seed -> stessi boot
+
+    def test_varianti_identiche_delta_zero_non_significativo(self):
+        d = self._d()
+        for c in ("ver_1", "ver_X", "ver_2"):
+            d[c] = d[c.replace("ver", "static")]
+        boot = M._boot_deltas(d)
+        r = boot["ver-static"]["brier"]
+        self.assertEqual(r["delta"], 0.0)
+        self.assertFalse(r["significant"])
+        self.assertEqual(r["ci"], [0.0, 0.0])
+
+    def test_punto_dentro_ci_e_chiavi_attese(self):
+        d = self._d()
+        boot = M._boot_deltas(d, n_boot=100)
+        for cmp_k in ("ver-static", "none-static"):
+            for kind in ("brier", "log_loss", "roi_b365"):
+                r = boot[cmp_k][kind]
+                self.assertLessEqual(r["ci"][0], r["delta"] + 1e-9)
+                self.assertLessEqual(r["delta"] - 1e-9, r["ci"][1])
+                self.assertIsInstance(r["significant"], bool)
 
 
 if __name__ == "__main__":

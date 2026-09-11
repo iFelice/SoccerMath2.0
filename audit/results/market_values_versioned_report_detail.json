@@ -1,0 +1,708 @@
+{
+ "generated_at": "2026-09-11T23:03:59+00:00",
+ "meta": {
+  "rows": 772,
+  "by_survey": {
+   "Post-Estivo": 386,
+   "Post-Invernale": 386
+  },
+  "by_league_season": {
+   "Bundesliga 2022/23": {
+    "Post-Estivo": 18,
+    "Post-Invernale": 18
+   },
+   "Bundesliga 2023/24": {
+    "Post-Estivo": 18,
+    "Post-Invernale": 18
+   },
+   "Bundesliga 2024/25": {
+    "Post-Estivo": 18,
+    "Post-Invernale": 18
+   },
+   "Bundesliga 2025/26": {
+    "Post-Estivo": 18,
+    "Post-Invernale": 18
+   },
+   "La Liga 2022/23": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "La Liga 2023/24": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "La Liga 2024/25": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "La Liga 2025/26": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Ligue 1 2022/23": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Ligue 1 2023/24": {
+    "Post-Estivo": 18,
+    "Post-Invernale": 18
+   },
+   "Ligue 1 2024/25": {
+    "Post-Estivo": 18,
+    "Post-Invernale": 18
+   },
+   "Ligue 1 2025/26": {
+    "Post-Estivo": 18,
+    "Post-Invernale": 18
+   },
+   "Premier League 2022/23": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Premier League 2023/24": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Premier League 2024/25": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Premier League 2025/26": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Serie A 2022/23": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Serie A 2023/24": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Serie A 2024/25": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   },
+   "Serie A 2025/26": {
+    "Post-Estivo": 20,
+    "Post-Invernale": 20
+   }
+  },
+  "unmatched": [],
+  "scale": "raw",
+  "date_mismatch": 0,
+  "min_mln": 24.8,
+  "max_mln": 1363.2
+ },
+ "leagues": [
+  {
+   "league": "Serie A",
+   "usage": {
+    "Post-Estivo": 966,
+    "Post-Invernale": 554,
+    "fallback_missing": 0
+   },
+   "n_val": 380,
+   "n_test": 380,
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.674,
+      "log_loss": 1.1556,
+      "brier_blend": 0.6151,
+      "log_loss_blend": 1.0186,
+      "roi_b365": -1.81,
+      "n_bet_b365": 380,
+      "roi_avg": -1.42,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6741,
+      "log_loss": 1.1534,
+      "brier_blend": 0.6153,
+      "log_loss_blend": 1.0191,
+      "roi_b365": -3.81,
+      "n_bet_b365": 380,
+      "roi_avg": -2.21,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6855,
+      "log_loss": 1.169,
+      "brier_blend": 0.6213,
+      "log_loss_blend": 1.0286,
+      "roi_b365": -5.38,
+      "n_bet_b365": 380,
+      "roi_avg": -6.07,
+      "n_bet_avg": 380
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6322,
+      "log_loss": 1.1208,
+      "brier_blend": 0.5959,
+      "log_loss_blend": 0.9985,
+      "roi_b365": 10.27,
+      "n_bet_b365": 380,
+      "roi_avg": 7.91,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6332,
+      "log_loss": 1.1193,
+      "brier_blend": 0.5959,
+      "log_loss_blend": 0.9987,
+      "roi_b365": 5.96,
+      "n_bet_b365": 380,
+      "roi_avg": 5.94,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6363,
+      "log_loss": 1.1159,
+      "brier_blend": 0.5977,
+      "log_loss_blend": 1.0012,
+      "roi_b365": 8.56,
+      "n_bet_b365": 380,
+      "roi_avg": 5.93,
+      "n_bet_avg": 380
+     }
+    }
+   }
+  },
+  {
+   "league": "Premier League",
+   "usage": {
+    "Post-Estivo": 1002,
+    "Post-Invernale": 518,
+    "fallback_missing": 0
+   },
+   "n_val": 380,
+   "n_test": 380,
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6428,
+      "log_loss": 1.091,
+      "brier_blend": 0.6043,
+      "log_loss_blend": 1.0108,
+      "roi_b365": -5.01,
+      "n_bet_b365": 380,
+      "roi_avg": -4.79,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6426,
+      "log_loss": 1.0904,
+      "brier_blend": 0.6041,
+      "log_loss_blend": 1.0108,
+      "roi_b365": -9.32,
+      "n_bet_b365": 380,
+      "roi_avg": -6.68,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6432,
+      "log_loss": 1.0899,
+      "brier_blend": 0.6046,
+      "log_loss_blend": 1.0114,
+      "roi_b365": -0.27,
+      "n_bet_b365": 380,
+      "roi_avg": 0.78,
+      "n_bet_avg": 380
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6577,
+      "log_loss": 1.1033,
+      "brier_blend": 0.6222,
+      "log_loss_blend": 1.0316,
+      "roi_b365": 7.66,
+      "n_bet_b365": 380,
+      "roi_avg": 6.78,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6565,
+      "log_loss": 1.1014,
+      "brier_blend": 0.6214,
+      "log_loss_blend": 1.0306,
+      "roi_b365": 6.87,
+      "n_bet_b365": 380,
+      "roi_avg": 6.52,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6541,
+      "log_loss": 1.0968,
+      "brier_blend": 0.6201,
+      "log_loss_blend": 1.0293,
+      "roi_b365": 8.05,
+      "n_bet_b365": 380,
+      "roi_avg": 8.16,
+      "n_bet_avg": 380
+     }
+    }
+   }
+  },
+  {
+   "league": "La Liga",
+   "usage": {
+    "Post-Estivo": 928,
+    "Post-Invernale": 592,
+    "fallback_missing": 0
+   },
+   "n_val": 380,
+   "n_test": 380,
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6237,
+      "log_loss": 1.0777,
+      "brier_blend": 0.5918,
+      "log_loss_blend": 0.9923,
+      "roi_b365": -9.7,
+      "n_bet_b365": 380,
+      "roi_avg": -7.79,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6279,
+      "log_loss": 1.0847,
+      "brier_blend": 0.5941,
+      "log_loss_blend": 0.9958,
+      "roi_b365": -8.71,
+      "n_bet_b365": 380,
+      "roi_avg": -8.97,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6347,
+      "log_loss": 1.0838,
+      "brier_blend": 0.5979,
+      "log_loss_blend": 1.001,
+      "roi_b365": -4.46,
+      "n_bet_b365": 380,
+      "roi_avg": -4.57,
+      "n_bet_avg": 380
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.635,
+      "log_loss": 1.1019,
+      "brier_blend": 0.5981,
+      "log_loss_blend": 1.0041,
+      "roi_b365": -8.76,
+      "n_bet_b365": 380,
+      "roi_avg": -7.98,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6331,
+      "log_loss": 1.0999,
+      "brier_blend": 0.5972,
+      "log_loss_blend": 1.003,
+      "roi_b365": -7.19,
+      "n_bet_b365": 380,
+      "roi_avg": -7.86,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6397,
+      "log_loss": 1.0984,
+      "brier_blend": 0.6002,
+      "log_loss_blend": 1.0062,
+      "roi_b365": -8.49,
+      "n_bet_b365": 380,
+      "roi_avg": -13.24,
+      "n_bet_avg": 380
+     }
+    }
+   }
+  },
+  {
+   "league": "Bundesliga",
+   "usage": {
+    "Post-Estivo": 770,
+    "Post-Invernale": 454,
+    "fallback_missing": 0
+   },
+   "n_val": 306,
+   "n_test": 306,
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.6663,
+      "log_loss": 1.2347,
+      "brier_blend": 0.6213,
+      "log_loss_blend": 1.0448,
+      "roi_b365": 12.09,
+      "n_bet_b365": 306,
+      "roi_avg": 14.53,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6656,
+      "log_loss": 1.2358,
+      "brier_blend": 0.6205,
+      "log_loss_blend": 1.0439,
+      "roi_b365": 10.84,
+      "n_bet_b365": 306,
+      "roi_avg": 13.69,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6679,
+      "log_loss": 1.2227,
+      "brier_blend": 0.6239,
+      "log_loss_blend": 1.0477,
+      "roi_b365": 10.29,
+      "n_bet_b365": 306,
+      "roi_avg": 10.5,
+      "n_bet_avg": 306
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.6631,
+      "log_loss": 1.1603,
+      "brier_blend": 0.602,
+      "log_loss_blend": 1.0119,
+      "roi_b365": 0.39,
+      "n_bet_b365": 306,
+      "roi_avg": -3.48,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6629,
+      "log_loss": 1.1591,
+      "brier_blend": 0.6022,
+      "log_loss_blend": 1.012,
+      "roi_b365": -0.35,
+      "n_bet_b365": 306,
+      "roi_avg": -1.27,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6677,
+      "log_loss": 1.1558,
+      "brier_blend": 0.6059,
+      "log_loss_blend": 1.0162,
+      "roi_b365": -6.89,
+      "n_bet_b365": 306,
+      "roi_avg": -8.26,
+      "n_bet_avg": 306
+     }
+    }
+   }
+  },
+  {
+   "league": "Ligue 1",
+   "usage": {
+    "Post-Estivo": 768,
+    "Post-Invernale": 456,
+    "fallback_missing": 0
+   },
+   "n_val": 306,
+   "n_test": 306,
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.658,
+      "log_loss": 1.1326,
+      "brier_blend": 0.6084,
+      "log_loss_blend": 1.0156,
+      "roi_b365": 1.75,
+      "n_bet_b365": 306,
+      "roi_avg": -4.13,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6534,
+      "log_loss": 1.1262,
+      "brier_blend": 0.6062,
+      "log_loss_blend": 1.0126,
+      "roi_b365": 0.64,
+      "n_bet_b365": 306,
+      "roi_avg": -4.72,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6738,
+      "log_loss": 1.1492,
+      "brier_blend": 0.6168,
+      "log_loss_blend": 1.0267,
+      "roi_b365": 2.09,
+      "n_bet_b365": 306,
+      "roi_avg": 2.72,
+      "n_bet_avg": 306
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.6513,
+      "log_loss": 1.0957,
+      "brier_blend": 0.607,
+      "log_loss_blend": 1.0124,
+      "roi_b365": -3.78,
+      "n_bet_b365": 306,
+      "roi_avg": -5.92,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6527,
+      "log_loss": 1.0983,
+      "brier_blend": 0.6076,
+      "log_loss_blend": 1.0133,
+      "roi_b365": -3.26,
+      "n_bet_b365": 306,
+      "roi_avg": -4.89,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6641,
+      "log_loss": 1.1155,
+      "brier_blend": 0.6118,
+      "log_loss_blend": 1.0196,
+      "roi_b365": -5.59,
+      "n_bet_b365": 306,
+      "roi_avg": -5.89,
+      "n_bet_avg": 306
+     }
+    }
+   }
+  }
+ ],
+ "overall": {
+  "val": {
+   "metrics": {
+    "static": {
+     "n": 1752,
+     "brier": 0.6522,
+     "log_loss": 1.1345,
+     "brier_blend": 0.6076,
+     "log_loss_blend": 1.0153,
+     "roi_b365": -1.16,
+     "n_bet_b365": 1752,
+     "roi_avg": -1.22,
+     "n_bet_avg": 1752
+    },
+    "ver": {
+     "n": 1752,
+     "brier": 0.6521,
+     "log_loss": 1.1345,
+     "brier_blend": 0.6076,
+     "log_loss_blend": 1.0154,
+     "roi_b365": -2.73,
+     "n_bet_b365": 1752,
+     "roi_avg": -2.31,
+     "n_bet_avg": 1752
+    },
+    "none": {
+     "n": 1752,
+     "brier": 0.6602,
+     "log_loss": 1.1393,
+     "brier_blend": 0.6123,
+     "log_loss_blend": 1.0219,
+     "roi_b365": -0.03,
+     "n_bet_b365": 1752,
+     "roi_avg": 0.17,
+     "n_bet_avg": 1752
+    }
+   },
+   "boot": {
+    "ver-static": {
+     "brier": {
+      "delta": -0.0,
+      "ci": [
+       -0.0013,
+       0.0012
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": -0.0,
+      "ci": [
+       -0.0022,
+       0.0022
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": -1.5679,
+      "ci": [
+       -4.1632,
+       0.8253
+      ],
+      "significant": false
+     }
+    },
+    "none-static": {
+     "brier": {
+      "delta": 0.008,
+      "ci": [
+       0.0043,
+       0.0116
+      ],
+      "significant": true
+     },
+     "log_loss": {
+      "delta": 0.0048,
+      "ci": [
+       -0.0014,
+       0.0112
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": 1.1364,
+      "ci": [
+       -2.8482,
+       5.1102
+      ],
+      "significant": false
+     }
+    }
+   }
+  },
+  "test": {
+   "metrics": {
+    "static": {
+     "n": 1752,
+     "brier": 0.6471,
+     "log_loss": 1.1154,
+     "brier_blend": 0.6051,
+     "log_loss_blend": 1.0117,
+     "roi_b365": 1.4,
+     "n_bet_b365": 1752,
+     "roi_avg": -0.18,
+     "n_bet_avg": 1752
+    },
+    "ver": {
+     "n": 1752,
+     "brier": 0.6468,
+     "log_loss": 1.1145,
+     "brier_blend": 0.6049,
+     "log_loss_blend": 1.0114,
+     "roi_b365": 0.59,
+     "n_bet_b365": 1752,
+     "roi_avg": -0.08,
+     "n_bet_avg": 1752
+    },
+    "none": {
+     "n": 1752,
+     "brier": 0.6513,
+     "log_loss": 1.1149,
+     "brier_blend": 0.607,
+     "log_loss_blend": 1.0142,
+     "roi_b365": -0.42,
+     "n_bet_b365": 1752,
+     "roi_avg": -2.29,
+     "n_bet_avg": 1752
+    }
+   },
+   "boot": {
+    "ver-static": {
+     "brier": {
+      "delta": -0.0003,
+      "ci": [
+       -0.002,
+       0.0016
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": -0.0009,
+      "ci": [
+       -0.0039,
+       0.0021
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": -0.8042,
+      "ci": [
+       -3.0656,
+       1.504
+      ],
+      "significant": false
+     }
+    },
+    "none-static": {
+     "brier": {
+      "delta": 0.0042,
+      "ci": [
+       0.0004,
+       0.0079
+      ],
+      "significant": true
+     },
+     "log_loss": {
+      "delta": -0.0006,
+      "ci": [
+       -0.007,
+       0.0059
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": -1.8162,
+      "ci": [
+       -5.2654,
+       1.7968
+      ],
+      "significant": false
+     }
+    }
+   }
+  }
+ },
+ "dfac": {
+  "mean": 0.0312,
+  "max": 0.1893,
+  "n_slots": 7008
+ }
+}

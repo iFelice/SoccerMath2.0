@@ -68,10 +68,11 @@ from backtest_experiment_all import LEAGUES, devig_1x2, MARKET_VALUES      # noq
 from diagnose_production_baseline import (SEASONS_EVAL, brier_ll_1x2,      # noqa: E402
                                           roi_1x2, TeamState, market_factor)
 from team_aliases import clean_name                                        # noqa: E402
+from topmix_margins import N_BOOT, SEED, _ci                               # noqa: E402
 from gg_ng_calibration import EXONYM_TO_CANONICAL                          # noqa: E402
 import diagnose_clv_pinnacle as CLV                                        # noqa: E402
 
-DATA_PATH = os.path.join(_AUDIT_DIR, "data", "market_values_top5 campionati.csv")
+DATA_PATH = os.path.join(_AUDIT_DIR, "data", "market_values_top5_campionati.csv")
 OUT_DIR = os.path.join(_AUDIT_DIR, "results")
 OUT_PATH = os.path.join(OUT_DIR, "market_values_versioned_report.md")
 
@@ -85,7 +86,7 @@ WINTER_DAY = (2, 15)              # rilevazione post-invernale: 15/2
 COL_LEAGUE = ("lega", "league", "campionato")
 COL_SEASON = ("stagione", "season")
 COL_TEAM = ("squadra", "team", "club")
-COL_SURVEY = ("rilevazion", "survey", " finestra", "tipo")
+COL_SURVEY = ("periodo", "rilevazion", "survey", " finestra", "tipo")
 COL_VALUE = ("valore", "value", "market")
 
 LEAGUE_KEY = OrderedDict([
@@ -105,7 +106,7 @@ def match_league(text):
 
     Match per sottostringa ma con la CHIAVE PIU' LUNGA vincente: evita che
     "bundesliga" venga catturato da "liga" (LaLiga)."""
-    t = re.sub(r"\s+", " ", str(text).strip().lower())
+    t = re.sub(r"[\s_]+", " ", str(text).strip().lower())
     best = None
     for key, mapped in LEAGUE_KEY.items():
         if key in t and (best is None or len(key) > len(best[0])):
@@ -179,18 +180,81 @@ def parse_value(raw):
 # =====================================================================
 # Caricamento CSV e lookup versionato
 # =====================================================================
-def _find_col(cols, keys):
+def _find_col(cols, keys, exclude_date=False):
     for c in cols:
         low = str(c).lower()
+        if exclude_date and (low.startswith("data") or "date" in low):
+            continue  # es. Data_Rilevazione non e' la colonna rilevazione
         for k in keys:
             if k in low:
                 return c
     return None
 
 
+# Nomi completi "ufficiali" del CSV valori che clean_name+esonimi non
+# riconducono al nome canonico dei database: mappatura ESPLICITA (nessuna
+# euristiche fuzzy), verificata 1:1 contro i roster dei CSV database.
+MARKET_NAME_FIX = {
+    # Serie A
+    "Associazione Sportiva Roma": "Roma",
+    "Bologna Football Club 1909": "Bologna",
+    "Pisa Sporting Club": "Pisa",
+    "Società Sportiva Lazio S.p.A.": "Lazio",
+    "UC Sampdoria": "Sampdoria",
+    "US Cremonese": "Cremonese",
+    "US Lecce": "Lecce",
+    "US Salernitana 1919": "Salernitana",
+    "US Sassuolo": "Sassuolo",
+    # Premier League
+    "Brighton & Hove Albion": "Brighton",
+    "Luton Town": "Luton",
+    "Sunderland AFC": "Sunderland",
+    # La Liga
+    "Atlético de Madrid": "Ath Madrid",
+    "CA Osasuna": "Osasuna",
+    "CD Leganés": "Leganes",
+    "Celta de Vigo": "Celta",
+    "Cádiz CF": "Cadiz",
+    "Deportivo Alavés": "Alaves",
+    "Elche CF": "Elche",
+    "Getafe CF": "Getafe",
+    "Granada CF": "Granada",
+    "Levante UD": "Levante",
+    "RCD Espanyol Barcelona": "Espanol",
+    "RCD Mallorca": "Mallorca",
+    "Real Betis Balompié": "Betis",
+    "Real Oviedo": "Oviedo",
+    "Real Valladolid CF": "Valladolid",
+    "UD Almería": "Almeria",
+    "UD Las Palmas": "Las Palmas",
+    "Valencia CF": "Valencia",
+    "Villarreal CF": "Villarreal",
+    # Bundesliga
+    "1. Fußballclub Heidenheim 1846": "Heidenheim",
+    "1.FC Köln": "Koln",
+    "1.FSV Mainz 05": "Mainz",
+    "Hamburger SV": "Hamburg",
+    "Hertha BSC": "Hertha",
+    "SV Darmstadt 98": "Darmstadt",
+    "TSG 1899 Hoffenheim": "Hoffenheim",
+    # Ligue 1
+    "Clermont Foot 63": "Clermont",
+    "ESTAC Troyes": "Troyes",
+    "LOSC Lille": "Lille",
+    "Olympique Marseille": "Marseille",
+    "Stade Reims": "Reims",
+}
+
+
 def normalize_team(raw):
-    """Nome CSV mercato -> chiave canonica dei CSV football-data."""
-    base = clean_name(raw)
+    """Nome CSV mercato -> chiave canonica dei CSV football-data.
+
+    1) tabella esplicita MARKET_NAME_FIX (nomi ufficiali completi);
+    2) altrimenti clean_name + esonimi audit; MAI match fuzzy."""
+    key = str(raw).strip()
+    if key in MARKET_NAME_FIX:
+        return MARKET_NAME_FIX[key]
+    base = clean_name(key)
     return EXONYM_TO_CANONICAL.get(base, base)
 
 
@@ -210,8 +274,9 @@ def parse_market_csv(path=DATA_PATH):
     c_league = _find_col(cols, COL_LEAGUE)
     c_season = _find_col(cols, COL_SEASON)
     c_team = _find_col(cols, COL_TEAM)
-    c_survey = _find_col(cols, COL_SURVEY)
+    c_survey = _find_col(cols, COL_SURVEY, exclude_date=True)
     c_value = _find_col(cols, COL_VALUE)
+    c_date = _find_col(cols, ("data_rilevazione", "data", "date"))
     missing = [name for name, c in [("lega", c_league), ("stagione", c_season),
                                     ("squadra", c_team), ("rilevazione", c_survey),
                                     ("valore", c_value)] if c is None]
@@ -223,7 +288,8 @@ def parse_market_csv(path=DATA_PATH):
 
     lookup = {}
     meta = {"rows": 0, "by_survey": {}, "by_league_season": {},
-            "unmatched": [], "scale": "raw" if col_is_mln else "auto"}
+            "unmatched": [], "scale": "raw" if col_is_mln else "auto",
+            "date_mismatch": 0}
     vals_raw = []
     for _, row in df.iterrows():
         meta["rows"] += 1
@@ -250,6 +316,12 @@ def parse_market_csv(path=DATA_PATH):
         # duplicati: ultima rilevazione vince, coerente col dedup keep='last'
         lookup[key] = value
         meta["by_survey"][kind] = meta["by_survey"].get(kind, 0) + 1
+        d_raw = str(row[c_date]).strip() if c_date is not None else ""
+        md = pd.to_datetime(d_raw, errors="coerce")
+        ok_date = (pd.notna(md) and ((kind == "Post-Estivo" and md.month == 9 and md.day == 15)
+                                     or (kind == "Post-Invernale" and md.month == 2 and md.day == 15)))
+        if d_raw and not ok_date:
+            meta["date_mismatch"] += 1
         ls = meta["by_league_season"].setdefault((camp_key, f"{year}/{(year+1)%100:02d}"),
                                                  {"Post-Estivo": 0, "Post-Invernale": 0})
         ls[kind] += 1
@@ -391,6 +463,8 @@ def run_market_variants(df, camp_key, xg_data, lookup):
                 rec[f"{tag}b_1"] = ELO_ENSEMBLE_W * mp["1"] + (1 - ELO_ENSEMBLE_W) * e1
                 rec[f"{tag}b_X"] = ELO_ENSEMBLE_W * mp["X"] + (1 - ELO_ENSEMBLE_W) * eX
                 rec[f"{tag}b_2"] = ELO_ENSEMBLE_W * mp["2"] + (1 - ELO_ENSEMBLE_W) * e2
+            rec["dfac_h"] = abs(mkt_ver_h - mkt_static_h)
+            rec["dfac_a"] = abs(mkt_ver_a - mkt_static_a)
             rows.append(rec)
 
         # --- aggiornamento stato DOPO la previsione (invariante alle varianti) ---
@@ -456,6 +530,73 @@ def attach_odds(df, d):
 
 
 # =====================================================================
+# Bootstrap appaiato delle differenze fra varianti
+# =====================================================================
+def _boot_deltas(d, n_boot=N_BOOT, seed=SEED):
+    """Delta appaiati (ver-static, none-static) con CI bootstrap percentile
+    2.5-97.5 (convenzione topmix_margins: N_BOOT/SEED/_ci).
+
+    Lo stesso resample di righe e' applicato a ENTRAMBE le varianti: le
+    differenze sono appaiate, quindi la variabilita' comune (stesso stato,
+    stessi errori grossolani) si cancella e la CI e' piu' stretta di due
+    run indipendenti. Brier/LogLoss su tutte le righe; ROI B365 solo sulle
+    righe con quote e fair complete (le altre pesano zero)."""
+    rng = np.random.default_rng(seed)
+    n = len(d)
+    if n == 0:
+        return {}
+    tags = ("static", "ver", "none")
+    P = {t: d[[f"{t}_1", f"{t}_X", f"{t}_2"]].to_numpy(dtype=float) for t in tags}
+    m = {"1": 0, "X": 1, "2": 2}
+    y = np.array([m[v] for v in d["real_1x2"]])
+    onehot = np.zeros((n, 3))
+    onehot[np.arange(n), y] = 1
+    brier_rows = {t: np.sum((onehot - P[t]) ** 2, axis=1) for t in tags}
+    ll_rows = {t: -np.log(np.clip(P[t][np.arange(n), y], 1e-12, 1.0)) for t in tags}
+    need = ["B365H", "B365D", "B365A", "fair_b365_1", "fair_b365_X", "fair_b365_2"]
+    ok_mask = ~d[need].isna().any(axis=1).to_numpy()
+    ok_idx = np.flatnonzero(ok_mask)
+    odds = d[["B365H", "B365D", "B365A"]].to_numpy(dtype=float)[ok_idx]
+    fair = d[["fair_b365_1", "fair_b365_X", "fair_b365_2"]].to_numpy(dtype=float)[ok_idx]
+    yb = y[ok_idx]
+    pnl, stake = {}, {}
+    for t in tags:
+        Pt = P[t][ok_idx]
+        edge = Pt - fair
+        best = np.argmax(edge, axis=1)
+        has_bet = edge[np.arange(len(ok_idx)), best] > 0.0
+        stake[t] = np.where(has_bet, STAKE, 0.0)
+        won = yb == best
+        pnl[t] = np.where(has_bet,
+                          np.where(won, STAKE * (odds[np.arange(len(ok_idx)), best] - 1.0),
+                                   -STAKE), 0.0)
+
+    def metric_on(t, idx, kind):
+        if kind == "brier":
+            return float(brier_rows[t][idx].mean())
+        if kind == "log_loss":
+            return float(ll_rows[t][idx].mean())
+        sel = idx[ok_mask[idx]]
+        s = stake[t][sel].sum()
+        return float(100.0 * pnl[t][sel].sum() / s) if s > 0 else 0.0
+
+    out = {}
+    for a, b in (("ver", "static"), ("none", "static")):
+        res = {}
+        for kind in ("brier", "log_loss", "roi_b365"):
+            point = metric_on(a, np.arange(n), kind) - metric_on(b, np.arange(n), kind)
+            boots = []
+            for _ in range(n_boot):
+                idx = rng.integers(0, n, size=n)
+                boots.append(metric_on(a, idx, kind) - metric_on(b, idx, kind))
+            lo, hi = _ci(boots)
+            res[kind] = {"delta": round(point, 4), "ci": [round(lo, 4), round(hi, 4)],
+                         "significant": bool(not (lo <= 0.0 <= hi))}
+        out[f"{a}-static"] = res
+    return out
+
+
+# =====================================================================
 # Report
 # =====================================================================
 def _fv(v, nd=4):
@@ -468,26 +609,41 @@ def render(payload):
     ap("# MARKET_VALUES versionato per stagione — impatto sul 1X2 (audit sola lettura)")
     ap("")
     ap(f"*Generato: {payload['generated_at']} — script "
-       "`audit/market_values_versioned.py`, nessuna modifica a SoccerMath/.*")
+       f"`audit/market_values_versioned.py`, nessuna modifica a SoccerMath/. "
+       f"Dettaglio completo (n scommesse, CI, unmatched) in "
+       f"`market_values_versioned_detail.json`.*")
     ap("")
     ap("Sostituisce il fattore valore di mercato statico (`config.MARKET_VALUES`, "
-       "scritto a mano e fermo a una data) con le rilevazioni reali per "
-       "(lega, stagione, squadra) del CSV campionato, point-in-time: "
-       "**Post-Estivo** (15/9) di default, **Post-Invernale** (15/2) per le "
-       "partite dalla metà febbraio in poi, sempre della STESSA stagione della "
-       "partita. La formula del fattore resta bit-fedele a produzione; cambia "
-       "solo la fonte del valore. Confronto appaiato nella stessa passata "
+       "scritto a mano e fermo a una data, applicato UGUALE a tutte le stagioni "
+       "passate: leakage) con le rilevazioni reali per (lega, stagione, squadra) "
+       "del CSV campionato, point-in-time: **Post-Estivo** (15/9) di default, "
+       "**Post-Invernale** (15/2) per le partite dalla metà febbraio in poi, "
+       "sempre della STESSA stagione della partita. La formula del fattore resta "
+       "bit-fedele a produzione (`1+(log10(max(val,10))-2)/4`, clip [0.85,1.25]); "
+       "cambia solo la fonte del valore. Confronto appaiato nella stessa passata "
        "walk-forward (stesso stato/Elo/xG): STATIC (prima), VERSIONED (dopo), "
-       "NO_MKT (fattore 1, riferimento di `market_value_comparison.txt`).")
+       "NO_MKT (fattore 1, il riferimento «senza mercato»).")
+    ap("")
+    ap("> **Nota sui livelli assoluti.** I Brier della testa Poisson su questi "
+       "dati sono più alti di quelli di `production_baseline_comparison.md`: lo "
+       "snapshot xG corrente (`xg_<lega>.json`) è più polarizzato di quello "
+       "esistente all'epoca di quel report, e la testa NORM-SUM ne eredita "
+       "l'overconfidence (stessa deriva già documentata in "
+       "`ensemble_weight_grid_search.md`). Il confronto di QUESTO audit è "
+       "appaiato sulla stessa identica pipeline/dati, quindi le differenze fra "
+       "varianti non sono toccate dalla deriva; i livelli assoluti non vanno "
+       "confrontati col report storico.")
     ap("")
 
     ap("## Dati di copertura del CSV valori")
     ap("")
     meta = payload["meta"]
-    ap(f"File: `audit/data/market_values_top5 campionati.csv` — {meta['rows']} righe "
+    ap(f"File: `audit/data/{os.path.basename(DATA_PATH)}` — {meta['rows']} righe "
        f"lette, {sum(meta['by_survey'].values())} righe usate "
        f"(rilevazioni: " + ", ".join(f"{k} {v}" for k, v in sorted(meta["by_survey"].items()))
-       + f"), valori in milioni da {meta['min_mln']} a {meta['max_mln']}.")
+       + f"), valori in milioni da {meta['min_mln']} a {meta['max_mln']}. "
+       f"Date rilevazione coerenti con la finestra 15/9–15/2: "
+       f"{meta['rows'] - meta.get('date_mismatch', 0)}/{meta['rows']}.")
     ap("")
     if meta["unmatched"]:
         ap(f"**Righe NON usate ({len(meta['unmatched'])})** — mai indovinate al volo:")
@@ -520,7 +676,14 @@ def render(payload):
     ap("")
     ap("Nessuna partita usa una rilevazione di un'altra stagione o quella "
        "corrente: per squadra/stagione senza valore il fattore cade a 1 (come "
-       "NO_MKT, contato come fallback). Nota dichiarata: le partite delle prime "
+       "NO_MKT, contato come fallback). "
+       + (f"**Fallback effettivi: {sum(lg['usage']['fallback_missing'] for lg in payload['leagues'])//2} "
+           f"su {sum(lg['n_val']+lg['n_test'] for lg in payload['leagues'])} partite eval** — il CSV copre "
+           "interamente i roster delle stagioni 2024/25 e 2025/26."
+           if sum(lg["usage"]["fallback_missing"] for lg in payload["leagues"]) == 0
+           else "Fallback presenti: vedi tabella."))
+    ap("")
+    ap("Nota dichiarata: le partite delle prime "
        "settimane (precedenti al 15/9) usano la rilevazione Post-Estiva della "
        "loro stagione, che e' l'unico snapshot disponibile e puo' essere di "
        "qualche settimana successiva al primo kickoff.")
@@ -531,20 +694,22 @@ def render(payload):
     for lg in payload["leagues"]:
         ap(f"### {lg['league']}")
         ap("")
-        ap("| Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | ROI B365 T | ROI Avg V | ROI Avg T |")
-        ap("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+        ap("| Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | NB V | ROI B365 T | NB T | ROI Avg V | ROI Avg T |")
+        ap("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
         for tag, label in (("static", "STATIC (config, prima)"),
                            ("ver", "VERSIONED (point-in-time, dopo)"),
                            ("none", "NO_MKT (fattore 1, riferimento)")):
             v, t = lg["val"]["metrics"], lg["test"]["metrics"]
             ap(f"| {label} | {_fv(v[tag]['brier'])} | {_fv(v[tag]['log_loss'])} | "
                f"{_fv(t[tag]['brier'])} | {_fv(t[tag]['log_loss'])} | "
-               f"{_fv(v[tag]['roi_b365'],2)} | {_fv(t[tag]['roi_b365'],2)} | "
+               f"{_fv(v[tag]['roi_b365'],2)} | {v[tag]['n_bet_b365']} | "
+               f"{_fv(t[tag]['roi_b365'],2)} | {t[tag]['n_bet_b365']} | "
                f"{_fv(v[tag]['roi_avg'],2)} | {_fv(t[tag]['roi_avg'],2)} |")
         ap("")
-        ap("(ROI su testa Poisson pura, convenzione edge>0 vs fair del book, "
-           "puntata 10 — stessa di production_baseline_comparison.md; n scommesse "
-           "nel JSON di dettaglio.)")
+        ap("(Brier/LogLoss su testa Poisson NORM-SUM pura; ROI a puntata fissa "
+           "10, selezione edge>0 sull'esito a edge massimo vs fair de-vigata del "
+           "book, settle sullo stesso book — stessa convenzione di "
+           "production_baseline_comparison.md. NB = n scommesse B365.)")
         ap("")
     ov_v = payload["overall"]["val"]["metrics"]
     ov_t = payload["overall"]["test"]["metrics"]
@@ -557,21 +722,92 @@ def render(payload):
                        ("none", "NO_MKT (fattore 1, riferimento)")):
         ap(f"| {label} | {_fv(ov_v[tag]['brier'])} | {_fv(ov_v[tag]['log_loss'])} | "
            f"{_fv(ov_t[tag]['brier'])} | {_fv(ov_t[tag]['log_loss'])} | "
-           f"{_fv(ov_v[tag]['roi_b365'],2)} | {_fv(ov_t[tag]['roi_b365'],2)} | "
+           f"{_fv(ov_v[tag]['roi_b365'],2)} | {ov_v[tag]['n_bet_b365']} | "
+           f"{_fv(ov_t[tag]['roi_b365'],2)} | {ov_t[tag]['n_bet_b365']} | "
            f"{_fv(ov_v[tag]['roi_avg'],2)} | {_fv(ov_t[tag]['roi_avg'],2)} |")
+    ap("")
+
+    ap("## Significatività delle differenze (bootstrap appaiato)")
+    ap("")
+    ap(f"{N_BOOT} resample, seed {SEED}, CI percentile 2.5-97.5 "
+       "(convenzione topmix_margins). Stesso resample di righe per entrambe le "
+       "varianti: differenze appaiate. «sig» = l'IC esclude lo 0.")
+    ap("")
+    for split, label in (("val", "VALIDATION 2024/25"), ("test", "TEST 2025/26")):
+        boot = payload["overall"][split]["boot"]
+        ap(f"**{label}** — confronto su Brier / LogLoss / ROI B365 (aggregato 5 leghe):")
+        ap("")
+        ap("| Confronto | Metrica | Delta | CI 2.5% | CI 97.5% | sig |")
+        ap("|---|---|---:|---:|---:|:---:|")
+        for cmp_name, cmp_label in (("ver-static", "VERSIONED − STATIC"),
+                                    ("none-static", "NO_MKT − STATIC")):
+            for kind, kind_label in (("brier", "Brier"), ("log_loss", "LogLoss"),
+                                     ("roi_b365", "ROI B365")):
+                r = boot[cmp_name][kind]
+                ap(f"| {cmp_label} | {kind_label} | {r['delta']:+.4f} | "
+                   f"{r['ci'][0]:+.4f} | {r['ci'][1]:+.4f} | "
+                   f"{'**sì**' if r['significant'] else 'no'} |")
+        ap("")
+    dfc = payload["dfac"]
+    ap(f"Divergenza effettiva fra le fonti: il |fattore versionato − fattore "
+       f"statico| medio per squadra-partita eval è {dfc['mean']} "
+       f"(max {dfc['max']} su {dfc['n_slots']} slot): i valori veri sono cambiati "
+       "rispetto allo statico, ma la formula logaritmica con clip [0.85,1.25] "
+       "comprime la differenza.")
     ap("")
 
     ap("## Lettura")
     ap("")
-    b_static, b_ver = ov_v["static"]["brier"], ov_v["ver"]["brier"]
-    r_static, r_ver = ov_v["static"]["roi_b365"], ov_v["ver"]["roi_b365"]
-    ap(f"Sul validation aggregato il Brier della testa 1X2 passa da "
-       f"{_fv(b_static)} (static) a {_fv(b_ver)} (versioned): "
-       f"{'meglio' if b_ver < b_static else 'peggio'} di "
-       f"{abs(b_ver-b_static):.4f}. Il ROI B365 passa da {_fv(r_static,2)}% a "
-       f"{_fv(r_ver,2)}%. Stessa formula del fattore, stesso walk-forward, "
-       "stesso stato: la differenza isola ESCLUSIVAMENTE la fonte del valore "
-       "di mercato (statico vs point-in-time).")
+    boot_v = payload["overall"]["val"]["boot"]
+    db_v = boot_v["ver-static"]["brier"]
+    dn_v = boot_v["none-static"]["brier"]
+    dr_v = boot_v["ver-static"]["roi_b365"]
+    ap(f"1. **Calibrazione: il point-in-time non cambia nulla di misurabile.** "
+       f"Il Brier aggregato passa da {_fv(ov_v['static']['brier'])} (static) a "
+       f"{_fv(ov_v['ver']['brier'])} (versioned) in validation "
+       f"({db_v['delta']:+.4f}, CI [{db_v['ci'][0]:+.4f};{db_v['ci'][1]:+.4f}], "
+       f"{'significativo' if db_v['significant'] else 'NON significativo'}) e da "
+       f"{_fv(ov_t['static']['brier'])} a {_fv(ov_t['ver']['brier'])} in test. "
+       "Il fattore di produzione comprime qualsiasi valore in [0.85,1.25] "
+       "(media |Δfactor| "
+       f"{payload['dfac']['mean']}): sostituire i valori odierni con quelli "
+       "storici veri sposta le probabilità troppo poco perché il leakage del "
+       "valore di mercato sia la leva che la calibrazione sente.")
+    ap("")
+    ap(f"2. **Il segnale «esiste un valore di mercato» conta, la sua data no.** "
+       f"Rimuovere del tutto il fattore (NO_MKT) peggiora il Brier di "
+       f"{dn_v['delta']:+.4f} in validation "
+       f"(CI [{dn_v['ci'][0]:+.4f};{dn_v['ci'][1]:+.4f}], "
+       f"{'significativo' if dn_v['significant'] else 'NON significativo'}): "
+       "la forza economica delle rose è informazione reale, anche datata e "
+       "grezza. Ma tra «valore di oggi applicato al passato» (static, con "
+       "leakage) e «valore vero della stagione» (versioned) la differenza è "
+       "rumore: la correzione del leakage non era quella che cambiava i numeri.")
+    ap("")
+    ap(f"3. **ROI: nessuna differenza significativa fra le fonti.** In "
+       f"validation il ROI B365 (testa Poisson) va da "
+       f"{_fv(ov_v['static']['roi_b365'],2)}% (static) a "
+       f"{_fv(ov_v['ver']['roi_b365'],2)}% (versioned), delta "
+       f"{dr_v['delta']:+.2f} punti, CI [{dr_v['ci'][0]:+.2f};{dr_v['ci'][1]:+.2f}]: "
+       f"{'fuori dal rumore' if dr_v['significant'] else 'dentro il rumore'}. "
+       "Come nel grid search del peso Elo, differenze di ROI di questo ordine "
+       "su ~1.5k partite/split non sono evidenza di nulla.")
+    ap("")
+    ap("4. **Riscontro della stima di `market_value_comparison.txt`.** La "
+       "vecchia stima (−17,4% → −1,5% su Serie A validation) confrontava il "
+       "Poisson SENZA fattore mercato contro il Poisson CON fattore statico: "
+       "la direzione si conferma (il fattore mercato migliora la selezione "
+       "value bet), ma quell'entità dipendeva dallo stato xG dell'epoca. E la "
+       "parte «versionato» della proposta §5 di `margini_migliorabili_topmix.md` "
+       "non aggiunge nulla di misurabile né in calibrazione né in ROI: il "
+       "guadagno veniva (quando veniva) dall'avere UN fattore mercato, non "
+       "dalla sua data.")
+    ap("")
+    ap("5. **Per il codice di produzione la misura è neutra.** Nessun motivo "
+       "dati-driven di sostituire MARKET_VALUES statico con i CSV versionati "
+       "per il solo 1X2: i numeri non migliorano. Resta valido l'argomento di "
+       "pulizia metodologica (no-leakage per costruzione), che però non è "
+       "ciò che questo audit era chiamato a misurare.")
     ap("")
 
     ap("## Limiti dichiarati")
@@ -589,8 +825,9 @@ def render(payload):
     ap("4. **xG snapshot statico**: limite ereditato dalla pipeline condivisa, "
        "documentato in `clv_pinnacle_report.md`.")
     ap("5. Il CSV campionato copre i roster di 5 leghe x 4 stagioni verificati "
-       "riga per riga; squadre/stagioni mancanti farebbero cadere il fattore a "
-       "1 (fallback contato, mai valori di altre stagioni).")
+       "riga per riga e in queste run il fallback e' 0 su ogni partita eval; "
+       "rimane implementato il fallback a fattore 1 (contato, mai valori di "
+       "altre stagioni) per robustezza a futuri re-upload.")
     ap("")
     return "\n".join(L) + "\n"
 
@@ -631,17 +868,32 @@ def run(data_path=DATA_PATH):
         sub = all_d[all_d["season"] == key]
         payload["overall"][split] = {"metrics": {
             tag: metrics_at(sub, tag) for tag in ("static", "ver", "none")}}
+        payload["overall"][split]["boot"] = _boot_deltas(sub.reset_index(drop=True))
+    payload["dfac"] = {
+        "mean": round(float(pd.concat([all_d["dfac_h"], all_d["dfac_a"]]).mean()), 4),
+        "max": round(float(pd.concat([all_d["dfac_h"], all_d["dfac_a"]]).max()), 4),
+        "n_slots": int(pd.concat([all_d["dfac_h"], all_d["dfac_a"]]).shape[0]),
+    }
     payload["rows"] = all_d
     md = render(payload)
     return payload, md
 
 
 def main():
+    import json
     os.makedirs(OUT_DIR, exist_ok=True)
     payload, md = run()
     with open(OUT_PATH, "w", encoding="utf-8") as fh:
         fh.write(md)
-    print(f"Scritto {OUT_PATH}")
+    detail = {k: v for k, v in payload.items() if k != "rows"}
+    meta2 = dict(detail["meta"])
+    meta2["by_league_season"] = {f"{k[0]} {k[1]}": v
+                                 for k, v in detail["meta"]["by_league_season"].items()}
+    detail["meta"] = meta2
+    json_path = OUT_PATH.replace(".md", "_detail.json")
+    with open(json_path, "w", encoding="utf-8") as fh:
+        json.dump(detail, fh, ensure_ascii=False, indent=1, default=str)
+    print(f"Scritti {OUT_PATH} e {json_path}")
     ov = payload["overall"]["val"]["metrics"]
     print(f"Aggregato V: Brier static {ov['static']['brier']} -> ver "
           f"{ov['ver']['brier']} (none {ov['none']['brier']}) | "
