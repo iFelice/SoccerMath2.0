@@ -195,22 +195,28 @@ def _clip_lambda(x):
     return max(LAM_LO, min(LAM_HI, x))
 
 
-def run_model_with_elo(df, camp_key, xg_data, w=ELO_ENSEMBLE_W):
+def run_model_with_elo(df, camp_key, xg_data, w=ELO_ENSEMBLE_W, emit_seasons=None):
     """Passata cronologica sul df di load_league.
 
-    Per le righe di SEASONS_EVAL emette:
+    Per le righe di ``emit_seasons`` (default None = SEASONS_EVAL, comportamento
+    storico di diagnose_clv_pinnacle) emette:
       * prodn_1/X/2: testa 1X2 PRODUZIONE_DUE_TESTE = NORM-SUM, ramo
         bit-faithful a diagnose_production_baseline.run_models (xG snapshot
         normalizzato con fallback gol, forma ultime 5, fattore mercato,
         normalizzazione della somma S, clip lambda);
       * elo_1/X/2: Elo walk-forward K=24 (rating pre-partita), replica di
         diagnose_elo_ensemble.py -- l'audit che ha validato il blend in produzione;
-      * model_1/X/2: w*prodn + (1-w)*elo, come app.blend_elo_into_1x2.
+      * model_1/X/2: w*prodn + (1-w)*elo, come app.blend_elo_into_1x2;
+      * pos: posizione della riga nel df (per filtri di campione come il
+        cold-start warmup del grid search).
     Lo stato (TeamState, Elo, medie gol) viene aggiornato DOPO la previsione:
-    nessuna partita usa se stessa o partite successive. Le righe fuori da
-    TRAIN/eval (Live) aggiornano lo stato senza produrre output, identico a
-    run_models.
+    nessuna partita usa se stessa o partite successive, per QUALSIASI valore di
+    emit_seasons: emettere predizioni su altre stagioni non cambia la traiettoria
+    dello stato (verificato dal test di consistenza di grid_search_ensemble_weight).
+    Le righe fuori da emit_seasons (es. Live) aggiornano lo stato senza produrre
+    output, identico a run_models.
     """
+    emit = set(SEASONS_EVAL) if emit_seasons is None else set(emit_seasons)
     home_adv = LEAGUE_HOME_ADVANTAGE.get(camp_key, 60.0)
     xg_att, xg_def = {}, {}
     if xg_data and len(xg_data) >= 10:
@@ -226,13 +232,14 @@ def run_model_with_elo(df, camp_key, xg_data, w=ELO_ENSEMBLE_W):
     elo = {}
     tot_hg = tot_ag = tot_n = 0.0
     rows = []
+    pos = -1
 
     def get(t):
         if t not in state:
             state[t] = TeamState()
         return state[t]
 
-    for _, row in df.iterrows():
+    for pos, (_, row) in enumerate(df.iterrows()):
         fthg, ftag = int(row.FTHG), int(row.FTAG)
         ftr = str(row.FTR).strip().upper()
         h, a = row.HomeClean, row.AwayClean
@@ -242,7 +249,7 @@ def run_model_with_elo(df, camp_key, xg_data, w=ELO_ENSEMBLE_W):
         r_h = elo.get(h, ELO_INITIAL)
         r_a = elo.get(a, ELO_INITIAL)
 
-        if row.season in SEASONS_EVAL:
+        if row.season in emit:
             # --- forma ultime 5 (identica a run_models) ---
             def form_fac(ts):
                 if len(ts.last5) < 3:
@@ -294,7 +301,8 @@ def run_model_with_elo(df, camp_key, xg_data, w=ELO_ENSEMBLE_W):
 
             e1, eX, e2 = elo_probs(r_h, r_a, home_adv)
             rows.append({
-                "date": row.Date, "season": row.season, "home": h, "away": a,
+                "pos": pos, "date": row.Date, "season": row.season,
+                "home": h, "away": a,
                 "real_1x2": {"H": "1", "D": "X", "A": "2"}.get(ftr, "X"),
                 "prodn_1": m_prodn["1"], "prodn_X": m_prodn["X"], "prodn_2": m_prodn["2"],
                 "elo_1": e1, "elo_X": eX, "elo_2": e2,

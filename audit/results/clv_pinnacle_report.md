@@ -1,6 +1,6 @@
 # CLV vs Pinnacle — mercato 1X2 (audit sola lettura)
 
-*Generato: 2026-09-10T22:45:04.110687+00:00 — script `audit/diagnose_clv_pinnacle.py`, nessuna modifica a SoccerMath/.*
+*Generato: 2026-09-11T22:22:40.930902+00:00 — script `audit/diagnose_clv_pinnacle.py`, nessuna modifica a SoccerMath/.*
 
 Split walk-forward identico agli altri audit: train 2022/23+2023/24, validation (V) 2024/25, test (T) 2025/26. Il Live 2026/27 resta fuori dall'eval (nessuna quota Pinnacle comunque).
 
