@@ -572,10 +572,14 @@ class TestParitaCasiLimite(unittest.TestCase):
                 self.assertEqual(n["top"][0]["prob"], n["top"][0]["poisson"] / 100.0)
 
     def test_veto_a_discrepanza_esatta(self):
-        """|P-E| == 0.25 NON e' ammesso (< stretto), 0.2499999 si': confine movente."""
+        """|P-E| == 0.25 NON e' ammesso (< stretto), 0.2499999 si': confine movente.
+
+        Vettori a 0.80 (prima 0.70): con ELO_ENSEMBLE_W=0.25 la confidence a
+        0.70 cadrebbe sotto 0.55 e il confine verrebbe deciso dalla soglia di
+        ammissibilita', non dal veto (adattato al porting w=0.25, 2026-09-12)."""
         for delta, atteso in ((0.25, 0), (0.2499999, 1)):
-            m = {"1": 0.70, "X": 0.15, "2": 0.15, "u25": 0.50, "gg": 0.50}
-            n = self.assert_parita(m, {"1": 0.70 - delta, "X": 0.15, "2": 0.15})
+            m = {"1": 0.80, "X": 0.10, "2": 0.10, "u25": 0.50, "gg": 0.50}
+            n = self.assert_parita(m, {"1": 0.80 - delta, "X": 0.10, "2": 0.10})
             self.assertEqual(atteso, len(n["top"]), (delta, n))
 
     def test_elo_assente_rialza_la_soglia_a_0_60_anche_per_il_1x2(self):

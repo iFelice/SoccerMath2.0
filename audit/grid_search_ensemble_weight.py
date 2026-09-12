@@ -59,8 +59,12 @@ import diagnose_clv_pinnacle as CLV                                    # noqa: E
 OUT_DIR = os.path.join(_AUDIT_DIR, "results")
 OUT_PATH = os.path.join(OUT_DIR, "ensemble_weight_grid_search.md")
 
-GRID_W = tuple(round(0.1 * i, 1) for i in range(11))   # 0.0 .. 1.0
-W_PROD = CLV.ELO_ENSEMBLE_W                            # 0.6, app.ELO_ENSEMBLE_W
+# griglia 0.0..1.0 a step 0.1 + SEMPRE il peso di produzione corrente (dal
+# porting 2026-09-12 W_PROD = 0.25, che non cade sulla griglia: senza di lui
+# boot_stats(w_ref=W_PROD) andrebbe in errore sui futuri re-run)
+GRID_W = tuple(sorted(set(round(0.1 * i, 1) for i in range(11))
+                      | {round(CLV.ELO_ENSEMBLE_W, 4)}))
+W_PROD = CLV.ELO_ENSEMBLE_W                            # app.ELO_ENSEMBLE_W
 TRAIN_SEASONS = ("2022/23", "2023/24")
 TRAIN_WARMUP = 60        # righe iniziali per lega escluse dal SOLO campione train
 STAKE = 10.0             # puntata fissa, come backtest_experiment_all.STAKE

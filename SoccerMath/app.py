@@ -579,7 +579,7 @@ def _league_mean_gate(xg_data):
 # L'ensemble tocca SOLO le probabilita' 1X2 finali: stats del motore
 # (att/def/att0/def0/att0_pure/def0_pure), Totali (O/U, GG/NG) e la
 # funzione get_full_poisson_two_heads restano bit-identici.
-ELO_ENSEMBLE_W = 0.6
+ELO_ENSEMBLE_W = 0.25
 
 
 def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W):

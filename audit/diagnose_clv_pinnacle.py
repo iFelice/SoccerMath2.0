@@ -14,8 +14,9 @@ Pipeline del modello (stessa degli altri audit):
     cioe' la testa 1X2 di PRODUZIONE_NORM_SUM (xG snapshot + forma ultime 5 +
     fattore mercato, lambda normalizzati alla somma base S, clip [exp(-6),exp(3)]);
   * ensemble Poisson+Elo "opzione b gia' in produzione": 1X2 finale =
-    w*Poisson + (1-w)*Elo con w = app.ELO_ENSEMBLE_W (0.6, validato in
-    audit/diagnose_elo_ensemble.py, applicato in app.blend_elo_into_1x2);
+    w*Poisson + (1-w)*Elo con w = app.ELO_ENSEMBLE_W (0.25 dal porting del
+    2026-09-12, prima 0.6; validato in audit/diagnose_elo_ensemble.py e in
+    ensemble_weight_grid_search.md, applicato in app.blend_elo_into_1x2);
     l'Elo walk-forward e' la replica K=24 di diagnose_elo_ensemble.py
     (rating da 1500, home advantage per lega, aggiornamento DOPO la previsione:
     nessuna partita usa se stessa o partite successive).
@@ -82,7 +83,8 @@ OUT_PATH = os.path.join(OUT_DIR, "clv_pinnacle_report.md")
 
 ELO_K = 24.0                # ELO_K di diagnose_elo_ensemble.py (replica del motore)
 ELO_INITIAL = 1500.0        # DEFAULT_INITIAL_RATING di models/elo_engine.py
-ELO_ENSEMBLE_W = 0.6        # app.ELO_ENSEMBLE_W (blend in produzione; test di uguaglianza)
+ELO_ENSEMBLE_W = 0.25       # app.ELO_ENSEMBLE_W (porting 2026-09-12, prima 0.6;
+                            # test di uguaglianza con app)
 STAKE = 10.0                # puntata fissa, come backtest_experiment_all.STAKE
 EDGE_MIN = 0.0              # convenzione backtest_experiment_all.EDGE_MIN
 
@@ -603,7 +605,7 @@ def render_markdown(payload):
     ap("- **Modello**: testa 1X2 PRODUZIONE_DUE_TESTE (NORM-SUM: xG snapshot + forma "
        "ultime 5 + fattore mercato, lambda normalizzati alla somma base S, clip "
        "[exp(-6), exp(3)]) con ensemble Elo **opzione b gia' in produzione**: "
-       "1X2 = 0.6*Poisson + 0.4*Elo (`app.ELO_ENSEMBLE_W`, validato in "
+       "1X2 = " + f"{ELO_ENSEMBLE_W}*Poisson + {round(1 - ELO_ENSEMBLE_W, 2)}*Elo" + " (`app.ELO_ENSEMBLE_W`, validato in "
        "`diagnose_elo_ensemble.py`, applicato in `app.blend_elo_into_1x2`). Elo "
        "walk-forward K=24 replica di `diagnose_elo_ensemble.py`, aggiornato DOPO "
        "ogni previsione: nessuna partita usa se stessa o il futuro. Il ramo "

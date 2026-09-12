@@ -233,28 +233,30 @@ class TestMirrorCasiNoti(unittest.TestCase):
     def test_veto_esatto_0_25_la_penalita_dimezza(self):
         # Stessa costruzione di test_veto_a_discrepanza_esatta (delta = 0.25,
         # elo = m["1"] - 0.25): il selettore REALE scarta (0.25 non e' < 0.25);
-        # l'ombra dimezza invece di azzerare.
-        m = _vettore_1x2(0.70)
+        # l'ombra dimezza invece di azzerare. Vettore a 0.80 (prima 0.70):
+        # con ELO_ENSEMBLE_W=0.25 la confidence a 0.70 resterebbe sotto 0.55 e
+        # il confine lo deciderrebbe la soglia, non il veto (porting 2026-09-12).
+        m = _vettore_1x2(0.80)
         elo = {"1": m["1"] - 0.25, "X": 0.15, "2": 0.15}
         self.assertIsNone(SELEZIONA(m, elo, True, "Casa", "Trasferta"))
         r = MIRROR(m, elo, True, "Casa", "Trasferta")
         self.assertIsNotNone(r)
         self.assertEqual(r["market"], "Vittoria Casa")
-        self.assertAlmostEqual(r["prob"], 0.60, places=12)       # 0.6*0.70+0.4*0.45
+        self.assertAlmostEqual(r["prob"], 0.6125, places=12)   # 0.25*0.80+0.75*0.55
         self.assertAlmostEqual(r["disaccordo"], 0.25, places=12)
-        self.assertAlmostEqual(r["conf_shadow"], 0.30, places=9)  # dimezzata
+        self.assertAlmostEqual(r["conf_shadow"], 0.30625, places=9)  # dimezzata
         self.assertFalse(r["ammessa_shadow"])
         self.assertTrue(r["gate_avrebbe_scartato"])
         self.assertEqual(r["min_conf"], 0.55)
-        # Secondo segnale: nessuno sconto, quindi ammette (conf 0.60 >= 0.55).
+        # Secondo segnale: nessuno sconto, quindi ammette (conf 0.6125 >= 0.55).
         self.assertEqual(r["conf_off"], r["prob"])
         self.assertTrue(r["ammessa_off"])
 
     def test_appena_sotto_il_veto_il_selettore_ammette_l_ombra_no(self):
         # delta = 0.2499999: oggi la riga si GIOCA; sotto il solo filtro ombra
         # (conf_shadow >= 0.55) no -> e' il segnale "fragile" del referto.
-        m = _vettore_1x2(0.70)
-        elo = {"1": 0.4500001, "X": 0.15, "2": 0.15}
+        m = _vettore_1x2(0.80)                    # 0.80: conf sopra soglia a w=0.25
+        elo = {"1": 0.5500001, "X": 0.15, "2": 0.15}
         riga_reale = SELEZIONA(m, elo, True, "Casa", "Trasferta")
         self.assertIsNotNone(riga_reale, "il caso deve essere ammesso dal selettore reale")
         r = MIRROR(m, elo, True, "Casa", "Trasferta")
@@ -274,11 +276,12 @@ class TestMirrorCasiNoti(unittest.TestCase):
         self.assertTrue(r["ammessa_shadow"])
 
     def test_disaccordo_moderato_ad_alta_conf_resta_ammessa(self):
-        # d = 0.02, conf = 0.942: il consenso quasi pieno passa anche l'ombra.
+        # d = 0.02, conf = 0.935 = 0.25*0.95+0.75*0.93: il consenso quasi
+        # pieno passa anche l'ombra.
         m = _vettore_1x2(0.95)
         elo = {"1": 0.93, "X": 0.04, "2": 0.03}
         r = MIRROR(m, elo, True, "Casa", "Trasferta")
-        self.assertAlmostEqual(r["conf_shadow"], 0.942 * 0.25 / 0.27, places=6)
+        self.assertAlmostEqual(r["conf_shadow"], 0.935 * 0.25 / 0.27, places=6)
         self.assertTrue(r["ammessa_shadow"])
 
     def test_totali_non_toccati_dalla_penalita(self):
@@ -313,12 +316,13 @@ class TestMirrorCasiNoti(unittest.TestCase):
             self.assertFalse(r_low["ammessa_shadow"])
 
     def test_sotto_soglia_reale_l_ombra_non_inventa_ammissioni(self):
-        # Poisson 0.60, Elo 0.40 -> conf 0.52 < 0.55: bocciata da entrambi.
+        # Poisson 0.60, Elo 0.40 -> conf 0.45 = 0.25*0.60+0.75*0.40 < 0.55:
+        # bocciata da entrambi.
         m = _vettore_1x2(0.60, pX=0.15, p2=0.25)
         elo = {"1": 0.40, "X": 0.15, "2": 0.45}
         r = MIRROR(m, elo, True, "Casa", "Trasferta")
         self.assertIsNotNone(r)          # il mirror NON scarta mai
-        self.assertAlmostEqual(r["prob"], 0.52, places=12)
+        self.assertAlmostEqual(r["prob"], 0.45, places=12)
         self.assertLess(r["conf_shadow"], r["prob"])
         self.assertFalse(r["ammessa_shadow"])
 

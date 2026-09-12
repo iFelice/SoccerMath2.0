@@ -1,11 +1,14 @@
 """
 test_elo_ensemble_1x2.py — Test di regressione PERMANENTE dell'ensemble
-Poisson+Elo sulla testa 1X2 (leva validata in audit/diagnose_elo_ensemble.py:
-Brier 1X2 0.5893 -> 0.5830 con w=0.6, walk-forward no-leakage 5 leghe
-VALIDATION 2024/25 + TEST 2025/26).
+Poisson+Elo sulla testa 1X2 (leva validata in audit/diagnose_elo_ensemble.py
+e confermata per lega in audit/results/ensemble_weight_grid_search.md,
+sezione "Conferma cambio produzione" 2026-09-12: Brier 1X2 con w=0.25
+0.6076 -> 0.5918 in VALIDATION 2024/25 e 0.6051 -> 0.5917 in TEST 2025/26,
+delta appaiati distinguibili su entrambi gli split, walk-forward no-leakage
+5 leghe).
 
 SCOPO DELL'ENSEMBLE (fissato dopo audit/results/ensemble_scope_analisi_rapida.md):
-il blend 0.6*Poisson + 0.4*Elo CALIBRA MEGLIO le probabilita' 1X2 mostrate,
+il blend 0.25*Poisson + 0.75*Elo CALIBRA MEGLIO le probabilita' 1X2 mostrate,
 ma NON deve entrare nell'argmax di selezione dei mercati: usato dentro
 l'argmax sposta sistematicamente le scelte verso Over/NG e peggiora
 hit rate/ROI. Percio' in produzione:
@@ -82,14 +85,15 @@ ELO_SAMPLE = {"1": 0.5431, "X": 0.2387, "2": 0.2182}
 class TestBlendEloInto1x2Formula(unittest.TestCase):
     """Contratto matematico dell'ensemble, Elo controllato via mock."""
 
-    def test_blend_esatto_w_0_6(self):
+    def test_blend_esatto_w_0_25(self):
         with mock.patch.object(prod_app, "predict_elo_probs",
                                return_value=dict(ELO_SAMPLE)):
             out = prod_app.blend_elo_into_1x2(dict(POISSON_SAMPLE),
                                               "Home", "Away", "Serie A")
         w = prod_app.ELO_ENSEMBLE_W
-        self.assertEqual(w, 0.6,
-                         "il peso dell'ensemble deve restare 0.6 (audit)")
+        self.assertEqual(w, 0.25,
+                         "il peso dell'ensemble deve restare 0.25 "
+                         "(conferma 2026-09-12 in ensemble_weight_grid_search.md)")
         for k in KEYS_1X2:
             self.assertAlmostEqual(
                 out[k], w * POISSON_SAMPLE[k] + (1 - w) * ELO_SAMPLE[k],
