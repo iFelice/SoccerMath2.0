@@ -95,15 +95,16 @@ class TestProductionConstants(unittest.TestCase):
         self.assertIn(
             "confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob",
             src)
-        # semantica del peso: 0.6 Poisson / 0.4 Elo (audit elo_ensemble)
-        self.assertEqual(POISSON_WEIGHT, 0.6)
+        # semantica del peso: 0.25 Poisson / 0.75 Elo (porting 2026-09-12,
+        # conferma in audit/results/ensemble_weight_grid_search.md)
+        self.assertEqual(POISSON_WEIGHT, 0.25)
         # 0.60 nel file; ast.unparse lo rende 0.6
         self.assertTrue("min_conf = 0.60" in src or "min_conf = 0.6" in src)
         self.assertIn("min_conf = 0.55", src)
         self.assertIn("abs(poisson_prob - elo_prob) < 0.25", src)
         self.assertIn("[:10]", src)
-        self.assertEqual(POISSON_WEIGHT, 0.6)
-        self.assertEqual(ELO_WEIGHT, 0.4)
+        self.assertEqual(POISSON_WEIGHT, 0.25)
+        self.assertEqual(ELO_WEIGHT, 0.75)
         self.assertEqual(MIN_CONF_OU_GG, 0.60)
         self.assertEqual(MIN_CONF_1X2, 0.55)
         self.assertEqual(ELO_DISAGREE_MAX, 0.25)

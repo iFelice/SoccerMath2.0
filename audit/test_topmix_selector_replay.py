@@ -211,8 +211,8 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(R.MIN_CONF_1X2, 0.55)
         self.assertEqual(R.MIN_CONF_OU_GG, 0.60)
         self.assertEqual(R.ELO_DISAGREE_MAX, 0.25)
-        self.assertEqual(R.POISSON_WEIGHT, 0.6)
-        self.assertEqual(R.ELO_WEIGHT, 0.4)
+        self.assertEqual(R.POISSON_WEIGHT, 0.25)   # porting 2026-09-12 (da 0.6)
+        self.assertEqual(R.ELO_WEIGHT, 0.75)
         src = open(os.path.join(_AUDIT_DIR, "topmix_selector_replay.py"),
                    encoding="utf-8").read()
         for forbidden in ("0.55", "0.60", "0.25", "= 0.6", "= 0.4"):
