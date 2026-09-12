@@ -85,3 +85,66 @@ La conferma e' **positiva e distinguishibile**: su validation il w* di train 0.2
 3. **ROI con edge>0 su un solo book per scommessa**: convenzione dei backtest del repo, non una strategia consigliata; il volume di scommesse a w estremi (0.0/1.0) puo' variare molto e i ROI estremi hanno CI ampie.
 4. La griglia e' discreta a step 0.1 su un solo dataset: anche un w* distinguibile su train va letto come indicazione di direzione, non come valore ottimo da impiantare (stessa lezione dell'audit rho Dixon-Coles).
 
+
+<!-- conferma-w025:start -->
+## Conferma cambio produzione: ELO_ENSEMBLE_W 0.6 -> 0.25 (2026-09-12T09:21:46+00:00)
+
+Audit di conferma SOLA LETTURA riusando la pipeline di questo report (walker condiviso, stesse righe, stesse quote, stesso bootstrap): griglia ridotta ai due pesi (0.25 candidato vs 0.6 attuale), delta appaiati 2000 resample, seed 20260905, CI percentile 2.5-97.5 (`_ci` di `topmix_margins`), convenzioni identiche alle sezioni sopra. Stesso dettaglio per lega di `production_baseline_comparison.md`; l'aggregato è in coda.
+
+### VALIDATION 2024/25
+
+| Campione | n | Brier 0.6 | Brier 0.25 | Δ Brier (CI) | sig | LogLoss 0.6 | LogLoss 0.25 | Δ LogLoss (CI) | sig |
+|---|---:|---:|---:|---:|:---:|---:|---:|---:|:---:|
+| Serie A | 380 | 0.6151 | 0.5935 | -0.0216 [-0.0353;-0.0079] | **sì** | 1.0186 | 0.9941 | -0.0245 [-0.0451;-0.0036] | **sì** |
+| Premier League | 380 | 0.6043 | 0.5908 | -0.0134 [-0.0258;-0.0013] | **sì** | 1.0108 | 0.9921 | -0.0188 [-0.0368;-0.0010] | **sì** |
+| La Liga | 380 | 0.5918 | 0.5805 | -0.0113 [-0.0219;-0.0011] | **sì** | 0.9923 | 0.9768 | -0.0155 [-0.0325;+0.0009] | no |
+| Bundesliga | 306 | 0.6213 | 0.6114 | -0.0099 [-0.0263;+0.0062] | no | 1.0448 | 1.0238 | -0.0210 [-0.0481;+0.0047] | no |
+| Ligue 1 | 306 | 0.6084 | 0.5852 | -0.0232 [-0.0362;-0.0097] | **sì** | 1.0156 | 0.9836 | -0.0320 [-0.0511;-0.0116] | **sì** |
+| AGGREGATO | 1752 | 0.6076 | 0.5918 | -0.0158 [-0.0217;-0.0099] | **sì** | 1.0153 | 0.9933 | -0.0220 [-0.0306;-0.0129] | **sì** |
+
+ROI a puntata fissa (edge>0, stesso book per scommessa; CI own bootstrap, niente delta appaiato: le selezioni dei due pesi differiscono, denominatori non confrontabili 1:1):
+
+| Campione | n bet B365 0.6 | ROI B365 0.6 (CI) | n bet B365 0.25 | ROI B365 0.25 (CI) | n bet Avg 0.6 | ROI Avg 0.6 | n bet Avg 0.25 | ROI Avg 0.25 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Serie A | 380 | -5.59 [-19.50;+7.47] | 380 | -26.56 [-39.99;-13.10] | 380 | -4.58 | 380 | -30.88 |
+| Premier League | 380 | -5.03 [-20.04;+11.49] | 380 | -11.53 [-27.51;+5.55] | 380 | -6.52 | 380 | -16.21 |
+| La Liga | 380 | -8.17 [-22.01;+6.38] | 380 | -10.98 [-28.02;+7.90] | 380 | -5.29 | 380 | -9.71 |
+| Bundesliga | 306 | 12.18 [-4.32;+28.15] | 306 | -13.12 [-28.34;+2.47] | 306 | 13.25 | 306 | -10.33 |
+| Ligue 1 | 306 | -3.11 [-20.79;+15.24] | 306 | -9.11 [-27.85;+9.20] | 306 | -4.64 | 306 | -9.37 |
+| AGGREGATO | 1752 | -2.49 [-9.11;+4.56] | 1752 | -14.53 [-22.18;-7.03] | 1752 | -2.05 | 1752 | -15.76 |
+
+### TEST 2025/26
+
+| Campione | n | Brier 0.6 | Brier 0.25 | Δ Brier (CI) | sig | LogLoss 0.6 | LogLoss 0.25 | Δ LogLoss (CI) | sig |
+|---|---:|---:|---:|---:|:---:|---:|---:|---:|:---:|
+| Serie A | 380 | 0.5959 | 0.5901 | -0.0058 [-0.0187;+0.0074] | no | 0.9985 | 0.9905 | -0.0080 [-0.0292;+0.0127] | no |
+| Premier League | 380 | 0.6222 | 0.6123 | -0.0099 [-0.0223;+0.0020] | no | 1.0316 | 1.0206 | -0.0110 [-0.0289;+0.0062] | no |
+| La Liga | 380 | 0.5981 | 0.5836 | -0.0146 [-0.0251;-0.0042] | **sì** | 1.0041 | 0.9817 | -0.0224 [-0.0395;-0.0056] | **sì** |
+| Bundesliga | 306 | 0.6020 | 0.5780 | -0.0240 [-0.0394;-0.0081] | **sì** | 1.0119 | 0.9766 | -0.0353 [-0.0590;-0.0110] | **sì** |
+| Ligue 1 | 306 | 0.6070 | 0.5918 | -0.0151 [-0.0295;-0.0009] | **sì** | 1.0124 | 0.9926 | -0.0198 [-0.0407;+0.0007] | no |
+| AGGREGATO | 1752 | 0.6051 | 0.5917 | -0.0134 [-0.0192;-0.0076] | **sì** | 1.0117 | 0.9930 | -0.0186 [-0.0276;-0.0099] | **sì** |
+
+ROI a puntata fissa (edge>0, stesso book per scommessa; CI own bootstrap, niente delta appaiato: le selezioni dei due pesi differiscono, denominatori non confrontabili 1:1):
+
+| Campione | n bet B365 0.6 | ROI B365 0.6 (CI) | n bet B365 0.25 | ROI B365 0.25 (CI) | n bet Avg 0.6 | ROI Avg 0.6 | n bet Avg 0.25 | ROI Avg 0.25 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Serie A | 380 | 9.58 [-5.57;+25.36] | 380 | 2.98 [-13.29;+20.74] | 380 | 9.23 | 380 | 2.41 |
+| Premier League | 380 | 1.01 [-12.68;+15.31] | 380 | 3.44 [-11.24;+19.99] | 380 | -0.31 | 380 | 0.11 |
+| La Liga | 380 | -6.32 [-19.71;+7.47] | 380 | -7.90 [-21.97;+7.47] | 380 | -7.97 | 380 | -11.63 |
+| Bundesliga | 306 | -1.79 [-16.12;+13.55] | 306 | -12.20 [-26.52;+3.36] | 306 | -3.68 | 306 | -5.53 |
+| Ligue 1 | 306 | -8.01 [-24.04;+9.34] | 306 | -0.25 [-18.30;+18.91] | 306 | -6.95 | 306 | -1.28 |
+| AGGREGATO | 1752 | -0.79 [-7.35;+6.08] | 1752 | -2.50 [-9.50;+4.81] | 1752 | -1.65 | 1752 | -3.16 |
+
+### Verdetto di conferma
+
+**Calibrazione (Brier): il miglioramento a w=0.25 è distinguibile (CI senza zero) in ENTRAMBI validation e test in AGGREGATO: V -0.0158 [-0.0217;-0.0099], T -0.0134 [-0.0192;-0.0076]. LogLoss aggregato: V -0.0220 [-0.0306;-0.0129], T -0.0186 [-0.0276;-0.0099].**
+
+Per lega (Brier, distinguibile in ENTRAMBI gli split): Serie A no, Premier League no, La Liga sì, Bundesliga no, Ligue 1 sì. Direzione: 10/10 delta per-(lega,split) negativi (nessuna eccezione al segno).
+
+Significatività per lega: Brier distinguibile in 4/5 leghe in validation e 3/5 in test; nessuna cella (lega, split) mostra un PEGGIORAMENTO distinguibile.
+
+La conferma richiesta per il cambio di produzione è SODDISFATTA sul piano della calibrazione: significativo su entrambi gli split in aggregato, direzione coerente in ogni lega e split, mai un peggioramento significativo per lega. Le leghe singole non sempre raggiungono la significatività da sole (306-380 partite a cella: potere statistico limitato), ma non c'e' nessuna lega che si comporti diversamente dalle altre.
+
+Promemoria del report grid (vale qui): calibrazione ≠ redditività — il peso più basso scommessa di più e con ROI storico peggiore; questa sezione misura, la decisione resta al porting.
+
+<!-- conferma-w025:end -->
