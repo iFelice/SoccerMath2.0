@@ -570,12 +570,14 @@ def _league_mean_gate(xg_data):
 
 
 # --- ENSEMBLE POISSON+ELO SULL'1X2 (leva validata in audit) ---
-# Peso della componente Poisson nell'ensemble 1X2. Scelto in
+# Peso della componente Poisson nell'ensemble 1X2. Scelto inizialmente in
 # audit/diagnose_elo_ensemble.py (walk-forward no-leakage, 5 leghe,
 # VALIDATION 2024/25 + TEST 2025/26): Brier 1X2 0.5893 (solo Poisson) ->
-# 0.5830 con w=0.6, migliore tra tutti i pesi testati e mai peggiore del
-# solo Poisson in TEST. Lo stesso blend 0.6/0.4 era gia' usato come
-# confidence del Top Mix; da qui in avanti e' la probabilita' 1X2 mostrata.
+# 0.5830 con w=0.6, migliore tra tutti i pesi testati in quel giro e mai
+# peggiore del solo Poisson in TEST. Superato da un grid search successivo
+# (audit/grid_search_ensemble_weight.py): Brier(w) e' quadratico, minimo
+# esatto w*=0.239 -> arrotondato a ELO_ENSEMBLE_W=0.25 (valore live oggi,
+# vedi sotto), che migliora la calibrazione ulteriormente rispetto a w=0.6.
 # L'ensemble tocca SOLO le probabilita' 1X2 finali: stats del motore
 # (att/def/att0/def0/att0_pure/def0_pure), Totali (O/U, GG/NG) e la
 # funzione get_full_poisson_two_heads restano bit-identici.
@@ -1513,8 +1515,9 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             mercati = {f"Vittoria {h}": m["1"], "Pareggio": m["X"], f"Vittoria {a}": m["2"], "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"], "GG": m["gg"], "NG": 1 - m["gg"]}
             best_mkt = max(mercati, key=mercati.get)
             # Probabilita' salvata: SOLO se il mercato scelto e' 1X2 si usa la
-            # probabilita' blendata 0.6*Poisson+0.4*Elo (calibrazione validata
-            # in audit/diagnose_elo_ensemble.py); i Totali restano Poisson puro.
+            # probabilita' blendata ELO_ENSEMBLE_W*Poisson+(1-ELO_ENSEMBLE_W)*Elo
+            # (oggi 0.25/0.75, vedi grid_search_ensemble_weight.py); i Totali
+            # restano Poisson puro.
             # Se l'Elo non e' disponibile blend_elo_into_1x2 ritorna il Poisson
             # puro bit-identico.
             m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
