@@ -1,0 +1,211 @@
+name: Verifica PPDA/deep/giocatore (sola lettura)
+
+# MODALITA' VERIFICA dei due archivi NUOVI (PPDA/deep completions per squadra
+# per partita, statistiche giocatore per partita): acquisizione REALE delle 5
+# leghe da Understat, validazione, confronto con i dati committati, audit di
+# copertura e generazione del rapporto di fattibilita'.
+#
+# Che cosa NON fa, per costruzione:
+#   * nessun commit e nessun push (permissions: contents: read);
+#   * non scrive dentro SoccerMath/database ne' in audit/results: l'output va in
+#     una cartella di lavoro non versionata (ppda-player-out/) e uno step finale
+#     verifica che i file committati siano rimasti identici;
+#   * non tocca app.py, config.py o models/: i due archivi non sono letti dal
+#     motore Poisson/Elo (nessun collegamento in questa fase);
+#   * nessun segreto (nessun JSONBin, nessuna API key).
+#
+# Il rapporto (`ppda_deep_player_feasibility.md`) viene generato dallo script di
+# audit sui dati appena scaricati e pubblicato come artifact: il markdown
+# prodotto e' il referto da committare in audit/results/.
+#
+# Costo dichiarato: `read_player_match_stats()` e' 1 richiesta HTTP per partita
+# (~7.000 partite sull'intero perimetro), mentre PPDA/deep sono 1 payload di
+# lega per lega: per questo il job ha un timeout ampio e il parallelismo e'
+# regolabile (soccerdata non applica nessun rate limit a Understat).
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Stagioni soccerdata per PPDA/deep (formato 2627), separate da spazio"
+        required: false
+        default: "2223 2324 2425 2526 2627"
+      player_seasons:
+        description: "Stagioni per le statistiche giocatore (vuoto = come sopra)"
+        required: false
+        default: ""
+      sample_matches_per_league:
+        description: "Solo le N partite piu' recenti per lega (vuoto = perimetro intero)"
+        required: false
+        default: ""
+      parallel_leagues:
+        description: "Leghe acquisite in parallelo"
+        required: false
+        default: "2"
+      missing_tolerance_ratio:
+        description: "Frazione ammessa di partite NON di frontiera senza dati (default 0)"
+        required: false
+        default: "0"
+  # Un workflow presente solo su un branch non di default NON e' avviabile da
+  # workflow_dispatch: il push su arena/** garantisce comunque una esecuzione
+  # reale su questo branch.
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - '.github/workflows/ppda_player_verify.yml'
+      - 'update_all_ppda_player_db.py'
+      - 'SoccerMath/match_stats_archive.py'
+      - 'SoccerMath/test_match_stats_pipeline.py'
+      - 'SoccerMath/xg_archive.py'
+      - 'SoccerMath/team_names.py'
+      - 'SoccerMath/team_aliases.py'
+      - 'audit/ppda_deep_player_audit.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ppda-player-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    # 1 richiesta per partita sulle statistiche giocatore: il job e' lungo per
+    # costruzione (misurato e riportato nel referto).
+    timeout-minutes: 240
+
+    env:
+      # cartella di lavoro non versionata: la verifica non scrive mai dentro
+      # SoccerMath/database ne' in audit/results
+      VERIFY_DIR: ${{ github.workspace }}/ppda-player-out
+      PLAYER_SEASONS: ${{ github.event.inputs.player_seasons || '' }}
+      SAMPLE_MATCHES: ${{ github.event.inputs.sample_matches_per_league || '' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Versione dichiarata e verificata: le colonne di read_team_match_stats()
+      # e read_player_match_stats() sono state controllate su questa release.
+      - name: Installazione dipendenze (soccerdata pinnato)
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'soccerdata==1.9.1' pandas pytest
+          python - <<'PY'
+          from importlib.metadata import version
+          print("soccerdata installato:", version("soccerdata"))
+          PY
+
+      - name: Prepara le cartelle temporanee
+        run: mkdir -p "$VERIFY_DIR/database" "$VERIFY_DIR/reports" "$VERIFY_DIR/cache"
+
+      - name: Test offline della pipeline (nessuna rete)
+        run: |
+          python -m pytest SoccerMath/test_match_stats_pipeline.py \
+                           SoccerMath/test_xg_pipeline.py -q --tb=short
+
+      # 1. Acquisizione REALE. L'output va nella cartella temporanea, ma il
+      #    confronto partita-per-partita usa i dati committati (--baseline-dir):
+      #    se non esiste ancora una baseline, il report lo dichiara ("primo
+      #    snapshot") e il confronto si attiva dal secondo snapshot in poi.
+      #    Exit code != 0 se una lega fallisce: nessun file parziale.
+      - name: Acquisizione reale (Understat, 5 leghe)
+        id: acquisizione
+        run: |
+          python update_all_ppda_player_db.py \
+            --seasons ${{ github.event.inputs.seasons || '2223 2324 2425 2526 2627' }} \
+            ${PLAYER_SEASONS:+--player-seasons $PLAYER_SEASONS} \
+            ${SAMPLE_MATCHES:+--sample-matches-per-league $SAMPLE_MATCHES} \
+            --parallel-leagues ${{ github.event.inputs.parallel_leagues || '2' }} \
+            --retries 2 \
+            --frontier-days 1 \
+            --missing-tolerance-ratio ${{ github.event.inputs.missing_tolerance_ratio || '0' }} \
+            --output-dir "$VERIFY_DIR/database" \
+            --baseline-dir SoccerMath/database \
+            --cache-dir "$VERIFY_DIR/cache" \
+            --report "$VERIFY_DIR/reports/acquisizione.json"
+
+      # 2. Audit e rapporto di fattibilita': gira SEMPRE (anche se
+      #    l'acquisizione fallisce) cosi' il referto dichiara il motivo del
+      #    fallimento invece di sparire. Nessun collegamento al motore.
+      - name: Audit di copertura e qualita' dato
+        if: always()
+        run: |
+          python audit/ppda_deep_player_audit.py \
+            --database-dir "$VERIFY_DIR/database" \
+            --xg-dir SoccerMath/database \
+            --acquisition-report "$VERIFY_DIR/reports/acquisizione.json" \
+            --results-dir "$VERIFY_DIR/reports" \
+            --run-url "$RUN_URL" \
+            --run-id "${{ github.run_id }}"
+
+      - name: Riepilogo nel summary del run
+        if: always()
+        run: |
+          {
+            echo "## Verifica PPDA/deep/giocatore (sola lettura)"
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo "### Acquisizione (estratto)"
+            echo '```json'
+            python - <<'PY'
+          import json, os
+          path = os.path.join(os.environ["VERIFY_DIR"], "reports", "acquisizione.json")
+          if not os.path.exists(path):
+              print("(report di acquisizione assente)")
+          else:
+              data = json.load(open(path, encoding="utf-8"))
+              for outcome in data.get("leagues", []):
+                  for dataset, payload in (outcome.get("datasets") or {}).items():
+                      errors = payload.get("errors") or []
+                      print(f"{outcome['league']} / {dataset}: "
+                            f"scritto={payload.get('written')} "
+                            f"partite={payload.get('matches')} "
+                            f"righe={payload.get('rows')} "
+                            f"secondi={payload.get('seconds')} "
+                            f"baseline={payload.get('baseline_found')} "
+                            f"errori={len(errors)}")
+                      for err in errors[:3]:
+                          print(f"    - {err}")
+          PY
+            echo '```'
+            echo "### Copertura (dal referto)"
+            head -n 40 "$VERIFY_DIR/reports/ppda_deep_player_feasibility.md" 2>/dev/null || echo "(referto assente)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 3. Prova che i dati e i report committati non sono stati toccati.
+      - name: Nessuna modifica ai file committati
+        if: always()
+        run: |
+          if ! git diff --exit-code -- SoccerMath/database audit/results; then
+            echo "::error::la modalita' verifica ha modificato file committati"
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain -- SoccerMath/database audit/results)" ]; then
+            echo "::error::file nuovi comparsi nelle cartelle dei dati committati"
+            git status --porcelain -- SoccerMath/database audit/results
+            exit 1
+          fi
+          echo "Nessun file committato modificato."
+
+      # 4. Referto, report di acquisizione e snapshot acquisito (dati NON
+      #    committati: sono l'evidenza della verifica).
+      - name: Pubblica referto e snapshot come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ppda-player-verify-${{ github.run_id }}
+          path: |
+            ppda-player-out/reports/
+            ppda-player-out/database/
+          if-no-files-found: warn
+          retention-days: 14
