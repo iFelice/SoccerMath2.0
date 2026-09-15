@@ -21,7 +21,14 @@ name: Verifica PPDA/deep/giocatore (sola lettura)
 # Costo dichiarato: `read_player_match_stats()` e' 1 richiesta HTTP per partita
 # (~7.000 partite sull'intero perimetro), mentre PPDA/deep sono 1 payload di
 # lega per lega: per questo il job ha un timeout ampio e il parallelismo e'
-# regolabile (soccerdata non applica nessun rate limit a Understat).
+# regolabile (soccerdata non applica nessun rate limit a Understat). Misurato
+# sulla prima esecuzione reale (2026-09-15, 5 leghe, 2 leghe in parallelo):
+# circa 30 minuti, 8 file prodotti.
+#
+# Tolleranza dichiarata in modalita' verifica: `--missing-tolerance-ratio 0.01`
+# (1% delle partite del perimetro). Non e' un ripiego silenzioso: il referto
+# riporta quante partite mancano, per stagione, con l'eta' e il motivo (partita
+# illeggibile, payload assente). Lo script, di suo, ha tolleranza 0.
 
 on:
   workflow_dispatch:
@@ -43,9 +50,9 @@ on:
         required: false
         default: "2"
       missing_tolerance_ratio:
-        description: "Frazione ammessa di partite NON di frontiera senza dati (default 0)"
+        description: "Frazione ammessa di partite NON di frontiera senza dati: la modalita' verifica DICHIARA questo valore nel referto (lo script ha default 0)"
         required: false
-        default: "0"
+        default: "0.01"
   # Un workflow presente solo su un branch non di default NON e' avviabile da
   # workflow_dispatch: il push su arena/** garantisce comunque una esecuzione
   # reale su questo branch.
@@ -77,9 +84,10 @@ jobs:
     timeout-minutes: 240
 
     env:
-      # cartella di lavoro non versionata: la verifica non scrive mai dentro
-      # SoccerMath/database ne' in audit/results
-      VERIFY_DIR: ${{ github.workspace }}/ppda-player-out
+      # cartella di lavoro FUORI dal repository (runner.temp): la verifica non
+      # scrive mai dentro SoccerMath/database ne' in audit/results, e non lascia
+      # nemmeno file non versionati nel checkout
+      VERIFY_DIR: ${{ runner.temp }}/ppda-player-out
       PLAYER_SEASONS: ${{ github.event.inputs.player_seasons || '' }}
       SAMPLE_MATCHES: ${{ github.event.inputs.sample_matches_per_league || '' }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -127,7 +135,9 @@ jobs:
             --parallel-leagues ${{ github.event.inputs.parallel_leagues || '2' }} \
             --retries 2 \
             --frontier-days 1 \
-            --missing-tolerance-ratio ${{ github.event.inputs.missing_tolerance_ratio || '0' }} \
+            --missing-tolerance-ratio ${{ github.event.inputs.missing_tolerance_ratio || '0.01' }} \
+            --max-duplicate-rows-ratio 0.02 \
+            --max-structural-na-ratio 0.01 \
             --output-dir "$VERIFY_DIR/database" \
             --baseline-dir SoccerMath/database \
             --cache-dir "$VERIFY_DIR/cache" \
@@ -205,7 +215,7 @@ jobs:
         with:
           name: ppda-player-verify-${{ github.run_id }}
           path: |
-            ppda-player-out/reports/
-            ppda-player-out/database/
+            ${{ runner.temp }}/ppda-player-out/reports/
+            ${{ runner.temp }}/ppda-player-out/database/
           if-no-files-found: warn
           retention-days: 14

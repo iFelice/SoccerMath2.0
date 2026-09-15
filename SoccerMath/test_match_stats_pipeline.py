@@ -39,12 +39,10 @@ from match_stats_archive import (  # noqa: E402
     compare_player_snapshots,
     compare_ppda_snapshots,
     coverage_against_perimeter,
-    load_player,
     load_ppda,
     name_resolution_report,
     parse_minutes,
     parse_ppda,
-    player_summary,
     ppda_summary,
     record_completeness,
     validate_player,
@@ -112,12 +110,15 @@ class FakeReader:
     """Sostituto di ``soccerdata.Understat`` per i test offline."""
 
     def __init__(self, schedule=None, team_stats=None, player_stats=None,
-                 fail_team_stats=False, fail_players=False):
+                 fail_team_stats=False, fail_players=False, broken_ids=()):
         self.schedule = schedule
         self.team_stats = team_stats
         self.player_stats = player_stats
         self.fail_team_stats = fail_team_stats
         self.fail_players = fail_players
+        # partite il cui payload rompe soccerdata (errore NON ConnectionError):
+        # la chiamata intera fallisce, come nell'esecuzione reale
+        self.broken_ids = set(broken_ids)
         self.calls = []
 
     def read_schedule(self, *args, **kwargs):
@@ -139,6 +140,8 @@ class FakeReader:
         if match_id is None:
             return self.player_stats
         wanted = {match_id} if isinstance(match_id, int) else set(match_id)
+        if wanted & self.broken_ids:
+            raise AttributeError("'list' object has no attribute 'values'")
         frame = self.player_stats.reset_index()
         return frame[frame["game_id"].isin(wanted)].set_index(
             ["league", "season", "game", "team", "player"])
@@ -527,7 +530,8 @@ class TestAcquisitionFlow(unittest.TestCase):
             dry_run=False, allow_dropping_seasons=False, retries=0,
             frontier_days=1.0, missing_tolerance_ratio=0.0,
             sample_matches=None, min_played_field_coverage=0.95,
-            min_rows_per_match=1, max_thin_matches_ratio=1.0)
+            min_rows_per_match=1, max_thin_matches_ratio=1.0, max_duplicate_rows_ratio=1.0,
+            max_structural_na_ratio=1.0)
         self.assertEqual(outcome["errors"], [])
         ppda = outcome["datasets"][PPDA_KIND]
         self.assertTrue(ppda["written"])
@@ -554,7 +558,8 @@ class TestAcquisitionFlow(unittest.TestCase):
             dry_run=True, allow_dropping_seasons=False, retries=0,
             frontier_days=1.0, missing_tolerance_ratio=0.0, sample_matches=None,
             min_played_field_coverage=0.95, min_rows_per_match=1,
-            max_thin_matches_ratio=1.0)
+            max_thin_matches_ratio=1.0, max_duplicate_rows_ratio=1.0,
+            max_structural_na_ratio=1.0)
         self.assertEqual(os.listdir(self.out), [])
 
     def test_failed_league_keeps_previous_file(self):
@@ -574,7 +579,8 @@ class TestAcquisitionFlow(unittest.TestCase):
             dry_run=False, allow_dropping_seasons=False, retries=0,
             frontier_days=1.0, missing_tolerance_ratio=0.0, sample_matches=None,
             min_played_field_coverage=0.95, min_rows_per_match=1,
-            max_thin_matches_ratio=1.0)
+            max_thin_matches_ratio=1.0, max_duplicate_rows_ratio=1.0,
+            max_structural_na_ratio=1.0)
         self.assertTrue(outcome["errors"])
         self.assertFalse(outcome["datasets"][PPDA_KIND]["written"])
         with open(path, "r", encoding="utf-8") as f:
@@ -597,7 +603,8 @@ class TestAcquisitionFlow(unittest.TestCase):
             allow_dropping_seasons=False, retries=0, frontier_days=1.0,
             missing_tolerance_ratio=0.0, sample_matches=None,
             min_played_field_coverage=0.95, min_rows_per_match=1,
-            max_thin_matches_ratio=1.0)
+            max_thin_matches_ratio=1.0, max_duplicate_rows_ratio=1.0,
+            max_structural_na_ratio=1.0)
         player = outcome["datasets"][PLAYER_KIND]
         self.assertFalse(player["written"])
         self.assertEqual(player["coverage"]["missing_total"], 2)
@@ -629,7 +636,8 @@ class TestAcquisitionFlow(unittest.TestCase):
             dry_run=False, allow_dropping_seasons=False, retries=0,
             frontier_days=1.0, missing_tolerance_ratio=0.0, sample_matches=None,
             min_played_field_coverage=0.95, min_rows_per_match=1,
-            max_thin_matches_ratio=0.5)
+            max_thin_matches_ratio=0.5, max_duplicate_rows_ratio=1.0,
+            max_structural_na_ratio=1.0)
         player = outcome["datasets"][PLAYER_KIND]
         self.assertEqual(player["coverage"]["missing_frontier"], 1)
         self.assertEqual(player["coverage"]["missing_old"], 0)
@@ -653,11 +661,340 @@ class TestAcquisitionFlow(unittest.TestCase):
             dry_run=False, allow_dropping_seasons=False, retries=0,
             frontier_days=1.0, missing_tolerance_ratio=0.0, sample_matches=None,
             min_played_field_coverage=0.95, min_rows_per_match=1,
-            max_thin_matches_ratio=1.0)
+            max_thin_matches_ratio=1.0, max_duplicate_rows_ratio=1.0,
+            max_structural_na_ratio=1.0)
         ppda = outcome["datasets"][PPDA_KIND]
         self.assertTrue(ppda["baseline_found"])
         self.assertFalse(ppda["written"])
         self.assertTrue(any("CONCLUSE" in err for err in ppda["errors"]))
+
+
+class TestAuditReport(unittest.TestCase):
+    """Il referto di fattibilita' si compila anche con dati parziali.
+
+    Regressione: il report di acquisizione ha la forma scritta da
+    ``update_all_ppda_player_db.main()`` (``leagues`` = LISTA di blocchi per
+    lega) e l'audit deve leggerla senza sollevare eccezioni, dichiarando per
+    ogni dataset assente il motivo.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="ppda-audit-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.db = os.path.join(self.tmp, "database")
+        self.xg = os.path.join(self.tmp, "xg")
+        self.out = os.path.join(self.tmp, "out")
+        for folder in (self.db, self.xg, self.out):
+            os.makedirs(folder)
+
+    def _xg_archive(self):
+        """Archivio xG sintetico: 3 concluse con xG + 1 senza xG."""
+        records = []
+        for index, (home, away, home_xg, away_xg) in enumerate([
+                ("Inter", "Torino", 1.4, 0.9),
+                ("Roma", "Lazio", 1.1, 1.2),
+                ("Juventus", "Milan", 0.8, 1.0),
+                ("Napoli", "Atalanta", None, None)]):
+            records.append({
+                "season": 2026, "id": 100 + index,
+                "date": f"2026-09-{10 + index:02d} 18:45:00",
+                "home_team": home, "away_team": away,
+                "home_goals": 1 if home_xg else None,
+                "away_goals": 1 if home_xg else None,
+                "home_xg": home_xg, "away_xg": away_xg,
+                "is_result": home_xg is not None,
+            })
+        # scritto a mano (non con write_atomic: il modulo NUOVO rifiuta di
+        # scrivere dentro l'archivio xG, ed e' proprio la protezione che si
+        # vuole verificare altrove)
+        path = os.path.join(self.xg, ARCHIVE_FILES["Serie A"])
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(records, fh, ensure_ascii=False, indent=2)
+
+    def _archives(self):
+        write_atomic(os.path.join(self.db, archive_files(PPDA_KIND)["Serie A"]), [
+            acquisition.normalize_ppda_record({
+                "season": 2026, "id": 100, "date": "2026-09-10 18:45:00",
+                "home_team": "Inter", "away_team": "Torino", "is_result": True,
+                "home_ppda": 8.5, "away_ppda": 12.0,
+                "home_deep_completions": 14, "away_deep_completions": 6}),
+            acquisition.normalize_ppda_record({
+                "season": 2026, "id": 101, "date": "2026-09-11 18:45:00",
+                "home_team": "Roma", "away_team": "Lazio", "is_result": True,
+                "home_ppda": 9.1, "away_ppda": 10.4,
+                "home_deep_completions": 9, "away_deep_completions": 11}),
+            # terza partita presente ma con PPDA non calcolabile su un lato
+            acquisition.normalize_ppda_record({
+                "season": 2026, "id": 102, "date": "2026-09-12 18:45:00",
+                "home_team": "Juventus", "away_team": "Milan", "is_result": True,
+                "home_ppda": None, "away_ppda": 11.2,
+                "home_deep_completions": 7, "away_deep_completions": 8}),
+        ])
+        rows = []
+        for index, (home, away) in enumerate([
+                ("Inter", "Torino"), ("Roma", "Lazio")]):
+            for slot, minutes in enumerate((90, 90, 0)):
+                rows.append(acquisition.normalize_player_record({
+                    "season": 2026, "id": 100 + index,
+                    "date": f"2026-09-{10 + index:02d}",
+                    "team": home, "opponent": away, "venue": "home",
+                    "player_id": 500 + slot, "player": f"Titolare {slot}",
+                    "position": "FW", "minutes": minutes, "goals": 0,
+                    "own_goals": 0, "shots": 1, "xg": 0.2, "xg_chain": 0.3,
+                    "xg_buildup": 0.1, "assists": 0, "xa": 0.05,
+                    "key_passes": 0, "yellow_cards": 0, "red_cards": 0}))
+        write_atomic(os.path.join(self.db, archive_files(PLAYER_KIND)["Serie A"]),
+                     rows)
+
+    def _acquisition_report(self):
+        path = os.path.join(self.tmp, "acquisizione.json")
+        payload = {
+            "generated_at": "2026-09-15T09:00:00+00:00",
+            "soccerdata_version": "1.9.1", "required_soccerdata_version": "1.9.1",
+            "seasons": ["2627"], "player_seasons": ["2627"],
+            "leagues_requested": ["Serie A", "Premier League"],
+            "failures": 1, "missing_tolerance_ratio": 0.0, "retries": 2,
+            "frontier_days": 1.0, "parallel_leagues": 2,
+            "sample_matches_per_league": None, "dry_run": False,
+            "leagues": [
+                {"league": "Serie A", "seconds": 42.0, "errors": [], "datasets": {
+                    PPDA_KIND: {"written": True, "matches": 3, "errors": [],
+                                "retry_rounds": 0, "requested_matches": 3,
+                                "coverage": {"reference_matches": 3,
+                                             "missing_total": 0,
+                                             "missing_frontier": 0,
+                                             "missing_old": 0, "missing_undated": 0,
+                                             "complete": 2}},
+                    PLAYER_KIND: {"written": True, "rows": 6, "errors": [],
+                                  "retry_rounds": 1, "requested_matches": 3,
+                                  "returned_matches": 2,
+                                  "missing_matches_sample": ["2026-09-12 (id 102)"],
+                                  "coverage": {"reference_matches": 3,
+                                               "missing_total": 1,
+                                               "missing_frontier": 1,
+                                               "missing_old": 0,
+                                               "missing_undated": 0}}},
+                 "schedule": {"scheduled_matches": 4, "played_with_xg": 3,
+                              "last_played_date": "2026-09-12 18:45:00"}},
+                # lega in cui soccerdata NON espone i campi: motivo dichiarato
+                {"league": "Premier League", "seconds": 3.0, "datasets": {},
+                 "errors": ["read_team_match_stats(): campo home_ppda assente "
+                            "nella versione installata"]},
+            ],
+        }
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+        return path
+
+    def test_report_renders_from_list_shaped_acquisition_report(self):
+        sys.path.insert(0, os.path.join(_REPO_ROOT, "audit"))
+        import ppda_deep_player_audit as audit  # noqa: E402
+
+        self._xg_archive()
+        self._archives()
+        report_path = self._acquisition_report()
+        exit_code = audit.main([
+            "--database-dir", self.db, "--xg-dir", self.xg,
+            "--acquisition-report", report_path, "--results-dir", self.out,
+            "--run-url", "https://example.invalid/run/1", "--run-id", "1"])
+        self.assertEqual(exit_code, 0)
+
+        markdown_path = os.path.join(self.out, "ppda_deep_player_feasibility.md")
+        json_path = os.path.join(self.out, "ppda_deep_player_feasibility.json")
+        self.assertTrue(os.path.exists(markdown_path))
+        with open(markdown_path, encoding="utf-8") as fh:
+            markdown = fh.read()
+        for section in ("## 1. Sintesi", "## 2. Copertura per lega e stagione",
+                        "## 3. Point-in-time", "## 4. Minuti giocati per partita",
+                        "## 5. Nomi delle squadre", "## 6. Cosa espone",
+                        "## 7. Costo dell'acquisizione", "## 8. Limiti dichiarati"):
+            self.assertIn(section, markdown)
+        self.assertIn(archive_files(PPDA_KIND)["Serie A"], markdown)
+        self.assertIn(archive_files(PLAYER_KIND)["Serie A"], markdown)
+        # il motivo del dataset assente e' dichiarato, non taciuto
+        self.assertIn("home_ppda assente", markdown)
+        self.assertIn("0.55", markdown)  # nessuna modifica al motore, dichiarato
+
+        with open(json_path, encoding="utf-8") as fh:
+            analysis = json.load(fh)
+        serie_a = analysis["leagues"]["Serie A"]["coverage"]
+        totals = serie_a[PPDA_KIND]["totals"]
+        self.assertEqual(totals["reference_matches"], 3)
+        self.assertEqual(totals["complete"], 2)
+        # PPDA nullo con deep presente su entrambi i lati = caso strutturale:
+        # NON e' una partita mancante e non entra in "partial"
+        self.assertEqual(totals["structural_ppda_na"], 1)
+        self.assertEqual(totals["partial"], 0)
+        self.assertEqual(totals["missing_matches"], 0)
+        self.assertEqual(totals["with_home_ppda"], 2)
+        player_totals = serie_a[PLAYER_KIND]["totals"]
+        self.assertEqual(player_totals["present_matches"], 2)
+        self.assertEqual(player_totals["rows"], 6)
+        minutes = analysis["leagues"]["Serie A"]["minutes"]
+        self.assertEqual(minutes["rows"], 6)
+        self.assertEqual(minutes["zero_minutes_rows"], 2)
+        self.assertEqual(minutes["used_rows"], 4)
+        self.assertEqual(minutes["players_per_match"]["p50"], 3.0)
+        self.assertEqual(analysis["acquisition"]["failures"], 1)
+
+
+class TestSourceDefects(unittest.TestCase):
+    """Difetti reali della fonte osservati sull'acquisizione vera (2026-09-15).
+
+    1. il payload di lega puo' elencare due volte la stessa partita: soccerdata
+       la percorre due volte e le righe giocatore escono doppie (La Liga);
+    2. PPDA nullo su un lato con deep completions presente: e' il caso
+       strutturale (denominatore difensivo 0 -> ``pd.NA`` in soccerdata), non un
+       campo perduto (Bundesliga);
+    3. un payload con una forma diversa fa fallire l'INTERA chiamata
+       per-partita di soccerdata (Bundesliga): le partite buone non devono
+       andare perse e quella rotta va dichiarata.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="match-stats-defects-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.out = os.path.join(self.tmp, "out")
+        os.makedirs(self.out)
+        original_match = acquisition.MIN_MATCHES_PER_SEASON
+        original_rows = acquisition.MIN_ROWS_PER_SEASON
+        acquisition.MIN_MATCHES_PER_SEASON = 1
+        acquisition.MIN_ROWS_PER_SEASON = 1
+        self.addCleanup(setattr, acquisition, "MIN_MATCHES_PER_SEASON", original_match)
+        self.addCleanup(setattr, acquisition, "MIN_ROWS_PER_SEASON", original_rows)
+
+    def _schedule(self, duplicate_match_id=None):
+        rows = [
+            schedule_row(2022, 1, "2022-08-13 18:45:00", "Inter", "Torino", 2.4, 0.7),
+            schedule_row(2022, 2, "2022-08-20 18:45:00", "Roma", "Milan", 1.2, 1.1),
+            schedule_row(2022, 3, "2022-08-27 18:45:00", "Napoli", "Inter", 0.9, 1.4),
+        ]
+        if duplicate_match_id is not None:
+            rows.append(dict(rows[duplicate_match_id - 1]))
+        return rows
+
+    def _acquire(self, reader, datasets, **kwargs):
+        original = acquisition._make_reader
+        acquisition._make_reader = lambda *args, **kw: reader
+        self.addCleanup(setattr, acquisition, "_make_reader", original)
+        params = dict(dry_run=False, allow_dropping_seasons=False, retries=0,
+                      frontier_days=1.0, missing_tolerance_ratio=0.0,
+                      sample_matches=None, min_played_field_coverage=0.5,
+                      min_rows_per_match=1, max_thin_matches_ratio=1.0,
+                      max_duplicate_rows_ratio=0.02,
+                      max_structural_na_ratio=0.01)
+        params.update(kwargs)
+        return acquisition.acquire_league(
+            "Serie A", ["2223"], ["2223"], output_dir=self.out, baseline_dir=None,
+            cache_dir=self.tmp, datasets=datasets, **params)
+
+    def test_duplicated_schedule_row_does_not_duplicate_rows(self):
+        # la partita 2 e' elencata due volte nel payload di lega: il dedup la
+        # tiene una volta, le righe giocatore non raddoppiano e il conteggio
+        # finisce nel report
+        schedule = schedule_frame(self._schedule(duplicate_match_id=2))
+        rows = [
+            player_stats_row(2022, 1, "2022-08-13 18:45:00", "Inter", "Lautaro", 1,
+                             minutes=90, home="Inter", away="Torino"),
+            player_stats_row(2022, 1, "2022-08-13 18:45:00", "Torino", "Sanabria", 2,
+                             minutes=0, home="Inter", away="Torino"),
+            player_stats_row(2022, 2, "2022-08-20 18:45:00", "Roma", "Dybala", 3,
+                             minutes=80, home="Roma", away="Milan"),
+            player_stats_row(2022, 2, "2022-08-20 18:45:00", "Milan", "Leao", 4,
+                             minutes=90, home="Roma", away="Milan"),
+            player_stats_row(2022, 3, "2022-08-27 18:45:00", "Napoli", "Osimhen", 5,
+                             minutes=90, home="Napoli", away="Inter"),
+            player_stats_row(2022, 3, "2022-08-27 18:45:00", "Inter", "Barella", 6,
+                             minutes=90, home="Napoli", away="Inter"),
+        ]
+        players = player_stats_frame(rows)
+        # il lettore, come soccerdata, restituisce la partita 2 due volte perche'
+        # la riga doppia e' nel calendario
+        doubled = pd.concat([players.reset_index(), players.reset_index().loc[2:3]])
+        doubled = doubled.set_index(
+            ["league", "season", "game", "team", "player"]).sort_index()
+        reader = FakeReader(schedule=schedule, player_stats=doubled)
+        outcome = self._acquire(reader, [PLAYER_KIND])
+        self.assertEqual(outcome["schedule_duplicates"]["duplicate_rows"], 1)
+        player = outcome["datasets"][PLAYER_KIND]
+        self.assertEqual(player["duplicates"]["duplicate_rows"], 2)
+        self.assertEqual(player["duplicates"]["duplicate_matches"], 1)
+        self.assertEqual(player["duplicates"]["sample_matches"],
+                         [{"season": 2022, "id": 2, "rows": 2}])
+        # 2 righe doppie su 8 = 25%: sopra la soglia dichiarata la lega non
+        # pubblica (il dedup non e' mai silenzioso)
+        self.assertFalse(player["written"])
+        self.assertTrue(any("doppie sulla chiave" in err for err in player["errors"]))
+
+        # con una soglia dichiarata piu' alta la lega pubblica e il difetto
+        # resta nel report
+        published = self._acquire(reader, [PLAYER_KIND], max_duplicate_rows_ratio=0.5)
+        entry = published["datasets"][PLAYER_KIND]
+        self.assertTrue(entry["written"])
+        self.assertEqual(entry["rows"], 6)
+        self.assertEqual(entry["duplicates"]["duplicate_rows"], 2)
+
+    def test_structural_ppda_na_is_declared_and_does_not_block(self):
+        # partita 3: deep presente su entrambi i lati, PPDA nullo sul lato casa
+        # (denominatore difensivo 0). Non e' un campo perduto: la lega pubblica
+        # e il caso e' contato a parte.
+        team_stats = team_stats_frame([
+            team_stats_row(2022, 1, "2022-08-13 18:45:00", "Inter", "Torino",
+                           8.0, 9.0, 5, 6),
+            team_stats_row(2022, 2, "2022-08-20 18:45:00", "Roma", "Milan",
+                           7.5, 10.5, 4, 3),
+            team_stats_row(2022, 3, "2022-08-27 18:45:00", "Napoli", "Inter",
+                           None, 8.2, 6, 7),
+        ])
+        reader = FakeReader(schedule=schedule_frame(self._schedule()),
+                            team_stats=team_stats)
+        outcome = self._acquire(reader, [PPDA_KIND], max_structural_na_ratio=1.0)
+        ppda = outcome["datasets"][PPDA_KIND]
+        self.assertEqual(ppda["coverage"]["structural_ppda_na"], 1)
+        self.assertEqual(ppda["coverage"]["missing_total"], 0)
+        self.assertEqual(ppda["coverage"]["ppda_missing_but_deep_present"], 1)
+        self.assertFalse(ppda["errors"])
+        self.assertTrue(ppda["written"])
+
+        # stessa istantanea ma con una soglia stretta sui casi strutturali: la
+        # lega NON viene pubblicata (la soglia e' dichiarata, non silenziosa)
+        second = self._acquire(reader, [PPDA_KIND], max_structural_na_ratio=0.01)
+        strict = second["datasets"][PPDA_KIND]
+        self.assertTrue(strict["errors"])
+        self.assertIn("non calcolabile", strict["errors"][0])
+        self.assertFalse(strict["written"])
+
+    def test_broken_match_is_isolated_and_declared(self):
+        # la partita 2 fa fallire la chiamata per-partita di soccerdata: le
+        # partite 1 e 3 devono restare, la 2 va dichiarata illeggibile
+        players = player_stats_frame([
+            player_stats_row(2022, 1, "2022-08-13 18:45:00", "Inter", "Lautaro", 1,
+                             minutes=90, home="Inter", away="Torino"),
+            player_stats_row(2022, 2, "2022-08-20 18:45:00", "Roma", "Dybala", 3,
+                             minutes=80, home="Roma", away="Milan"),
+            player_stats_row(2022, 3, "2022-08-27 18:45:00", "Napoli", "Osimhen", 4,
+                             minutes=90, home="Napoli", away="Inter"),
+        ])
+        reader = FakeReader(schedule=schedule_frame(self._schedule()),
+                            player_stats=players, broken_ids=[2])
+        outcome = self._acquire(reader, [PLAYER_KIND], missing_tolerance_ratio=0.0)
+        player = outcome["datasets"][PLAYER_KIND]
+        self.assertEqual(player["unreadable_matches"], 1)
+        self.assertEqual(player["unreadable_sample"][0]["id"], 2)
+        self.assertIn("no attribute 'values'", player["unreadable_sample"][0]["error"])
+        # le altre due partite non sono andate perse
+        self.assertEqual(player["coverage"]["returned_matches"], 2)
+        # la partita rotta resta MANCANTE: senza tolleranza dichiarata la lega
+        # non pubblica
+        self.assertFalse(player["written"])
+        self.assertTrue(any("senza righe giocatore" in err for err in player["errors"]))
+
+        # con una tolleranza dichiarata la lega pubblica, dichiarando il difetto
+        published = self._acquire(reader, [PLAYER_KIND], missing_tolerance_ratio=1.0)
+        entry = published["datasets"][PLAYER_KIND]
+        self.assertTrue(entry["written"])
+        self.assertEqual(entry["unreadable_matches"], 1)
+        self.assertEqual(entry["rows"], 2)
 
 
 if __name__ == "__main__":
