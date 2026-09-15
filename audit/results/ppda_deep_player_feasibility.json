@@ -1,0 +1,5807 @@
+{
+  "generated_at": "2026-09-15T16:46:45.790618+00:00",
+  "reference_time": "2026-09-15T16:46:41.584562+00:00",
+  "database_dir": "/home/runner/work/_temp/ppda-player-out/database",
+  "xg_dir": "/home/runner/work/SoccerMath2.0/SoccerMath2.0/SoccerMath/database",
+  "acquisition_report": "/home/runner/work/_temp/ppda-player-out/reports/acquisizione.json",
+  "datasets": [
+    "ppda_deep",
+    "player_match"
+  ],
+  "run_url": "https://github.com/iFelice/SoccerMath2.0/actions/runs/34992936842",
+  "run_id": "34992936842",
+  "leagues": {
+    "Serie A": {
+      "league": "Serie A",
+      "files": {
+        "ppda_deep": {
+          "exists": true,
+          "bytes": 450120,
+          "sha256": "2acfb99bf40a830e",
+          "modified": "2026-09-15T16:08:04.770345+00:00"
+        },
+        "player_match": {
+          "exists": true,
+          "bytes": 20605528,
+          "sha256": "734b90dc6f1050c4",
+          "modified": "2026-09-15T16:21:33.410794+00:00"
+        }
+      },
+      "coverage": {
+        "ppda_deep": {
+          "kind": "ppda_deep",
+          "totals": {
+            "reference_matches": 1560,
+            "present_matches": 1560,
+            "rows": 1560,
+            "complete": 1560,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 1560,
+            "with_away_ppda": 1560,
+            "with_home_deep": 1560,
+            "with_away_deep": 1560,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 40,
+              "present_matches": 40,
+              "missing_matches": 0,
+              "complete": 40,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 40,
+              "with_away_ppda": 40,
+              "with_home_deep": 40,
+              "with_away_deep": 40,
+              "rows": 40,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1560
+        },
+        "player_match": {
+          "kind": "player_match",
+          "totals": {
+            "reference_matches": 1560,
+            "present_matches": 1560,
+            "rows": 48884,
+            "complete": 1560,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 0,
+            "with_away_ppda": 0,
+            "with_home_deep": 0,
+            "with_away_deep": 0,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11885,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11909,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11888,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11928,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 40,
+              "present_matches": 40,
+              "missing_matches": 0,
+              "complete": 40,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 1274,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1560
+        }
+      },
+      "names": {
+        "ppda_deep": {
+          "raw_names": 27,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "AC Milan": "Milan",
+            "Atalanta": "Atalanta",
+            "Bologna": "Bologna",
+            "Cagliari": "Cagliari",
+            "Como": "Como",
+            "Cremonese": "Cremonese",
+            "Empoli": "Empoli",
+            "Fiorentina": "Fiorentina",
+            "Frosinone": "Frosinone",
+            "Genoa": "Genoa",
+            "Inter": "Inter",
+            "Juventus": "Juventus",
+            "Lazio": "Lazio",
+            "Lecce": "Lecce",
+            "Monza": "Monza",
+            "Napoli": "Napoli",
+            "Parma Calcio 1913": "Parma",
+            "Pisa": "Pisa",
+            "Roma": "Roma",
+            "Salernitana": "Salernitana",
+            "Sampdoria": "Sampdoria",
+            "Sassuolo": "Sassuolo",
+            "Spezia": "Spezia",
+            "Torino": "Torino",
+            "Udinese": "Udinese",
+            "Venezia": "Venezia",
+            "Verona": "Verona"
+          }
+        },
+        "player_match": {
+          "raw_names": 27,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "AC Milan": "Milan",
+            "Atalanta": "Atalanta",
+            "Bologna": "Bologna",
+            "Cagliari": "Cagliari",
+            "Como": "Como",
+            "Cremonese": "Cremonese",
+            "Empoli": "Empoli",
+            "Fiorentina": "Fiorentina",
+            "Frosinone": "Frosinone",
+            "Genoa": "Genoa",
+            "Inter": "Inter",
+            "Juventus": "Juventus",
+            "Lazio": "Lazio",
+            "Lecce": "Lecce",
+            "Monza": "Monza",
+            "Napoli": "Napoli",
+            "Parma Calcio 1913": "Parma",
+            "Pisa": "Pisa",
+            "Roma": "Roma",
+            "Salernitana": "Salernitana",
+            "Sampdoria": "Sampdoria",
+            "Sassuolo": "Sassuolo",
+            "Spezia": "Spezia",
+            "Torino": "Torino",
+            "Udinese": "Udinese",
+            "Venezia": "Venezia",
+            "Verona": "Verona"
+          }
+        }
+      },
+      "errors": [],
+      "perimeter_matches": 1560,
+      "perimeter_by_season": {
+        "2022": 380,
+        "2023": 380,
+        "2024": 380,
+        "2025": 380,
+        "2026": 40
+      },
+      "summary_ppda": {
+        "matches": 1560,
+        "seasons": {
+          "2022": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2022-08-13",
+            "max_date": "2023-06-04",
+            "max_played_date": "2023-06-04"
+          },
+          "2023": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2023-08-19",
+            "max_date": "2024-06-02",
+            "max_played_date": "2024-06-02"
+          },
+          "2024": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2024-08-17",
+            "max_date": "2025-05-25",
+            "max_played_date": "2025-05-25"
+          },
+          "2025": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2025-08-23",
+            "max_date": "2026-05-24",
+            "max_played_date": "2026-05-24"
+          },
+          "2026": {
+            "matches": 40,
+            "played": 40,
+            "complete": 40,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 40,
+            "with_away_ppda": 40,
+            "with_home_deep": 40,
+            "with_away_deep": 40,
+            "unplayed": 0,
+            "min_date": "2026-08-22",
+            "max_date": "2026-09-14",
+            "max_played_date": "2026-09-14"
+          }
+        }
+      },
+      "values": {
+        "ppda": {
+          "n": 3120,
+          "mean": 13.354713471304796,
+          "min": 3.1538461538461537,
+          "p05": 5.7272727272727275,
+          "p25": 8.736842105263158,
+          "p50": 11.764705882352942,
+          "p75": 16.095238095238095,
+          "p90": 21.63157894736842,
+          "p95": 25.88888888888889,
+          "max": 127.0,
+          "zeros": 0
+        },
+        "ppda_by_season": {
+          "2022": {
+            "n": 760,
+            "mean": 13.000275487780726,
+            "min": 3.8823529411764706,
+            "p05": 5.619047619047619,
+            "p25": 8.523809523809524,
+            "p50": 11.464285714285714,
+            "p75": 15.875,
+            "p90": 20.928571428571427,
+            "p95": 24.133333333333333,
+            "max": 68.0,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 760,
+            "mean": 13.810576917988529,
+            "min": 3.1538461538461537,
+            "p05": 5.935483870967742,
+            "p25": 9.136363636363637,
+            "p50": 12.090909090909092,
+            "p75": 16.473684210526315,
+            "p90": 21.941176470588236,
+            "p95": 26.357142857142858,
+            "max": 127.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 760,
+            "mean": 13.218328854732857,
+            "min": 3.3214285714285716,
+            "p05": 5.7407407407407405,
+            "p25": 8.714285714285714,
+            "p50": 11.777777777777779,
+            "p75": 15.882352941176471,
+            "p90": 21.5,
+            "p95": 25.545454545454547,
+            "max": 53.5,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 760,
+            "mean": 13.310363148828696,
+            "min": 3.1724137931034484,
+            "p05": 5.466666666666667,
+            "p25": 8.566666666666666,
+            "p50": 11.566666666666666,
+            "p75": 16.0,
+            "p90": 22.076923076923077,
+            "p95": 26.666666666666668,
+            "max": 55.8,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 80,
+            "mean": 14.108153492243986,
+            "min": 4.448275862068965,
+            "p05": 5.476190476190476,
+            "p25": 9.04,
+            "p50": 12.0,
+            "p75": 18.7,
+            "p90": 22.333333333333332,
+            "p95": 28.46153846153846,
+            "max": 49.0,
+            "zeros": 0
+          }
+        },
+        "deep_completions": {
+          "n": 3120,
+          "mean": 5.804166666666666,
+          "min": 0.0,
+          "p05": 1.0,
+          "p25": 3.0,
+          "p50": 5.0,
+          "p75": 8.0,
+          "p90": 11.0,
+          "p95": 13.0,
+          "max": 27.0,
+          "zeros": 86
+        }
+      },
+      "summary_player": {
+        "rows": 48884,
+        "matches": 1560,
+        "seasons": {
+          "2022": {
+            "rows": 11885,
+            "matches": 380,
+            "players": 577,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 751328,
+            "yellow_cards": 1648,
+            "red_cards": 60,
+            "goals": 944,
+            "min_date": "2022-08-13",
+            "max_date": "2023-06-04"
+          },
+          "2023": {
+            "rows": 11909,
+            "matches": 380,
+            "players": 590,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 751650,
+            "yellow_cards": 1569,
+            "red_cards": 63,
+            "goals": 971,
+            "min_date": "2023-08-19",
+            "max_date": "2024-06-02"
+          },
+          "2024": {
+            "rows": 11888,
+            "matches": 380,
+            "players": 599,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 750476,
+            "yellow_cards": 1395,
+            "red_cards": 75,
+            "goals": 936,
+            "min_date": "2024-08-17",
+            "max_date": "2025-05-25"
+          },
+          "2025": {
+            "rows": 11928,
+            "matches": 380,
+            "players": 586,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 751027,
+            "yellow_cards": 1356,
+            "red_cards": 65,
+            "goals": 900,
+            "min_date": "2025-08-23",
+            "max_date": "2026-05-24"
+          },
+          "2026": {
+            "rows": 1274,
+            "matches": 40,
+            "players": 437,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 79220,
+            "yellow_cards": 120,
+            "red_cards": 2,
+            "goals": 120,
+            "min_date": "2026-08-22",
+            "max_date": "2026-09-14"
+          }
+        }
+      },
+      "minutes": {
+        "rows": 48884,
+        "matches": 1560,
+        "players": 2789,
+        "teams": 27,
+        "minutes_missing": 0,
+        "minutes": {
+          "n": 48884,
+          "mean": 63.08201047377465,
+          "min": 1.0,
+          "p05": 5.0,
+          "p25": 30.0,
+          "p50": 80.0,
+          "p75": 90.0,
+          "p90": 90.0,
+          "p95": 90.0,
+          "max": 90.0,
+          "zeros": 0
+        },
+        "minutes_by_season": {
+          "2022": {
+            "n": 11885,
+            "mean": 63.21649137568363,
+            "min": 1.0,
+            "p05": 5.0,
+            "p25": 31.0,
+            "p50": 80.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 11909,
+            "mean": 63.11613065748593,
+            "min": 1.0,
+            "p05": 4.0,
+            "p25": 31.0,
+            "p50": 81.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 11888,
+            "mean": 63.12886944818304,
+            "min": 1.0,
+            "p05": 4.0,
+            "p25": 30.0,
+            "p50": 80.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 11928,
+            "mean": 62.963363514419854,
+            "min": 1.0,
+            "p05": 5.0,
+            "p25": 30.0,
+            "p50": 79.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 1274,
+            "mean": 62.18210361067504,
+            "min": 1.0,
+            "p05": 6.0,
+            "p25": 30.0,
+            "p50": 75.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          }
+        },
+        "rows_by_season": {
+          "2022": 11885,
+          "2023": 11909,
+          "2024": 11888,
+          "2025": 11928,
+          "2026": 1274
+        },
+        "players_per_match": {
+          "n": 1560,
+          "mean": 31.335897435897436,
+          "min": 26.0,
+          "p05": 30.0,
+          "p25": 31.0,
+          "p50": 32.0,
+          "p75": 32.0,
+          "p90": 32.0,
+          "p95": 32.0,
+          "max": 34.0,
+          "zeros": 0
+        },
+        "zero_minutes_rows": 0,
+        "zero_minutes_share": 0.0,
+        "used_rows": 48884,
+        "positions": {
+          "Sub": 14564,
+          "DC": 7924,
+          "MC": 6410,
+          "FW": 4196,
+          "GK": 3120,
+          "AMC": 2246,
+          "DR": 1475,
+          "DL": 1475,
+          "DML": 1437,
+          "DMR": 1437,
+          "DMC": 1392,
+          "AMR": 639,
+          "AML": 639,
+          "FWL": 579,
+          "FWR": 579,
+          "MR": 386,
+          "ML": 386
+        },
+        "season_minutes": {
+          "n": 2789,
+          "mean": 1105.6654714951596,
+          "min": 1.0,
+          "p05": 10.0,
+          "p25": 204.0,
+          "p50": 844.0,
+          "p75": 1893.0,
+          "p90": 2636.0,
+          "p95": 2926.0,
+          "max": 3420.0,
+          "zeros": 0
+        },
+        "thresholds": [
+          {
+            "threshold": 0,
+            "players": 2789,
+            "players_share": 1.0,
+            "rows": 48884,
+            "rows_share": 1.0,
+            "minutes": 3083701,
+            "minutes_share": 1.0
+          },
+          {
+            "threshold": 90,
+            "players": 2374,
+            "players_share": 0.8512011473646468,
+            "rows": 48032,
+            "rows_share": 0.9825709843711644,
+            "minutes": 3072057,
+            "minutes_share": 0.9962240178279282
+          },
+          {
+            "threshold": 270,
+            "players": 1986,
+            "players_share": 0.712083183936895,
+            "rows": 46183,
+            "rows_share": 0.9447467474020129,
+            "minutes": 3007583,
+            "minutes_share": 0.9753160244783784
+          },
+          {
+            "threshold": 450,
+            "players": 1701,
+            "players_share": 0.6098960200788813,
+            "rows": 44037,
+            "rows_share": 0.9008469028721053,
+            "minutes": 2909356,
+            "minutes_share": 0.9434624174003899
+          },
+          {
+            "threshold": 900,
+            "players": 1360,
+            "players_share": 0.48762997490139837,
+            "rows": 38675,
+            "rows_share": 0.7911586613206775,
+            "minutes": 2680534,
+            "minutes_share": 0.8692587251487741
+          }
+        ],
+        "season_minutes_low": [
+          {
+            "season": 2022,
+            "player_id": 10615,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11329,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11470,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10343,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 1542,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 9559,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 1609,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 4940,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10336,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11627,
+            "minutes": 1
+          }
+        ]
+      },
+      "timing": {
+        "ppda_deep": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-14"
+        },
+        "player_match": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-14"
+        }
+      },
+      "acquisition": {
+        "schedule": {
+          "scheduled_matches": 1900,
+          "has_data": 1560,
+          "played_with_xg": 1560,
+          "first_date": "2022-08-13 16:30:00",
+          "last_played_date": "2026-09-14 18:45:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2024": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2025": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2026": {
+              "scheduled": 380,
+              "played_with_xg": 40,
+              "has_data": 40
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1900,
+          "rows": 1900,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 822.9,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:07:57.806912+00:00",
+              "missing_sample": [],
+              "complete": 1560,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1560,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1560,
+              "rows": 1560,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 806.8,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:08:04.771879+00:00",
+              "missing_sample": [],
+              "returned_matches": 1560
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1560,
+            "returned_matches": 1560,
+            "rows": 48884,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 48884,
+              "rows": 48884,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      }
+    },
+    "Premier League": {
+      "league": "Premier League",
+      "files": {
+        "ppda_deep": {
+          "exists": true,
+          "bytes": 463348,
+          "sha256": "dd51b5ec836a0197",
+          "modified": "2026-09-15T16:08:03.780364+00:00"
+        },
+        "player_match": {
+          "exists": true,
+          "bytes": 20154921,
+          "sha256": "f5caf6449f181799",
+          "modified": "2026-09-15T16:21:18.429081+00:00"
+        }
+      },
+      "coverage": {
+        "ppda_deep": {
+          "kind": "ppda_deep",
+          "totals": {
+            "reference_matches": 1560,
+            "present_matches": 1560,
+            "rows": 1560,
+            "complete": 1560,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 1560,
+            "with_away_ppda": 1560,
+            "with_home_deep": 1560,
+            "with_away_deep": 1560,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 40,
+              "present_matches": 40,
+              "missing_matches": 0,
+              "complete": 40,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 40,
+              "with_away_ppda": 40,
+              "with_home_deep": 40,
+              "with_away_deep": 40,
+              "rows": 40,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1560
+        },
+        "player_match": {
+          "kind": "player_match",
+          "totals": {
+            "reference_matches": 1560,
+            "present_matches": 1560,
+            "rows": 47022,
+            "complete": 1560,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 0,
+            "with_away_ppda": 0,
+            "with_home_deep": 0,
+            "with_away_deep": 0,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11345,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11384,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11567,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11490,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 40,
+              "present_matches": 40,
+              "missing_matches": 0,
+              "complete": 40,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 1236,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1560
+        }
+      },
+      "names": {
+        "ppda_deep": {
+          "raw_names": 27,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Arsenal": "Arsenal",
+            "Aston Villa": "Aston Villa",
+            "Bournemouth": "Bournemouth",
+            "Brentford": "Brentford",
+            "Brighton": "Brighton",
+            "Burnley": "Burnley",
+            "Chelsea": "Chelsea",
+            "Coventry": "Coventry City",
+            "Crystal Palace": "Crystal Palace",
+            "Everton": "Everton",
+            "Fulham": "Fulham",
+            "Hull": "Hull City",
+            "Ipswich": "Ipswich",
+            "Leeds": "Leeds",
+            "Leicester": "Leicester",
+            "Liverpool": "Liverpool",
+            "Luton": "Luton",
+            "Manchester City": "Man City",
+            "Manchester United": "Man United",
+            "Newcastle United": "Newcastle",
+            "Nottingham Forest": "Nott'm Forest",
+            "Sheffield United": "Sheffield United",
+            "Southampton": "Southampton",
+            "Sunderland": "Sunderland",
+            "Tottenham": "Tottenham",
+            "West Ham": "West Ham",
+            "Wolverhampton Wanderers": "Wolves"
+          }
+        },
+        "player_match": {
+          "raw_names": 27,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Arsenal": "Arsenal",
+            "Aston Villa": "Aston Villa",
+            "Bournemouth": "Bournemouth",
+            "Brentford": "Brentford",
+            "Brighton": "Brighton",
+            "Burnley": "Burnley",
+            "Chelsea": "Chelsea",
+            "Coventry": "Coventry City",
+            "Crystal Palace": "Crystal Palace",
+            "Everton": "Everton",
+            "Fulham": "Fulham",
+            "Hull": "Hull City",
+            "Ipswich": "Ipswich",
+            "Leeds": "Leeds",
+            "Leicester": "Leicester",
+            "Liverpool": "Liverpool",
+            "Luton": "Luton",
+            "Manchester City": "Man City",
+            "Manchester United": "Man United",
+            "Newcastle United": "Newcastle",
+            "Nottingham Forest": "Nott'm Forest",
+            "Sheffield United": "Sheffield United",
+            "Southampton": "Southampton",
+            "Sunderland": "Sunderland",
+            "Tottenham": "Tottenham",
+            "West Ham": "West Ham",
+            "Wolverhampton Wanderers": "Wolves"
+          }
+        }
+      },
+      "errors": [],
+      "perimeter_matches": 1560,
+      "perimeter_by_season": {
+        "2022": 380,
+        "2023": 380,
+        "2024": 380,
+        "2025": 380,
+        "2026": 40
+      },
+      "summary_ppda": {
+        "matches": 1560,
+        "seasons": {
+          "2022": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2022-08-05",
+            "max_date": "2023-05-28",
+            "max_played_date": "2023-05-28"
+          },
+          "2023": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2023-08-11",
+            "max_date": "2024-05-19",
+            "max_played_date": "2024-05-19"
+          },
+          "2024": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2024-08-16",
+            "max_date": "2025-05-25",
+            "max_played_date": "2025-05-25"
+          },
+          "2025": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2025-08-15",
+            "max_date": "2026-05-24",
+            "max_played_date": "2026-05-24"
+          },
+          "2026": {
+            "matches": 40,
+            "played": 40,
+            "complete": 40,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 40,
+            "with_away_ppda": 40,
+            "with_home_deep": 40,
+            "with_away_deep": 40,
+            "unplayed": 0,
+            "min_date": "2026-08-21",
+            "max_date": "2026-09-14",
+            "max_played_date": "2026-09-14"
+          }
+        }
+      },
+      "values": {
+        "ppda": {
+          "n": 3120,
+          "mean": 12.90836401320144,
+          "min": 2.303030303030303,
+          "p05": 5.4,
+          "p25": 8.36,
+          "p50": 11.4,
+          "p75": 15.428571428571429,
+          "p90": 21.0,
+          "p95": 25.363636363636363,
+          "max": 193.0,
+          "zeros": 0
+        },
+        "ppda_by_season": {
+          "2022": {
+            "n": 760,
+            "mean": 13.09637292294082,
+            "min": 2.5294117647058822,
+            "p05": 5.15,
+            "p25": 8.166666666666666,
+            "p50": 11.5,
+            "p75": 16.0,
+            "p90": 21.789473684210527,
+            "p95": 26.736842105263158,
+            "max": 56.0,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 760,
+            "mean": 13.639387335391884,
+            "min": 2.5652173913043477,
+            "p05": 4.964285714285714,
+            "p25": 8.1875,
+            "p50": 11.56,
+            "p75": 15.61111111111111,
+            "p90": 22.130434782608695,
+            "p95": 28.3,
+            "max": 193.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 760,
+            "mean": 12.555326802615676,
+            "min": 3.2083333333333335,
+            "p05": 5.476190476190476,
+            "p25": 8.615384615384615,
+            "p50": 11.454545454545455,
+            "p75": 15.05,
+            "p90": 19.789473684210527,
+            "p95": 22.90909090909091,
+            "max": 78.0,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 760,
+            "mean": 12.400765266766971,
+            "min": 2.303030303030303,
+            "p05": 5.793103448275862,
+            "p25": 8.62962962962963,
+            "p50": 11.217391304347826,
+            "p75": 14.777777777777779,
+            "p90": 19.333333333333332,
+            "p95": 22.88888888888889,
+            "max": 40.57142857142857,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 80,
+            "mean": 12.353599401560462,
+            "min": 3.735294117647059,
+            "p05": 4.346153846153846,
+            "p25": 7.6,
+            "p50": 10.192307692307692,
+            "p75": 14.95,
+            "p90": 20.9375,
+            "p95": 26.5,
+            "max": 43.125,
+            "zeros": 0
+          }
+        },
+        "deep_completions": {
+          "n": 3120,
+          "mean": 7.3657051282051285,
+          "min": 0.0,
+          "p05": 1.0,
+          "p25": 4.0,
+          "p50": 7.0,
+          "p75": 10.0,
+          "p90": 14.0,
+          "p95": 16.0,
+          "max": 37.0,
+          "zeros": 44
+        }
+      },
+      "summary_player": {
+        "rows": 47022,
+        "matches": 1560,
+        "seasons": {
+          "2022": {
+            "rows": 11345,
+            "matches": 380,
+            "players": 554,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 751948,
+            "yellow_cards": 1365,
+            "red_cards": 29,
+            "goals": 1038,
+            "min_date": "2022-08-05",
+            "max_date": "2023-05-28"
+          },
+          "2023": {
+            "rows": 11384,
+            "matches": 380,
+            "players": 570,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 751601,
+            "yellow_cards": 1589,
+            "red_cards": 58,
+            "goals": 1196,
+            "min_date": "2023-08-11",
+            "max_date": "2024-05-19"
+          },
+          "2024": {
+            "rows": 11567,
+            "matches": 380,
+            "players": 562,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 751511,
+            "yellow_cards": 1541,
+            "red_cards": 51,
+            "goals": 1081,
+            "min_date": "2024-08-16",
+            "max_date": "2025-05-25"
+          },
+          "2025": {
+            "rows": 11490,
+            "matches": 380,
+            "players": 537,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 751519,
+            "yellow_cards": 1417,
+            "red_cards": 44,
+            "goals": 1004,
+            "min_date": "2025-08-15",
+            "max_date": "2026-05-24"
+          },
+          "2026": {
+            "rows": 1236,
+            "matches": 40,
+            "players": 406,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 79020,
+            "yellow_cards": 154,
+            "red_cards": 5,
+            "goals": 108,
+            "min_date": "2026-08-21",
+            "max_date": "2026-09-14"
+          }
+        }
+      },
+      "minutes": {
+        "rows": 47022,
+        "matches": 1560,
+        "players": 2629,
+        "teams": 27,
+        "minutes_missing": 0,
+        "minutes": {
+          "n": 47022,
+          "mean": 65.62032665560801,
+          "min": 1.0,
+          "p05": 2.0,
+          "p25": 35.0,
+          "p50": 89.0,
+          "p75": 90.0,
+          "p90": 90.0,
+          "p95": 90.0,
+          "max": 90.0,
+          "zeros": 0
+        },
+        "minutes_by_season": {
+          "2022": {
+            "n": 11345,
+            "mean": 66.2801234023799,
+            "min": 1.0,
+            "p05": 3.0,
+            "p25": 40.0,
+            "p50": 90.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 11384,
+            "mean": 66.02257554462403,
+            "min": 1.0,
+            "p05": 1.0,
+            "p25": 38.0,
+            "p50": 90.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 11567,
+            "mean": 64.97026022304833,
+            "min": 1.0,
+            "p05": 2.0,
+            "p25": 32.0,
+            "p50": 87.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 11490,
+            "mean": 65.40635335073978,
+            "min": 1.0,
+            "p05": 1.0,
+            "p25": 34.0,
+            "p50": 89.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 1236,
+            "mean": 63.932038834951456,
+            "min": 1.0,
+            "p05": 5.0,
+            "p25": 26.0,
+            "p50": 83.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          }
+        },
+        "rows_by_season": {
+          "2022": 11345,
+          "2023": 11384,
+          "2024": 11567,
+          "2025": 11490,
+          "2026": 1236
+        },
+        "players_per_match": {
+          "n": 1560,
+          "mean": 30.142307692307693,
+          "min": 24.0,
+          "p05": 27.0,
+          "p25": 29.0,
+          "p50": 30.0,
+          "p75": 31.0,
+          "p90": 32.0,
+          "p95": 32.0,
+          "max": 34.0,
+          "zeros": 0
+        },
+        "zero_minutes_rows": 0,
+        "zero_minutes_share": 0.0,
+        "used_rows": 47022,
+        "positions": {
+          "Sub": 12702,
+          "DC": 6927,
+          "MC": 4089,
+          "FW": 3488,
+          "GK": 3120,
+          "DMC": 3074,
+          "DR": 2533,
+          "DL": 2533,
+          "AMC": 2396,
+          "AMR": 1472,
+          "AML": 1472,
+          "FWR": 663,
+          "FWL": 663,
+          "DML": 530,
+          "DMR": 530,
+          "MR": 415,
+          "ML": 415
+        },
+        "season_minutes": {
+          "n": 2629,
+          "mean": 1173.6778242677824,
+          "min": 1.0,
+          "p05": 7.0,
+          "p25": 219.0,
+          "p50": 922.0,
+          "p75": 2013.0,
+          "p90": 2822.0,
+          "p95": 3124.0,
+          "max": 3420.0,
+          "zeros": 0
+        },
+        "thresholds": [
+          {
+            "threshold": 0,
+            "players": 2629,
+            "players_share": 1.0,
+            "rows": 47022,
+            "rows_share": 1.0,
+            "minutes": 3085599,
+            "minutes_share": 1.0
+          },
+          {
+            "threshold": 90,
+            "players": 2207,
+            "players_share": 0.8394826930391784,
+            "rows": 46010,
+            "rows_share": 0.9784781591595424,
+            "minutes": 3074972,
+            "minutes_share": 0.9965559361407623
+          },
+          {
+            "threshold": 270,
+            "players": 1910,
+            "players_share": 0.7265119817421073,
+            "rows": 44322,
+            "rows_share": 0.9425800689039173,
+            "minutes": 3025257,
+            "minutes_share": 0.9804439915880191
+          },
+          {
+            "threshold": 450,
+            "players": 1605,
+            "players_share": 0.6104982883225561,
+            "rows": 42187,
+            "rows_share": 0.8971757900557186,
+            "minutes": 2920144,
+            "minutes_share": 0.9463783207085561
+          },
+          {
+            "threshold": 900,
+            "players": 1329,
+            "players_share": 0.5055154050969951,
+            "rows": 37837,
+            "rows_share": 0.8046659010675854,
+            "minutes": 2735257,
+            "minutes_share": 0.8864589987227763
+          }
+        ],
+        "season_minutes_low": [
+          {
+            "season": 2022,
+            "player_id": 790,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 7239,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 9552,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 1545,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11132,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11035,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10753,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11268,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11544,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11582,
+            "minutes": 1
+          }
+        ]
+      },
+      "timing": {
+        "ppda_deep": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-14"
+        },
+        "player_match": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-14"
+        }
+      },
+      "acquisition": {
+        "schedule": {
+          "scheduled_matches": 1900,
+          "has_data": 1560,
+          "played_with_xg": 1560,
+          "first_date": "2022-08-05 19:00:00",
+          "last_played_date": "2026-09-14 19:00:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2024": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2025": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2026": {
+              "scheduled": 380,
+              "played_with_xg": 40,
+              "has_data": 40
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1900,
+          "rows": 1900,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 808.0,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:07:56.900595+00:00",
+              "missing_sample": [],
+              "complete": 1560,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1560,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1560,
+              "rows": 1560,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 793.0,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:08:03.782272+00:00",
+              "missing_sample": [],
+              "returned_matches": 1560
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1560,
+            "returned_matches": 1560,
+            "rows": 47022,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 47022,
+              "rows": 47022,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      }
+    },
+    "La Liga": {
+      "league": "La Liga",
+      "files": {
+        "ppda_deep": {
+          "exists": true,
+          "bytes": 460799,
+          "sha256": "57c71447ead0c3c8",
+          "modified": "2026-09-15T16:21:30.787844+00:00"
+        },
+        "player_match": {
+          "exists": true,
+          "bytes": 20865698,
+          "sha256": "2115787454fc8604",
+          "modified": "2026-09-15T16:36:01.080027+00:00"
+        }
+      },
+      "coverage": {
+        "ppda_deep": {
+          "kind": "ppda_deep",
+          "totals": {
+            "reference_matches": 1571,
+            "present_matches": 1571,
+            "rows": 1571,
+            "complete": 1571,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 1571,
+            "with_away_ppda": 1571,
+            "with_home_deep": 1571,
+            "with_away_deep": 1571,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 51,
+              "present_matches": 51,
+              "missing_matches": 0,
+              "complete": 51,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 51,
+              "with_away_ppda": 51,
+              "with_home_deep": 51,
+              "with_away_deep": 51,
+              "rows": 51,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1571
+        },
+        "player_match": {
+          "kind": "player_match",
+          "totals": {
+            "reference_matches": 1571,
+            "present_matches": 1571,
+            "rows": 49194,
+            "complete": 1571,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 0,
+            "with_away_ppda": 0,
+            "with_home_deep": 0,
+            "with_away_deep": 0,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11837,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11888,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11900,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11952,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 51,
+              "present_matches": 51,
+              "missing_matches": 0,
+              "complete": 51,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 1617,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1571
+        }
+      },
+      "names": {
+        "ppda_deep": {
+          "raw_names": 29,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Alaves": "Alaves",
+            "Almeria": "Almeria",
+            "Athletic Club": "Ath Bilbao",
+            "Atletico Madrid": "Ath Madrid",
+            "Barcelona": "Barcelona",
+            "Cadiz": "Cadiz",
+            "Celta Vigo": "Celta",
+            "Deportivo La Coruna": "Deportivo",
+            "Elche": "Elche",
+            "Espanyol": "Espanol",
+            "Getafe": "Getafe",
+            "Girona": "Girona",
+            "Granada": "Granada",
+            "Las Palmas": "Las Palmas",
+            "Leganes": "Leganes",
+            "Levante": "Levante",
+            "Malaga": "Málaga",
+            "Mallorca": "Mallorca",
+            "Osasuna": "Osasuna",
+            "Racing Santander": "Santander",
+            "Rayo Vallecano": "Vallecano",
+            "Real Betis": "Betis",
+            "Real Madrid": "Real Madrid",
+            "Real Oviedo": "Oviedo",
+            "Real Sociedad": "Sociedad",
+            "Real Valladolid": "Valladolid",
+            "Sevilla": "Sevilla",
+            "Valencia": "Valencia",
+            "Villarreal": "Villarreal"
+          }
+        },
+        "player_match": {
+          "raw_names": 29,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Alaves": "Alaves",
+            "Almeria": "Almeria",
+            "Athletic Club": "Ath Bilbao",
+            "Atletico Madrid": "Ath Madrid",
+            "Barcelona": "Barcelona",
+            "Cadiz": "Cadiz",
+            "Celta Vigo": "Celta",
+            "Deportivo La Coruna": "Deportivo",
+            "Elche": "Elche",
+            "Espanyol": "Espanol",
+            "Getafe": "Getafe",
+            "Girona": "Girona",
+            "Granada": "Granada",
+            "Las Palmas": "Las Palmas",
+            "Leganes": "Leganes",
+            "Levante": "Levante",
+            "Malaga": "Málaga",
+            "Mallorca": "Mallorca",
+            "Osasuna": "Osasuna",
+            "Racing Santander": "Santander",
+            "Rayo Vallecano": "Vallecano",
+            "Real Betis": "Betis",
+            "Real Madrid": "Real Madrid",
+            "Real Oviedo": "Oviedo",
+            "Real Sociedad": "Sociedad",
+            "Real Valladolid": "Valladolid",
+            "Sevilla": "Sevilla",
+            "Valencia": "Valencia",
+            "Villarreal": "Villarreal"
+          }
+        }
+      },
+      "errors": [],
+      "perimeter_matches": 1571,
+      "perimeter_by_season": {
+        "2022": 380,
+        "2023": 380,
+        "2024": 380,
+        "2025": 380,
+        "2026": 51
+      },
+      "summary_ppda": {
+        "matches": 1571,
+        "seasons": {
+          "2022": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2022-08-12",
+            "max_date": "2023-06-04",
+            "max_played_date": "2023-06-04"
+          },
+          "2023": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2023-08-11",
+            "max_date": "2024-05-26",
+            "max_played_date": "2024-05-26"
+          },
+          "2024": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2024-08-15",
+            "max_date": "2025-05-25",
+            "max_played_date": "2025-05-25"
+          },
+          "2025": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2025-08-15",
+            "max_date": "2026-05-24",
+            "max_played_date": "2026-05-24"
+          },
+          "2026": {
+            "matches": 51,
+            "played": 51,
+            "complete": 51,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 51,
+            "with_away_ppda": 51,
+            "with_home_deep": 51,
+            "with_away_deep": 51,
+            "unplayed": 0,
+            "min_date": "2026-08-15",
+            "max_date": "2026-09-14",
+            "max_played_date": "2026-09-14"
+          }
+        }
+      },
+      "values": {
+        "ppda": {
+          "n": 3142,
+          "mean": 12.107523318246148,
+          "min": 2.5357142857142856,
+          "p05": 5.052631578947368,
+          "p25": 7.921052631578948,
+          "p50": 10.764705882352942,
+          "p75": 14.61111111111111,
+          "p90": 19.615384615384617,
+          "p95": 23.2,
+          "max": 91.5,
+          "zeros": 0
+        },
+        "ppda_by_season": {
+          "2022": {
+            "n": 760,
+            "mean": 11.691170160993163,
+            "min": 2.7666666666666666,
+            "p05": 5.0,
+            "p25": 7.484848484848484,
+            "p50": 10.11111111111111,
+            "p75": 14.055555555555555,
+            "p90": 19.2,
+            "p95": 23.083333333333332,
+            "max": 82.8,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 760,
+            "mean": 12.240583673566597,
+            "min": 2.727272727272727,
+            "p05": 5.181818181818182,
+            "p25": 8.0,
+            "p50": 10.742857142857142,
+            "p75": 14.625,
+            "p90": 19.647058823529413,
+            "p95": 23.294117647058822,
+            "max": 91.5,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 760,
+            "mean": 12.30989273868615,
+            "min": 2.5357142857142856,
+            "p05": 5.027027027027027,
+            "p25": 8.071428571428571,
+            "p50": 11.08,
+            "p75": 15.15,
+            "p90": 19.764705882352942,
+            "p95": 23.4375,
+            "max": 44.625,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 760,
+            "mean": 12.116800722989998,
+            "min": 2.96875,
+            "p05": 4.958333333333333,
+            "p25": 8.0,
+            "p50": 10.777777777777779,
+            "p75": 14.523809523809524,
+            "p90": 19.8125,
+            "p95": 22.75,
+            "max": 85.0,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 102,
+            "mean": 12.641356086178163,
+            "min": 4.0,
+            "p05": 5.733333333333333,
+            "p25": 8.823529411764707,
+            "p50": 11.7,
+            "p75": 15.75,
+            "p90": 20.416666666666668,
+            "p95": 21.615384615384617,
+            "max": 30.153846153846153,
+            "zeros": 0
+          }
+        },
+        "deep_completions": {
+          "n": 3142,
+          "mean": 5.900381922342457,
+          "min": 0.0,
+          "p05": 1.0,
+          "p25": 3.0,
+          "p50": 5.0,
+          "p75": 8.0,
+          "p90": 11.0,
+          "p95": 14.0,
+          "max": 33.0,
+          "zeros": 93
+        }
+      },
+      "summary_player": {
+        "rows": 49194,
+        "matches": 1571,
+        "seasons": {
+          "2022": {
+            "rows": 11837,
+            "matches": 380,
+            "players": 584,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 750092,
+            "yellow_cards": 1798,
+            "red_cards": 133,
+            "goals": 922,
+            "min_date": "2022-08-12",
+            "max_date": "2023-06-04"
+          },
+          "2023": {
+            "rows": 11888,
+            "matches": 380,
+            "players": 598,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 750560,
+            "yellow_cards": 1719,
+            "red_cards": 84,
+            "goals": 977,
+            "min_date": "2023-08-11",
+            "max_date": "2024-05-26"
+          },
+          "2024": {
+            "rows": 11900,
+            "matches": 380,
+            "players": 590,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 750794,
+            "yellow_cards": 1656,
+            "red_cards": 75,
+            "goals": 968,
+            "min_date": "2024-08-15",
+            "max_date": "2025-05-25"
+          },
+          "2025": {
+            "rows": 11952,
+            "matches": 380,
+            "players": 600,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 750769,
+            "yellow_cards": 1575,
+            "red_cards": 99,
+            "goals": 1001,
+            "min_date": "2025-08-15",
+            "max_date": "2026-05-24"
+          },
+          "2026": {
+            "rows": 1617,
+            "matches": 51,
+            "players": 448,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 100768,
+            "yellow_cards": 208,
+            "red_cards": 12,
+            "goals": 147,
+            "min_date": "2026-08-15",
+            "max_date": "2026-09-14"
+          }
+        }
+      },
+      "minutes": {
+        "rows": 49194,
+        "matches": 1571,
+        "players": 2820,
+        "teams": 29,
+        "minutes_missing": 0,
+        "minutes": {
+          "n": 49194,
+          "mean": 63.07645241289588,
+          "min": 1.0,
+          "p05": 4.0,
+          "p25": 29.0,
+          "p50": 80.0,
+          "p75": 90.0,
+          "p90": 90.0,
+          "p95": 90.0,
+          "max": 90.0,
+          "zeros": 0
+        },
+        "minutes_by_season": {
+          "2022": {
+            "n": 11837,
+            "mean": 63.36842105263158,
+            "min": 1.0,
+            "p05": 5.0,
+            "p25": 30.0,
+            "p50": 80.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 11888,
+            "mean": 63.135935397039034,
+            "min": 1.0,
+            "p05": 3.0,
+            "p25": 29.0,
+            "p50": 81.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 11900,
+            "mean": 63.09193277310924,
+            "min": 1.0,
+            "p05": 4.0,
+            "p25": 29.0,
+            "p50": 80.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 11952,
+            "mean": 62.81534471218206,
+            "min": 1.0,
+            "p05": 4.0,
+            "p25": 29.0,
+            "p50": 79.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 1617,
+            "mean": 62.31787260358689,
+            "min": 1.0,
+            "p05": 4.0,
+            "p25": 28.0,
+            "p50": 76.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          }
+        },
+        "rows_by_season": {
+          "2022": 11837,
+          "2023": 11888,
+          "2024": 11900,
+          "2025": 11952,
+          "2026": 1617
+        },
+        "players_per_match": {
+          "n": 1571,
+          "mean": 31.313812858052195,
+          "min": 26.0,
+          "p05": 29.0,
+          "p25": 31.0,
+          "p50": 32.0,
+          "p75": 32.0,
+          "p90": 32.0,
+          "p95": 32.0,
+          "max": 34.0,
+          "zeros": 0
+        },
+        "zero_minutes_rows": 0,
+        "zero_minutes_share": 0.0,
+        "used_rows": 49194,
+        "positions": {
+          "Sub": 14632,
+          "DC": 6906,
+          "MC": 5063,
+          "FW": 4236,
+          "GK": 3142,
+          "DL": 2854,
+          "DR": 2854,
+          "DMC": 2326,
+          "AMC": 1303,
+          "MR": 1129,
+          "ML": 1129,
+          "AMR": 1021,
+          "AML": 1021,
+          "FWL": 532,
+          "FWR": 532,
+          "DML": 257,
+          "DMR": 257
+        },
+        "season_minutes": {
+          "n": 2820,
+          "mean": 1100.3485815602837,
+          "min": 1.0,
+          "p05": 10.0,
+          "p25": 207.0,
+          "p50": 846.0,
+          "p75": 1865.0,
+          "p90": 2576.0,
+          "p95": 2880.0,
+          "max": 3420.0,
+          "zeros": 0
+        },
+        "thresholds": [
+          {
+            "threshold": 0,
+            "players": 2820,
+            "players_share": 1.0,
+            "rows": 49194,
+            "rows_share": 1.0,
+            "minutes": 3102983,
+            "minutes_share": 1.0
+          },
+          {
+            "threshold": 90,
+            "players": 2403,
+            "players_share": 0.8521276595744681,
+            "rows": 48347,
+            "rows_share": 0.9827824531446925,
+            "minutes": 3091072,
+            "minutes_share": 0.9961614356250099
+          },
+          {
+            "threshold": 270,
+            "players": 2022,
+            "players_share": 0.7170212765957447,
+            "rows": 46559,
+            "rows_share": 0.9464365573037362,
+            "minutes": 3028860,
+            "minutes_share": 0.976112340931291
+          },
+          {
+            "threshold": 450,
+            "players": 1727,
+            "players_share": 0.6124113475177305,
+            "rows": 44147,
+            "rows_share": 0.8974061877464732,
+            "minutes": 2923589,
+            "minutes_share": 0.9421865991531375
+          },
+          {
+            "threshold": 900,
+            "players": 1378,
+            "players_share": 0.48865248226950353,
+            "rows": 39127,
+            "rows_share": 0.7953612229133634,
+            "minutes": 2698603,
+            "minutes_share": 0.8696802399497516
+          }
+        ],
+        "season_minutes_low": [
+          {
+            "season": 2022,
+            "player_id": 10873,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 3295,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10990,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 9817,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11167,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10915,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 9808,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11471,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11620,
+            "minutes": 1
+          },
+          {
+            "season": 2023,
+            "player_id": 10915,
+            "minutes": 1
+          }
+        ]
+      },
+      "timing": {
+        "ppda_deep": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-14"
+        },
+        "player_match": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-14"
+        }
+      },
+      "acquisition": {
+        "schedule": {
+          "scheduled_matches": 1900,
+          "has_data": 1571,
+          "played_with_xg": 1571,
+          "first_date": "2022-08-12 19:00:00",
+          "last_played_date": "2026-09-14 19:00:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2024": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2025": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2026": {
+              "scheduled": 380,
+              "played_with_xg": 51,
+              "has_data": 51
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1900,
+          "rows": 1900,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 882.7,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1571,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:23.931985+00:00",
+              "missing_sample": [],
+              "complete": 1571,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1571,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1571,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1571,
+              "rows": 1571,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 868.5,
+            "coverage": {
+              "reference_matches": 1571,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:30.804521+00:00",
+              "missing_sample": [],
+              "returned_matches": 1571
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1571,
+            "returned_matches": 1571,
+            "rows": 49194,
+            "matches": 1571,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 49285,
+              "rows": 49194,
+              "duplicate_rows": 91,
+              "duplicate_keys": 3,
+              "duplicate_matches": 3,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0018464035710662474,
+              "sample_matches": [
+                {
+                  "season": 2023,
+                  "id": 23028,
+                  "rows": 30
+                },
+                {
+                  "season": 2025,
+                  "id": 29482,
+                  "rows": 32
+                },
+                {
+                  "season": 2026,
+                  "id": 30804,
+                  "rows": 29
+                }
+              ]
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      }
+    },
+    "Bundesliga": {
+      "league": "Bundesliga",
+      "files": {
+        "ppda_deep": {
+          "exists": true,
+          "bytes": 374921,
+          "sha256": "0319d545ee4696a6",
+          "modified": "2026-09-15T16:21:56.759345+00:00"
+        },
+        "player_match": {
+          "exists": true,
+          "bytes": 16820771,
+          "sha256": "f8ca51161a55136a",
+          "modified": "2026-09-15T16:34:16.934051+00:00"
+        }
+      },
+      "coverage": {
+        "ppda_deep": {
+          "kind": "ppda_deep",
+          "totals": {
+            "reference_matches": 1251,
+            "present_matches": 1251,
+            "rows": 1251,
+            "complete": 1250,
+            "partial": 0,
+            "structural_ppda_na": 1,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 1250,
+            "with_away_ppda": 1250,
+            "with_home_deep": 1251,
+            "with_away_deep": 1251,
+            "complete_ratio": 0.9992006394884093,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 306,
+              "with_away_ppda": 306,
+              "with_home_deep": 306,
+              "with_away_deep": 306,
+              "rows": 306,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 306,
+              "with_away_ppda": 306,
+              "with_home_deep": 306,
+              "with_away_deep": 306,
+              "rows": 306,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 305,
+              "partial": 0,
+              "structural_ppda_na": 1,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 305,
+              "with_away_ppda": 305,
+              "with_home_deep": 306,
+              "with_away_deep": 306,
+              "rows": 306,
+              "missing_sample": [],
+              "complete_ratio": 0.9967320261437909,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 306,
+              "with_away_ppda": 306,
+              "with_home_deep": 306,
+              "with_away_deep": 306,
+              "rows": 306,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 27,
+              "present_matches": 27,
+              "missing_matches": 0,
+              "complete": 27,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 27,
+              "with_away_ppda": 27,
+              "with_home_deep": 27,
+              "with_away_deep": 27,
+              "rows": 27,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1251
+        },
+        "player_match": {
+          "kind": "player_match",
+          "totals": {
+            "reference_matches": 1251,
+            "present_matches": 1250,
+            "rows": 38910,
+            "complete": 1250,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 1,
+            "missing_matches": 1,
+            "with_home_ppda": 0,
+            "with_away_ppda": 0,
+            "with_home_deep": 0,
+            "with_away_deep": 0,
+            "complete_ratio": 0.9992006394884093,
+            "presence_ratio": 0.9992006394884093
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 9479,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 9525,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 306,
+              "present_matches": 305,
+              "missing_matches": 1,
+              "complete": 305,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 1,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 9497,
+              "missing_sample": [
+                {
+                  "id": 27930,
+                  "date": "2025-02-09",
+                  "home_team": "Holstein Kiel",
+                  "away_team": "Bochum"
+                }
+              ],
+              "complete_ratio": 0.9967320261437909,
+              "presence_ratio": 0.9967320261437909,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 9555,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 27,
+              "present_matches": 27,
+              "missing_matches": 0,
+              "complete": 27,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 854,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1250
+        }
+      },
+      "names": {
+        "ppda_deep": {
+          "raw_names": 25,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Augsburg": "Augsburg",
+            "Bayer Leverkusen": "Leverkusen",
+            "Bayern Munich": "Bayern",
+            "Bochum": "Bochum",
+            "Borussia Dortmund": "Dortmund",
+            "Borussia M.Gladbach": "M'gladbach",
+            "Darmstadt": "Darmstadt",
+            "Eintracht Frankfurt": "Ein Frankfurt",
+            "Elversberg": "Elversberg",
+            "FC Cologne": "Koln",
+            "FC Heidenheim": "Heidenheim",
+            "Freiburg": "Freiburg",
+            "Hamburger SV": "Hamburg",
+            "Hertha Berlin": "Hertha",
+            "Hoffenheim": "Hoffenheim",
+            "Holstein Kiel": "Holstein Kiel",
+            "Mainz 05": "Mainz",
+            "Paderborn": "SC Paderborn",
+            "RasenBallsport Leipzig": "Leipzig",
+            "Schalke 04": "Schalke 04",
+            "St. Pauli": "St Pauli",
+            "Union Berlin": "Union Berlin",
+            "VfB Stuttgart": "Stuttgart",
+            "Werder Bremen": "Werder Bremen",
+            "Wolfsburg": "Wolfsburg"
+          }
+        },
+        "player_match": {
+          "raw_names": 25,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Augsburg": "Augsburg",
+            "Bayer Leverkusen": "Leverkusen",
+            "Bayern Munich": "Bayern",
+            "Bochum": "Bochum",
+            "Borussia Dortmund": "Dortmund",
+            "Borussia M.Gladbach": "M'gladbach",
+            "Darmstadt": "Darmstadt",
+            "Eintracht Frankfurt": "Ein Frankfurt",
+            "Elversberg": "Elversberg",
+            "FC Cologne": "Koln",
+            "FC Heidenheim": "Heidenheim",
+            "Freiburg": "Freiburg",
+            "Hamburger SV": "Hamburg",
+            "Hertha Berlin": "Hertha",
+            "Hoffenheim": "Hoffenheim",
+            "Holstein Kiel": "Holstein Kiel",
+            "Mainz 05": "Mainz",
+            "Paderborn": "SC Paderborn",
+            "RasenBallsport Leipzig": "Leipzig",
+            "Schalke 04": "Schalke 04",
+            "St. Pauli": "St Pauli",
+            "Union Berlin": "Union Berlin",
+            "VfB Stuttgart": "Stuttgart",
+            "Werder Bremen": "Werder Bremen",
+            "Wolfsburg": "Wolfsburg"
+          }
+        }
+      },
+      "errors": [],
+      "perimeter_matches": 1251,
+      "perimeter_by_season": {
+        "2022": 306,
+        "2023": 306,
+        "2024": 306,
+        "2025": 306,
+        "2026": 27
+      },
+      "summary_ppda": {
+        "matches": 1251,
+        "seasons": {
+          "2022": {
+            "matches": 306,
+            "played": 306,
+            "complete": 306,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 306,
+            "with_away_ppda": 306,
+            "with_home_deep": 306,
+            "with_away_deep": 306,
+            "unplayed": 0,
+            "min_date": "2022-08-05",
+            "max_date": "2023-05-27",
+            "max_played_date": "2023-05-27"
+          },
+          "2023": {
+            "matches": 306,
+            "played": 306,
+            "complete": 306,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 306,
+            "with_away_ppda": 306,
+            "with_home_deep": 306,
+            "with_away_deep": 306,
+            "unplayed": 0,
+            "min_date": "2023-08-18",
+            "max_date": "2024-05-18",
+            "max_played_date": "2024-05-18"
+          },
+          "2024": {
+            "matches": 306,
+            "played": 306,
+            "complete": 305,
+            "partial": 1,
+            "empty": 0,
+            "with_home_ppda": 305,
+            "with_away_ppda": 305,
+            "with_home_deep": 306,
+            "with_away_deep": 306,
+            "unplayed": 0,
+            "min_date": "2024-08-23",
+            "max_date": "2025-05-17",
+            "max_played_date": "2025-05-17"
+          },
+          "2025": {
+            "matches": 306,
+            "played": 306,
+            "complete": 306,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 306,
+            "with_away_ppda": 306,
+            "with_home_deep": 306,
+            "with_away_deep": 306,
+            "unplayed": 0,
+            "min_date": "2025-08-22",
+            "max_date": "2026-05-16",
+            "max_played_date": "2026-05-16"
+          },
+          "2026": {
+            "matches": 27,
+            "played": 27,
+            "complete": 27,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 27,
+            "with_away_ppda": 27,
+            "with_home_deep": 27,
+            "with_away_deep": 27,
+            "unplayed": 0,
+            "min_date": "2026-08-28",
+            "max_date": "2026-09-13",
+            "max_played_date": "2026-09-13"
+          }
+        }
+      },
+      "values": {
+        "ppda": {
+          "n": 2500,
+          "mean": 13.982773615530075,
+          "min": 3.0,
+          "p05": 6.1923076923076925,
+          "p25": 9.210526315789474,
+          "p50": 12.458333333333334,
+          "p75": 16.733333333333334,
+          "p90": 22.5,
+          "p95": 26.88235294117647,
+          "max": 105.0,
+          "zeros": 0
+        },
+        "ppda_by_season": {
+          "2022": {
+            "n": 612,
+            "mean": 12.564395220288846,
+            "min": 3.0,
+            "p05": 5.625,
+            "p25": 8.548387096774194,
+            "p50": 11.083333333333334,
+            "p75": 14.736842105263158,
+            "p90": 20.11764705882353,
+            "p95": 25.0,
+            "max": 42.81818181818182,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 612,
+            "mean": 14.354477959372149,
+            "min": 3.6923076923076925,
+            "p05": 6.444444444444445,
+            "p25": 9.5,
+            "p50": 12.85,
+            "p75": 17.153846153846153,
+            "p90": 22.529411764705884,
+            "p95": 26.133333333333333,
+            "max": 105.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 610,
+            "mean": 14.375476093377385,
+            "min": 3.6538461538461537,
+            "p05": 6.235294117647059,
+            "p25": 9.6,
+            "p50": 12.941176470588236,
+            "p75": 17.0,
+            "p90": 23.333333333333332,
+            "p95": 28.352941176470587,
+            "max": 61.5,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 612,
+            "mean": 14.616611673977433,
+            "min": 3.789473684210526,
+            "p05": 6.28,
+            "p25": 9.53125,
+            "p50": 12.807692307692308,
+            "p75": 17.0625,
+            "p90": 23.875,
+            "p95": 29.333333333333332,
+            "max": 60.77777777777778,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 54,
+            "mean": 14.225497989597008,
+            "min": 3.423076923076923,
+            "p05": 5.8076923076923075,
+            "p25": 9.68421052631579,
+            "p50": 12.652173913043478,
+            "p75": 17.923076923076923,
+            "p90": 23.46153846153846,
+            "p95": 26.5,
+            "max": 54.57142857142857,
+            "zeros": 0
+          }
+        },
+        "deep_completions": {
+          "n": 2502,
+          "mean": 7.204236610711431,
+          "min": 0.0,
+          "p05": 2.0,
+          "p25": 4.0,
+          "p50": 6.0,
+          "p75": 10.0,
+          "p90": 13.0,
+          "p95": 16.0,
+          "max": 29.0,
+          "zeros": 24
+        }
+      },
+      "summary_player": {
+        "rows": 38910,
+        "matches": 1250,
+        "seasons": {
+          "2022": {
+            "rows": 9479,
+            "matches": 306,
+            "players": 506,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 604852,
+            "yellow_cards": 1214,
+            "red_cards": 43,
+            "goals": 948,
+            "min_date": "2022-08-05",
+            "max_date": "2023-05-27"
+          },
+          "2023": {
+            "rows": 9525,
+            "matches": 306,
+            "players": 494,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 604793,
+            "yellow_cards": 1214,
+            "red_cards": 55,
+            "goals": 960,
+            "min_date": "2023-08-18",
+            "max_date": "2024-05-18"
+          },
+          "2024": {
+            "rows": 9497,
+            "matches": 305,
+            "players": 481,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 602777,
+            "yellow_cards": 1128,
+            "red_cards": 55,
+            "goals": 930,
+            "min_date": "2024-08-23",
+            "max_date": "2025-05-17"
+          },
+          "2025": {
+            "rows": 9555,
+            "matches": 306,
+            "players": 499,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 605107,
+            "yellow_cards": 1106,
+            "red_cards": 51,
+            "goals": 970,
+            "min_date": "2025-08-22",
+            "max_date": "2026-05-16"
+          },
+          "2026": {
+            "rows": 854,
+            "matches": 27,
+            "players": 357,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 53405,
+            "yellow_cards": 84,
+            "red_cards": 3,
+            "goals": 100,
+            "min_date": "2026-08-28",
+            "max_date": "2026-09-13"
+          }
+        }
+      },
+      "minutes": {
+        "rows": 38910,
+        "matches": 1250,
+        "players": 2337,
+        "teams": 25,
+        "minutes_missing": 0,
+        "minutes": {
+          "n": 38910,
+          "mean": 63.50382934978155,
+          "min": 1.0,
+          "p05": 3.0,
+          "p25": 28.0,
+          "p50": 83.0,
+          "p75": 90.0,
+          "p90": 90.0,
+          "p95": 90.0,
+          "max": 90.0,
+          "zeros": 0
+        },
+        "minutes_by_season": {
+          "2022": {
+            "n": 9479,
+            "mean": 63.80968456588248,
+            "min": 1.0,
+            "p05": 4.0,
+            "p25": 30.0,
+            "p50": 82.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 9525,
+            "mean": 63.4953280839895,
+            "min": 1.0,
+            "p05": 1.0,
+            "p25": 27.0,
+            "p50": 84.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 9497,
+            "mean": 63.47025376434664,
+            "min": 1.0,
+            "p05": 3.0,
+            "p25": 28.0,
+            "p50": 83.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 9555,
+            "mean": 63.32883307169021,
+            "min": 1.0,
+            "p05": 2.0,
+            "p25": 27.0,
+            "p50": 83.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 854,
+            "mean": 62.53512880562061,
+            "min": 1.0,
+            "p05": 3.0,
+            "p25": 25.0,
+            "p50": 79.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          }
+        },
+        "rows_by_season": {
+          "2022": 9479,
+          "2023": 9525,
+          "2024": 9497,
+          "2025": 9555,
+          "2026": 854
+        },
+        "players_per_match": {
+          "n": 1250,
+          "mean": 31.128,
+          "min": 27.0,
+          "p05": 29.0,
+          "p25": 31.0,
+          "p50": 31.0,
+          "p75": 32.0,
+          "p90": 32.0,
+          "p95": 32.0,
+          "max": 32.0,
+          "zeros": 0
+        },
+        "zero_minutes_rows": 0,
+        "zero_minutes_share": 0.0,
+        "used_rows": 38910,
+        "positions": {
+          "Sub": 11410,
+          "DC": 6244,
+          "MC": 4038,
+          "FW": 3324,
+          "GK": 2500,
+          "AMC": 2241,
+          "DMC": 1725,
+          "DL": 1314,
+          "DR": 1314,
+          "DML": 1002,
+          "DMR": 1002,
+          "AMR": 677,
+          "AML": 677,
+          "MR": 439,
+          "ML": 439,
+          "FWR": 282,
+          "FWL": 282
+        },
+        "season_minutes": {
+          "n": 2337,
+          "mean": 1057.3102267864783,
+          "min": 1.0,
+          "p05": 10.0,
+          "p25": 182.0,
+          "p50": 831.0,
+          "p75": 1828.0,
+          "p90": 2493.0,
+          "p95": 2742.0,
+          "max": 3060.0,
+          "zeros": 0
+        },
+        "thresholds": [
+          {
+            "threshold": 0,
+            "players": 2337,
+            "players_share": 1.0,
+            "rows": 38910,
+            "rows_share": 1.0,
+            "minutes": 2470934,
+            "minutes_share": 1.0
+          },
+          {
+            "threshold": 90,
+            "players": 1956,
+            "players_share": 0.8369704749679076,
+            "rows": 37966,
+            "rows_share": 0.9757388846054998,
+            "minutes": 2459887,
+            "minutes_share": 0.9955292209342702
+          },
+          {
+            "threshold": 270,
+            "players": 1600,
+            "players_share": 0.6846384253316218,
+            "rows": 36245,
+            "rows_share": 0.9315086096119249,
+            "minutes": 2396552,
+            "minutes_share": 0.96989721295672
+          },
+          {
+            "threshold": 450,
+            "players": 1406,
+            "players_share": 0.6016260162601627,
+            "rows": 34538,
+            "rows_share": 0.8876381392958108,
+            "minutes": 2334009,
+            "minutes_share": 0.9445857315492846
+          },
+          {
+            "threshold": 900,
+            "players": 1129,
+            "players_share": 0.4830979888746256,
+            "rows": 30196,
+            "rows_share": 0.776047288614752,
+            "minutes": 2152079,
+            "minutes_share": 0.8709577026339028
+          }
+        ],
+        "season_minutes_low": [
+          {
+            "season": 2025,
+            "player_id": 13621,
+            "minutes": 1
+          },
+          {
+            "season": 2025,
+            "player_id": 14096,
+            "minutes": 1
+          },
+          {
+            "season": 2025,
+            "player_id": 14223,
+            "minutes": 1
+          },
+          {
+            "season": 2025,
+            "player_id": 14071,
+            "minutes": 1
+          },
+          {
+            "season": 2025,
+            "player_id": 12314,
+            "minutes": 1
+          },
+          {
+            "season": 2025,
+            "player_id": 14252,
+            "minutes": 1
+          },
+          {
+            "season": 2025,
+            "player_id": 14422,
+            "minutes": 1
+          },
+          {
+            "season": 2025,
+            "player_id": 14398,
+            "minutes": 1
+          },
+          {
+            "season": 2026,
+            "player_id": 13078,
+            "minutes": 1
+          },
+          {
+            "season": 2026,
+            "player_id": 13907,
+            "minutes": 1
+          }
+        ]
+      },
+      "timing": {
+        "ppda_deep": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-13"
+        },
+        "player_match": {
+          "perimeter_missing": 1,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 1,
+            "mean": 583.1365924139121,
+            "min": 583.1365924139121,
+            "p05": 583.1365924139121,
+            "p25": 583.1365924139121,
+            "p50": 583.1365924139121,
+            "p75": 583.1365924139121,
+            "p90": 583.1365924139121,
+            "p95": 583.1365924139121,
+            "max": 583.1365924139121,
+            "zeros": 0
+          },
+          "age_days_p90": 583.1365924139121,
+          "age_days_max": 583.1365924139121,
+          "older_than_frontier": 1,
+          "sample": [
+            {
+              "id": 27930,
+              "season": 2024,
+              "date": "2025-02-09",
+              "home_team": "Holstein Kiel",
+              "away_team": "Bochum",
+              "kickoff": "2025-02-09 13:30:00+00:00"
+            }
+          ],
+          "last_date_present": "2026-09-13"
+        }
+      },
+      "acquisition": {
+        "schedule": {
+          "scheduled_matches": 1530,
+          "has_data": 1251,
+          "played_with_xg": 1251,
+          "first_date": "2022-08-05 18:30:00",
+          "last_played_date": "2026-09-13 15:30:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2023": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2024": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2025": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2026": {
+              "scheduled": 306,
+              "played_with_xg": 27,
+              "has_data": 27
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1530,
+          "rows": 1530,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 763.5,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1251,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:39.152002+00:00",
+              "missing_sample": [],
+              "complete": 1250,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 1,
+              "ppda_missing_but_deep_present": 2,
+              "complete_ratio": 0.9992006394884093
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 2,
+            "missing_matches_sample": null,
+            "requested_matches": 1251,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1251,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1251,
+              "rows": 1251,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": [
+              "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+            ],
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 738.8,
+            "coverage": {
+              "reference_matches": 1251,
+              "missing_total": 1,
+              "missing_frontier": 0,
+              "missing_old": 1,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0007993605115907274,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:56.761403+00:00",
+              "missing_sample": [
+                "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+              ],
+              "returned_matches": 1250
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 2,
+            "missing_matches_sample": [
+              "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+            ],
+            "requested_matches": 1251,
+            "returned_matches": 1250,
+            "rows": 38910,
+            "matches": 1250,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 38910,
+              "rows": 38910,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 3,
+            "unreadable_sample": [
+              {
+                "id": 27930,
+                "error": "AttributeError: 'list' object has no attribute 'values'"
+              },
+              {
+                "id": 27930,
+                "error": "AttributeError: 'list' object has no attribute 'values'"
+              },
+              {
+                "id": 27930,
+                "error": "AttributeError: 'list' object has no attribute 'values'"
+              }
+            ],
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      }
+    },
+    "Ligue 1": {
+      "league": "Ligue 1",
+      "files": {
+        "ppda_deep": {
+          "exists": true,
+          "bytes": 385927,
+          "sha256": "68f9bc12d2a9aee9",
+          "modified": "2026-09-15T16:34:27.572843+00:00"
+        },
+        "player_match": {
+          "exists": true,
+          "bytes": 17264891,
+          "sha256": "57493c43c99a29fc",
+          "modified": "2026-09-15T16:46:41.552661+00:00"
+        }
+      },
+      "coverage": {
+        "ppda_deep": {
+          "kind": "ppda_deep",
+          "totals": {
+            "reference_matches": 1334,
+            "present_matches": 1334,
+            "rows": 1334,
+            "complete": 1334,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 1334,
+            "with_away_ppda": 1334,
+            "with_home_deep": 1334,
+            "with_away_deep": 1334,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 380,
+              "with_away_ppda": 380,
+              "with_home_deep": 380,
+              "with_away_deep": 380,
+              "rows": 380,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 306,
+              "with_away_ppda": 306,
+              "with_home_deep": 306,
+              "with_away_deep": 306,
+              "rows": 306,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 306,
+              "with_away_ppda": 306,
+              "with_home_deep": 306,
+              "with_away_deep": 306,
+              "rows": 306,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 306,
+              "with_away_ppda": 306,
+              "with_home_deep": 306,
+              "with_away_deep": 306,
+              "rows": 306,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 36,
+              "present_matches": 36,
+              "missing_matches": 0,
+              "complete": 36,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 36,
+              "with_away_ppda": 36,
+              "with_home_deep": 36,
+              "with_away_deep": 36,
+              "rows": 36,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1334
+        },
+        "player_match": {
+          "kind": "player_match",
+          "totals": {
+            "reference_matches": 1334,
+            "present_matches": 1334,
+            "rows": 40892,
+            "complete": 1334,
+            "partial": 0,
+            "structural_ppda_na": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "missing_matches": 0,
+            "with_home_ppda": 0,
+            "with_away_ppda": 0,
+            "with_home_deep": 0,
+            "with_away_deep": 0,
+            "complete_ratio": 1.0,
+            "presence_ratio": 1.0
+          },
+          "seasons": {
+            "2022": {
+              "reference_matches": 380,
+              "present_matches": 380,
+              "missing_matches": 0,
+              "complete": 380,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 11547,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2023": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 9394,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2024": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 9413,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2025": {
+              "reference_matches": 306,
+              "present_matches": 306,
+              "missing_matches": 0,
+              "complete": 306,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 9408,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            },
+            "2026": {
+              "reference_matches": 36,
+              "present_matches": 36,
+              "missing_matches": 0,
+              "complete": 36,
+              "partial": 0,
+              "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "with_home_ppda": 0,
+              "with_away_ppda": 0,
+              "with_home_deep": 0,
+              "with_away_deep": 0,
+              "rows": 1130,
+              "missing_sample": [],
+              "complete_ratio": 1.0,
+              "presence_ratio": 1.0,
+              "newer_than_archive": 0
+            }
+          },
+          "own_records": 1334
+        }
+      },
+      "names": {
+        "ppda_deep": {
+          "raw_names": 25,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Ajaccio": "Ajaccio",
+            "Angers": "Angers",
+            "Auxerre": "Auxerre",
+            "Brest": "Brest",
+            "Clermont Foot": "Clermont",
+            "Le Havre": "Le Havre",
+            "Le Mans": "Le Mans",
+            "Lens": "Lens",
+            "Lille": "Lille",
+            "Lorient": "Lorient",
+            "Lyon": "Lyon",
+            "Marseille": "Marseille",
+            "Metz": "Metz",
+            "Monaco": "Monaco",
+            "Montpellier": "Montpellier",
+            "Nantes": "Nantes",
+            "Nice": "Nice",
+            "Paris FC": "Paris",
+            "Paris Saint Germain": "PSG",
+            "Reims": "Reims",
+            "Rennes": "Rennes",
+            "Saint-Etienne": "St Etienne",
+            "Strasbourg": "Strasbourg",
+            "Toulouse": "Toulouse",
+            "Troyes": "Troyes"
+          }
+        },
+        "player_match": {
+          "raw_names": 25,
+          "unmapped": {},
+          "collisions": {},
+          "raw_to_canonical": {
+            "Ajaccio": "Ajaccio",
+            "Angers": "Angers",
+            "Auxerre": "Auxerre",
+            "Brest": "Brest",
+            "Clermont Foot": "Clermont",
+            "Le Havre": "Le Havre",
+            "Le Mans": "Le Mans",
+            "Lens": "Lens",
+            "Lille": "Lille",
+            "Lorient": "Lorient",
+            "Lyon": "Lyon",
+            "Marseille": "Marseille",
+            "Metz": "Metz",
+            "Monaco": "Monaco",
+            "Montpellier": "Montpellier",
+            "Nantes": "Nantes",
+            "Nice": "Nice",
+            "Paris FC": "Paris",
+            "Paris Saint Germain": "PSG",
+            "Reims": "Reims",
+            "Rennes": "Rennes",
+            "Saint-Etienne": "St Etienne",
+            "Strasbourg": "Strasbourg",
+            "Toulouse": "Toulouse",
+            "Troyes": "Troyes"
+          }
+        }
+      },
+      "errors": [],
+      "perimeter_matches": 1334,
+      "perimeter_by_season": {
+        "2022": 380,
+        "2023": 306,
+        "2024": 306,
+        "2025": 306,
+        "2026": 36
+      },
+      "summary_ppda": {
+        "matches": 1334,
+        "seasons": {
+          "2022": {
+            "matches": 380,
+            "played": 380,
+            "complete": 380,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 380,
+            "with_away_ppda": 380,
+            "with_home_deep": 380,
+            "with_away_deep": 380,
+            "unplayed": 0,
+            "min_date": "2022-08-05",
+            "max_date": "2023-06-03",
+            "max_played_date": "2023-06-03"
+          },
+          "2023": {
+            "matches": 306,
+            "played": 306,
+            "complete": 306,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 306,
+            "with_away_ppda": 306,
+            "with_home_deep": 306,
+            "with_away_deep": 306,
+            "unplayed": 0,
+            "min_date": "2023-08-12",
+            "max_date": "2024-05-19",
+            "max_played_date": "2024-05-19"
+          },
+          "2024": {
+            "matches": 306,
+            "played": 306,
+            "complete": 306,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 306,
+            "with_away_ppda": 306,
+            "with_home_deep": 306,
+            "with_away_deep": 306,
+            "unplayed": 0,
+            "min_date": "2024-08-16",
+            "max_date": "2025-05-17",
+            "max_played_date": "2025-05-17"
+          },
+          "2025": {
+            "matches": 306,
+            "played": 306,
+            "complete": 306,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 306,
+            "with_away_ppda": 306,
+            "with_home_deep": 306,
+            "with_away_deep": 306,
+            "unplayed": 0,
+            "min_date": "2025-08-15",
+            "max_date": "2026-05-17",
+            "max_played_date": "2026-05-17"
+          },
+          "2026": {
+            "matches": 36,
+            "played": 36,
+            "complete": 36,
+            "partial": 0,
+            "empty": 0,
+            "with_home_ppda": 36,
+            "with_away_ppda": 36,
+            "with_home_deep": 36,
+            "with_away_deep": 36,
+            "unplayed": 0,
+            "min_date": "2026-08-21",
+            "max_date": "2026-09-13",
+            "max_played_date": "2026-09-13"
+          }
+        }
+      },
+      "values": {
+        "ppda": {
+          "n": 2668,
+          "mean": 13.034950566474496,
+          "min": 2.576923076923077,
+          "p05": 5.5,
+          "p25": 8.333333333333334,
+          "p50": 11.25925925925926,
+          "p75": 15.73913043478261,
+          "p90": 21.666666666666668,
+          "p95": 25.928571428571427,
+          "max": 100.0,
+          "zeros": 0
+        },
+        "ppda_by_season": {
+          "2022": {
+            "n": 760,
+            "mean": 12.49444866075453,
+            "min": 2.576923076923077,
+            "p05": 5.483870967741935,
+            "p25": 7.942857142857143,
+            "p50": 10.88888888888889,
+            "p75": 15.11111111111111,
+            "p90": 20.733333333333334,
+            "p95": 24.066666666666666,
+            "max": 85.14285714285714,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 612,
+            "mean": 12.714340038734125,
+            "min": 3.1875,
+            "p05": 5.827586206896552,
+            "p25": 8.709677419354838,
+            "p50": 11.428571428571429,
+            "p75": 15.421052631578947,
+            "p90": 20.5,
+            "p95": 24.083333333333332,
+            "max": 50.833333333333336,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 612,
+            "mean": 13.20395943339232,
+            "min": 3.3125,
+            "p05": 5.461538461538462,
+            "p25": 8.045454545454545,
+            "p50": 11.233333333333333,
+            "p75": 15.947368421052632,
+            "p90": 21.944444444444443,
+            "p95": 28.083333333333332,
+            "max": 59.375,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 612,
+            "mean": 13.817918055243327,
+            "min": 3.441860465116279,
+            "p05": 5.25,
+            "p25": 8.615384615384615,
+            "p50": 11.5,
+            "p75": 16.5,
+            "p90": 23.0,
+            "p95": 29.1,
+            "max": 100.0,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 72,
+            "mean": 13.373638922641387,
+            "min": 5.375,
+            "p05": 6.178571428571429,
+            "p25": 9.125,
+            "p50": 11.333333333333334,
+            "p75": 16.115384615384617,
+            "p90": 20.46153846153846,
+            "p95": 25.714285714285715,
+            "max": 34.36363636363637,
+            "zeros": 0
+          }
+        },
+        "deep_completions": {
+          "n": 2668,
+          "mean": 6.566341829085458,
+          "min": 0.0,
+          "p05": 1.0,
+          "p25": 3.0,
+          "p50": 6.0,
+          "p75": 9.0,
+          "p90": 12.0,
+          "p95": 15.0,
+          "max": 30.0,
+          "zeros": 62
+        }
+      },
+      "summary_player": {
+        "rows": 40892,
+        "matches": 1334,
+        "seasons": {
+          "2022": {
+            "rows": 11547,
+            "matches": 380,
+            "players": 585,
+            "teams": 20,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 749960,
+            "yellow_cards": 1210,
+            "red_cards": 97,
+            "goals": 1030,
+            "min_date": "2022-08-05",
+            "max_date": "2023-06-03"
+          },
+          "2023": {
+            "rows": 9394,
+            "matches": 306,
+            "players": 525,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 604638,
+            "yellow_cards": 1148,
+            "red_cards": 73,
+            "goals": 806,
+            "min_date": "2023-08-12",
+            "max_date": "2024-05-19"
+          },
+          "2024": {
+            "rows": 9413,
+            "matches": 306,
+            "players": 542,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 604481,
+            "yellow_cards": 1121,
+            "red_cards": 66,
+            "goals": 888,
+            "min_date": "2024-08-16",
+            "max_date": "2025-05-17"
+          },
+          "2025": {
+            "rows": 9408,
+            "matches": 306,
+            "players": 553,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 603641,
+            "yellow_cards": 1096,
+            "red_cards": 75,
+            "goals": 839,
+            "min_date": "2025-08-15",
+            "max_date": "2026-05-17"
+          },
+          "2026": {
+            "rows": 1130,
+            "matches": 36,
+            "players": 413,
+            "teams": 18,
+            "minutes_zero": 0,
+            "minutes_none": 0,
+            "minutes_sum": 71158,
+            "yellow_cards": 101,
+            "red_cards": 4,
+            "goals": 93,
+            "min_date": "2026-08-21",
+            "max_date": "2026-09-13"
+          }
+        }
+      },
+      "minutes": {
+        "rows": 40892,
+        "matches": 1334,
+        "players": 2618,
+        "teams": 25,
+        "minutes_missing": 0,
+        "minutes": {
+          "n": 40892,
+          "mean": 64.4105937591705,
+          "min": 1.0,
+          "p05": 3.0,
+          "p25": 29.0,
+          "p50": 84.0,
+          "p75": 90.0,
+          "p90": 90.0,
+          "p95": 90.0,
+          "max": 90.0,
+          "zeros": 0
+        },
+        "minutes_by_season": {
+          "2022": {
+            "n": 11547,
+            "mean": 64.94847146444964,
+            "min": 1.0,
+            "p05": 5.0,
+            "p25": 31.0,
+            "p50": 84.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2023": {
+            "n": 9394,
+            "mean": 64.3642750691931,
+            "min": 1.0,
+            "p05": 3.0,
+            "p25": 29.0,
+            "p50": 85.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2024": {
+            "n": 9413,
+            "mean": 64.21767767980452,
+            "min": 1.0,
+            "p05": 2.0,
+            "p25": 27.0,
+            "p50": 85.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2025": {
+            "n": 9408,
+            "mean": 64.1625212585034,
+            "min": 1.0,
+            "p05": 3.0,
+            "p25": 28.0,
+            "p50": 84.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          },
+          "2026": {
+            "n": 1130,
+            "mean": 62.971681415929204,
+            "min": 1.0,
+            "p05": 3.0,
+            "p25": 26.0,
+            "p50": 80.0,
+            "p75": 90.0,
+            "p90": 90.0,
+            "p95": 90.0,
+            "max": 90.0,
+            "zeros": 0
+          }
+        },
+        "rows_by_season": {
+          "2022": 11547,
+          "2023": 9394,
+          "2024": 9413,
+          "2025": 9408,
+          "2026": 1130
+        },
+        "players_per_match": {
+          "n": 1334,
+          "mean": 30.65367316341829,
+          "min": 22.0,
+          "p05": 28.0,
+          "p25": 30.0,
+          "p50": 31.0,
+          "p75": 32.0,
+          "p90": 32.0,
+          "p95": 32.0,
+          "max": 34.0,
+          "zeros": 0
+        },
+        "zero_minutes_rows": 0,
+        "zero_minutes_share": 0.0,
+        "used_rows": 40892,
+        "positions": {
+          "Sub": 11546,
+          "DC": 6404,
+          "MC": 4539,
+          "FW": 3205,
+          "GK": 2668,
+          "AMC": 1997,
+          "DL": 1790,
+          "DR": 1790,
+          "DMC": 1693,
+          "DMR": 768,
+          "DML": 768,
+          "AML": 741,
+          "AMR": 741,
+          "FWL": 578,
+          "FWR": 578,
+          "MR": 543,
+          "ML": 543
+        },
+        "season_minutes": {
+          "n": 2618,
+          "mean": 1006.0649350649351,
+          "min": 1.0,
+          "p05": 8.0,
+          "p25": 166.0,
+          "p50": 713.0,
+          "p75": 1754.0,
+          "p90": 2492.0,
+          "p95": 2750.0,
+          "max": 3420.0,
+          "zeros": 0
+        },
+        "thresholds": [
+          {
+            "threshold": 0,
+            "players": 2618,
+            "players_share": 1.0,
+            "rows": 40892,
+            "rows_share": 1.0,
+            "minutes": 2633878,
+            "minutes_share": 1.0
+          },
+          {
+            "threshold": 90,
+            "players": 2163,
+            "players_share": 0.8262032085561497,
+            "rows": 39881,
+            "rows_share": 0.9752763376699599,
+            "minutes": 2621099,
+            "minutes_share": 0.995148218710206
+          },
+          {
+            "threshold": 270,
+            "players": 1759,
+            "players_share": 0.671886936592819,
+            "rows": 38040,
+            "rows_share": 0.9302553066614496,
+            "minutes": 2555046,
+            "minutes_share": 0.970069988055635
+          },
+          {
+            "threshold": 450,
+            "players": 1504,
+            "players_share": 0.5744843391902216,
+            "rows": 36189,
+            "rows_share": 0.8849897290423555,
+            "minutes": 2467757,
+            "minutes_share": 0.9369291212425177
+          },
+          {
+            "threshold": 900,
+            "players": 1185,
+            "players_share": 0.45263559969442324,
+            "rows": 31554,
+            "rows_share": 0.771642375036682,
+            "minutes": 2256905,
+            "minutes_share": 0.8568752994633768
+          }
+        ],
+        "season_minutes_low": [
+          {
+            "season": 2022,
+            "player_id": 7189,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10703,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10515,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10818,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11579,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 10580,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11623,
+            "minutes": 1
+          },
+          {
+            "season": 2022,
+            "player_id": 11516,
+            "minutes": 1
+          },
+          {
+            "season": 2023,
+            "player_id": 10703,
+            "minutes": 1
+          },
+          {
+            "season": 2023,
+            "player_id": 11759,
+            "minutes": 1
+          }
+        ]
+      },
+      "timing": {
+        "ppda_deep": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-13"
+        },
+        "player_match": {
+          "perimeter_missing": 0,
+          "perimeter_missing_undated": 0,
+          "age_days": {
+            "n": 0
+          },
+          "age_days_p90": null,
+          "age_days_max": null,
+          "older_than_frontier": 0,
+          "sample": [],
+          "last_date_present": "2026-09-13"
+        }
+      },
+      "acquisition": {
+        "schedule": {
+          "scheduled_matches": 1604,
+          "has_data": 1334,
+          "played_with_xg": 1334,
+          "first_date": "2022-08-05 19:00:00",
+          "last_played_date": "2026-09-13 18:45:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2024": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2025": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2026": {
+              "scheduled": 306,
+              "played_with_xg": 36,
+              "has_data": 36
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1604,
+          "rows": 1604,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 744.6,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1334,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:34:22.211557+00:00",
+              "missing_sample": [],
+              "complete": 1334,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1334,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1334,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1334,
+              "rows": 1334,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 732.5,
+            "coverage": {
+              "reference_matches": 1334,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:34:27.573429+00:00",
+              "missing_sample": [],
+              "returned_matches": 1334
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1334,
+            "returned_matches": 1334,
+            "rows": 40892,
+            "matches": 1334,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 40892,
+              "rows": 40892,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      }
+    }
+  },
+  "acquisition": {
+    "available": true,
+    "generated_at": "2026-09-15T16:46:41.584562+00:00",
+    "soccerdata_version": "1.9.1",
+    "seasons": [
+      "2223",
+      "2324",
+      "2425",
+      "2526",
+      "2627"
+    ],
+    "player_seasons": [
+      "2223",
+      "2324",
+      "2425",
+      "2526",
+      "2627"
+    ],
+    "parallel_leagues": 2,
+    "retries": 2,
+    "frontier_days": 1.0,
+    "missing_tolerance_ratio": 0.01,
+    "sample_matches_per_league": null,
+    "failures": 0,
+    "leagues": {
+      "Serie A": {
+        "schedule": {
+          "scheduled_matches": 1900,
+          "has_data": 1560,
+          "played_with_xg": 1560,
+          "first_date": "2022-08-13 16:30:00",
+          "last_played_date": "2026-09-14 18:45:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2024": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2025": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2026": {
+              "scheduled": 380,
+              "played_with_xg": 40,
+              "has_data": 40
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1900,
+          "rows": 1900,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 822.9,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:07:57.806912+00:00",
+              "missing_sample": [],
+              "complete": 1560,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1560,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1560,
+              "rows": 1560,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 806.8,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:08:04.771879+00:00",
+              "missing_sample": [],
+              "returned_matches": 1560
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1560,
+            "returned_matches": 1560,
+            "rows": 48884,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 48884,
+              "rows": 48884,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      },
+      "Premier League": {
+        "schedule": {
+          "scheduled_matches": 1900,
+          "has_data": 1560,
+          "played_with_xg": 1560,
+          "first_date": "2022-08-05 19:00:00",
+          "last_played_date": "2026-09-14 19:00:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2024": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2025": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2026": {
+              "scheduled": 380,
+              "played_with_xg": 40,
+              "has_data": 40
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1900,
+          "rows": 1900,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 808.0,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:07:56.900595+00:00",
+              "missing_sample": [],
+              "complete": 1560,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1560,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1560,
+              "rows": 1560,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 793.0,
+            "coverage": {
+              "reference_matches": 1560,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:08:03.782272+00:00",
+              "missing_sample": [],
+              "returned_matches": 1560
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1560,
+            "returned_matches": 1560,
+            "rows": 47022,
+            "matches": 1560,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 47022,
+              "rows": 47022,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      },
+      "La Liga": {
+        "schedule": {
+          "scheduled_matches": 1900,
+          "has_data": 1571,
+          "played_with_xg": 1571,
+          "first_date": "2022-08-12 19:00:00",
+          "last_played_date": "2026-09-14 19:00:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2024": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2025": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2026": {
+              "scheduled": 380,
+              "played_with_xg": 51,
+              "has_data": 51
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1900,
+          "rows": 1900,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 882.7,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1571,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:23.931985+00:00",
+              "missing_sample": [],
+              "complete": 1571,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1571,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1571,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1571,
+              "rows": 1571,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 868.5,
+            "coverage": {
+              "reference_matches": 1571,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:30.804521+00:00",
+              "missing_sample": [],
+              "returned_matches": 1571
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1571,
+            "returned_matches": 1571,
+            "rows": 49194,
+            "matches": 1571,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 49285,
+              "rows": 49194,
+              "duplicate_rows": 91,
+              "duplicate_keys": 3,
+              "duplicate_matches": 3,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0018464035710662474,
+              "sample_matches": [
+                {
+                  "season": 2023,
+                  "id": 23028,
+                  "rows": 30
+                },
+                {
+                  "season": 2025,
+                  "id": 29482,
+                  "rows": 32
+                },
+                {
+                  "season": 2026,
+                  "id": 30804,
+                  "rows": 29
+                }
+              ]
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      },
+      "Bundesliga": {
+        "schedule": {
+          "scheduled_matches": 1530,
+          "has_data": 1251,
+          "played_with_xg": 1251,
+          "first_date": "2022-08-05 18:30:00",
+          "last_played_date": "2026-09-13 15:30:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2023": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2024": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2025": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2026": {
+              "scheduled": 306,
+              "played_with_xg": 27,
+              "has_data": 27
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1530,
+          "rows": 1530,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 763.5,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1251,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:39.152002+00:00",
+              "missing_sample": [],
+              "complete": 1250,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 1,
+              "ppda_missing_but_deep_present": 2,
+              "complete_ratio": 0.9992006394884093
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 2,
+            "missing_matches_sample": null,
+            "requested_matches": 1251,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1251,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1251,
+              "rows": 1251,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": [
+              "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+            ],
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 738.8,
+            "coverage": {
+              "reference_matches": 1251,
+              "missing_total": 1,
+              "missing_frontier": 0,
+              "missing_old": 1,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0007993605115907274,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:21:56.761403+00:00",
+              "missing_sample": [
+                "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+              ],
+              "returned_matches": 1250
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 2,
+            "missing_matches_sample": [
+              "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+            ],
+            "requested_matches": 1251,
+            "returned_matches": 1250,
+            "rows": 38910,
+            "matches": 1250,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 38910,
+              "rows": 38910,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 3,
+            "unreadable_sample": [
+              {
+                "id": 27930,
+                "error": "AttributeError: 'list' object has no attribute 'values'"
+              },
+              {
+                "id": 27930,
+                "error": "AttributeError: 'list' object has no attribute 'values'"
+              },
+              {
+                "id": 27930,
+                "error": "AttributeError: 'list' object has no attribute 'values'"
+              }
+            ],
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      },
+      "Ligue 1": {
+        "schedule": {
+          "scheduled_matches": 1604,
+          "has_data": 1334,
+          "played_with_xg": 1334,
+          "first_date": "2022-08-05 19:00:00",
+          "last_played_date": "2026-09-13 18:45:00",
+          "seasons": {
+            "2022": {
+              "scheduled": 380,
+              "played_with_xg": 380,
+              "has_data": 380
+            },
+            "2023": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2024": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2025": {
+              "scheduled": 306,
+              "played_with_xg": 306,
+              "has_data": 306
+            },
+            "2026": {
+              "scheduled": 306,
+              "played_with_xg": 36,
+              "has_data": 36
+            }
+          },
+          "duplicate_rows": 0,
+          "attempts": 1
+        },
+        "schedule_duplicates": {
+          "scheduled_rows": 1604,
+          "rows": 1604,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0
+        },
+        "seconds": 744.6,
+        "errors": [],
+        "datasets": {
+          "ppda_deep": {
+            "errors": [],
+            "seconds": null,
+            "coverage": {
+              "reference_matches": 1334,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:34:22.211557+00:00",
+              "missing_sample": [],
+              "complete": 1334,
+              "partial": 0,
+              "record_without_values": 0,
+              "no_record": 0,
+              "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0,
+              "complete_ratio": 1.0
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": null,
+            "requested_matches": 1334,
+            "returned_matches": null,
+            "rows": null,
+            "matches": 1334,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "ppda_deep",
+              "input_rows": 1334,
+              "rows": 1334,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": null,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          },
+          "player_match": {
+            "errors": [],
+            "seconds": 732.5,
+            "coverage": {
+              "reference_matches": 1334,
+              "missing_total": 0,
+              "missing_frontier": 0,
+              "missing_old": 0,
+              "missing_undated": 0,
+              "missing_blocking_ratio": 0.0,
+              "frontier_days": 1.0,
+              "reference_time": "2026-09-15T16:34:27.573429+00:00",
+              "missing_sample": [],
+              "returned_matches": 1334
+            },
+            "written": true,
+            "baseline_found": false,
+            "diff": null,
+            "retry_rounds": 0,
+            "missing_matches_sample": [],
+            "requested_matches": 1334,
+            "returned_matches": 1334,
+            "rows": 40892,
+            "matches": 1334,
+            "matches_per_second": null,
+            "duplicates": {
+              "kind": "player_match",
+              "input_rows": 40892,
+              "rows": 40892,
+              "duplicate_rows": 0,
+              "duplicate_keys": 0,
+              "duplicate_matches": 0,
+              "duplicate_differing_rows": 0,
+              "unusable_rows": 0,
+              "duplicate_ratio": 0.0,
+              "sample_matches": []
+            },
+            "unreadable_matches": 0,
+            "unreadable_sample": null,
+            "structural_na_sample": null,
+            "shrink_ratio": null
+          }
+        }
+      }
+    }
+  },
+  "soccerdata_exposed": {
+    "read_team_match_stats": [
+      "*_ppda",
+      "*_deep_completions",
+      "*_xg",
+      "*_np_xg",
+      "*_expected_points",
+      "*_points",
+      "*_goals"
+    ],
+    "read_player_match_stats": [
+      "minutes",
+      "position",
+      "goals",
+      "own_goals",
+      "shots",
+      "xg",
+      "xg_chain",
+      "xg_buildup",
+      "assists",
+      "xa",
+      "key_passes",
+      "yellow_cards",
+      "red_cards"
+    ]
+  },
+  "soccerdata_not_exposed": [
+    "un canale d'errore per singola partita in ``read_player_match_stats()``: ``Understat._read_match`` inghiotte ``ConnectionError`` e restituisce ``None``, quindi la partita viene saltata in silenzio (qui contata come MANCANTE, mai come 0 righe)",
+    "la data della partita nelle righe giocatore (bisogna derivarla dal prefisso di ``game``, oppure incrociare il calendario: entrambe le vie sono usate e confrontate)",
+    "un rate limit per Understat: ``Understat._request_api`` chiama ``self._session.get()`` senza ``rate_limit`` ne' delay (a differenza di ``BaseRequestsReader._download_and_save``), quindi il ritmo dipende solo dalla latenza e dal parallelismo scelto",
+    "i minuti ufficiali del campionato: ``minutes`` e' il campo ``time`` di Understat e include il recupero (valori > 90)",
+    "qualsiasi forma di snapshot datato lato Understat: la disponibilita' storica reale dei dati non e' ricostruibile a posteriori"
+  ]
+}
