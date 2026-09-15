@@ -1,92 +1,92 @@
 {
   "Angers": {
-    "xG_avg": 1.834,
-    "xGA_avg": 1.784,
-    "matches": 3
+    "xG_avg": 1.496,
+    "xGA_avg": 1.594,
+    "matches": 4
   },
   "Auxerre": {
-    "xG_avg": 1.46,
-    "xGA_avg": 3.259,
-    "matches": 3
+    "xG_avg": 1.519,
+    "xGA_avg": 2.595,
+    "matches": 4
   },
   "Brest": {
-    "xG_avg": 3.096,
-    "xGA_avg": 1.229,
-    "matches": 3
+    "xG_avg": 2.632,
+    "xGA_avg": 1.256,
+    "matches": 4
   },
   "Le Havre": {
-    "xG_avg": 1.126,
-    "xGA_avg": 2.326,
-    "matches": 3
+    "xG_avg": 1.101,
+    "xGA_avg": 1.865,
+    "matches": 4
   },
   "Le Mans": {
-    "xG_avg": 1.557,
-    "xGA_avg": 2.505,
-    "matches": 3
+    "xG_avg": 1.707,
+    "xGA_avg": 2.348,
+    "matches": 4
   },
   "Lens": {
-    "xG_avg": 3.056,
-    "xGA_avg": 1.533,
-    "matches": 3
+    "xG_avg": 2.761,
+    "xGA_avg": 1.689,
+    "matches": 4
   },
   "Lille": {
-    "xG_avg": 1.14,
-    "xGA_avg": 2.203,
-    "matches": 3
+    "xG_avg": 1.368,
+    "xGA_avg": 1.74,
+    "matches": 4
   },
   "Lorient": {
-    "xG_avg": 1.345,
-    "xGA_avg": 1.29,
-    "matches": 3
+    "xG_avg": 1.181,
+    "xGA_avg": 1.302,
+    "matches": 4
   },
   "Lyon": {
-    "xG_avg": 1.983,
-    "xGA_avg": 1.389,
-    "matches": 3
+    "xG_avg": 1.588,
+    "xGA_avg": 1.186,
+    "matches": 4
   },
   "Marseille": {
-    "xG_avg": 1.776,
-    "xGA_avg": 1.727,
-    "matches": 3
+    "xG_avg": 1.659,
+    "xGA_avg": 1.875,
+    "matches": 4
   },
   "Monaco": {
-    "xG_avg": 1.289,
-    "xGA_avg": 1.48,
-    "matches": 3
+    "xG_avg": 1.158,
+    "xGA_avg": 1.278,
+    "matches": 4
   },
   "Nice": {
-    "xG_avg": 0.975,
-    "xGA_avg": 2.059,
-    "matches": 3
+    "xG_avg": 0.882,
+    "xGA_avg": 1.969,
+    "matches": 4
   },
   "PSG": {
-    "xG_avg": 1.645,
-    "xGA_avg": 0.892,
-    "matches": 3
+    "xG_avg": 1.567,
+    "xGA_avg": 0.979,
+    "matches": 4
   },
   "Paris": {
-    "xG_avg": 2.648,
-    "xGA_avg": 0.884,
-    "matches": 3
+    "xG_avg": 2.13,
+    "xGA_avg": 0.764,
+    "matches": 4
   },
   "Rennes": {
-    "xG_avg": 2.308,
-    "xGA_avg": 1.74,
-    "matches": 3
+    "xG_avg": 2.31,
+    "xGA_avg": 1.632,
+    "matches": 4
   },
   "Strasbourg": {
-    "xG_avg": 1.856,
-    "xGA_avg": 2.65,
-    "matches": 3
+    "xG_avg": 1.561,
+    "xGA_avg": 2.179,
+    "matches": 4
   },
   "Toulouse": {
-    "xG_avg": 2.145,
-    "xGA_avg": 1.817,
-    "matches": 3
+    "xG_avg": 1.943,
+    "xGA_avg": 1.535,
+    "matches": 4
   },
   "Troyes": {
-    "xG_avg": 1.556,
-    "xGA_avg": 2.028,
-    "matches": 3
+    "xG_avg": 1.255,
+    "xGA_avg": 2.034,
+    "matches": 4
   }
 }

@@ -18578,7 +18578,7 @@
   {
     "season": 2026,
     "id": 31588,
-    "date": "2026-09-07 16:00:00",
+    "date": "2026-09-07 16:30:00",
     "home_team": "Cagliari",
     "away_team": "Lecce",
     "home_goals": 1,
@@ -18605,11 +18605,11 @@
     "date": "2026-09-11 18:45:00",
     "home_team": "Venezia",
     "away_team": "Fiorentina",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 4,
+    "home_xg": 1.03183,
+    "away_xg": 3.12987,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18617,11 +18617,11 @@
     "date": "2026-09-12 18:45:00",
     "home_team": "Atalanta",
     "away_team": "Cagliari",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 2,
+    "home_xg": 1.47514,
+    "away_xg": 1.30851,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18629,47 +18629,23 @@
     "date": "2026-09-12 13:00:00",
     "home_team": "Genoa",
     "away_team": "Frosinone",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
-  },
-  {
-    "season": 2026,
-    "id": 31592,
-    "date": "2026-09-12 16:00:00",
-    "home_team": "Sassuolo",
-    "away_team": "Juventus",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
-  },
-  {
-    "season": 2026,
-    "id": 31596,
-    "date": "2026-09-13 13:00:00",
-    "home_team": "Como",
-    "away_team": "Parma Calcio 1913",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 1,
+    "home_xg": 1.84249,
+    "away_xg": 1.74599,
+    "is_result": true
   },
   {
     "season": 2026,
     "id": 31598,
-    "date": "2026-09-13 18:45:00",
+    "date": "2026-09-12 16:00:00",
     "home_team": "Lazio",
     "away_team": "AC Milan",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 2,
+    "home_xg": 2.363,
+    "away_xg": 2.15792,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18677,11 +18653,11 @@
     "date": "2026-09-13 13:00:00",
     "home_team": "Lecce",
     "away_team": "Monza",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 3,
+    "away_goals": 2,
+    "home_xg": 1.94577,
+    "away_xg": 3.08533,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18689,23 +18665,35 @@
     "date": "2026-09-13 16:00:00",
     "home_team": "Napoli",
     "away_team": "Bologna",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 0,
+    "home_xg": 2.24885,
+    "away_xg": 0.16597,
+    "is_result": true
   },
   {
     "season": 2026,
-    "id": 31594,
-    "date": "2026-09-13 10:30:00",
-    "home_team": "Torino",
-    "away_team": "Roma",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "id": 31592,
+    "date": "2026-09-13 18:45:00",
+    "home_team": "Sassuolo",
+    "away_team": "Juventus",
+    "home_goals": 3,
+    "away_goals": 2,
+    "home_xg": 0.956092,
+    "away_xg": 1.1844,
+    "is_result": true
+  },
+  {
+    "season": 2026,
+    "id": 31596,
+    "date": "2026-09-14 16:30:00",
+    "home_team": "Como",
+    "away_team": "Parma Calcio 1913",
+    "home_goals": 2,
+    "away_goals": 1,
+    "home_xg": 3.7711,
+    "away_xg": 1.55017,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18713,11 +18701,23 @@
     "date": "2026-09-14 18:45:00",
     "home_team": "Inter",
     "away_team": "Udinese",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 5,
+    "away_goals": 3,
+    "home_xg": 3.68526,
+    "away_xg": 1.29442,
+    "is_result": true
+  },
+  {
+    "season": 2026,
+    "id": 31594,
+    "date": "2026-09-14 16:30:00",
+    "home_team": "Torino",
+    "away_team": "Roma",
+    "home_goals": 0,
+    "away_goals": 2,
+    "home_xg": 0.706935,
+    "away_xg": 2.33311,
+    "is_result": true
   },
   {
     "season": 2026,
