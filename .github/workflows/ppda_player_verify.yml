@@ -84,10 +84,9 @@ jobs:
     timeout-minutes: 240
 
     env:
-      # cartella di lavoro FUORI dal repository (runner.temp): la verifica non
-      # scrive mai dentro SoccerMath/database ne' in audit/results, e non lascia
-      # nemmeno file non versionati nel checkout
-      VERIFY_DIR: ${{ runner.temp }}/ppda-player-out
+      # NB: VERIFY_DIR non puo' stare qui: il contesto `runner` non e' un valore
+      # riconosciuto in `jobs.<job_id>.env` (il workflow risulterebbe invalido).
+      # Viene impostata nel primo step, dentro $GITHUB_ENV, da $RUNNER_TEMP.
       PLAYER_SEASONS: ${{ github.event.inputs.player_seasons || '' }}
       SAMPLE_MATCHES: ${{ github.event.inputs.sample_matches_per_league || '' }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -111,6 +110,14 @@ jobs:
           from importlib.metadata import version
           print("soccerdata installato:", version("soccerdata"))
           PY
+
+      # Cartella di lavoro FUORI dal repository ($RUNNER_TEMP): la verifica non
+      # scrive mai dentro SoccerMath/database ne' in audit/results, e non lascia
+      # nemmeno file non versionati nel checkout.
+      - name: Cartella di lavoro del run (fuori dal repository)
+        run: |
+          echo "VERIFY_DIR=$RUNNER_TEMP/ppda-player-out" >> "$GITHUB_ENV"
+          echo "Cartella di lavoro: $RUNNER_TEMP/ppda-player-out"
 
       - name: Prepara le cartelle temporanee
         run: mkdir -p "$VERIFY_DIR/database" "$VERIFY_DIR/reports" "$VERIFY_DIR/cache"
