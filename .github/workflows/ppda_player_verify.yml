@@ -156,6 +156,7 @@ jobs:
       - name: Audit di copertura e qualita' dato
         if: always()
         run: |
+          set +e
           python audit/ppda_deep_player_audit.py \
             --database-dir "$VERIFY_DIR/database" \
             --xg-dir SoccerMath/database \
@@ -163,6 +164,28 @@ jobs:
             --results-dir "$VERIFY_DIR/reports" \
             --run-url "$RUN_URL" \
             --run-id "${{ github.run_id }}"
+          code=$?
+          set -e
+          # Evidenza anche nei LOG, non solo nell'artifact: il referto generato e
+          # i report vengono stampati in chiaro (markdown), in forma compatta
+          # (JSON) e in base64 con sha256, cosi' il contenuto prodotto dal run e'
+          # verificabile anche da chi non puo' scaricare l'artifact.
+          REPORT_MD="$VERIFY_DIR/reports/ppda_deep_player_feasibility.md"
+          REPORT_JSON="$VERIFY_DIR/reports/ppda_deep_player_feasibility.json"
+          echo "=== EVIDENZA: report di acquisizione (JSON compatto) ==="
+          for path in "$VERIFY_DIR/reports/acquisizione.json" "$REPORT_JSON"; do
+            if [ -f "$path" ]; then
+              echo "=== JSON COMPATTO ($path) ==="
+              python -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding='utf-8')), ensure_ascii=False, separators=(',', ':')))" "$path"
+            fi
+          done
+          if [ -f "$REPORT_MD" ]; then
+            echo "=== REFERTO: sha256 dei file prodotti ==="
+            sha256sum "$REPORT_MD" "$REPORT_JSON" 2>/dev/null || true
+            echo "=== REFERTO: base64 (righe da 76 caratteri) ==="
+            base64 -w 76 "$REPORT_MD"
+          fi
+          exit $code
 
       - name: Riepilogo nel summary del run
         if: always()
