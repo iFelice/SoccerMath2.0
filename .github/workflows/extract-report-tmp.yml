@@ -39,7 +39,7 @@ jobs:
           import os
           import sys
 
-          CHUNK = 6000
+          CHUNK = 4000  # il runner tronca i messaggi delle annotazioni a 4096 caratteri
           paths = sorted(glob.glob("art/**/ppda_deep_player_feasibility.*", recursive=True))
           if not paths:
               print("referto non trovato nell'artifact")
