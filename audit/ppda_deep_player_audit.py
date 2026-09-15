@@ -801,7 +801,9 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
             add(f"- istantanea fresca: {schedule.get('scheduled_matches')} partite a "
                 f"calendario, {schedule.get('played_with_xg')} concluse con xG, "
                 f"ultima data giocata `{schedule.get('last_played_date')}`; "
-                f"acquisizione in {acquisition_entry.get('seconds')} s")
+                f"acquisizione in {acquisition_entry.get('seconds')} s"
+                + (f" (calendario al tentativo {schedule.get('attempts')})"
+                   if (schedule.get("attempts") or 1) > 1 else ""))
         for dataset in (PPDA_KIND, PLAYER_KIND):
             payload = (acquisition_entry.get("datasets") or {}).get(dataset) or {}
             coverage = payload.get("coverage") or {}

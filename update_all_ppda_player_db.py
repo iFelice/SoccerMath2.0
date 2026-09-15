@@ -943,16 +943,40 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
                      "datasets": {}, "errors": []}
     started = time.monotonic()
     league_cache = _cache_subdir(cache_dir, league)
-    try:
-        schedule_reader = _make_reader(
-            sd_league, sorted(set(seasons) | set(player_seasons)),
-            league_cache, no_cache=True)
-        schedule = perimeter_from_schedule(schedule_reader.read_schedule())
-        schedule, schedule_duplicates = _dedupe_schedule(schedule)
-    except Exception as exc:
-        outcome["errors"].append(f"calendario non acquisito: {exc}")
+    # Il calendario e' la base di tutto (perimetro, id delle partite, date): se
+    # la lettura fallisce la lega si perde per intero. La verifica reale ha
+    # mostrato che un singolo rifiuto di connessione di Understat
+    # ("connect: connection refused") puo' far cadere una lega dopo decine di
+    # minuti di download: si riprova con attese crescenti e si CONTANO i
+    # tentativi (finiscono nel report).
+    schedule = None
+    schedule_attempts = 0
+    last_error: Optional[Exception] = None
+    total_attempts = max(1, int(retries)) + 1
+    for schedule_attempts in range(1, total_attempts + 1):
+        try:
+            schedule_reader = _make_reader(
+                sd_league, sorted(set(seasons) | set(player_seasons)),
+                league_cache, no_cache=True)
+            schedule = perimeter_from_schedule(schedule_reader.read_schedule())
+            schedule, schedule_duplicates = _dedupe_schedule(schedule)
+            break
+        except Exception as exc:
+            last_error = exc
+            if schedule_attempts < total_attempts:
+                wait = min(60, 10 * schedule_attempts)
+                log.warning("%s: calendario non acquisito (tentativo %d/%d): %s "
+                            "- nuovo tentativo fra %d s",
+                            league, schedule_attempts, total_attempts, exc, wait)
+                time.sleep(wait)
+    if schedule is None:
+        outcome["errors"].append(
+            f"calendario non acquisito dopo {schedule_attempts} tentativi: "
+            f"{last_error}")
+        outcome["schedule_attempts"] = schedule_attempts
         outcome["seconds"] = round(time.monotonic() - started, 1)
         return outcome
+    outcome["schedule_attempts"] = schedule_attempts
 
     played = played_perimeter(schedule)
     season_counts: Dict[str, dict] = {}
@@ -979,6 +1003,7 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
             (rec["date"] for rec in played if rec.get("date")) or [None])[-1]),
         "seasons": dict(sorted(season_counts.items())),
         "duplicate_rows": schedule_duplicates["duplicate_rows"],
+        "attempts": schedule_attempts,
     }
     outcome["schedule_duplicates"] = schedule_duplicates
 
