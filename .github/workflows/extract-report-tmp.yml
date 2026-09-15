@@ -6,14 +6,9 @@ name: Estrazione referto (temporaneo)
 # cui si legge non puo' scaricare gli artifact. Sola lettura: contents: read,
 # nessun commit, nessun push, nessun segreto.
 on:
-  workflow_dispatch:
-    inputs:
-      run-id:
-        description: "Run id da cui prendere l'artifact"
-        required: true
-      artifact:
-        description: "Nome dell'artifact"
-        required: true
+  push:
+    paths:
+      - estrazione-referto.txt
 
 permissions:
   contents: read
@@ -25,8 +20,8 @@ jobs:
       - name: Scarica l'artifact del run indicato
         uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.artifact }}
-          run-id: ${{ inputs.run-id }}
+          name: ppda-player-verify-34992936842
+          run-id: 34992936842
           github-token: ${{ github.token }}
           path: art
 
