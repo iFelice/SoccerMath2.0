@@ -184,6 +184,18 @@ jobs:
             sha256sum "$REPORT_MD" "$REPORT_JSON" 2>/dev/null || true
             echo "=== REFERTO: base64 (righe da 76 caratteri) ==="
             base64 -w 76 "$REPORT_MD"
+            # Copia compressa: il referto (markdown) e la sua versione
+            # machine-readable (JSON) compressi stanno in poche righe di log,
+            # quindi restano ricostruibili byte per byte anche senza artifact
+            # (l'hash qui sopra e' la prova). `gzip -n` non mette data/ora
+            # nell'intestazione: l'output dipende solo dal contenuto.
+            echo "=== REFERTO: gzip+base64 dei file prodotti ==="
+            for path in "$REPORT_MD" "$REPORT_JSON"; do
+              if [ -f "$path" ]; then
+                echo "=== FILE: $path (gzip+base64, righe da 76 caratteri) ==="
+                gzip -9nc "$path" | base64 -w 76
+              fi
+            done
           fi
           exit $code
 
