@@ -62,7 +62,7 @@ import json
 import math
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from config import LEAGUES_CONFIG
@@ -70,7 +70,6 @@ from team_names import resolve_team_name
 from xg_archive import (  # noqa: F401  (LEAGUES ri-esportata per i consumatori)
     ARCHIVE_FILES,
     LEAGUES,
-    SOCCERDATA_LEAGUES,
     as_utc,
     load_archive,
     match_key,
@@ -369,6 +368,107 @@ def record_completeness(record: dict) -> str:
     if present == 0:
         return "vuoto"
     return "parziale"
+
+
+def ppda_gap_kind(record: dict) -> Optional[str]:
+    """Perche' un record PPDA/deep non e' completo: ``None`` se lo e'.
+
+    Distingue due cause che NON sono la stessa cosa e vanno contate a parte:
+
+    * ``"strutturale"`` - deep completions e' presente su **entrambi** i lati e
+      l'unico valore assente e' PPDA: e' il caso in cui soccerdata 1.9.1
+      restituisce ``pd.NA`` perche' il denominatore difensivo del PPDA e' 0. Il
+      campo esiste, il rapporto non e' definito (non e' un dato perso);
+    * ``"assente"`` - manca almeno un valore di deep completions (o piu' valori,
+      o l'intero record): la fonte non ha pubblicato quei campi.
+    """
+    if record_completeness(record) == "completo":
+        return None
+    sides = {side: _side_data(record, side) for side in VENUES}
+    if all(has_deep for _, has_deep in sides.values()):
+        return "strutturale"
+    return "assente"
+
+
+def _record_key(record: dict, kind: str) -> Optional[Tuple]:
+    """Chiave primaria di un record d'archivio (None se inutilizzabile)."""
+    season = parse_season(record.get("season"))
+    match_id = parse_int(record.get("id"))
+    if season is None or match_id is None:
+        return None
+    if kind == PLAYER_KIND:
+        player_id = parse_int(record.get("player_id"))
+        team = clean_text(record.get("team"))
+        if player_id is None or not team:
+            return None
+        return (season, match_id, team, player_id)
+    return (season, match_id)
+
+
+def _record_richness(record: dict, kind: str) -> Tuple:
+    """Quanto un record e' "ricco": a parita' di chiave si tiene il migliore."""
+    if kind == PLAYER_KIND:
+        minutes = parse_minutes(record.get("minutes"))
+        filled = sum(1 for key in ("xg", "xa", "xg_chain", "xg_buildup",
+                                   "goals", "shots", "assists")
+                     if record.get(key) is not None)
+        return (minutes if minutes is not None else -1, filled)
+    return (sum(1 for side in VENUES for value in _side_data(record, side) if value),)
+
+
+def dedupe_records(records: Sequence[dict], *,
+                   kind: str = PPDA_KIND) -> Tuple[List[dict], dict]:
+    """Toglie le righe doppie sulla chiave primaria, tenendo la piu' ricca.
+
+    La chiave di una riga e' (stagione, id partita) per PPDA/deep e
+    (stagione, id partita, squadra, giocatore) per le statistiche giocatore: due
+    righe con la stessa chiave sono lo **stesso** dato acquisito due volte (per
+    esempio una partita elencata due volte nel payload di lega, che soccerdata
+    percorre due volte), non due osservazioni diverse. Il dedup e' quindi
+    dichiarato e contato, mai silenzioso: il chiamante decide se il numero di
+    righe tolte e' accettabile.
+    """
+    kept: Dict[Tuple, dict] = {}
+    order: List[Tuple] = []
+    unusable = 0
+    duplicates = 0
+    per_match: Dict[Tuple, int] = {}
+    alternative = 0
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            unusable += 1
+            continue
+        key = _record_key(rec, kind)
+        if key is None:
+            unusable += 1
+            continue
+        previous = kept.get(key)
+        if previous is None:
+            kept[key] = rec
+            order.append(key)
+            continue
+        duplicates += 1
+        per_match[key[:2]] = per_match.get(key[:2], 0) + 1
+        if _record_richness(rec, kind) != _record_richness(previous, kind):
+            alternative += 1
+        if _record_richness(rec, kind) > _record_richness(previous, kind):
+            kept[key] = rec
+    stats = {
+        "kind": kind,
+        "input_rows": len(records or []),
+        "rows": len(kept),
+        "duplicate_rows": duplicates,
+        "duplicate_keys": len(per_match),
+        "duplicate_matches": len({key[1] for key in per_match}),
+        "duplicate_differing_rows": alternative,
+        "unusable_rows": unusable,
+        "duplicate_ratio": (duplicates / len(records or [])
+                            if records else 0.0),
+        "sample_matches": [{"season": season, "id": match_id, "rows": count}
+                           for (season, match_id), count
+                           in sorted(per_match.items())[:10]],
+    }
+    return [kept[key] for key in order], stats
 
 
 def validate_ppda(
@@ -1005,7 +1105,6 @@ def compare_player_snapshots(
     diff.current_matches = len(cur_index)
     reference = as_utc(now) if now is not None else datetime.now(timezone.utc)
     kept_seasons = set(requested_seasons or []) or None
-    frontier = timedelta(days=float(frontier_days))
 
     def label(key: Tuple, entry: dict) -> str:
         teams = entry.get("teams") or ("?", "?")

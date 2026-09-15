@@ -53,6 +53,25 @@ Copertura e "nessun fallback silenzioso":
     esempio PPDA/deep o i roster in una release diversa), la lega fallisce con
     l'elenco delle colonne trovate.
 
+Difetti della fonte osservati sull'acquisizione reale del 2026-09-15 e come
+vengono trattati (tutti dichiarati nel report, nessuno silenzioso):
+  * **partite elencate due volte** nel payload di lega: soccerdata le percorre
+    due volte e le righe giocatore escono doppie (La Liga: 91 righe su ~48.000).
+    Il calendario viene deduplicato su (stagione, id) prima di costruire il
+    perimetro, le righe doppie sono tolte tenendo la piu' ricca e il numero di
+    righe tolte finisce nel report; sopra ``--max-duplicate-rows-ratio``
+    (default 2%) la lega non viene pubblicata;
+  * **PPDA non calcolabile** (denominatore difensivo 0): soccerdata restituisce
+    ``pd.NA`` mentre ``deep completions`` e' presente sullo stesso lato
+    (Bundesliga: 1 partita su 1251). Non e' un campo perduto: e' contato come
+    caso strutturale, non blocca e non entra fra le partite mancanti, ma sopra
+    ``--max-structural-na-ratio`` (default 1%) la lega non viene pubblicata;
+  * **payload che rompe soccerdata**: un formato inatteso (per esempio
+    ``rosters`` come lista) fa fallire l'INTERA chiamata per-partita, perdendo
+    le partite gia' lette. La richiesta viene ripetuta a meta' fino a isolare la
+    partita rotta, che viene dichiarata illeggibile (id + errore) e resta
+    MANCANTE nella copertura; le altre partite non vanno perse.
+
 Nomi delle squadre: i file conservano i nomi grezzi di Understat, come fa
 l'archivio xG; la normalizzazione resta quella condivisa della PR #15
 (``team_names.resolve_team_name``). Qui non esiste nessuna tabella di nomi.
@@ -95,6 +114,7 @@ from match_stats_archive import (  # noqa: E402
     clean_text,
     compare_player_snapshots,
     compare_ppda_snapshots,
+    dedupe_records,
     json_safe,
     name_resolution_report,
     normalize_player_record,
@@ -103,6 +123,7 @@ from match_stats_archive import (  # noqa: E402
     parse_int,
     parse_season,
     player_summary,
+    ppda_gap_kind,
     ppda_summary,
     record_completeness,
     validate_player,
@@ -155,6 +176,15 @@ MAX_SHRINK_RATIO = 0.10
 # richiesta (archivio xG) e righe giocatore attese per stagione richiesta.
 MIN_MATCHES_PER_SEASON = 100
 MIN_ROWS_PER_SEASON = 200
+
+# Righe doppie tolte sulla chiave primaria: sotto questa frazione e' un difetto
+# puntuale della fonte (dichiarato nel report), sopra non e' piu' puntuale.
+MAX_DUPLICATE_ROWS_RATIO = 0.02
+
+# Partite con PPDA non calcolabile (denominatore difensivo nullo, deep presente):
+# e' un caso strutturale, non un campo perso, ma se diventa sistematico vuol dire
+# che la fonte non espone piu' il campo per un'intera stagione.
+MAX_STRUCTURAL_NA_RATIO = 0.01
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +416,36 @@ def records_from_player_match_stats(df, schedule: Sequence[dict], *,
 # ---------------------------------------------------------------------------
 # Perimetro, copertura, frontiera
 # ---------------------------------------------------------------------------
+def _dedupe_schedule(records: Sequence[dict]) -> Tuple[List[dict], dict]:
+    """Una sola riga per (stagione, id partita).
+
+    Il payload di lega puo' elencare due volte la stessa partita: soccerdata
+    percorrerebbe due volte quella riga e le statistiche giocatore verrebbero
+    acquisite due volte per gli stessi giocatori. Si tiene la variante piu'
+    informativa (con xG su entrambi i lati) e si CONTANO le righe tolte.
+    """
+    kept: Dict[Tuple, dict] = {}
+    order: List[Tuple] = []
+    duplicates = 0
+    for rec in records or []:
+        key = (rec.get("season"), rec.get("id"))
+        previous = kept.get(key)
+        if previous is None:
+            kept[key] = rec
+            order.append(key)
+            continue
+        duplicates += 1
+        def rank(item: dict) -> Tuple:
+            return (bool(item.get("both_xg")), bool(item.get("has_data")),
+                    bool(item.get("date")))
+        if rank(rec) > rank(previous):
+            kept[key] = rec
+    stats = {"scheduled_rows": len(records or []), "rows": len(kept),
+             "duplicate_rows": duplicates,
+             "duplicate_ratio": (duplicates / len(records or []) if records else 0.0)}
+    return [kept[key] for key in order], stats
+
+
 def played_perimeter(schedule: Sequence[dict]) -> List[dict]:
     """Partite concluse con entrambi gli xG numerici (denominatore di copertura)."""
     return [rec for rec in schedule
@@ -490,7 +550,9 @@ def acquire_ppda_deep(league: str, sd_league: str, seasons: Sequence[str], *,
                       dry_run: bool, schedule: Sequence[dict],
                       allow_dropping_seasons: bool,
                       min_played_field_coverage: float, retries: int,
-                      frontier_days: float, missing_tolerance_ratio: float) -> dict:
+                      frontier_days: float, missing_tolerance_ratio: float,
+                      max_duplicate_rows_ratio: float,
+                      max_structural_na_ratio: float) -> dict:
     """PPDA/deep di una lega: scarica, valida, confronta e (se valido) scrive."""
     result: dict = {"dataset": PPDA_KIND, "league": league, "written": False,
                     "matches": 0, "errors": [], "retry_rounds": 0}
@@ -532,6 +594,18 @@ def acquire_ppda_deep(league: str, sd_league: str, seasons: Sequence[str], *,
         result["errors"].append(f"download/conversione falliti: {exc}")
         return result
 
+    # Righe doppie sulla chiave (stagione, id): tolte e CONTATE (un payload di
+    # lega che elenca due volte una partita produce record ripetuti).
+    records, duplicates = dedupe_records(records, kind=PPDA_KIND)
+    result["duplicates"] = duplicates
+    if duplicates["duplicate_ratio"] > max_duplicate_rows_ratio:
+        result["errors"].append(
+            f"{duplicates['duplicate_rows']} record su {duplicates['input_rows']} "
+            f"sono doppi sulla chiave (stagione, id partita) "
+            f"({duplicates['duplicate_ratio']:.2%} > "
+            f"{max_duplicate_rows_ratio:.2%}): la fonte ripete intere partite, "
+            "il file non viene pubblicato")
+
     expected = [parse_season(s) for s in seasons]
     problems = validate_ppda(
         records, league=league,
@@ -541,11 +615,16 @@ def acquire_ppda_deep(league: str, sd_league: str, seasons: Sequence[str], *,
     result["summary"] = ppda_summary(records)
     result["names"] = _names_for_report(records, PPDA_KIND)
 
-    # Copertura rispetto al perimetro fresco: quattro esiti per partita.
+    # Copertura rispetto al perimetro fresco: un esito per partita. Il caso
+    # "strutturale" (deep presente su entrambi i lati, PPDA nullo perche' il
+    # denominatore difensivo e' 0) NON e' un campo perso: viene contato a parte
+    # e non blocca, ma se diventa sistematico la lega fallisce.
     by_id = {_key(rec)[1]: rec for rec in records}
     counts = {"complete": 0, "partial": 0, "record_without_values": 0,
-              "no_record": 0, "ppda_missing_but_deep_present": 0}
+              "no_record": 0, "structural_ppda_na": 0,
+              "ppda_missing_but_deep_present": 0}
     missing: List[dict] = []
+    structural: List[dict] = []
     for entry in perimeter:
         record = by_id.get(entry["id"])
         if record is None:
@@ -556,14 +635,27 @@ def acquire_ppda_deep(league: str, sd_league: str, seasons: Sequence[str], *,
         if completeness == "completo":
             counts["complete"] += 1
             continue
+        for side in ("home", "away"):
+            has_ppda, has_deep = record.get(f"{side}_ppda"), record.get(
+                f"{side}_deep_completions")
+            if has_ppda is None and has_deep is not None:
+                counts["ppda_missing_but_deep_present"] += 1
+        if ppda_gap_kind(record) == "strutturale":
+            counts["structural_ppda_na"] += 1
+            structural.append(entry)
+            continue
         counts["partial" if completeness == "parziale" else "record_without_values"] += 1
         missing.append(entry)
-        for side in ("home", "away"):
-            if (record.get(f"{side}_ppda") is None
-                    and record.get(f"{side}_deep_completions") is not None):
-                # spiegazione strutturale verificabile: PPDA non calcolabile
-                # (soccerdata restituisce pd.NA quando il denominatore e' 0)
-                counts["ppda_missing_but_deep_present"] += 1
+    if structural:
+        result["structural_na_sample"] = [_entry_label(entry)
+                                          for entry in structural[:20]]
+    if (counts["structural_ppda_na"] / len(perimeter)
+            if perimeter else 0.0) > max_structural_na_ratio:
+        result["errors"].append(
+            f"{counts['structural_ppda_na']} partite su {len(perimeter)} con PPDA "
+            "non calcolabile (deep presente): sopra la soglia dichiarata "
+            f"{max_structural_na_ratio:.2%} non e' piu' un caso puntuale della "
+            "fonte, la lega non viene pubblicata")
     result["coverage"] = _frontier_status(
         missing, len(perimeter), reference_time, frontier_days, extra=counts)
     if perimeter:
@@ -623,6 +715,46 @@ def _key(record: dict) -> Tuple[Optional[int], Optional[int]]:
     return (parse_season(record.get("season")), parse_int(record.get("id")))
 
 
+def fetch_player_stats(reader_factory, match_ids: Sequence[int], *,
+                       base_dir: str, schedule: Sequence[dict],
+                       unreadable: List[dict]) -> List[dict]:
+    """Righe giocatore per le partite richieste, isolando quelle illeggibili.
+
+    ``Understat.read_player_match_stats()`` chiama ``getMatchData`` una volta per
+    partita e inghiotte SOLO ``ConnectionError``: qualunque altro errore (un
+    payload con una forma diversa, una risposta HTTP non 2xx) interrompe l'intera
+    chiamata, perdendo le migliaia di partite gia' lette. Qui, se la richiesta
+    fallisce, l'intervallo viene ripetuto a meta' fino a isolare la singola
+    partita: quella viene dichiarata illeggibile (id + errore, nel report) e le
+    altre proseguono. Le partite illeggibili restano MANCANTI nella copertura.
+    """
+    records: List[dict] = []
+    stack: List[List[int]] = [list(match_ids)]
+    while stack:
+        chunk = stack.pop()
+        if not chunk:
+            continue
+        try:
+            frame = reader_factory(base_dir).read_player_match_stats(match_id=chunk)
+        except Exception as exc:
+            if len(chunk) == 1:
+                unreadable.append({"id": chunk[0],
+                                   "error": f"{type(exc).__name__}: {exc}"})
+                continue
+            middle = len(chunk) // 2
+            stack.append(chunk[:middle])
+            stack.append(chunk[middle:])
+            continue
+        if frame is None or len(frame) == 0:
+            # nessuna riga per questo intervallo: soccerdata non distingue il
+            # payload assente dal ConnectionError inghiottito, quindi la partita
+            # resta mancante e viene riprovata (mai contata come 0 giocatori)
+            continue
+        records.extend(records_from_player_match_stats(
+            frame, schedule, match_ids=chunk))
+    return records
+
+
 # ---------------------------------------------------------------------------
 # Acquisizione per lega - statistiche giocatore
 # ---------------------------------------------------------------------------
@@ -633,7 +765,8 @@ def acquire_player_match(league: str, sd_league: str, seasons: Sequence[str], *,
                          frontier_days: float, missing_tolerance_ratio: float,
                          sample_matches: Optional[int],
                          min_rows_per_match: int,
-                         max_thin_matches_ratio: float) -> dict:
+                         max_thin_matches_ratio: float,
+                         max_duplicate_rows_ratio: float) -> dict:
     """Statistiche giocatore di una lega: scarica, valida, confronta e scrive."""
     result: dict = {"dataset": PLAYER_KIND, "league": league, "written": False,
                     "rows": 0, "matches": 0, "errors": [], "retry_rounds": 0,
@@ -656,11 +789,16 @@ def acquire_player_match(league: str, sd_league: str, seasons: Sequence[str], *,
 
     started = time.monotonic()
     records: List[dict] = []
+    unreadable: List[dict] = []
+
+    def factory(no_cache: bool):
+        return lambda base_dir: _make_reader(sd_league, seasons, base_dir,
+                                             no_cache=no_cache)
+
     try:
-        reader = _make_reader(sd_league, seasons, cache_dir, no_cache=False)
-        df = reader.read_player_match_stats(match_id=match_ids)
-        records = records_from_player_match_stats(df, schedule, match_ids=match_ids)
-    except Exception as exc:
+        records = fetch_player_stats(factory(False), match_ids, base_dir=cache_dir,
+                                     schedule=schedule, unreadable=unreadable)
+    except Exception as exc:  # difensivo: la scomposizione assorbe i singoli errori
         result["errors"].append(f"download/conversione falliti: {exc}")
         result["seconds"] = round(time.monotonic() - started, 1)
         return result
@@ -677,14 +815,16 @@ def acquire_player_match(league: str, sd_league: str, seasons: Sequence[str], *,
         log.info("%s: %d partite senza righe giocatore, tentativo %d/%d",
                  league, len(missing_ids), attempt, retries)
         try:
-            retry_reader = _make_reader(sd_league, seasons, cache_dir, no_cache=True)
-            retry_df = retry_reader.read_player_match_stats(match_id=missing_ids)
-            records.extend(records_from_player_match_stats(
-                retry_df, schedule, match_ids=missing_ids))
+            records.extend(fetch_player_stats(
+                factory(True), missing_ids, base_dir=cache_dir, schedule=schedule,
+                unreadable=unreadable))
         except Exception as exc:
             result["errors"].append(f"tentativo {attempt} di recupero fallito: {exc}")
             break
     result["seconds"] = round(time.monotonic() - started, 1)
+    result["unreadable_matches"] = len(unreadable)
+    if unreadable:
+        result["unreadable_sample"] = unreadable[:20]
 
     # Data e stagione delle righe devono coincidere col calendario: sono due
     # versioni della stessa informazione (endpoint per-partita e payload di lega).
@@ -716,6 +856,19 @@ def acquire_player_match(league: str, sd_league: str, seasons: Sequence[str], *,
             "singola partita, quindi la partita e' trattata come MANCANTE e la "
             "lega non viene pubblicata (usare --missing-tolerance-ratio per "
             "accettarlo in modo dichiarato)")
+
+    # Righe doppie sulla chiave (stagione, id partita, squadra, giocatore): un
+    # payload di lega che elenca due volte una partita fa percorrere due volte la
+    # stessa partita a soccerdata. Tolte e CONTATE (mai silenziose).
+    records, duplicates = dedupe_records(records, kind=PLAYER_KIND)
+    result["duplicates"] = duplicates
+    if duplicates["duplicate_ratio"] > max_duplicate_rows_ratio:
+        result["errors"].append(
+            f"{duplicates['duplicate_rows']} righe su {duplicates['input_rows']} "
+            "sono doppie sulla chiave (stagione, id partita, squadra, giocatore) "
+            f"(es. {duplicates['sample_matches'][:3]}): "
+            f"{duplicates['duplicate_ratio']:.2%} > "
+            f"{max_duplicate_rows_ratio:.2%}, la lega non viene pubblicata")
 
     expected = [parse_season(s) for s in seasons]
     min_rows = (min(len(match_ids), int(sample_matches)) * 5 if sample_matches
@@ -781,7 +934,9 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
                    sample_matches: Optional[int],
                    min_played_field_coverage: float,
                    min_rows_per_match: int,
-                   max_thin_matches_ratio: float) -> dict:
+                   max_thin_matches_ratio: float,
+                   max_duplicate_rows_ratio: float,
+                   max_structural_na_ratio: float) -> dict:
     """Acquisisce i dataset richiesti per una lega (un solo snapshot per lega)."""
     sd_league = SOCCERDATA_LEAGUES[league]
     outcome: dict = {"league": league, "sd_league": sd_league,
@@ -793,6 +948,7 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
             sd_league, sorted(set(seasons) | set(player_seasons)),
             league_cache, no_cache=True)
         schedule = perimeter_from_schedule(schedule_reader.read_schedule())
+        schedule, schedule_duplicates = _dedupe_schedule(schedule)
     except Exception as exc:
         outcome["errors"].append(f"calendario non acquisito: {exc}")
         outcome["seconds"] = round(time.monotonic() - started, 1)
@@ -822,7 +978,9 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
         "last_played_date": (sorted(
             (rec["date"] for rec in played if rec.get("date")) or [None])[-1]),
         "seasons": dict(sorted(season_counts.items())),
+        "duplicate_rows": schedule_duplicates["duplicate_rows"],
     }
+    outcome["schedule_duplicates"] = schedule_duplicates
 
     if PPDA_KIND in datasets:
         outcome["datasets"][PPDA_KIND] = acquire_ppda_deep(
@@ -831,7 +989,9 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
             schedule=schedule, allow_dropping_seasons=allow_dropping_seasons,
             min_played_field_coverage=min_played_field_coverage, retries=retries,
             frontier_days=frontier_days,
-            missing_tolerance_ratio=missing_tolerance_ratio)
+            missing_tolerance_ratio=missing_tolerance_ratio,
+            max_duplicate_rows_ratio=max_duplicate_rows_ratio,
+            max_structural_na_ratio=max_structural_na_ratio)
     if PLAYER_KIND in datasets:
         outcome["datasets"][PLAYER_KIND] = acquire_player_match(
             league, sd_league, player_seasons, output_dir=output_dir,
@@ -840,7 +1000,8 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
             retries=retries, frontier_days=frontier_days,
             missing_tolerance_ratio=missing_tolerance_ratio,
             sample_matches=sample_matches, min_rows_per_match=min_rows_per_match,
-            max_thin_matches_ratio=max_thin_matches_ratio)
+            max_thin_matches_ratio=max_thin_matches_ratio,
+            max_duplicate_rows_ratio=max_duplicate_rows_ratio)
 
     for dataset, entry in outcome["datasets"].items():
         outcome["errors"].extend(f"{dataset}: {err}" for err in entry.get("errors", []))
@@ -903,6 +1064,17 @@ def build_parser() -> argparse.ArgumentParser:
                         default=DEFAULT_MAX_THIN_MATCHES_RATIO,
                         help="frazione massima di partite con roster sottile "
                              f"(default: {DEFAULT_MAX_THIN_MATCHES_RATIO})")
+    parser.add_argument("--max-duplicate-rows-ratio", type=float,
+                        default=MAX_DUPLICATE_ROWS_RATIO,
+                        help="frazione massima di righe doppie sulla chiave "
+                             "primaria tolte dal dedup prima di far fallire la "
+                             f"lega (default: {MAX_DUPLICATE_ROWS_RATIO})")
+    parser.add_argument("--max-structural-na-ratio", type=float,
+                        default=MAX_STRUCTURAL_NA_RATIO,
+                        help="frazione massima di partite con PPDA non "
+                             "calcolabile (denominatore difensivo nullo, deep "
+                             "presente): oltre la soglia non e' un caso "
+                             f"puntuale (default: {MAX_STRUCTURAL_NA_RATIO})")
     parser.add_argument("--frontier-days", type=float, default=DEFAULT_FRONTIER_DAYS,
                         help="finestra (giorni) in cui una partita puo' restare "
                              "senza dati senza bloccare (default: "
@@ -954,7 +1126,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             sample_matches=args.sample_matches_per_league,
             min_played_field_coverage=args.min_played_field_coverage,
             min_rows_per_match=args.min_rows_per_match,
-            max_thin_matches_ratio=args.max_thin_matches_ratio)
+            max_thin_matches_ratio=args.max_thin_matches_ratio,
+            max_duplicate_rows_ratio=args.max_duplicate_rows_ratio,
+            max_structural_na_ratio=args.max_structural_na_ratio)
 
     results: List[dict] = []
     if args.parallel_leagues > 1 and len(leagues) > 1:
@@ -1008,6 +1182,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         "frontier_days": float(args.frontier_days),
         "missing_tolerance_ratio": float(args.missing_tolerance_ratio),
         "sample_matches_per_league": args.sample_matches_per_league,
+        "max_duplicate_rows_ratio": float(args.max_duplicate_rows_ratio),
+        "max_structural_na_ratio": float(args.max_structural_na_ratio),
+        "min_played_field_coverage": float(args.min_played_field_coverage),
+        "min_rows_per_match": int(args.min_rows_per_match),
+        "max_thin_matches_ratio": float(args.max_thin_matches_ratio),
         "leagues": results,
         "failures": failures,
     }

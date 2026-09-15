@@ -55,11 +55,11 @@ from match_stats_archive import (  # noqa: E402
     parse_kickoff,
     parse_season,
     percentile,
+    ppda_gap_kind,
     record_completeness,
     player_summary,
     ppda_summary,
 )
-from team_names import resolve_team_name  # noqa: E402
 from xg_archive import LEAGUES, load_archive  # noqa: E402
 
 REPO_DB_DIR = os.path.join(_REPO_ROOT, "SoccerMath", "database")
@@ -119,9 +119,13 @@ def _kickoff(record: dict):
     return parse_kickoff(record.get("date"))[0]
 
 
-def _season_matches(records: Sequence[dict]) -> Dict[int, Dict[int, dict]]:
-    """{(stagione, id): record} con conteggio, per il confronto col perimetro."""
-    index: Dict[int, Dict[int, dict]] = {}
+def _season_matches(records: Sequence[dict]) -> Dict[int, Dict[int, List[dict]]]:
+    """{stagione: {id partita: [record]}}, per il confronto col perimetro.
+
+    Una lista (non un record singolo) perche' l'archivio giocatore ha molte
+    righe per partita e serve contarle, non sovrascriverle.
+    """
+    index: Dict[int, Dict[int, List[dict]]] = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -129,14 +133,25 @@ def _season_matches(records: Sequence[dict]) -> Dict[int, Dict[int, dict]]:
         match_id = parse_int(rec.get("id"))
         if season is None or match_id is None:
             continue
-        index.setdefault(season, {})[match_id] = rec
+        index.setdefault(season, {}).setdefault(match_id, []).append(rec)
     return index
 
 
-def xg_perimeter(league: str, xg_dir: str) -> Dict[int, Dict[int, dict]]:
-    """Partite concluse con entrambi gli xG nell'archivio xG (per stagione)."""
+def xg_perimeter(league: str, xg_dir: str,
+                 errors: Optional[List[str]] = None) -> Dict[int, Dict[int, dict]]:
+    """Partite concluse con entrambi gli xG nell'archivio xG (per stagione).
+
+    Se l'archivio xG della lega non e' leggibile il denominatore non esiste: il
+    caso viene dichiarato in ``errors`` (e quindi nel referto), mai nascosto.
+    """
     perimeter: Dict[int, Dict[int, dict]] = {}
-    for rec in load_archive(league, xg_dir) or []:
+    try:
+        archive = load_archive(league, xg_dir) or []
+    except Exception as exc:  # archivio assente o corrotto
+        if errors is not None:
+            errors.append(f"archivio xG non leggibile in {xg_dir}: {exc}")
+        return perimeter
+    for rec in archive:
         if not isinstance(rec, dict) or not parse_bool(rec.get("is_result")):
             continue
         home_xg, away_xg = rec.get("home_xg"), rec.get("away_xg")
@@ -158,8 +173,11 @@ def coverage_block(records: Sequence[dict], perimeter: Dict[int, Dict[int, dict]
     seasons = sorted(set(perimeter) | set(index))
     seasons_out: Dict[str, dict] = {}
     totals = {"reference_matches": 0, "present_matches": 0, "rows": 0,
-              "complete": 0, "partial": 0, "record_without_values": 0,
-              "no_record": 0, "missing": 0}
+              "complete": 0, "partial": 0, "structural_ppda_na": 0,
+              "record_without_values": 0,
+              "no_record": 0, "missing_matches": 0,
+              "with_home_ppda": 0, "with_away_ppda": 0,
+              "with_home_deep": 0, "with_away_deep": 0}
     for season in seasons:
         reference = perimeter.get(season, {})
         present = index.get(season, {})
@@ -169,17 +187,17 @@ def coverage_block(records: Sequence[dict], perimeter: Dict[int, Dict[int, dict]
             "missing_matches": 0,
             "complete": 0,
             "partial": 0,
+            "structural_ppda_na": 0,
             "record_without_values": 0,
             "no_record": 0,
             "with_home_ppda": 0, "with_away_ppda": 0,
             "with_home_deep": 0, "with_away_deep": 0,
-            "rows": sum(len(value) if isinstance(value, list) else 1
-                        for value in present.values()),
+            "rows": sum(len(rows) for rows in present.values()),
             "missing_sample": [],
         }
         for match_id, rec in sorted(reference.items()):
             got = present.get(match_id)
-            if got is None:
+            if not got:
                 entry["no_record"] += 1
                 if len(entry["missing_sample"]) < 15:
                     entry["missing_sample"].append({
@@ -190,9 +208,15 @@ def coverage_block(records: Sequence[dict], perimeter: Dict[int, Dict[int, dict]
                     })
                 continue
             if kind == PPDA_KIND:
+                got = got[-1]
                 completeness = record_completeness(got)
+                gap = ppda_gap_kind(got)
                 if completeness == "completo":
                     entry["complete"] += 1
+                elif gap == "strutturale":
+                    # PPDA non calcolabile (denominatore difensivo nullo) con
+                    # deep completions presente: il campo esiste, il rapporto no
+                    entry["structural_ppda_na"] += 1
                 elif completeness == "parziale":
                     entry["partial"] += 1
                 else:
@@ -215,7 +239,9 @@ def coverage_block(records: Sequence[dict], perimeter: Dict[int, Dict[int, dict]
                                           if match_id not in reference)
         seasons_out[str(season)] = entry
         for key in ("reference_matches", "present_matches", "complete", "partial",
-                    "record_without_values", "no_record", "missing_matches"):
+                    "structural_ppda_na", "record_without_values", "no_record",
+                    "missing_matches", "with_home_ppda", "with_away_ppda",
+                    "with_home_deep", "with_away_deep"):
             totals[key] += entry[key]
         totals["rows"] += entry["rows"]
     totals["complete_ratio"] = (totals["complete"] / totals["reference_matches"]
@@ -360,6 +386,7 @@ def acquisition_blocks(acquisition: Optional[dict]) -> dict:
                                "leagues": {}}
     for outcome in acquisition.get("leagues") or []:
         entry = {"schedule": outcome.get("schedule"),
+                 "schedule_duplicates": outcome.get("schedule_duplicates"),
                  "seconds": outcome.get("seconds"),
                  "errors": outcome.get("errors"),
                  "datasets": {}}
@@ -375,6 +402,14 @@ def acquisition_blocks(acquisition: Optional[dict]) -> dict:
                 "missing_matches_sample": payload.get("missing_matches_sample"),
                 "requested_matches": payload.get("requested_matches"),
                 "returned_matches": payload.get("returned_matches"),
+                "rows": payload.get("rows"),
+                "matches": payload.get("matches"),
+                "matches_per_second": payload.get("matches_per_second"),
+                "duplicates": payload.get("duplicates"),
+                "unreadable_matches": payload.get("unreadable_matches"),
+                "unreadable_sample": payload.get("unreadable_sample"),
+                "structural_na_sample": payload.get("structural_na_sample"),
+                "shrink_ratio": payload.get("shrink_ratio"),
             }
         blocks["leagues"][outcome.get("league")] = entry
     return blocks
@@ -387,7 +422,7 @@ def analyse_league(league: str, db_dir: str, xg_dir: str, *,
                    reference: datetime, acquisition: Optional[dict]) -> dict:
     result: dict = {"league": league, "files": {}, "coverage": {}, "names": {},
                     "errors": []}
-    perimeter = xg_perimeter(league, xg_dir)
+    perimeter = xg_perimeter(league, xg_dir, errors=result["errors"])
     result["perimeter_matches"] = sum(len(matches) for matches in perimeter.values())
     result["perimeter_by_season"] = {str(season): len(matches)
                                      for season, matches in sorted(perimeter.items())}
@@ -463,8 +498,8 @@ def analyse_league(league: str, db_dir: str, xg_dir: str, *,
         }
 
     if acquisition:
-        entry = (acquisition.get("leagues") or {}).get(league) or {}
-        result["acquisition"] = entry
+        # blocco per lega gia' normalizzato da ``acquisition_blocks()``
+        result["acquisition"] = acquisition
     return result
 
 
@@ -472,18 +507,43 @@ def analyse_league(league: str, db_dir: str, xg_dir: str, *,
 # Rendering del rapporto
 # ---------------------------------------------------------------------------
 def _dataset_errors(entry: dict, dataset: str) -> str:
-    """Motivo (dal report di acquisizione) per cui un dataset non ha un file."""
-    errors = (((entry.get("acquisition") or {}).get("datasets") or {})
-              .get(dataset) or {}).get("errors") or []
+    """Motivo (dal report di acquisizione) per cui un dataset non ha un file.
+
+    L'ordine di lettura segue la causa reale: prima l'errore del dataset, poi
+    l'errore della lega (la lega puo' essere fallita prima di acquisire), poi la
+    semplice assenza dal perimetro richiesto.
+    """
+    acquisition = entry.get("acquisition") or {}
+    datasets = acquisition.get("datasets") or {}
+    errors = list((datasets.get(dataset) or {}).get("errors") or [])
     if errors:
         return "; ".join(str(error) for error in errors)
-    if entry.get("acquisition"):
-        return "non acquisito"
+    if acquisition:
+        if dataset in datasets:
+            return ("acquisito ma nessun file scritto (dry-run, scrittura "
+                    "saltata per errori di validazione)")
+        other = sorted(name for name in datasets if name != dataset)
+        if other:
+            return ("non acquisito in questa esecuzione (dataset richiesti e "
+                    f"presenti nel report: {', '.join(other)})")
+        league_errors = acquisition.get("errors") or []
+        if league_errors:
+            return "; ".join(str(error) for error in league_errors)
+        return "non acquisito (nessun dataset scritto per questa lega)"
     return ""
 
 
 def _pct(value: Optional[float], digits: int = 1) -> str:
     return "n/d" if value is None else f"{value * 100:.{digits}f}%"
+
+
+def _count(value) -> str:
+    """Numero intero leggibile anche quando il dato non c'e' (mai ``None``)."""
+    if value is None:
+        return "n/d"
+    if isinstance(value, float):
+        return f"{value:.0f}"
+    return str(value)
 
 
 def _num(value, digits: int = 2) -> str:
@@ -525,9 +585,9 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
     add("")
     add(f"- generato: `{generated_at}`")
     add(f"- istante di riferimento per le eta': `{analysis['reference_time']}`")
-    add(f"- dataset analizzati: "
+    add("- dataset analizzati: "
         + ", ".join(f"`{name}`" for name in analysis["datasets"]))
-    add(f"- leghe: " + ", ".join(f"`{league}`" for league in leagues))
+    add("- leghe: " + ", ".join(f"`{league}`" for league in leagues))
     if run_url:
         add(f"- esecuzione reale (workflow sola lettura): {run_url}")
     if run_id:
@@ -592,6 +652,10 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
         ppda = (entry.get("coverage") or {}).get(PPDA_KIND) or {}
         add(f"### {league}")
         add("")
+        for error in entry.get("errors") or []:
+            add(f"- **nota**: {error}")
+        if entry.get("errors"):
+            add("")
         add(f"Perimetro nell'archivio xG: **{entry.get('perimeter_matches', 0)}** "
             "partite concluse con xG ("
             + ", ".join(f"{season}: {count}"
@@ -607,21 +671,38 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
             add(f"- file: `{PPDA_FILES[league]}` ({_bytes(meta.get('bytes'))}, "
                 f"sha256 `{meta.get('sha256')}`, modificato `{meta.get('modified')}`)")
             add("")
-            add("| Stagione | Concluse con xG | Con record | Complete | Parziali | "
+            add("| Stagione | Concluse con xG | Con record | Complete | "
+                "PPDA non calcolabile | Parziali (deep assente) | "
                 "Record senza valori | Senza record | Copertura completa |")
-            add("|---|---|---|---|---|---|---|---|")
+            add("|---|---|---|---|---|---|---|---|---|")
             for season, bucket in (ppda.get("seasons") or {}).items():
                 add(f"| {season} | {bucket['reference_matches']} | "
                     f"{bucket['present_matches']} | {bucket['complete']} | "
+                    f"{bucket.get('structural_ppda_na', 0)} | "
                     f"{bucket['partial']} | {bucket['record_without_values']} | "
                     f"{bucket['no_record']} | {_pct(bucket['complete_ratio'])} |")
             totals = ppda.get("totals") or {}
             add(f"| **totale** | **{totals.get('reference_matches')}** | "
                 f"**{totals.get('present_matches')}** | **{totals.get('complete')}** | "
+                f"**{totals.get('structural_ppda_na', 0)}** | "
                 f"**{totals.get('partial')}** | "
                 f"**{totals.get('record_without_values')}** | "
                 f"**{totals.get('no_record')}** | "
                 f"**{_pct(totals.get('complete_ratio'))}** |")
+            add("")
+            add("\"PPDA non calcolabile\" = deep completions presente su "
+                "entrambi i lati e PPDA nullo: soccerdata 1.9.1 restituisce "
+                "`pd.NA` quando il denominatore difensivo del PPDA e' 0. E' un "
+                "caso strutturale della fonte, non un campo perduto, ed e' "
+                "contato a parte.")
+            add("")
+            reference = totals.get("reference_matches") or 0
+            add("Valori presenti sul perimetro committato, lato per lato "
+                f"(denominatore {_count(reference)}): "
+                f"PPDA casa {_count(totals.get('with_home_ppda'))}, "
+                f"PPDA trasferta {_count(totals.get('with_away_ppda'))}, "
+                f"deep casa {_count(totals.get('with_home_deep'))}, "
+                f"deep trasferta {_count(totals.get('with_away_deep'))}.")
             add("")
             values = entry.get("values") or {}
             dist = values.get("ppda") or {}
@@ -686,7 +767,11 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
         add(f"### {league}")
         add("")
         if not timing:
-            add("- nessun dato acquisito per questa lega.")
+            acquisition_entry = entry.get("acquisition") or {}
+            reason = "; ".join(str(error)
+                               for error in (acquisition_entry.get("errors") or []))
+            add("- nessun dato acquisito per questa lega"
+                + (f": {reason}" if reason else "."))
             add("")
             continue
         ppda_timing = timing.get(PPDA_KIND)
@@ -723,16 +808,44 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
             if not coverage:
                 continue
             errors = payload.get("errors") or []
-            add(f"- {dataset}, copertura sull'istantanea fresca: mancanti "
-                f"{coverage.get('missing_total')} su "
-                f"{coverage.get('reference_matches')} "
-                f"(frontiera {coverage.get('missing_frontier')}, non frontiera "
-                f"{coverage.get('missing_old')}, senza data "
-                f"{coverage.get('missing_undated')}); complete "
-                f"{coverage.get('complete')}"
-                + (f"; retry {payload.get('retry_rounds')}" if payload.get('retry_rounds')
-                   else "")
-                + (f"; **errori**: {'; '.join(errors)}" if errors else ""))
+            detail = (f"- {dataset}, copertura sull'istantanea fresca: mancanti "
+                      f"**{_count(coverage.get('missing_total'))}** su "
+                      f"{_count(coverage.get('reference_matches'))} "
+                      f"(frontiera {_count(coverage.get('missing_frontier'))}, "
+                      f"non frontiera {_count(coverage.get('missing_old'))}, "
+                      f"senza data {_count(coverage.get('missing_undated'))})")
+            if coverage.get("complete") is not None:
+                detail += (f"; record completi {_count(coverage.get('complete'))}"
+                           f" ({_pct(coverage.get('complete_ratio'))})")
+            if coverage.get("returned_matches") is not None:
+                detail += f"; partite restituite {_count(coverage.get('returned_matches'))}"
+            if coverage.get("ppda_missing_but_deep_present"):
+                detail += ("; coppie con deep presente e PPDA assente (denominatore "
+                           "difensivo nullo): "
+                           + _count(coverage.get("ppda_missing_but_deep_present")))
+            if payload.get("retry_rounds"):
+                detail += f"; tentativi di recupero {payload.get('retry_rounds')}"
+            duplicates = payload.get("duplicates") or {}
+            if duplicates.get("duplicate_rows"):
+                detail += (f"; righe doppie tolte {_count(duplicates.get('duplicate_rows'))} "
+                           f"su {_count(duplicates.get('input_rows'))} "
+                           f"({_pct(duplicates.get('duplicate_ratio'))}, "
+                           f"{_count(duplicates.get('duplicate_matches'))} partite)")
+            if payload.get("unreadable_matches"):
+                detail += (f"; partite illeggibili (payload che rompe soccerdata) "
+                           f"{_count(payload.get('unreadable_matches'))}")
+            if errors:
+                detail += f"; **errori**: {'; '.join(str(e) for e in errors)}"
+            add(detail)
+            unreadable = payload.get("unreadable_sample") or []
+            if unreadable:
+                add("- partite illeggibili (id: errore): "
+                    + "; ".join(f"`{item.get('id')}`: {item.get('error')}"
+                                for item in unreadable[:5]))
+            sample = payload.get("missing_matches_sample") or []
+            if sample:
+                add("- esempi di partite mancanti sull'istantanea fresca (max 8): "
+                    + "; ".join(str(item) for item in sample[:8]))
         add("")
 
     # --------------------------------------------------------------- minuti
@@ -745,7 +858,6 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
     add("| Lega | Righe | Partite | Giocatori | Minuti p50 | Minuti p95 | "
         "Righe a 0 minuti | Giocatori/partita (p50) |")
     add("|---|---|---|---|---|---|---|---|")
-    global_minutes: List[float] = []
     global_rows = 0
     global_zero = 0
     for league in leagues:
@@ -897,6 +1009,13 @@ def render_markdown(analysis: dict, *, generated_at: str, run_url: Optional[str]
     add("- il ritardo misurato vale per **questo** istante di acquisizione: un "
         "buco su una partita vecchia e' strutturale, un buco sull'ultima giornata "
         "puo' essere solo un ritardo di pubblicazione;")
+    add("- le righe doppie sulla chiave primaria sono **tolte e contate** "
+        "(tenuta la riga piu' ricca): nascono da partite elencate due volte nel "
+        "payload di lega, che soccerdata percorre due volte; sopra la soglia "
+        "dichiarata la lega non viene pubblicata;")
+    add("- `PPDA` nullo con `deep completions` presente su entrambi i lati e' il "
+        "caso strutturale di `pd.NA` (denominatore difensivo 0): non e' un campo "
+        "perduto, e' contato a parte e non entra fra le partite mancanti;")
     add("- `read_player_match_stats()` non distingue \"payload assente\" da "
         "`ConnectionError` inghiottito: le partite senza righe sono trattate come "
         "mancanti e riprovate, mai come 0 giocatori;")
@@ -927,11 +1046,12 @@ def build_report(args) -> dict:
         reference = parsed
     reference = reference or datetime.now(timezone.utc)
 
+    blocks = acquisition_blocks(acquisition)
     leagues: Dict[str, dict] = {}
     for league in LEAGUES:
         leagues[league] = analyse_league(
             league, args.database_dir, args.xg_dir, reference=reference,
-            acquisition=acquisition)
+            acquisition=(blocks.get("leagues") or {}).get(league))
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -944,7 +1064,7 @@ def build_report(args) -> dict:
         "run_url": args.run_url,
         "run_id": args.run_id,
         "leagues": leagues,
-        "acquisition": acquisition_blocks(acquisition),
+        "acquisition": blocks,
         "soccerdata_exposed": SOCCERDATA_EXPOSED,
         "soccerdata_not_exposed": SOCCERDATA_NOT_EXPOSED,
     }
