@@ -1,0 +1,295 @@
+name: Aggiornamento archivi PPDA/deep e giocatore (Understat)
+
+# Scheduler degli archivi PPDA/deep completions e statistiche giocatore, nello
+# stesso pattern di update_xg.yml: un solo posto in cui si scarica, validazione
+# prima della sostituzione, commit automatico con retry se il branch si muove.
+#
+# Che cosa pubblica e che cosa NO (dichiarato, non implicito):
+#   * COMMITS: solo i 5 `SoccerMath/database/ppda_deep_<lega>.json` (~2 MB
+#     complessivi). Sono il file che l'analisi rolling point-in-time legge.
+#   * NON COMMITS: i 5 `player_match_<lega>.json` (~91 MB complessivi, 224.902
+#     righe). Vengono acquisiti e validati nello stesso run - perche' la
+#     validazione di copertura e il referto di fattibilita' sono gli stessi per
+#     entrambi i dataset - ma restano nell'artifact del run invece che in Git:
+#     committarli porterebbe il repository sopra i 90 MB senza che nessuna parte
+#     del motore li legga. Restano recuperabili per 14 giorni dall'artifact, e
+#     nel referto finiscono sha256 e conteggi per lega.
+#
+# Costo dichiarato: `read_player_match_stats()` e' 1 richiesta HTTP per partita
+# (~7.000 partite sull'intero perimetro), PPDA/deep sono 1 payload di lega per
+# lega. Misurato sull'esecuzione reale del 2026-09-15 (5 leghe, 2 in parallelo):
+# circa 30 minuti, 8 file prodotti. Per questo il job ha un timeout ampio.
+#
+# Perimetro: le stagioni di default sono quelle dell'archivio xG committato
+# (2022/23 in poi), quindi il denominatore di copertura e' confrontabile con il
+# referto di fattibilita'. Il run NON allarga lo storico: se si vogliono
+# stagioni precedenti va chiesto esplicitamente con l'input `seasons`, e il
+# confronto con i numeri gia' verificati perde di significato (denominatore
+# diverso) - il referto del run lo dichiara.
+#
+# Tolleranza: `--missing-tolerance-ratio` di default 0.01 (1% delle partite del
+# perimetro non di frontiera), lo stesso valore con cui e' stata fatta
+# l'esecuzione reale del 2026-09-15. Non e' un ripiego silenzioso: quante
+# partite mancano, quali e perche' finisce nel report di acquisizione e nel
+# referto. Lo script, di suo, ha tolleranza 0.
+
+on:
+  schedule:
+    # Lunedi alle 05:00 UTC: prima della pipeline xG (martedi/venerdi 06:00),
+    # cosi' il denominatore (archivio xG committato) e' quello della settimana.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Stagioni soccerdata per PPDA/deep (formato 2627), separate da spazio"
+        required: false
+        default: "2223 2324 2425 2526 2627"
+      player_seasons:
+        description: "Stagioni per le statistiche giocatore (vuoto = come sopra)"
+        required: false
+        default: ""
+      parallel_leagues:
+        description: "Leghe acquisite in parallelo"
+        required: false
+        default: "2"
+      missing_tolerance_ratio:
+        description: "Frazione ammessa di partite NON di frontiera senza dati (0 = nessuna)"
+        required: false
+        default: "0.01"
+      commit_ppda:
+        description: "Committa i file ppda_deep (false = acquisizione + referto senza commit)"
+        required: false
+        default: "true"
+  # Un workflow presente solo su un branch non di default NON e' avviabile da
+  # workflow_dispatch: il push su arena/** garantisce comunque una esecuzione
+  # reale su questo branch (stesso espediente di ppda_player_verify.yml).
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - '.github/workflows/update_ppda_player.yml'
+
+permissions:
+  contents: write
+
+# Stesso gruppo di update_xg.yml e update_database.yml: i tre workflow
+# committano sullo stesso branch, quindi non devono girare in parallelo.
+concurrency:
+  group: soccermath-data
+  cancel-in-progress: false
+
+jobs:
+  update-ppda-player:
+    runs-on: ubuntu-latest
+    # 1 richiesta per partita sulle statistiche giocatore: job lungo per
+    # costruzione (misurato e riportato nel referto).
+    timeout-minutes: 240
+
+    env:
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PLAYER_SEASONS: ${{ github.event.inputs.player_seasons || '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Versione dichiarata e verificata: le colonne di read_team_match_stats()
+      # e read_player_match_stats() sono state controllate su questa release.
+      - name: Installazione dipendenze (soccerdata pinnato)
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'soccerdata==1.9.1' pandas pytest
+          python - <<'PY'
+          from importlib.metadata import version
+          print("soccerdata installato:", version("soccerdata"))
+          PY
+
+      - name: Test offline della pipeline (nessuna rete)
+        run: |
+          python -m pytest SoccerMath/test_match_stats_pipeline.py \
+                           SoccerMath/test_xg_pipeline.py -q --tb=short
+
+      - name: Cartelle di lavoro del run
+        run: |
+          echo "OUT_DIR=$RUNNER_TEMP/ppda-player-out" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/ppda-player-out/database" \
+                   "$RUNNER_TEMP/ppda-player-out/reports" \
+                   "$RUNNER_TEMP/ppda-player-out/cache"
+
+      # 1. Acquisizione REALE. Output nella cartella di lavoro, confronto
+      #    partita-per-partita contro i dati committati (--baseline-dir): se il
+      #    file non esiste ancora il report lo dichiara come primo snapshot.
+      #    Exit code != 0 se una lega fallisce: nessun file parziale.
+      - name: Acquisizione reale (Understat, 5 leghe)
+        run: |
+          python update_all_ppda_player_db.py \
+            --seasons ${{ github.event.inputs.seasons || '2223 2324 2425 2526 2627' }} \
+            ${PLAYER_SEASONS:+--player-seasons $PLAYER_SEASONS} \
+            --parallel-leagues ${{ github.event.inputs.parallel_leagues || '2' }} \
+            --retries 2 \
+            --frontier-days 1 \
+            --missing-tolerance-ratio ${{ github.event.inputs.missing_tolerance_ratio || '0.01' }} \
+            --max-duplicate-rows-ratio 0.02 \
+            --max-structural-na-ratio 0.01 \
+            --output-dir "$OUT_DIR/database" \
+            --baseline-dir SoccerMath/database \
+            --cache-dir "$OUT_DIR/cache" \
+            --report "$OUT_DIR/reports/acquisizione.json"
+
+      # 2. Audit di copertura sulla coppia di archivi appena acquisita: gira
+      #    sempre (anche se l'acquisizione fallisce) cosi' il motivo del
+      #    fallimento finisce nel referto invece di sparire.
+      - name: Audit di copertura e qualita' dato
+        if: always()
+        run: |
+          set +e
+          python audit/ppda_deep_player_audit.py \
+            --database-dir "$OUT_DIR/database" \
+            --xg-dir SoccerMath/database \
+            --acquisition-report "$OUT_DIR/reports/acquisizione.json" \
+            --results-dir "$OUT_DIR/reports" \
+            --run-url "$RUN_URL" \
+            --run-id "${{ github.run_id }}"
+          code=$?
+          set -e
+          exit $code
+
+      # 3. Evidenza nei LOG (gli artifact scadono dopo 14 giorni, i log no):
+      #    sha256 dei file acquisiti, report di acquisizione compatto e referto
+      #    di copertura completo in JSON compatto.
+      - name: Evidenza nei log (sha256 + JSON compatti)
+        if: always()
+        run: |
+          echo "=== sha256 dei file acquisiti ==="
+          (cd "$OUT_DIR/database" && sha256sum *.json 2>/dev/null) || echo "(nessun file)"
+          echo "=== dimensioni ==="
+          (cd "$OUT_DIR/database" && ls -l *.json 2>/dev/null) || true
+          for path in "$OUT_DIR/reports/acquisizione.json" \
+                      "$OUT_DIR/reports/ppda_deep_player_feasibility.json"; do
+            if [ -f "$path" ]; then
+              echo "=== JSON COMPATTO ($path) ==="
+              python -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding='utf-8')), ensure_ascii=False, separators=(',', ':')))" "$path"
+            fi
+          done
+          if [ -f "$OUT_DIR/reports/ppda_deep_player_feasibility.md" ]; then
+            echo "=== REFERTO (markdown, generato dal run) ==="
+            cat "$OUT_DIR/reports/ppda_deep_player_feasibility.md"
+          fi
+
+      # 4. Pubblicazione dei SOLI ppda_deep nel repository.
+      - name: Pubblicazione ppda_deep in SoccerMath/database
+        run: |
+          python - <<'PY'
+          import glob, json, os, shutil, sys
+          src_dir = os.path.join(os.environ["OUT_DIR"], "database")
+          dst_dir = os.path.join("SoccerMath", "database")
+          paths = sorted(glob.glob(os.path.join(src_dir, "ppda_deep_*.json")))
+          if not paths:
+              print("::error::nessun file ppda_deep acquisito")
+              sys.exit(1)
+          errors = []
+          for path in paths:
+              data = json.load(open(path, encoding="utf-8"))
+              if not isinstance(data, list) or len(data) < 100:
+                  errors.append(f"{os.path.basename(path)}: {len(data)} partite")
+          if errors:
+              print("::error::file ppda_deep non validi: " + "; ".join(errors))
+              sys.exit(1)
+          for path in paths:
+              shutil.copy2(path, os.path.join(dst_dir, os.path.basename(path)))
+              print("pubblicato:", os.path.basename(path))
+          # I file giocatore NON vengono pubblicati (vedi intestazione).
+          for path in sorted(glob.glob(os.path.join(src_dir, "player_match_*.json"))):
+              data = json.load(open(path, encoding="utf-8"))
+              print("NON committato (solo artifact):", os.path.basename(path),
+                    f"{len(data)} righe")
+          PY
+
+      - name: Commit e push (con retry se il branch si muove)
+        if: ${{ github.event.inputs.commit_ppda != 'false' }}
+        run: |
+          set -uo pipefail
+          BRANCH="${{ github.ref_name }}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -- 'SoccerMath/database/ppda_deep_*.json'
+          # Rete di sicurezza: nessun altro file deve entrare nel commit.
+          if ! git diff --cached --name-only | grep -q -E '^SoccerMath/database/ppda_deep_[a-z0-9_]+\.json$' \
+             || [ -n "$(git diff --cached --name-only | grep -v -E '^SoccerMath/database/ppda_deep_[a-z0-9_]+\.json$' || true)" ]; then
+            echo "::error::il commit conterrebbe file fuori dal perimetro dichiarato"
+            git diff --cached --name-only
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "Nessun cambiamento: niente da committare."
+            exit 0
+          fi
+          git commit -m "auto: archivio PPDA/deep completions Understat $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:$BRANCH"; then
+              echo "Push ok."
+              exit 0
+            fi
+            echo "Push rifiutato: rebase e riprovo ($i/4)"
+            git fetch -q origin "$BRANCH"
+            if ! git rebase -q "origin/$BRANCH"; then
+              git rebase --abort
+              echo "::error::Conflitto sull'archivio PPDA/deep, serve intervento manuale"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+          echo "::error::Push non riuscito dopo 4 tentativi"
+          exit 1
+
+      # 5. Artifact: gli 8 file acquisiti (compresi i ~91 MB di statistiche
+      #    giocatore, che NON sono committati) + i report.
+      - name: Pubblica snapshot e report come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ppda-player-update-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/ppda-player-out/reports/
+            ${{ runner.temp }}/ppda-player-out/database/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Riepilogo nel summary del run
+        if: always()
+        run: |
+          {
+            echo "## Aggiornamento PPDA/deep e statistiche giocatore"
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo "### Acquisizione (estratto)"
+            echo '```json'
+            python - <<'PY'
+          import json, os
+          path = os.path.join(os.environ["OUT_DIR"], "reports", "acquisizione.json")
+          if not os.path.exists(path):
+              print("(report di acquisizione assente)")
+          else:
+              data = json.load(open(path, encoding="utf-8"))
+              for outcome in data.get("leagues", []):
+                  for dataset, payload in (outcome.get("datasets") or {}).items():
+                      errors = payload.get("errors") or []
+                      print(f"{outcome['league']} / {dataset}: "
+                            f"scritto={payload.get('written')} "
+                            f"partite={payload.get('matches')} "
+                            f"righe={payload.get('rows')} "
+                            f"secondi={payload.get('seconds')} "
+                            f"errori={len(errors)}")
+                      for err in errors[:3]:
+                          print(f"    - {err}")
+          PY
+            echo '```'
+            echo "### Copertura (dal referto)"
+            head -n 40 "$OUT_DIR/reports/ppda_deep_player_feasibility.md" 2>/dev/null || echo "(referto assente)"
+          } >> "$GITHUB_STEP_SUMMARY"
