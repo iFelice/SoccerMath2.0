@@ -7,13 +7,18 @@ name: Aggiornamento archivi PPDA/deep e giocatore (Understat)
 # Che cosa pubblica e che cosa NO (dichiarato, non implicito):
 #   * COMMITS: solo i 5 `SoccerMath/database/ppda_deep_<lega>.json` (~2 MB
 #     complessivi). Sono il file che l'analisi rolling point-in-time legge.
-#   * NON COMMITS: i 5 `player_match_<lega>.json` (~91 MB complessivi, 224.902
-#     righe). Vengono acquisiti e validati nello stesso run - perche' la
-#     validazione di copertura e il referto di fattibilita' sono gli stessi per
-#     entrambi i dataset - ma restano nell'artifact del run invece che in Git:
-#     committarli porterebbe il repository sopra i 90 MB senza che nessuna parte
-#     del motore li legga. Restano recuperabili per 14 giorni dall'artifact, e
-#     nel referto finiscono sha256 e conteggi per lega.
+#   * COMMITS anche l'evidenza di copertura in `audit/data/`
+#     (`ppda_player_acquisizione.json`, `ppda_player_copertura.json` e `.md`):
+#     il report di acquisizione e il referto di copertura del run, ~250 KB.
+#     Senza questi file un run settimanale non lascerebbe traccia verificabile
+#     dei conteggi (righe giocatore comprese), perche' gli artifact scadono dopo
+#     14 giorni e i log non sono l'archivio del progetto.
+#   * NON COMMITS: i 5 `player_match_<lega>.json` (~91 MB complessivi). Vengono
+#     acquisiti e validati nello stesso run - la validazione di copertura e il
+#     referto sono gli stessi per entrambi i dataset - ma restano nell'artifact
+#     del run invece che in Git: committarli porterebbe il repository sopra i
+#     90 MB senza che nessuna parte del motore li legga. I loro conteggi per
+#     lega restano nell'evidenza committata qui sopra.
 #
 # Costo dichiarato: `read_player_match_stats()` e' 1 richiesta HTTP per partita
 # (~7.000 partite sull'intero perimetro), PPDA/deep sono 1 payload di lega per
@@ -181,7 +186,18 @@ jobs:
             cat "$OUT_DIR/reports/ppda_deep_player_feasibility.md"
           fi
 
-      # 4. Pubblicazione dei SOLI ppda_deep nel repository.
+      # 4. Evidenza di copertura: report di acquisizione e referto del run
+      #    committati insieme ai dati, cosi' i conteggi restano verificabili
+      #    dopo la scadenza dell'artifact.
+      - name: Evidenza di copertura in audit/data
+        run: |
+          set -e
+          cp "$OUT_DIR/reports/acquisizione.json" audit/data/ppda_player_acquisizione.json
+          cp "$OUT_DIR/reports/ppda_deep_player_feasibility.json" audit/data/ppda_player_copertura.json
+          cp "$OUT_DIR/reports/ppda_deep_player_feasibility.md" audit/data/ppda_player_copertura.md
+          ls -l audit/data/ppda_player_*
+
+      # 5. Pubblicazione dei SOLI ppda_deep nel repository.
       - name: Pubblicazione ppda_deep in SoccerMath/database
         run: |
           python - <<'PY'
@@ -217,19 +233,27 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add -- 'SoccerMath/database/ppda_deep_*.json'
+          git add -- 'SoccerMath/database/ppda_deep_*.json' \
+                     audit/data/ppda_player_acquisizione.json \
+                     audit/data/ppda_player_copertura.json \
+                     audit/data/ppda_player_copertura.md
           # Rete di sicurezza: nessun altro file deve entrare nel commit.
-          if ! git diff --cached --name-only | grep -q -E '^SoccerMath/database/ppda_deep_[a-z0-9_]+\.json$' \
-             || [ -n "$(git diff --cached --name-only | grep -v -E '^SoccerMath/database/ppda_deep_[a-z0-9_]+\.json$' || true)" ]; then
-            echo "::error::il commit conterrebbe file fuori dal perimetro dichiarato"
-            git diff --cached --name-only
+          ALLOWED='^(SoccerMath/database/ppda_deep_[a-z0-9_]+\.json|audit/data/ppda_player_acquisizione\.json|audit/data/ppda_player_copertura\.(json|md))$'
+          EXTRA="$(git diff --cached --name-only | grep -v -E "$ALLOWED" || true)"
+          if [ -n "$EXTRA" ]; then
+            echo "::error::il commit conterrebbe file fuori dal perimetro dichiarato:"
+            echo "$EXTRA"
+            exit 1
+          fi
+          if [ -z "$(git diff --cached --name-only | grep -E '^SoccerMath/database/ppda_deep_' || true)" ]; then
+            echo "::error::nessun file ppda_deep nel commit"
             exit 1
           fi
           if git diff --cached --quiet; then
             echo "Nessun cambiamento: niente da committare."
             exit 0
           fi
-          git commit -m "auto: archivio PPDA/deep completions Understat $(date -u +%Y-%m-%dT%H:%MZ)"
+          git commit -m "auto: archivio PPDA/deep completions Understat + evidenza copertura $(date -u +%Y-%m-%dT%H:%MZ)"
           for i in 1 2 3 4; do
             if git push -q origin "HEAD:$BRANCH"; then
               echo "Push ok."
@@ -247,7 +271,7 @@ jobs:
           echo "::error::Push non riuscito dopo 4 tentativi"
           exit 1
 
-      # 5. Artifact: gli 8 file acquisiti (compresi i ~91 MB di statistiche
+      # 6. Artifact: gli 8 file acquisiti (compresi i ~91 MB di statistiche
       #    giocatore, che NON sono committati) + i report.
       - name: Pubblica snapshot e report come artifact
         if: always()
