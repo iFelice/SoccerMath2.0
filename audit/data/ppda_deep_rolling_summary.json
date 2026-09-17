@@ -91,14 +91,14 @@
       }
     },
     "La Liga": {
-      "matches": 1574,
+      "matches": 1577,
       "first_kickoff": "2022-08-12T19:00:00+00:00",
-      "last_kickoff": "2026-09-15T19:30:00+00:00",
+      "last_kickoff": "2026-09-16T19:30:00+00:00",
       "no_time_kickoffs": 0,
       "unresolved_names": 0,
       "windows": {
         "home_r5": {
-          "full": 1504,
+          "full": 1507,
           "partial": 26,
           "insufficient": 44,
           "n_min": 0,
@@ -107,8 +107,8 @@
           "ppda_nan_full_windows": 0
         },
         "home_r10": {
-          "full": 1439,
-          "partial": 91,
+          "full": 1441,
+          "partial": 92,
           "insufficient": 44,
           "n_min": 0,
           "n_max": 10,
@@ -116,7 +116,7 @@
           "ppda_nan_full_windows": 0
         },
         "away_r5": {
-          "full": 1499,
+          "full": 1502,
           "partial": 32,
           "insufficient": 43,
           "n_min": 0,
@@ -125,8 +125,8 @@
           "ppda_nan_full_windows": 0
         },
         "away_r10": {
-          "full": 1434,
-          "partial": 97,
+          "full": 1436,
+          "partial": 98,
           "insufficient": 43,
           "n_min": 0,
           "n_max": 10,
@@ -227,7 +227,7 @@
     }
   },
   "totals": {
-    "matches": 7279,
+    "matches": 7282,
     "no_time_kickoffs": 0,
     "unresolved_names": 0
   },
@@ -238,7 +238,7 @@
   "min_matches": 3,
   "problems": [],
   "unresolved_names": {},
-  "generated_at": "2026-09-16T17:23:54.735720+00:00",
+  "generated_at": "2026-09-17T13:18:04.844270+00:00",
   "source_dir": "/home/user/SoccerMath2.0/SoccerMath/database",
   "leakage_test": {
     "windows": [
@@ -265,8 +265,8 @@
       },
       "La Liga": {
         "tested": 25,
-        "eligible": 1402,
-        "matches": 1574
+        "eligible": 1403,
+        "matches": 1577
       },
       "Bundesliga": {
         "tested": 25,
@@ -281,5 +281,5 @@
     }
   },
   "output_csv": "/home/user/SoccerMath2.0/audit/data/ppda_deep_rolling.csv",
-  "rows_written": 7279
+  "rows_written": 7282
 }

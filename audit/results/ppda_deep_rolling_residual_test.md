@@ -1,7 +1,9 @@
 # PPDA e deep completions: archivio reale, archivio rolling point-in-time e test sul residuo
 
-Referto unico per le tre parti della richiesta. Generato il `2026-09-16` sul branch
-`arena/01a0aaed-soccermath2-0`.
+Referto unico per le tre parti della richiesta. Steso il `2026-09-16` e chiuso il
+`2026-09-17` sul branch `arena/01a0aaed-soccermath2-0`, dopo il run di acquisizione
+`35221939505` (commit `2c9edcb`), che ha committato nel repository l'evidenza di
+copertura mancante.
 
 **Verdetto in una riga:** l'archivio e' stato popolato davvero e i numeri di copertura
 PPDA/deep coincidono con il referto di fattibilita' (7275/7276 partite complete, 0
@@ -12,10 +14,14 @@ caso, e 6 covariate su 8 cambiano segno fra le leghe. Per il criterio dichiarato
 9 della richiesta, la pista si chiude qui: non c'e' nulla che giustifichi validation e
 backtest.
 
-**Un punto aperto, dichiarato:** le 224902 righe giocatore non sono state ne' confermate
-ne' smentite in questa sessione. Il token GitHub e' scaduto alle 17:17 UTC, prima che
-potessi leggere l'evidenza committata dal secondo run; dettagli e modo di chiuderlo in
-0.4. Le Parti 1 e 2 non usano l'archivio giocatore, quindi questo non tocca il verdetto.
+**Il punto che era aperto e' chiuso, ed era un mio errore.** Nella stesura del 16 avevo
+scritto che il secondo run si era concluso `success` e che le 224902 righe giocatore
+restavano da verificare. Il run era invece **fallito** allo step di commit (causa
+riprodotta e corretta in 0.4), quindi l'evidenza non era nel repository. Il run di
+riparazione `35221939505` del 2026-09-17 l'ha committata (`audit/data/ppda_player_copertura.json`,
+commit `2c9edcb`) e il conteggio e' ora verificato sul file: **224902 righe confermate
+esattamente** sulle partite del perimetro, con 191 righe in piu' tutte spiegabili (6
+partite di La Liga fuori perimetro, sezione 0.4).
 
 Nessuna modifica al motore: `SoccerMath/app.py`, `SoccerMath/config.py`,
 `SoccerMath/models/`, formule, soglie (`0.55`/`0.60`/`0.25`), pesi (`0.6`/`0.4`) e
@@ -28,9 +34,9 @@ File prodotti da questo intervento:
 |---|---|
 | `.github/workflows/update_ppda_player.yml` | scheduler settimanale di acquisizione + commit (punto 2) |
 | `SoccerMath/database/ppda_deep_<lega>.json` (5) | archivio reale acquisito da Understat (punto 1) |
-| `audit/data/ppda_player_acquisizione.json`, `ppda_player_copertura.{json,md}` | evidenza di copertura committata dal run `35125626021` (righe giocatore comprese); sul branch, non ancora nel checkout locale — vedi 0.4 |
+| `audit/data/ppda_player_acquisizione.json`, `ppda_player_copertura.{json,md}` | evidenza di copertura committata dal run `35221939505` (righe giocatore comprese); nel checkout locale, verificata in 0.4 |
 | `audit/build_ppda_deep_rolling.py` | archivio rolling point-in-time + test di leakage (punti 4-6) |
-| `audit/data/ppda_deep_rolling.csv` (7279 righe) + `ppda_deep_rolling_summary.json` | archivio point-in-time |
+| `audit/data/ppda_deep_rolling.csv` (7282 righe) + `ppda_deep_rolling_summary.json` | archivio point-in-time |
 | `audit/test_ppda_deep_rolling.py` | test offline del rolling (6 test, inclusa la prova che il test di leakage ha potere) |
 | `audit/ppda_residual_test.py` | GLM Poisson sul residuo della testa Totali (punti 7-9) |
 | `audit/data/ppda_residual_test.json` | risultati machine-readable del fit |
@@ -86,13 +92,16 @@ rispondono `EOF`): per questo il workflow committa l'evidenza di copertura in
 |---|---|---|---|---|---|
 | Serie A | `ppda_deep_serie_a.json` | 450120 | `2acfb99bf40a830e` | `2acfb99bf40a830e` | **si'** |
 | Premier League | `ppda_deep_premier_league.json` | 463348 | `dd51b5ec836a0197` | `dd51b5ec836a0197` | **si'** |
-| La Liga | `ppda_deep_la_liga.json` | 461650 | `8c2737dc376b5597` | `57c71447ead0c3c8` | no |
+| La Liga | `ppda_deep_la_liga.json` | 462556 | `7eee2846a183a809` | `57c71447ead0c3c8` | no |
 | Bundesliga | `ppda_deep_bundesliga.json` | 374921 | `0319d545ee4696a6` | `0319d545ee4696a6` | **si'** |
 | Ligue 1 | `ppda_deep_ligue_1.json` | 385927 | `68f9bc12d2a9aee9` | `68f9bc12d2a9aee9` | **si'** |
 
-Totale 2.1 MiB. Quattro file su cinque sono **byte per byte identici** a quelli
-dell'acquisizione verificata del 2026-09-15: la fonte non ha rivisto nulla in quelle
-leghe. La Liga differisce perche' ha 3 partite in piu' (vedi sotto).
+Totale 2.0 MiB. Quattro file su cinque sono **byte per byte identici** a quelli
+dell'acquisizione verificata del 2026-09-15 (hash ricalcolati con `sha256sum` sul checkout
+attuale): la fonte non ha rivisto nulla in quelle leghe. La Liga differisce perche' ha
+**6 partite in piu'** (vedi sotto): tre acquisite il 2026-09-16, tre il 2026-09-17 dal run
+`35221939505`. Il suo hash intermedio del 16 (`8c2737dc376b5597`, 1574 record) e'
+sostituito da quello attuale (`7eee2846a183a809`, 1577 record).
 
 ### 0.3 Copertura, ricalcolata in locale sui file committati
 
@@ -105,10 +114,10 @@ committato.
 |---|---|---|---|---|---|---|---|---|
 | Serie A | 1560 | 1560 | 1560 | 0 | 0 | 0 | 0 | 100.0% |
 | Premier League | 1560 | 1560 | 1560 | 0 | 0 | 0 | 0 | 100.0% |
-| La Liga | 1571 | 1574 | 1571 | 0 | 0 | 0 | 0 | 100.0% |
+| La Liga | 1571 | 1577 | 1571 | 0 | 0 | 0 | 0 | 100.0% |
 | Bundesliga | 1251 | 1251 | 1250 | 0 | 1 | 0 | 0 | 99.9% |
 | Ligue 1 | 1334 | 1334 | 1334 | 0 | 0 | 0 | 0 | 100.0% |
-| **totale** | **7276** | **7279** | **7275** | **0** | **1** | **0** | **0** | **99.99%** |
+| **totale** | **7276** | **7282** | **7275** | **0** | **1** | **0** | **0** | **99.99%** |
 
 **Confronto con il referto di fattibilita' (punto 3):**
 
@@ -118,9 +127,9 @@ committato.
 | PPDA/deep completi | 7275 | 7275 | coincide |
 | partite senza record | 0 | 0 | coincide |
 | PPDA non calcolabile (denominatore difensivo 0) | 1 (Bundesliga) | 1 (Bundesliga) | coincide |
-| righe giocatore-partita | 224902 | vedi `audit/data/ppda_player_copertura.md` committato dal run | vedi 0.4 |
+| righe giocatore-partita | 224902 | 224902 sul perimetro, +191 fuori perimetro | **coincide sul perimetro** (0.4) |
 
-Le 3 partite in piu' sono tutte di La Liga (1574 record contro un perimetro di 1571) e
+Le 6 partite in piu' sono tutte di La Liga (1577 record contro un perimetro di 1571) e
 sono identificate una per una:
 
 | id Understat | Stagione | Kickoff | Partita | PPDA casa/trasferta | Deep casa/trasferta |
@@ -128,21 +137,29 @@ sono identificate una per una:
 | 30829 | 2026 | 2026-09-15 17:00 | Rayo Vallecano - Espanyol | 12.69 / 12.45 | 4 / 9 |
 | 30821 | 2026 | 2026-09-15 18:00 | Alaves - Valencia | 13.04 / 10.65 | 5 / 7 |
 | 30825 | 2026 | 2026-09-15 19:30 | Elche - Real Madrid | 9.76 / 21.00 | 11 / 20 |
+| 30822 | 2026 | 2026-09-16 17:00 | Atletico Madrid - Osasuna | 8.48 / 12.04 | 18 / 2 |
+| 30824 | 2026 | 2026-09-16 17:00 | Deportivo La Coruna - Sevilla | 8.11 / 8.11 | 5 / 8 |
+| 30826 | 2026 | 2026-09-16 19:30 | Barcelona - Racing Santander | 8.04 / 28.00 | 19 / 2 |
 
-Il meccanismo verificato sull'archivio xG committato: le tre partite **ci sono**, come
-righe di calendario della stagione 2026, ma con `is_result=false` e `home_xg`/`away_xg`
-nulli, quindi non entrano nel perimetro ("concluse con entrambi gli xG"). In altre parole
-l'archivio PPDA/deep e' **avanti di una giornata** rispetto all'archivio xG per la sola La
-Liga, che ha giocato lunedi 2026-09-15: l'aggiornamento xG di `update_xg.yml` gira martedi
-e venerdi alle 06:00 UTC e quello di martedi 15 era precedente a quelle partite. Le altre
-quattro leghe hanno l'ultima partita il 13-14 settembre, gia' dentro l'archivio xG.
+Il meccanismo verificato sull'archivio xG committato: le sei partite **ci sono**, come
+righe di calendario della stagione 2026, ma con `is_result=false` e `home_goals`,
+`away_goals`, `home_xg`, `away_xg` tutti nulli (verificato riga per riga su
+`xG archivio la liga.json`), quindi non entrano nel perimetro ("concluse con entrambi gli
+xG"). L'ultima partita di La Liga conclusa con xG nell'archivio committato e'
+`2026-09-14 19:00 Villarreal - Real Betis`. In altre parole l'archivio PPDA/deep e'
+**avanti di due giornate** rispetto all'archivio xG per la sola La Liga, che ha giocato
+lunedi 15 e martedi 16 settembre: l'aggiornamento xG di `update_xg.yml` gira martedi e
+venerdi alle 06:00 UTC, quindi martedi 15 alle 06:00 era precedente a tutte e sei. Le
+altre quattro leghe hanno l'ultima partita il 13-14 settembre, gia' dentro l'archivio xG.
 
 Non sono partite "in piu' dentro il perimetro": il perimetro resta 1571, la copertura
 resta 100%, e le partite del perimetro assenti dal file sono **0**.
 
 Valori acquisiti (per contesto, non sono soglie): PPDA mediana 11.48, p05 5.50,
-p95 25.55, minimo 2.30, massimo 193.00, 2 valori non calcolabili su 14558; deep
-completions mediana 6.00, p05 1.00, p95 15.00, massimo 37.00, 309 zeri.
+p95 25.55, minimo 2.30, massimo 193.00, 2 valori non calcolabili su 14564
+squadra-partite (14562 valori validi); deep completions mediana 6.00, p05 1.00, p95 15.00,
+massimo 37.00, 309 zeri. Ricalcolati oggi sui file attuali: le sei partite di La Liga non
+spostano nessun estremo.
 
 ### 0.4 Statistiche giocatore (i file `player_match_<lega>.json`)
 
@@ -168,13 +185,61 @@ evidenza modificata: `exit code 1`. Con il fix (`git diff --cached --quiet` cont
 primo, e l'assenza di ppda_deep declassata da errore a messaggio) lo stesso caso committa:
 `Nessuna partita nuova nei ppda_deep: committata solo l'evidenza di copertura.`
 
-Conseguenza: **l'evidenza con i conteggi delle righe giocatore non e' ancora nel
-repository.** Non posso leggerla nemmeno dall'artifact perche' gli host di storage di
-Actions non sono raggiungibili da questo ambiente (misurato di nuovo oggi:
-`productionresultssa9.blob.core.windows.net` risponde `EOF`, sia per gli artifact sia per
-i log). Il run di riparazione e' tracciato qui sotto.
+Conseguenza, al momento della stesura del 16: l'evidenza con i conteggi delle righe
+giocatore non era nel repository, e non era leggibile nemmeno dall'artifact perche' gli
+host di storage di Actions non sono raggiungibili da questo ambiente (misurato di nuovo il
+17: `productionresultssa9.blob.core.windows.net` risponde `EOF`, sia per gli artifact sia
+per i log). Da qui il run di riparazione, tracciato qui sotto. Il workflow corretto e'
+quello ora committato in `.github/workflows/update_ppda_player.yml`, e ha funzionato al
+primo colpo.
 
-<!-- PLAYER_ROWS_VERIFICA -->
+**Verifica chiusa il 2026-09-17 sul run `35221939505`** (conclusion `success`, verificata
+via `gh api .../actions/runs/35221939505`, step "Commit e push" `success`, commit
+`2c9edcb`). L'evidenza e' ora nel repository e leggibile dal checkout:
+`audit/data/ppda_player_copertura.json` (178137 byte, sha256 `4de92a977b99c19d`) e
+`ppda_player_acquisizione.json` (53287 byte, sha256 `02ed9361fe603b15`). Il run ha usato
+soccerdata **1.9.1**, le stesse cinque stagioni `2223 2324 2425 2526 2627` e lo stesso
+denominatore (archivio xG committato, 7276 partite).
+
+| Lega | Perimetro | Partite con righe | Righe giocatore oggi | Righe nel referto di fattibilita' | Differenza |
+|---|---|---|---|---|---|
+| Serie A | 1560 | 1560 | 48884 | 48884 | **0** |
+| Premier League | 1560 | 1560 | 47022 | 47022 | **0** |
+| La Liga | 1571 | 1577 | 49385 | 49194 | **+191** |
+| Bundesliga | 1251 | 1250 | 38910 | 38910 | **0** |
+| Ligue 1 | 1334 | 1334 | 40892 | 40892 | **0** |
+| **totale** | **7276** | **7281** | **225093** | **224902** | **+191** |
+
+**Le 224902 righe sono confermate.** Quattro leghe su cinque tornano al rigore, e la
+differenza della quinta e' spiegata interamente, non approssimata. Il campo `rows`
+dell'audit conta le righe di **tutte** le partite presenti nel file, non solo quelle del
+perimetro; La Liga oggi ne ha 6 fuori perimetro (sezione 0.3). La verifica per stagione lo
+isola senza ambiguita':
+
+| Stagione La Liga | Partite perimetro | Partite presenti | Righe oggi | Righe nel referto | Differenza |
+|---|---|---|---|---|---|
+| 2022 | 380 | 380 | 11837 | 11837 | **0** |
+| 2023 | 380 | 380 | 11888 | 11888 | **0** |
+| 2024 | 380 | 380 | 11900 | 11900 | **0** |
+| 2025 | 380 | 380 | 11952 | 11952 | **0** |
+| 2026 | 51 | 57 | 1808 | 1617 | **+191** |
+
+Le quattro stagioni storiche (47577 righe) sono identiche al rigore: la fonte non ha
+rivisto nulla. Le 191 righe in piu' stanno tutte nella stagione 2026 e corrispondono alle
+6 partite fuori perimetro: 191 / 6 = **31.8 righe per partita**, contro le 31.7 della
+mediana di La Liga nel referto di fattibilita'. In altre parole 224902 + 191 = 225093, e
+il "+191" e' la conseguenza attesa di un archivio che ha due giornate di La Liga in piu'
+rispetto all'archivio xG, non una revisione del dato.
+
+Lo stesso run conferma la copertura PPDA/deep: 7276 perimetro, 7275 completi, 1 PPDA
+strutturale (Bundesliga), 0 mancanti. I conteggi del report di acquisizione
+(`ppda_player_acquisizione.json`, campo `datasets.player_match.rows`) e quelli
+dell'audit di copertura coincidono lega per lega, quindi i numeri non dipendono da uno
+solo dei due strumenti.
+
+Conseguenza pratica: l'archivio giocatore e' utilizzabile, ma la sua copertura va letta
+sul perimetro (100% tranne 1 partita Bundesliga) e non sul totale dei record.
+
 
 ### 0.5 Scheduler (punto 2)
 
@@ -215,8 +280,11 @@ quella squadra con kickoff **strettamente precedente**, su quattro misure:
 | `faced_deep` | deep completions subiti |
 
 con **N=5 e N=10 entrambe**, come richiesto: la finestra non viene scelta a priori.
-Output: `audit/data/ppda_deep_rolling.csv`, 7279 righe (una per partita), 0 problemi di
-parsing, 0 nomi di squadra non risolti, 0 kickoff senza orario.
+Output: `audit/data/ppda_deep_rolling.csv`, **7282 righe** (una per partita), 0 problemi
+di parsing, 0 nomi di squadra non risolti, 0 kickoff senza orario. Ricostruito il
+2026-09-17 sull'archivio aggiornato dal run `35221939505` (La Liga da 1574 a 1577
+partite); le tre partite nuove sono della stagione 2026 e non toccano il train della
+Parte 2.
 
 ### 1.2 Finestre non piene: trattamento dichiarato, nessun riempimento silenzioso
 
@@ -233,7 +301,7 @@ e `status` per ogni lato e finestra.
 La finestra **non si azzera a inizio stagione**, quindi puo' contenere partite della
 stagione precedente. Per questo ogni riga riporta `*_age_days`, l'eta' della partita piu'
 vecchia in finestra: mediana 78.9 giorni (N=10), p90 154.2, p99 495.6, massimo 1253.1;
-le finestre con una partita piu' vecchia di 400 giorni sono 79 su 7216 (1.09%). Sono i
+le finestre con una partita piu' vecchia di 400 giorni sono 79 su 7219 (1.09%). Sono i
 casi di squadra retrocessa e ripromossa: la finestra pesca il suo stint precedente. E'
 visibile invece che nascosto; un tetto di eta' (il progetto usa 400 giorni in
 `PT_AGE_CAP`) sarebbe la raffinatura naturale, ma e' una scelta di modello e qui non
@@ -267,7 +335,7 @@ Risultato: **125 partite campionate, 2250 partite future iniettate, scarto massi
 |---|---|---|---|
 | Serie A | 1560 | 1392 | 25 |
 | Premier League | 1560 | 1401 | 25 |
-| La Liga | 1574 | 1402 | 25 |
+| La Liga | 1577 | 1403 | 25 |
 | Bundesliga | 1251 | 1105 | 25 |
 | Ligue 1 | 1334 | 1191 | 25 |
 
@@ -337,22 +405,50 @@ nomi dei CSV football-data sono tutti nomi canonici noti a `team_names` (0 non r
 | Ligue 1 | 1334 | 1322 | 12 | 3 |
 | **totale** | **7279** | **7261** | **18** | **6** |
 
-Le 18 non agganciate sono elencate tutte in
-`audit/data/ppda_residual_test.json` (`join.unmatched_all`). La causa verificata e' il
-disaccordo di **data** fra Understat e football-data, non un nome non riconosciuto:
+Le 18 non agganciate sono elencate tutte in `audit/data/ppda_residual_test.json`
+(`join.unmatched_all`) e le ho verificate **una per una** contro l'archivio PPDA/deep: per
+ognuna ho cercato la stessa coppia di squadre nella stessa lega e ho misurato lo scarto di
+data. Esito: 17 su 18 sono un disaccordo di **data**, 1 e' un disaccordo di **campo**.
 
-- Serie A, Udinese-Roma: football-data 2024-04-25, Understat 2024-04-14 (partita rinviata
-  e recuperata: Understat conserva la data originariamente calendarizzata);
-- Ligue 1 2023/24, prima giornata: Understat 2023-08-12 per Nice-Lille (football-data
-  2023-08-11) e per Brest-Lens (football-data 2023-08-13), con l'orario `18:00:00`
-  ripetuto su quattro partite — un difetto della fonte, presente identico nell'archivio
-  xG committato, quindi non introdotto da questa pipeline.
+| Lega | Stagione | Data CSV | Partita (CSV) | Data Understat | Scarto |
+|---|---|---|---|---|---|
+| Serie A | 2023/24 | 2024-04-25 | Udinese-Roma | 2024-04-14 | **−11 gg** |
+| Serie A | 2023/24 | 2024-05-23 | Cagliari-Fiorentina | 2024-05-24 | +1 |
+| Serie A | 2024/25 | 2025-05-17 | Genoa-Atalanta | 2025-05-18 | +1 |
+| La Liga | 2023/24 | 2023-12-11 | Granada-Ath Bilbao | 2023-12-12 | +1 |
+| La Liga | 2025/26 | 2025-09-30 | Valencia-Oviedo | 2025-09-29 | −1 |
+| Bundesliga | 2024/25 | 2024-11-29 | St Pauli-Holstein Kiel | 2024-11-30 | +1 |
+| Ligue 1 | 2022/23 | 2023-04-28 | Strasbourg-Lyon | 2023-04-30 | +2 |
+| Ligue 1 | 2023/24 | 2023-08-11 | Nice-Lille | 2023-08-12 | +1 |
+| Ligue 1 | 2023/24 | 2023-08-13 | Brest-Lens | 2023-08-12 | −1 |
+| Ligue 1 | 2025/26 | 2026-02-06 | Metz-Lille | 2026-02-08 | +2 |
+| Ligue 1 | 2025/26 | 2026-02-07 | Lens-Rennes | 2026-02-08 | +1 |
+| Ligue 1 | 2025/26 | 2026-02-07 | Brest-Lorient | 2026-02-08 | +1 |
+| Ligue 1 | 2025/26 | 2026-02-07 | Nantes-Lyon | 2026-02-08 | +1 |
+| Ligue 1 | 2025/26 | 2026-05-02 | Nantes-Marseille | 2026-05-03 | +1 |
+| Ligue 1 | 2025/26 | 2026-05-02 | PSG-Lorient | 2026-05-03 | +1 |
+| Ligue 1 | 2025/26 | 2026-05-02 | Metz-Monaco | 2026-05-03 | +1 |
+| Ligue 1 | 2025/26 | 2026-05-02 | Nice-Lens | 2026-05-03 | +1 |
+| Ligue 1 | 2026/27 | 2026-08-23 | Rennes-PSG | 2026-08-23 | 0 gg, **campo invertito** |
 
-Nessuna tolleranza fuzzy sulla data: una partita non agganciata resta fuori ed e'
-dichiarata. Impatto sul fit: **6 partite nel train** (0.17% delle 3578 partite di train delle cinque leghe). Dieci
-delle dodici di Ligue 1 sono concentrate nelle stagioni 2025/26 e 2026/27
-(2026-02-06/07, 2026-05-02, 2026-08-23), quindi fuori dal train: nel train pesano per 3
-partite.
+I tre meccanismi, tutti verificati sui file:
+
+- **partita rinviata e recuperata** (Udinese-Roma): Understat conserva la data
+  originariamente calendarizzata, football-data quella effettiva. −11 giorni;
+- **disallineamento di 1-2 giorni** (16 partite, quasi tutte Ligue 1): la stessa partita ha
+  date diverse nei due archivi. Nell'archivio PPDA/deep la prima giornata 2023/24 di Ligue 1
+  compare tutta alle `18:00:00` del 2023-08-12, un orario ripetuto che ha l'aria di un
+  default della fonte; lo stesso identico difetto e' nell'archivio xG committato, quindi
+  non e' introdotto da questa pipeline;
+- **campo invertito** (Rennes-PSG del 2026-08-23): football-data ha Rennes in casa, mentre
+  Understat e l'archivio xG committato hanno `Paris Saint Germain - Rennes` (id 31948,
+  0-0, xG 0.630/0.911), con il ritorno calendarizzato al 2027-03-06. Una delle due fonti ha
+  il campo sbagliato; qui non si arbitra, la partita resta fuori ed e' dichiarata.
+
+Nessuna tolleranza fuzzy sulla data o sul campo: una partita non agganciata resta fuori.
+Impatto sul fit: **6 partite nel train** (0.17% delle 3578 partite di train delle cinque
+leghe); dieci delle dodici di Ligue 1 sono nelle stagioni 2025/26 e 2026/27, fuori dal
+train.
 
 Le partite escluse dal fit per feature mancanti si dividono cosi' (la distinzione e' nel
 JSON, `fit_dropped_breakdown`):
@@ -481,7 +577,7 @@ Pearson:
 | `own_deep_5` vs **att0_pure** | +0.617 | +0.713 | +0.729 | +0.756 | +0.737 |
 | `faced_ppda_10` vs **att0_pure** | +0.618 | +0.581 | +0.647 | +0.656 | +0.638 |
 | `own_ppda_10` vs **att0_pure** | −0.238 | −0.559 | −0.245 | −0.286 | −0.548 |
-| `faced_deep_10` vs **def0_pure** | +0.541 | +0.656 | +0.579 | +0.661 | +0.548 |
+| `faced_deep_10` vs **def0_pure** | **+0.675** | +0.656 | +0.579 | +0.661 | +0.548 |
 | `own_deep_10` vs **def0_pure** | −0.513 | −0.636 | −0.500 | −0.633 | −0.552 |
 | `own_ppda_10` vs **def0_pure** | +0.259 | +0.425 | +0.315 | +0.173 | +0.542 |
 
@@ -491,8 +587,15 @@ difesa (fino a r = 0.68 con `def0_pure`). Il PPDA rolling e' il meno ridondante,
 quello con il rapporto segnale/rumore peggiore. Le correlazioni complete (Spearman
 incluso, entrambe le finestre) sono in `audit/data/ppda_residual_test.json`.
 
-Ridondanza anche **fra** le covariate: la stessa misura a N=5 e N=10 correla |r| = 0.83–0.93
-in tutte le leghe (massimo 0.926, Premier `own_deep_5` vs `own_deep_10`). Con 8 covariate
+**Correzione a una cella della prima stesura:** Serie A `faced_deep_10` vs `def0_pure`
+era scritta +0.541; il valore nel JSON e' **+0.675** (n=1447). Tutte le altre 34 celle
+della tabella sono state ricontrollate una per una contro
+`audit/data/ppda_residual_test.json` e coincidono.
+
+Ridondanza anche **fra** le covariate: la stessa misura a N=5 e N=10 correla |r| = 0.80–0.93
+in tutte le leghe (minimo 0.796, Bundesliga `faced_deep`; massimo 0.926, Premier League
+`own_deep`), letti dalla matrice di correlazione del campione di fit. La prima stesura
+diceva 0.83 come estremo basso: era sbagliato di 0.03. Con 8 covariate
 cosi' collineari gli errori standard sono gonfiati per costruzione: anche un effetto reale
 piccolo qui uscirebbe non significativo.
 
@@ -530,14 +633,13 @@ moltiplica la potenza senza che nessuna delle 5 evidenze, presa da sola, lo sost
 
 ## Verdetto
 
-1. **Parte 0 superata per PPDA/deep, con un punto aperto sulle righe giocatore.**
-   L'archivio PPDA/deep e' popolato con dati reali e la copertura coincide con il referto
-   di fattibilita' (7275 completi su 7276, 0 mancanti, 1 PPDA strutturale); 4 file su 5
-   sono byte-identici a quelli verificati. Lo scheduler settimanale esiste e committa dati
-   + evidenza. Il conteggio delle 224902 righe giocatore **non e' confermato** in questa
-   sessione perche' il token GitHub e' scaduto prima che potessi leggere l'evidenza
-   committata dal secondo run (sezione 0.4): non e' una discrepanza riscontrata, e' una
-   verifica non chiusa, e va chiusa prima di usare l'archivio giocatore.
+1. **Parte 0 superata, senza punti aperti.** L'archivio PPDA/deep e' popolato con dati
+   reali e la copertura coincide con il referto di fattibilita' (7275 completi su 7276, 0
+   mancanti, 1 PPDA strutturale); 4 file su 5 sono byte-identici a quelli verificati. Lo
+   scheduler settimanale esiste e committa dati + evidenza. Le **224902 righe giocatore
+   sono confermate** sull'evidenza committata dal run `35221939505`: 48884 / 47022 /
+   49194 / 38910 / 40892, identiche al referto di fattibilita' lega per lega, con 191
+   righe in piu' tutte attribuibili a 6 partite di La Liga fuori perimetro (sezione 0.4).
 2. **Parte 1 superata.** L'archivio rolling e' point-in-time per costruzione e il test di
    leakage lo conferma a scarto 0 su 125 partite con 2250 partite future iniettate; il test
    cattura una variante volutamente leaky, quindi non e' vacuo.
@@ -577,8 +679,10 @@ vincolo di potenza di questo test.
 - le 8 covariate sono fortemente collineari (|r| fino a 0.93 fra N=5 e N=10 della stessa
   misura): il test ha poca potenza per costruzione, e questo e' un limite del test, non
   una prova che l'effetto sia nullo;
-- 18 partite su 7279 (0.25%) non si agganciano fra i due archivi per disaccordo di data
-  fra Understat e football-data; 6 di queste sono nel train (0.16%);
+- 18 partite su 7279 in comune ai due archivi (0.25%) non si agganciano: 17 per disaccordo di
+  data fra Understat e football-data (16 entro 2 giorni, 1 partita rinviata e recuperata a
+  −11 giorni) e 1 per campo invertito (Rennes-PSG del 2026-08-23); 6 sono nel train
+  (0.17%). Sono elencate e verificate una per una nella sezione 2.2;
 - il walk-forward ricostruisce `avg_h`/`avg_a` come medie progressive sullo storico
   disponibile nei CSV (2022/23 in poi), non come le medie sull'intero database che la
   produzione ha oggi in memoria: e' la stessa ricostruzione no-leakage degli audit
@@ -592,7 +696,8 @@ vincolo di potenza di questo test.
 
 ```bash
 # acquisition (GitHub Actions, il sandbox non ha egresso verso Understat)
-#   .github/workflows/update_ppda_player.yml — run 35120920395 (dati) e 35125626021 (evidenza)
+#   .github/workflows/update_ppda_player.yml — run 35120920395 (dati), 35125626021 (fallito
+#   allo step di commit, causa in 0.4) e 35221939505 (evidenza + 3 partite di La Liga)
 
 # copertura ricalcolata in locale sui file committati
 python audit/ppda_deep_player_audit.py --database-dir SoccerMath/database \
@@ -606,8 +711,8 @@ python -m pytest audit/test_ppda_deep_rolling.py -q          # 6 passed
 python audit/ppda_residual_test.py
 ```
 
-Il fetch del commit con l'evidenza di copertura richiede la connessione GitHub della
-sessione (scaduta durante questa lavorazione: vedi 0.4).
+L'evidenza di copertura e' nel repository (commit `2c9edcb`), quindi la riproduzione non
+dipende piu' dall'artifact del run, che da questo ambiente non e' scaricabile.
 
 Ambiente della riproduzione: Python 3.11, pandas 3.0.5, numpy 2.4.6, statsmodels 0.15.0,
 scipy 1.17.1, streamlit (solo per importare `app.py` in sola lettura); soccerdata 1.9.1 sul
