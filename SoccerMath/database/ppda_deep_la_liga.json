@@ -18886,5 +18886,41 @@
     "away_ppda": 12.454545454545455,
     "home_deep_completions": 4,
     "away_deep_completions": 9
+  },
+  {
+    "season": 2026,
+    "id": 30822,
+    "date": "2026-09-16 17:00:00",
+    "home_team": "Atletico Madrid",
+    "away_team": "Osasuna",
+    "is_result": true,
+    "home_ppda": 8.476190476190476,
+    "away_ppda": 12.035714285714286,
+    "home_deep_completions": 18,
+    "away_deep_completions": 2
+  },
+  {
+    "season": 2026,
+    "id": 30826,
+    "date": "2026-09-16 19:30:00",
+    "home_team": "Barcelona",
+    "away_team": "Racing Santander",
+    "is_result": true,
+    "home_ppda": 8.041666666666666,
+    "away_ppda": 28.0,
+    "home_deep_completions": 19,
+    "away_deep_completions": 2
+  },
+  {
+    "season": 2026,
+    "id": 30824,
+    "date": "2026-09-16 17:00:00",
+    "home_team": "Deportivo La Coruna",
+    "away_team": "Sevilla",
+    "is_result": true,
+    "home_ppda": 8.107142857142858,
+    "away_ppda": 8.105263157894736,
+    "home_deep_completions": 5,
+    "away_deep_completions": 8
   }
 ]

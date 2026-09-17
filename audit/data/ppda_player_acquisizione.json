@@ -1,0 +1,1698 @@
+{
+  "generated_at": "2026-09-17T13:14:59.334283+00:00",
+  "soccerdata_version": "1.9.1",
+  "required_soccerdata_version": "1.9.1",
+  "seasons": [
+    "2223",
+    "2324",
+    "2425",
+    "2526",
+    "2627"
+  ],
+  "player_seasons": [
+    "2223",
+    "2324",
+    "2425",
+    "2526",
+    "2627"
+  ],
+  "datasets": [
+    "ppda_deep",
+    "player_match"
+  ],
+  "leagues_requested": [
+    "Serie A",
+    "Premier League",
+    "La Liga",
+    "Bundesliga",
+    "Ligue 1"
+  ],
+  "output_dir": "/home/runner/work/_temp/ppda-player-out/database",
+  "baseline_dir": "/home/runner/work/SoccerMath2.0/SoccerMath2.0/SoccerMath/database",
+  "cache_dir": "/home/runner/work/_temp/ppda-player-out/cache",
+  "dry_run": false,
+  "parallel_leagues": 2,
+  "retries": 2,
+  "frontier_days": 1.0,
+  "missing_tolerance_ratio": 0.01,
+  "sample_matches_per_league": null,
+  "max_duplicate_rows_ratio": 0.02,
+  "max_structural_na_ratio": 0.01,
+  "min_played_field_coverage": 0.95,
+  "min_rows_per_match": 5,
+  "max_thin_matches_ratio": 0.02,
+  "leagues": [
+    {
+      "league": "Serie A",
+      "sd_league": "ITA-Serie A",
+      "datasets": {
+        "ppda_deep": {
+          "dataset": "ppda_deep",
+          "league": "Serie A",
+          "written": true,
+          "matches": 1560,
+          "errors": [],
+          "retry_rounds": 0,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/ppda_deep_serie_a.json",
+          "requested_matches": 1560,
+          "duplicates": {
+            "kind": "ppda_deep",
+            "input_rows": 1560,
+            "rows": 1560,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "matches": 1560,
+            "seasons": {
+              "2022": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2022-08-13",
+                "max_date": "2023-06-04",
+                "max_played_date": "2023-06-04"
+              },
+              "2023": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2023-08-19",
+                "max_date": "2024-06-02",
+                "max_played_date": "2024-06-02"
+              },
+              "2024": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2024-08-17",
+                "max_date": "2025-05-25",
+                "max_played_date": "2025-05-25"
+              },
+              "2025": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2025-08-23",
+                "max_date": "2026-05-24",
+                "max_played_date": "2026-05-24"
+              },
+              "2026": {
+                "matches": 40,
+                "played": 40,
+                "complete": 40,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 40,
+                "with_away_ppda": 40,
+                "with_home_deep": 40,
+                "with_away_deep": 40,
+                "unplayed": 0,
+                "min_date": "2026-08-22",
+                "max_date": "2026-09-14",
+                "max_played_date": "2026-09-14"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 27,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "coverage": {
+            "reference_matches": 1560,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:36:02.390633+00:00",
+            "missing_sample": [],
+            "complete": 1560,
+            "partial": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "structural_ppda_na": 0,
+            "ppda_missing_but_deep_present": 0,
+            "complete_ratio": 1.0
+          },
+          "baseline_path": "SoccerMath/database/ppda_deep_serie_a.json",
+          "baseline_found": true,
+          "previous_matches": 1560,
+          "diff": {
+            "league": "Serie A",
+            "previous_matches": 1560,
+            "current_matches": 1560,
+            "missing_played": 0,
+            "missing_played_sample": [],
+            "regressed": 0,
+            "regressed_sample": [],
+            "dropped_seasons": [],
+            "new_matches": 0,
+            "new_matches_sample": [],
+            "corrections": 0,
+            "corrections_sample": [],
+            "dropped_unplayed": 0,
+            "diminished": 0,
+            "improved": 0,
+            "blocking_problems": []
+          },
+          "shrink_ratio": 0.0
+        },
+        "player_match": {
+          "dataset": "player_match",
+          "league": "Serie A",
+          "written": true,
+          "rows": 48884,
+          "matches": 1560,
+          "errors": [],
+          "retry_rounds": 0,
+          "seconds": 841.0,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/player_match_serie_a.json",
+          "requested_matches": 1560,
+          "unreadable_matches": 0,
+          "rows_without_date": 0,
+          "coverage": {
+            "reference_matches": 1560,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:36:09.272573+00:00",
+            "missing_sample": [],
+            "returned_matches": 1560
+          },
+          "returned_matches": 1560,
+          "missing_matches": 0,
+          "missing_matches_sample": [],
+          "duplicates": {
+            "kind": "player_match",
+            "input_rows": 48884,
+            "rows": 48884,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "rows": 48884,
+            "matches": 1560,
+            "seasons": {
+              "2022": {
+                "rows": 11885,
+                "matches": 380,
+                "players": 577,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 751328,
+                "yellow_cards": 1648,
+                "red_cards": 60,
+                "goals": 944,
+                "min_date": "2022-08-13",
+                "max_date": "2023-06-04"
+              },
+              "2023": {
+                "rows": 11909,
+                "matches": 380,
+                "players": 590,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 751650,
+                "yellow_cards": 1569,
+                "red_cards": 63,
+                "goals": 971,
+                "min_date": "2023-08-19",
+                "max_date": "2024-06-02"
+              },
+              "2024": {
+                "rows": 11888,
+                "matches": 380,
+                "players": 599,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 750476,
+                "yellow_cards": 1395,
+                "red_cards": 75,
+                "goals": 936,
+                "min_date": "2024-08-17",
+                "max_date": "2025-05-25"
+              },
+              "2025": {
+                "rows": 11928,
+                "matches": 380,
+                "players": 586,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 751027,
+                "yellow_cards": 1356,
+                "red_cards": 65,
+                "goals": 900,
+                "min_date": "2025-08-23",
+                "max_date": "2026-05-24"
+              },
+              "2026": {
+                "rows": 1274,
+                "matches": 40,
+                "players": 437,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 79220,
+                "yellow_cards": 120,
+                "red_cards": 2,
+                "goals": 120,
+                "min_date": "2026-08-22",
+                "max_date": "2026-09-14"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 27,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "baseline_path": "SoccerMath/database/player_match_serie_a.json",
+          "baseline_found": false
+        }
+      },
+      "errors": [],
+      "schedule_attempts": 1,
+      "schedule": {
+        "scheduled_matches": 1900,
+        "has_data": 1560,
+        "played_with_xg": 1560,
+        "first_date": "2022-08-13 16:30:00",
+        "last_played_date": "2026-09-14 18:45:00",
+        "seasons": {
+          "2022": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2023": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2024": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2025": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2026": {
+            "scheduled": 380,
+            "played_with_xg": 40,
+            "has_data": 40
+          }
+        },
+        "duplicate_rows": 0,
+        "attempts": 1
+      },
+      "schedule_duplicates": {
+        "scheduled_rows": 1900,
+        "rows": 1900,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0
+      },
+      "seconds": 859.0
+    },
+    {
+      "league": "Premier League",
+      "sd_league": "ENG-Premier League",
+      "datasets": {
+        "ppda_deep": {
+          "dataset": "ppda_deep",
+          "league": "Premier League",
+          "written": true,
+          "matches": 1560,
+          "errors": [],
+          "retry_rounds": 0,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/ppda_deep_premier_league.json",
+          "requested_matches": 1560,
+          "duplicates": {
+            "kind": "ppda_deep",
+            "input_rows": 1560,
+            "rows": 1560,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "matches": 1560,
+            "seasons": {
+              "2022": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2022-08-05",
+                "max_date": "2023-05-28",
+                "max_played_date": "2023-05-28"
+              },
+              "2023": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2023-08-11",
+                "max_date": "2024-05-19",
+                "max_played_date": "2024-05-19"
+              },
+              "2024": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2024-08-16",
+                "max_date": "2025-05-25",
+                "max_played_date": "2025-05-25"
+              },
+              "2025": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2025-08-15",
+                "max_date": "2026-05-24",
+                "max_played_date": "2026-05-24"
+              },
+              "2026": {
+                "matches": 40,
+                "played": 40,
+                "complete": 40,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 40,
+                "with_away_ppda": 40,
+                "with_home_deep": 40,
+                "with_away_deep": 40,
+                "unplayed": 0,
+                "min_date": "2026-08-21",
+                "max_date": "2026-09-14",
+                "max_played_date": "2026-09-14"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 27,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "coverage": {
+            "reference_matches": 1560,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:36:02.174998+00:00",
+            "missing_sample": [],
+            "complete": 1560,
+            "partial": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "structural_ppda_na": 0,
+            "ppda_missing_but_deep_present": 0,
+            "complete_ratio": 1.0
+          },
+          "baseline_path": "SoccerMath/database/ppda_deep_premier_league.json",
+          "baseline_found": true,
+          "previous_matches": 1560,
+          "diff": {
+            "league": "Premier League",
+            "previous_matches": 1560,
+            "current_matches": 1560,
+            "missing_played": 0,
+            "missing_played_sample": [],
+            "regressed": 0,
+            "regressed_sample": [],
+            "dropped_seasons": [],
+            "new_matches": 0,
+            "new_matches_sample": [],
+            "corrections": 0,
+            "corrections_sample": [],
+            "dropped_unplayed": 0,
+            "diminished": 0,
+            "improved": 0,
+            "blocking_problems": []
+          },
+          "shrink_ratio": 0.0
+        },
+        "player_match": {
+          "dataset": "player_match",
+          "league": "Premier League",
+          "written": true,
+          "rows": 47022,
+          "matches": 1560,
+          "errors": [],
+          "retry_rounds": 0,
+          "seconds": 837.3,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/player_match_premier_league.json",
+          "requested_matches": 1560,
+          "unreadable_matches": 0,
+          "rows_without_date": 0,
+          "coverage": {
+            "reference_matches": 1560,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:36:08.842220+00:00",
+            "missing_sample": [],
+            "returned_matches": 1560
+          },
+          "returned_matches": 1560,
+          "missing_matches": 0,
+          "missing_matches_sample": [],
+          "duplicates": {
+            "kind": "player_match",
+            "input_rows": 47022,
+            "rows": 47022,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "rows": 47022,
+            "matches": 1560,
+            "seasons": {
+              "2022": {
+                "rows": 11345,
+                "matches": 380,
+                "players": 554,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 751948,
+                "yellow_cards": 1365,
+                "red_cards": 29,
+                "goals": 1038,
+                "min_date": "2022-08-05",
+                "max_date": "2023-05-28"
+              },
+              "2023": {
+                "rows": 11384,
+                "matches": 380,
+                "players": 570,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 751601,
+                "yellow_cards": 1589,
+                "red_cards": 58,
+                "goals": 1196,
+                "min_date": "2023-08-11",
+                "max_date": "2024-05-19"
+              },
+              "2024": {
+                "rows": 11567,
+                "matches": 380,
+                "players": 562,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 751511,
+                "yellow_cards": 1541,
+                "red_cards": 51,
+                "goals": 1081,
+                "min_date": "2024-08-16",
+                "max_date": "2025-05-25"
+              },
+              "2025": {
+                "rows": 11490,
+                "matches": 380,
+                "players": 537,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 751519,
+                "yellow_cards": 1417,
+                "red_cards": 44,
+                "goals": 1004,
+                "min_date": "2025-08-15",
+                "max_date": "2026-05-24"
+              },
+              "2026": {
+                "rows": 1236,
+                "matches": 40,
+                "players": 406,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 79020,
+                "yellow_cards": 154,
+                "red_cards": 5,
+                "goals": 108,
+                "min_date": "2026-08-21",
+                "max_date": "2026-09-14"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 27,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "baseline_path": "SoccerMath/database/player_match_premier_league.json",
+          "baseline_found": false
+        }
+      },
+      "errors": [],
+      "schedule_attempts": 1,
+      "schedule": {
+        "scheduled_matches": 1900,
+        "has_data": 1560,
+        "played_with_xg": 1560,
+        "first_date": "2022-08-05 19:00:00",
+        "last_played_date": "2026-09-14 19:00:00",
+        "seasons": {
+          "2022": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2023": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2024": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2025": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2026": {
+            "scheduled": 380,
+            "played_with_xg": 40,
+            "has_data": 40
+          }
+        },
+        "duplicate_rows": 0,
+        "attempts": 1
+      },
+      "schedule_duplicates": {
+        "scheduled_rows": 1900,
+        "rows": 1900,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0
+      },
+      "seconds": 858.5
+    },
+    {
+      "league": "La Liga",
+      "sd_league": "ESP-La Liga",
+      "datasets": {
+        "ppda_deep": {
+          "dataset": "ppda_deep",
+          "league": "La Liga",
+          "written": true,
+          "matches": 1577,
+          "errors": [],
+          "retry_rounds": 0,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/ppda_deep_la_liga.json",
+          "requested_matches": 1577,
+          "duplicates": {
+            "kind": "ppda_deep",
+            "input_rows": 1577,
+            "rows": 1577,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "matches": 1577,
+            "seasons": {
+              "2022": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2022-08-12",
+                "max_date": "2023-06-04",
+                "max_played_date": "2023-06-04"
+              },
+              "2023": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2023-08-11",
+                "max_date": "2024-05-26",
+                "max_played_date": "2024-05-26"
+              },
+              "2024": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2024-08-15",
+                "max_date": "2025-05-25",
+                "max_played_date": "2025-05-25"
+              },
+              "2025": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2025-08-15",
+                "max_date": "2026-05-24",
+                "max_played_date": "2026-05-24"
+              },
+              "2026": {
+                "matches": 57,
+                "played": 57,
+                "complete": 57,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 57,
+                "with_away_ppda": 57,
+                "with_home_deep": 57,
+                "with_away_deep": 57,
+                "unplayed": 0,
+                "min_date": "2026-08-15",
+                "max_date": "2026-09-16",
+                "max_played_date": "2026-09-16"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 29,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "coverage": {
+            "reference_matches": 1577,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:50:19.182983+00:00",
+            "missing_sample": [],
+            "complete": 1577,
+            "partial": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "structural_ppda_na": 0,
+            "ppda_missing_but_deep_present": 0,
+            "complete_ratio": 1.0
+          },
+          "baseline_path": "SoccerMath/database/ppda_deep_la_liga.json",
+          "baseline_found": true,
+          "previous_matches": 1574,
+          "diff": {
+            "league": "La Liga",
+            "previous_matches": 1574,
+            "current_matches": 1577,
+            "missing_played": 0,
+            "missing_played_sample": [],
+            "regressed": 0,
+            "regressed_sample": [],
+            "dropped_seasons": [],
+            "new_matches": 3,
+            "new_matches_sample": [
+              "[2026] Atletico Madrid - Osasuna (id 30822)",
+              "[2026] Barcelona - Racing Santander (id 30826)",
+              "[2026] Deportivo La Coruna - Sevilla (id 30824)"
+            ],
+            "corrections": 0,
+            "corrections_sample": [],
+            "dropped_unplayed": 0,
+            "diminished": 0,
+            "improved": 0,
+            "blocking_problems": []
+          },
+          "shrink_ratio": -0.001905972045743276
+        },
+        "player_match": {
+          "dataset": "player_match",
+          "league": "La Liga",
+          "written": true,
+          "rows": 49385,
+          "matches": 1577,
+          "errors": [],
+          "retry_rounds": 0,
+          "seconds": 853.4,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/player_match_la_liga.json",
+          "requested_matches": 1577,
+          "unreadable_matches": 0,
+          "rows_without_date": 0,
+          "coverage": {
+            "reference_matches": 1577,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:50:25.524126+00:00",
+            "missing_sample": [],
+            "returned_matches": 1577
+          },
+          "returned_matches": 1577,
+          "missing_matches": 0,
+          "missing_matches_sample": [],
+          "duplicates": {
+            "kind": "player_match",
+            "input_rows": 49476,
+            "rows": 49385,
+            "duplicate_rows": 91,
+            "duplicate_keys": 3,
+            "duplicate_matches": 3,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0018392756083757782,
+            "sample_matches": [
+              {
+                "season": 2023,
+                "id": 23028,
+                "rows": 30
+              },
+              {
+                "season": 2025,
+                "id": 29482,
+                "rows": 32
+              },
+              {
+                "season": 2026,
+                "id": 30804,
+                "rows": 29
+              }
+            ]
+          },
+          "summary": {
+            "rows": 49385,
+            "matches": 1577,
+            "seasons": {
+              "2022": {
+                "rows": 11837,
+                "matches": 380,
+                "players": 584,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 750092,
+                "yellow_cards": 1798,
+                "red_cards": 133,
+                "goals": 922,
+                "min_date": "2022-08-12",
+                "max_date": "2023-06-04"
+              },
+              "2023": {
+                "rows": 11888,
+                "matches": 380,
+                "players": 598,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 750560,
+                "yellow_cards": 1719,
+                "red_cards": 84,
+                "goals": 977,
+                "min_date": "2023-08-11",
+                "max_date": "2024-05-26"
+              },
+              "2024": {
+                "rows": 11900,
+                "matches": 380,
+                "players": 590,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 750794,
+                "yellow_cards": 1656,
+                "red_cards": 75,
+                "goals": 968,
+                "min_date": "2024-08-15",
+                "max_date": "2025-05-25"
+              },
+              "2025": {
+                "rows": 11952,
+                "matches": 380,
+                "players": 600,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 750769,
+                "yellow_cards": 1575,
+                "red_cards": 99,
+                "goals": 1001,
+                "min_date": "2025-08-15",
+                "max_date": "2026-05-24"
+              },
+              "2026": {
+                "rows": 1808,
+                "matches": 57,
+                "players": 456,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 112620,
+                "yellow_cards": 238,
+                "red_cards": 14,
+                "goals": 168,
+                "min_date": "2026-08-15",
+                "max_date": "2026-09-16"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 29,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "baseline_path": "SoccerMath/database/player_match_la_liga.json",
+          "baseline_found": false
+        }
+      },
+      "errors": [],
+      "schedule_attempts": 1,
+      "schedule": {
+        "scheduled_matches": 1900,
+        "has_data": 1577,
+        "played_with_xg": 1577,
+        "first_date": "2022-08-12 19:00:00",
+        "last_played_date": "2026-09-16 19:30:00",
+        "seasons": {
+          "2022": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2023": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2024": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2025": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2026": {
+            "scheduled": 380,
+            "played_with_xg": 57,
+            "has_data": 57
+          }
+        },
+        "duplicate_rows": 0,
+        "attempts": 1
+      },
+      "schedule_duplicates": {
+        "scheduled_rows": 1900,
+        "rows": 1900,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0
+      },
+      "seconds": 868.6
+    },
+    {
+      "league": "Bundesliga",
+      "sd_league": "GER-Bundesliga",
+      "datasets": {
+        "ppda_deep": {
+          "dataset": "ppda_deep",
+          "league": "Bundesliga",
+          "written": true,
+          "matches": 1251,
+          "errors": [],
+          "retry_rounds": 2,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/ppda_deep_bundesliga.json",
+          "requested_matches": 1251,
+          "duplicates": {
+            "kind": "ppda_deep",
+            "input_rows": 1251,
+            "rows": 1251,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "matches": 1251,
+            "seasons": {
+              "2022": {
+                "matches": 306,
+                "played": 306,
+                "complete": 306,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 306,
+                "with_away_ppda": 306,
+                "with_home_deep": 306,
+                "with_away_deep": 306,
+                "unplayed": 0,
+                "min_date": "2022-08-05",
+                "max_date": "2023-05-27",
+                "max_played_date": "2023-05-27"
+              },
+              "2023": {
+                "matches": 306,
+                "played": 306,
+                "complete": 306,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 306,
+                "with_away_ppda": 306,
+                "with_home_deep": 306,
+                "with_away_deep": 306,
+                "unplayed": 0,
+                "min_date": "2023-08-18",
+                "max_date": "2024-05-18",
+                "max_played_date": "2024-05-18"
+              },
+              "2024": {
+                "matches": 306,
+                "played": 306,
+                "complete": 305,
+                "partial": 1,
+                "empty": 0,
+                "with_home_ppda": 305,
+                "with_away_ppda": 305,
+                "with_home_deep": 306,
+                "with_away_deep": 306,
+                "unplayed": 0,
+                "min_date": "2024-08-23",
+                "max_date": "2025-05-17",
+                "max_played_date": "2025-05-17"
+              },
+              "2025": {
+                "matches": 306,
+                "played": 306,
+                "complete": 306,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 306,
+                "with_away_ppda": 306,
+                "with_home_deep": 306,
+                "with_away_deep": 306,
+                "unplayed": 0,
+                "min_date": "2025-08-22",
+                "max_date": "2026-05-16",
+                "max_played_date": "2026-05-16"
+              },
+              "2026": {
+                "matches": 27,
+                "played": 27,
+                "complete": 27,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 27,
+                "with_away_ppda": 27,
+                "with_home_deep": 27,
+                "with_away_deep": 27,
+                "unplayed": 0,
+                "min_date": "2026-08-28",
+                "max_date": "2026-09-13",
+                "max_played_date": "2026-09-13"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 25,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "structural_na_sample": [
+            "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+          ],
+          "coverage": {
+            "reference_matches": 1251,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:50:19.244172+00:00",
+            "missing_sample": [],
+            "complete": 1250,
+            "partial": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "structural_ppda_na": 1,
+            "ppda_missing_but_deep_present": 2,
+            "complete_ratio": 0.9992006394884093
+          },
+          "baseline_path": "SoccerMath/database/ppda_deep_bundesliga.json",
+          "baseline_found": true,
+          "previous_matches": 1251,
+          "diff": {
+            "league": "Bundesliga",
+            "previous_matches": 1251,
+            "current_matches": 1251,
+            "missing_played": 0,
+            "missing_played_sample": [],
+            "regressed": 0,
+            "regressed_sample": [],
+            "dropped_seasons": [],
+            "new_matches": 0,
+            "new_matches_sample": [],
+            "corrections": 0,
+            "corrections_sample": [],
+            "dropped_unplayed": 0,
+            "diminished": 0,
+            "improved": 0,
+            "blocking_problems": []
+          },
+          "shrink_ratio": 0.0
+        },
+        "player_match": {
+          "dataset": "player_match",
+          "league": "Bundesliga",
+          "written": true,
+          "rows": 38910,
+          "matches": 1250,
+          "errors": [],
+          "retry_rounds": 2,
+          "seconds": 725.4,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/player_match_bundesliga.json",
+          "requested_matches": 1251,
+          "unreadable_matches": 3,
+          "unreadable_sample": [
+            {
+              "id": 27930,
+              "error": "AttributeError: 'list' object has no attribute 'values'"
+            },
+            {
+              "id": 27930,
+              "error": "AttributeError: 'list' object has no attribute 'values'"
+            },
+            {
+              "id": 27930,
+              "error": "AttributeError: 'list' object has no attribute 'values'"
+            }
+          ],
+          "rows_without_date": 0,
+          "coverage": {
+            "reference_matches": 1251,
+            "missing_total": 1,
+            "missing_frontier": 0,
+            "missing_old": 1,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0007993605115907274,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T12:50:36.482100+00:00",
+            "missing_sample": [
+              "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+            ],
+            "returned_matches": 1250
+          },
+          "returned_matches": 1250,
+          "missing_matches": 1,
+          "missing_matches_sample": [
+            "[2024] Holstein Kiel - Bochum (id 27930, 2025-02-09)"
+          ],
+          "duplicates": {
+            "kind": "player_match",
+            "input_rows": 38910,
+            "rows": 38910,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "rows": 38910,
+            "matches": 1250,
+            "seasons": {
+              "2022": {
+                "rows": 9479,
+                "matches": 306,
+                "players": 506,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 604852,
+                "yellow_cards": 1214,
+                "red_cards": 43,
+                "goals": 948,
+                "min_date": "2022-08-05",
+                "max_date": "2023-05-27"
+              },
+              "2023": {
+                "rows": 9525,
+                "matches": 306,
+                "players": 494,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 604793,
+                "yellow_cards": 1214,
+                "red_cards": 55,
+                "goals": 960,
+                "min_date": "2023-08-18",
+                "max_date": "2024-05-18"
+              },
+              "2024": {
+                "rows": 9497,
+                "matches": 305,
+                "players": 481,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 602777,
+                "yellow_cards": 1128,
+                "red_cards": 55,
+                "goals": 930,
+                "min_date": "2024-08-23",
+                "max_date": "2025-05-17"
+              },
+              "2025": {
+                "rows": 9555,
+                "matches": 306,
+                "players": 499,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 605107,
+                "yellow_cards": 1106,
+                "red_cards": 51,
+                "goals": 970,
+                "min_date": "2025-08-22",
+                "max_date": "2026-05-16"
+              },
+              "2026": {
+                "rows": 854,
+                "matches": 27,
+                "players": 357,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 53405,
+                "yellow_cards": 84,
+                "red_cards": 3,
+                "goals": 100,
+                "min_date": "2026-08-28",
+                "max_date": "2026-09-13"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 25,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "baseline_path": "SoccerMath/database/player_match_bundesliga.json",
+          "baseline_found": false
+        }
+      },
+      "errors": [],
+      "schedule_attempts": 1,
+      "schedule": {
+        "scheduled_matches": 1530,
+        "has_data": 1251,
+        "played_with_xg": 1251,
+        "first_date": "2022-08-05 18:30:00",
+        "last_played_date": "2026-09-13 15:30:00",
+        "seasons": {
+          "2022": {
+            "scheduled": 306,
+            "played_with_xg": 306,
+            "has_data": 306
+          },
+          "2023": {
+            "scheduled": 306,
+            "played_with_xg": 306,
+            "has_data": 306
+          },
+          "2024": {
+            "scheduled": 306,
+            "played_with_xg": 306,
+            "has_data": 306
+          },
+          "2025": {
+            "scheduled": 306,
+            "played_with_xg": 306,
+            "has_data": 306
+          },
+          "2026": {
+            "scheduled": 306,
+            "played_with_xg": 27,
+            "has_data": 27
+          }
+        },
+        "duplicate_rows": 0,
+        "attempts": 1
+      },
+      "schedule_duplicates": {
+        "scheduled_rows": 1530,
+        "rows": 1530,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0
+      },
+      "seconds": 750.4
+    },
+    {
+      "league": "Ligue 1",
+      "sd_league": "FRA-Ligue 1",
+      "datasets": {
+        "ppda_deep": {
+          "dataset": "ppda_deep",
+          "league": "Ligue 1",
+          "written": true,
+          "matches": 1334,
+          "errors": [],
+          "retry_rounds": 0,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/ppda_deep_ligue_1.json",
+          "requested_matches": 1334,
+          "duplicates": {
+            "kind": "ppda_deep",
+            "input_rows": 1334,
+            "rows": 1334,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "matches": 1334,
+            "seasons": {
+              "2022": {
+                "matches": 380,
+                "played": 380,
+                "complete": 380,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 380,
+                "with_away_ppda": 380,
+                "with_home_deep": 380,
+                "with_away_deep": 380,
+                "unplayed": 0,
+                "min_date": "2022-08-05",
+                "max_date": "2023-06-03",
+                "max_played_date": "2023-06-03"
+              },
+              "2023": {
+                "matches": 306,
+                "played": 306,
+                "complete": 306,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 306,
+                "with_away_ppda": 306,
+                "with_home_deep": 306,
+                "with_away_deep": 306,
+                "unplayed": 0,
+                "min_date": "2023-08-12",
+                "max_date": "2024-05-19",
+                "max_played_date": "2024-05-19"
+              },
+              "2024": {
+                "matches": 306,
+                "played": 306,
+                "complete": 306,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 306,
+                "with_away_ppda": 306,
+                "with_home_deep": 306,
+                "with_away_deep": 306,
+                "unplayed": 0,
+                "min_date": "2024-08-16",
+                "max_date": "2025-05-17",
+                "max_played_date": "2025-05-17"
+              },
+              "2025": {
+                "matches": 306,
+                "played": 306,
+                "complete": 306,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 306,
+                "with_away_ppda": 306,
+                "with_home_deep": 306,
+                "with_away_deep": 306,
+                "unplayed": 0,
+                "min_date": "2025-08-15",
+                "max_date": "2026-05-17",
+                "max_played_date": "2026-05-17"
+              },
+              "2026": {
+                "matches": 36,
+                "played": 36,
+                "complete": 36,
+                "partial": 0,
+                "empty": 0,
+                "with_home_ppda": 36,
+                "with_away_ppda": 36,
+                "with_home_deep": 36,
+                "with_away_deep": 36,
+                "unplayed": 0,
+                "min_date": "2026-08-21",
+                "max_date": "2026-09-13",
+                "max_played_date": "2026-09-13"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 25,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "coverage": {
+            "reference_matches": 1334,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T13:02:49.310643+00:00",
+            "missing_sample": [],
+            "complete": 1334,
+            "partial": 0,
+            "record_without_values": 0,
+            "no_record": 0,
+            "structural_ppda_na": 0,
+            "ppda_missing_but_deep_present": 0,
+            "complete_ratio": 1.0
+          },
+          "baseline_path": "SoccerMath/database/ppda_deep_ligue_1.json",
+          "baseline_found": true,
+          "previous_matches": 1334,
+          "diff": {
+            "league": "Ligue 1",
+            "previous_matches": 1334,
+            "current_matches": 1334,
+            "missing_played": 0,
+            "missing_played_sample": [],
+            "regressed": 0,
+            "regressed_sample": [],
+            "dropped_seasons": [],
+            "new_matches": 0,
+            "new_matches_sample": [],
+            "corrections": 0,
+            "corrections_sample": [],
+            "dropped_unplayed": 0,
+            "diminished": 0,
+            "improved": 0,
+            "blocking_problems": []
+          },
+          "shrink_ratio": 0.0
+        },
+        "player_match": {
+          "dataset": "player_match",
+          "league": "Ligue 1",
+          "written": true,
+          "rows": 40892,
+          "matches": 1334,
+          "errors": [],
+          "retry_rounds": 0,
+          "seconds": 722.3,
+          "path": "/home/runner/work/_temp/ppda-player-out/database/player_match_ligue_1.json",
+          "requested_matches": 1334,
+          "unreadable_matches": 0,
+          "rows_without_date": 0,
+          "coverage": {
+            "reference_matches": 1334,
+            "missing_total": 0,
+            "missing_frontier": 0,
+            "missing_old": 0,
+            "missing_undated": 0,
+            "missing_blocking_ratio": 0.0,
+            "frontier_days": 1.0,
+            "reference_time": "2026-09-17T13:02:55.074039+00:00",
+            "missing_sample": [],
+            "returned_matches": 1334
+          },
+          "returned_matches": 1334,
+          "missing_matches": 0,
+          "missing_matches_sample": [],
+          "duplicates": {
+            "kind": "player_match",
+            "input_rows": 40892,
+            "rows": 40892,
+            "duplicate_rows": 0,
+            "duplicate_keys": 0,
+            "duplicate_matches": 0,
+            "duplicate_differing_rows": 0,
+            "unusable_rows": 0,
+            "duplicate_ratio": 0.0,
+            "sample_matches": []
+          },
+          "summary": {
+            "rows": 40892,
+            "matches": 1334,
+            "seasons": {
+              "2022": {
+                "rows": 11547,
+                "matches": 380,
+                "players": 585,
+                "teams": 20,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 749960,
+                "yellow_cards": 1210,
+                "red_cards": 97,
+                "goals": 1030,
+                "min_date": "2022-08-05",
+                "max_date": "2023-06-03"
+              },
+              "2023": {
+                "rows": 9394,
+                "matches": 306,
+                "players": 525,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 604638,
+                "yellow_cards": 1148,
+                "red_cards": 73,
+                "goals": 806,
+                "min_date": "2023-08-12",
+                "max_date": "2024-05-19"
+              },
+              "2024": {
+                "rows": 9413,
+                "matches": 306,
+                "players": 542,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 604481,
+                "yellow_cards": 1121,
+                "red_cards": 66,
+                "goals": 888,
+                "min_date": "2024-08-16",
+                "max_date": "2025-05-17"
+              },
+              "2025": {
+                "rows": 9408,
+                "matches": 306,
+                "players": 553,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 603641,
+                "yellow_cards": 1096,
+                "red_cards": 75,
+                "goals": 839,
+                "min_date": "2025-08-15",
+                "max_date": "2026-05-17"
+              },
+              "2026": {
+                "rows": 1130,
+                "matches": 36,
+                "players": 413,
+                "teams": 18,
+                "minutes_zero": 0,
+                "minutes_none": 0,
+                "minutes_sum": 71158,
+                "yellow_cards": 101,
+                "red_cards": 4,
+                "goals": 93,
+                "min_date": "2026-08-21",
+                "max_date": "2026-09-13"
+              }
+            }
+          },
+          "names": {
+            "raw_names": 25,
+            "unmapped": {},
+            "collisions": {}
+          },
+          "baseline_path": "SoccerMath/database/player_match_ligue_1.json",
+          "baseline_found": false
+        }
+      },
+      "errors": [],
+      "schedule_attempts": 1,
+      "schedule": {
+        "scheduled_matches": 1604,
+        "has_data": 1334,
+        "played_with_xg": 1334,
+        "first_date": "2022-08-05 19:00:00",
+        "last_played_date": "2026-09-13 18:45:00",
+        "seasons": {
+          "2022": {
+            "scheduled": 380,
+            "played_with_xg": 380,
+            "has_data": 380
+          },
+          "2023": {
+            "scheduled": 306,
+            "played_with_xg": 306,
+            "has_data": 306
+          },
+          "2024": {
+            "scheduled": 306,
+            "played_with_xg": 306,
+            "has_data": 306
+          },
+          "2025": {
+            "scheduled": 306,
+            "played_with_xg": 306,
+            "has_data": 306
+          },
+          "2026": {
+            "scheduled": 306,
+            "played_with_xg": 36,
+            "has_data": 36
+          }
+        },
+        "duplicate_rows": 0,
+        "attempts": 1
+      },
+      "schedule_duplicates": {
+        "scheduled_rows": 1604,
+        "rows": 1604,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0
+      },
+      "seconds": 735.5
+    }
+  ],
+  "failures": 0
+}
