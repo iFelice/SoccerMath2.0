@@ -27,14 +27,24 @@ on:
     paths:
       - '.github/workflows/fd2627_fetch_tmp.yml'
 
+# Lettura per il download; la pubblicazione sul branch (unico canale disponibile
+# per riportare i byte in locale: gli artifact non sono scaricabili da qui)
+# richiede la scrittura. Il workflow e' temporaneo e viene rimosso prima del
+# commit finale; i file che pubblica (tmp_fd_raw/) vengono cancellati a loro volta.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+
       - name: Scarica i 5 CSV grezzi
         run: |
           set -u
@@ -83,3 +93,22 @@ jobs:
           path: fd-raw/
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Pubblica i byte grezzi sul branch (cartella temporanea)
+        if: always()
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -u
+          git config user.name "tmp-fd-fetch-bot"
+          git config user.email "tmp-fd-fetch-bot@users.noreply.github.com"
+          mkdir -p tmp_fd_raw
+          cp -f fd-raw/*.csv fd-raw/_fetch_log.txt fd-raw/_summary.txt fd-raw/*.headers.txt fd-raw/*.curlerr.txt tmp_fd_raw/
+          git add -f tmp_fd_raw
+          if git diff --cached --quiet; then
+            echo "nessuna modifica da pubblicare"
+          else
+            git commit -m "TMP: byte grezzi CSV 2627 (da rimuovere, cartella tmp_fd_raw/)"
+            git push origin "HEAD:${BRANCH}"
+            echo "pubblicato"
+          fi
