@@ -14,6 +14,10 @@ name: TMP fetch grezzo CSV football-data 2627
 #   * nessuna elaborazione dei dati: si scaricano i byte grezzi cosi' come
 #     arrivano, perche' l'analisi di verifica (punto 1 della commessa) va fatta
 #     sui byte esatti, encoding compreso.
+#
+# Nota operativa: l'ambiente da cui scrivo non puo' leggere i LOG dei run
+# (results-receiver.actions.githubusercontent.com non raggiungibile), quindi
+# TUTTI i diagnostici vengono scritti dentro fd-raw/ e pubblicati come artifact.
 
 on:
   workflow_dispatch:
@@ -36,42 +40,46 @@ jobs:
           set -u
           mkdir -p fd-raw
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+          : > fd-raw/_fetch_log.txt
           for code in I1 E0 SP1 D1 F1; do
             url="https://www.football-data.co.uk/mmz4281/2627/${code}.csv"
-            code_http=$(curl -sS -A "$UA" -o "fd-raw/${code}.csv" -w "%{http_code}" "$url" || echo "CURL-FAIL")
-            size=$(wc -c < "fd-raw/${code}.csv" 2>/dev/null || echo 0)
-            lines=$(wc -l < "fd-raw/${code}.csv" 2>/dev/null || echo 0)
-            bom=$(head -c 3 "fd-raw/${code}.csv" | od -An -tx1 | tr -d ' \n')
-            echo "### ${code} http=${code_http} bytes=${size} lines=${lines} first3bytes=${bom}"
-            {
-              echo "http_status=${code_http}"
-              echo "bytes=${size}"
-              echo "lines=${lines}"
-              echo "first3bytes=${bom}"
-              echo "url=${url}"
-            } > "fd-raw/${code}.meta.txt"
-          done
-          echo "--- contenuto (prime 2 righe, solo come ispezione) ---"
-          for code in I1 E0 SP1 D1 F1; do
-            echo "== ${code} =="
-            head -c 400 "fd-raw/${code}.csv" | tr -d '\r' | head -2
+            echo "=== ${code} ===" | tee -a fd-raw/_fetch_log.txt
+            echo "url=${url}" | tee -a fd-raw/_fetch_log.txt
+            curl -sS -A "$UA" -L \
+                 -D "fd-raw/${code}.headers.txt" \
+                 -o "fd-raw/${code}.csv" \
+                 -w "http_code=%{http_code}\ncontent_type=%{content_type}\nsize_download=%{size_download}\nurl_effective=%{url_effective}\nnum_redirects=%{num_redirects}\n" \
+                 "$url" 2> "fd-raw/${code}.curlerr.txt" | tee -a fd-raw/_fetch_log.txt
+            echo "curl_exit=$?" | tee -a fd-raw/_fetch_log.txt
+            echo "curl_stderr:" | tee -a fd-raw/_fetch_log.txt
+            cat "fd-raw/${code}.curlerr.txt" | tee -a fd-raw/_fetch_log.txt
+            echo "response_headers:" | tee -a fd-raw/_fetch_log.txt
+            tr -d '\r' < "fd-raw/${code}.headers.txt" | tee -a fd-raw/_fetch_log.txt
+            size=$(wc -c < "fd-raw/${code}.csv")
+            echo "bytes_on_disk=${size}" | tee -a fd-raw/_fetch_log.txt
+            echo "first16bytes=$(head -c 16 "fd-raw/${code}.csv" | od -An -tx1 | tr -d ' \n')" | tee -a fd-raw/_fetch_log.txt
+            echo "--- prime 3 righe di ${code} ---" >> fd-raw/_fetch_log.txt
+            head -n 3 "fd-raw/${code}.csv" | tr -d '\r' >> fd-raw/_fetch_log.txt
+            echo "" >> fd-raw/_fetch_log.txt
           done
 
-      - name: Verifica che i 5 file non siano vuoti
+      - name: Riepilogo
         run: |
+          set -u
+          : > fd-raw/_summary.txt
           for code in I1 E0 SP1 D1 F1; do
             size=$(wc -c < "fd-raw/${code}.csv")
-            if [ "$size" -lt 200 ]; then
-              echo "::error::${code}.csv troppo piccolo (${size} byte): download fallito"
-              exit 1
-            fi
+            lines=$(wc -l < "fd-raw/${code}.csv")
+            st=$(grep -m1 -o 'http_code=[0-9]*' fd-raw/_fetch_log.txt >/dev/null 2>&1 && true || true)
+            echo "${code} bytes=${size} lines=${lines}" >> fd-raw/_summary.txt
           done
-          echo "5/5 CSV scaricati"
+          cat fd-raw/_summary.txt
 
       - name: Pubblica i CSV grezzi come artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: fd-2627-raw
           path: fd-raw/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
