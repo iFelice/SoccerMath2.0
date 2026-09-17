@@ -115,11 +115,16 @@ LEAGUE_HOME_ADVANTAGE = {
 # 4. CONFIGURAZIONE CAMPIONATI
 # ==========================================
 # Supporto a 5 campionati: Serie A, Premier League, La Liga, Bundesliga, Ligue 1
+# ``code``  = codice competizione dell'API football-data.org (SA/PL/PD/BL1/FL1);
+# ``fd_code`` = codice del CSV di football-data.co.uk (I1/E0/SP1/D1/F1), unico
+#               posto in cui vive questa mappa: SoccerMath/update_db_rich.py la
+#               legge da qui e non ne tiene una copia parallela.
 LEAGUES_CONFIG = {
     "Serie A": {
         "code": "SA",
         "name": "Serie A",
         "short_name": "SerieA",
+        "fd_code": "I1",
         "understat_id": 11,
         "understat_slug": "serie_a",
         "db_prefix": "SerieA",
@@ -131,6 +136,7 @@ LEAGUES_CONFIG = {
         "code": "PL",
         "name": "Premier League",
         "short_name": "Premier",
+        "fd_code": "E0",
         "understat_id": 9,
         "understat_slug": "premier_league",
         "db_prefix": "Premier",
@@ -142,6 +148,7 @@ LEAGUES_CONFIG = {
         "code": "PD",
         "name": "La Liga",
         "short_name": "LaLiga",
+        "fd_code": "SP1",
         "understat_id": 12,
         "understat_slug": "la_liga",
         "db_prefix": "LaLiga",
@@ -153,6 +160,7 @@ LEAGUES_CONFIG = {
         "code": "BL1",
         "name": "Bundesliga",
         "short_name": "Bundesliga",
+        "fd_code": "D1",
         "understat_id": 20,
         "understat_slug": "bundesliga",
         "db_prefix": "Bundesliga",
@@ -164,6 +172,7 @@ LEAGUES_CONFIG = {
         "code": "FL1",
         "name": "Ligue 1",
         "short_name": "Ligue1",
+        "fd_code": "F1",
         "understat_id": 13,
         "understat_slug": "ligue_1",
         "db_prefix": "Ligue1",

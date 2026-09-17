@@ -1,5 +1,0 @@
-I1 bytes=19221 lines=41
-E0 bytes=20004 lines=41
-SP1 bytes=24763 lines=52
-D1 bytes=13395 lines=28
-F1 bytes=17596 lines=37
