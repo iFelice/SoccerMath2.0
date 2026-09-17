@@ -1,0 +1,23 @@
+HTTP/2 302 
+content-type: text/html
+content-length: 0
+location: https://football-data.co.uk/mmz4281/2627/I1.csv
+x-ws-origin: available
+x-ws-ratelimit-limit: 1000
+x-ws-ratelimit-remaining: 999
+date: Thu, 17 Sep 2026 19:49:11 GMT
+server: Apache
+cache-control: no-cache
+
+HTTP/2 200 
+content-type: text/csv
+content-length: 19221
+x-ws-origin: available
+x-ws-ratelimit-limit: 1000
+x-ws-ratelimit-remaining: 999
+date: Thu, 17 Sep 2026 19:49:12 GMT
+server: Apache
+last-modified: Mon, 14 Sep 2026 22:57:17 GMT
+etag: "4b15-65b795b0ee57b"
+accept-ranges: bytes
+
