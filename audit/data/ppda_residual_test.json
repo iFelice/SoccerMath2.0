@@ -1,0 +1,2374 @@
+{
+  "train_seasons": [
+    "2022/23",
+    "2023/24"
+  ],
+  "covariates": [
+    "own_ppda_5",
+    "own_deep_5",
+    "faced_ppda_5",
+    "faced_deep_5",
+    "own_ppda_10",
+    "own_deep_10",
+    "faced_ppda_10",
+    "faced_deep_10"
+  ],
+  "offset": "log(lambda_casa + lambda_trasferta) della testa Totali di produzione",
+  "leagues": {
+    "Serie A": {
+      "matches_all": 1560,
+      "matches_train": 760,
+      "join": {
+        "matches_all": 1560,
+        "matched": 1557,
+        "unmatched_no_record": 3,
+        "unmatched_in_train": 2,
+        "unmatched_all": [
+          {
+            "season": "2023/24",
+            "date": "2024-04-25",
+            "home": "Udinese",
+            "away": "Roma"
+          },
+          {
+            "season": "2023/24",
+            "date": "2024-05-23",
+            "home": "Cagliari",
+            "away": "Fiorentina"
+          },
+          {
+            "season": "2024/25",
+            "date": "2025-05-17",
+            "home": "Genoa",
+            "away": "Atalanta"
+          }
+        ]
+      },
+      "engine_reconstruction_check": {
+        "max_abs_diff_u25": 0.0,
+        "max_abs_diff_gg": 0.0,
+        "matches": 1560
+      },
+      "glm": {
+        "label": "Serie A (train, senza la prima giornata incompleta del walk-forward)",
+        "n_matches": 719,
+        "n_dropped_missing_features": 31,
+        "mean_goals": 2.596662030598053,
+        "mean_lambda_total": 2.5451524815799185,
+        "dispersion_pearson": 0.8885486468855454,
+        "lr_stat_vs_offset_only": 11.128401437389584,
+        "lr_df": 8,
+        "lr_p_value": 0.19452940856070988,
+        "log_likelihood": -1291.034896390253,
+        "log_likelihood_offset_only": -1296.5990971089477,
+        "coefficients": [
+          {
+            "covariate": "own_ppda_5",
+            "beta": 0.016497440217808843,
+            "se": 0.00777185429105331,
+            "z": 2.122716098370517,
+            "p_value": 0.03377764918580771,
+            "beta_standardized": 0.09154025847100487,
+            "p_value_standardized": 0.03377764918580771
+          },
+          {
+            "covariate": "own_deep_5",
+            "beta": -0.020600087440252407,
+            "se": 0.016675502754083863,
+            "z": -1.2353503066171367,
+            "p_value": 0.21670015863661507,
+            "beta_standardized": -0.06803386166984582,
+            "p_value_standardized": 0.21670015863661563
+          },
+          {
+            "covariate": "faced_ppda_5",
+            "beta": 0.012453446648302996,
+            "se": 0.008458476231399352,
+            "z": 1.4723037941601835,
+            "p_value": 0.140938859192004,
+            "beta_standardized": 0.0814573526324239,
+            "p_value_standardized": 0.1409388591920053
+          },
+          {
+            "covariate": "faced_deep_5",
+            "beta": -0.019336343665840718,
+            "se": 0.0173471047087359,
+            "z": -1.1146726782656158,
+            "p_value": 0.26499071319814294,
+            "beta_standardized": -0.0527641911229662,
+            "p_value_standardized": 0.2649907131981444
+          },
+          {
+            "covariate": "own_ppda_10",
+            "beta": -0.012153347198166473,
+            "se": 0.009496697057460911,
+            "z": -1.279744644335939,
+            "p_value": 0.20063495786117092,
+            "beta_standardized": -0.055842352566792576,
+            "p_value_standardized": 0.20063495786117225
+          },
+          {
+            "covariate": "own_deep_10",
+            "beta": 0.03675063086164571,
+            "se": 0.019661235817194176,
+            "z": 1.8691923134102533,
+            "p_value": 0.06159606330091969,
+            "beta_standardized": 0.107247908218733,
+            "p_value_standardized": 0.06159606330091983
+          },
+          {
+            "covariate": "faced_ppda_10",
+            "beta": -0.011505230695051417,
+            "se": 0.009973325461016043,
+            "z": -1.1536002449757927,
+            "p_value": 0.24866409789395572,
+            "beta_standardized": -0.06699986244743289,
+            "p_value_standardized": 0.24866409789395616
+          },
+          {
+            "covariate": "faced_deep_10",
+            "beta": 0.024662364181480385,
+            "se": 0.021131685891431995,
+            "z": 1.1670798207103736,
+            "p_value": 0.24317813622668416,
+            "beta_standardized": 0.057778873947589314,
+            "p_value_standardized": 0.24317813622668427
+          }
+        ],
+        "correlation_matrix": {
+          "own_ppda_5": {
+            "own_ppda_5": 1.0,
+            "own_deep_5": -0.354,
+            "faced_ppda_5": -0.292,
+            "faced_deep_5": 0.309,
+            "own_ppda_10": 0.819,
+            "own_deep_10": -0.345,
+            "faced_ppda_10": -0.272,
+            "faced_deep_10": 0.225
+          },
+          "own_deep_5": {
+            "own_ppda_5": -0.354,
+            "own_deep_5": 1.0,
+            "faced_ppda_5": 0.526,
+            "faced_deep_5": -0.411,
+            "own_ppda_10": -0.354,
+            "own_deep_10": 0.9,
+            "faced_ppda_10": 0.545,
+            "faced_deep_10": -0.443
+          },
+          "faced_ppda_5": {
+            "own_ppda_5": -0.292,
+            "own_deep_5": 0.526,
+            "faced_ppda_5": 1.0,
+            "faced_deep_5": -0.455,
+            "own_ppda_10": -0.294,
+            "own_deep_10": 0.524,
+            "faced_ppda_10": 0.905,
+            "faced_deep_10": -0.489
+          },
+          "faced_deep_5": {
+            "own_ppda_5": 0.309,
+            "own_deep_5": -0.411,
+            "faced_ppda_5": -0.455,
+            "faced_deep_5": 1.0,
+            "own_ppda_10": 0.275,
+            "own_deep_10": -0.428,
+            "faced_ppda_10": -0.456,
+            "faced_deep_10": 0.858
+          },
+          "own_ppda_10": {
+            "own_ppda_5": 0.819,
+            "own_deep_5": -0.354,
+            "faced_ppda_5": -0.294,
+            "faced_deep_5": 0.275,
+            "own_ppda_10": 1.0,
+            "own_deep_10": -0.396,
+            "faced_ppda_10": -0.309,
+            "faced_deep_10": 0.284
+          },
+          "own_deep_10": {
+            "own_ppda_5": -0.345,
+            "own_deep_5": 0.9,
+            "faced_ppda_5": 0.524,
+            "faced_deep_5": -0.428,
+            "own_ppda_10": -0.396,
+            "own_deep_10": 1.0,
+            "faced_ppda_10": 0.583,
+            "faced_deep_10": -0.486
+          },
+          "faced_ppda_10": {
+            "own_ppda_5": -0.272,
+            "own_deep_5": 0.545,
+            "faced_ppda_5": 0.905,
+            "faced_deep_5": -0.456,
+            "own_ppda_10": -0.309,
+            "own_deep_10": 0.583,
+            "faced_ppda_10": 1.0,
+            "faced_deep_10": -0.529
+          },
+          "faced_deep_10": {
+            "own_ppda_5": 0.225,
+            "own_deep_5": -0.443,
+            "faced_ppda_5": -0.489,
+            "faced_deep_5": 0.858,
+            "own_ppda_10": 0.284,
+            "own_deep_10": -0.486,
+            "faced_ppda_10": -0.529,
+            "faced_deep_10": 1.0
+          }
+        },
+        "max_abs_correlation_offdiag": 0.905
+      },
+      "glm_all_train": {
+        "label": "Serie A (tutto il train)",
+        "n_matches": 719,
+        "n_dropped_missing_features": 41,
+        "dispersion_pearson": 0.8885486468855454,
+        "lr_stat_vs_offset_only": 11.128401437389584,
+        "lr_df": 8,
+        "lr_p_value": 0.19452940856070988
+      },
+      "fit_dropped_breakdown": {
+        "dropped": 31,
+        "no_rolling_record": 2,
+        "window_insufficient": 29
+      },
+      "warmup_excluded": {
+        "threshold_matches_seen": 10,
+        "excluded": 10,
+        "kept": 750
+      },
+      "redundancy_vs_pure": {
+        "team_matches": 1500,
+        "correlations": {
+          "att0_pure": {
+            "own_ppda_5": {
+              "pearson": -0.21088820141566186,
+              "spearman": -0.18968839175283495,
+              "n": 1447
+            },
+            "own_deep_5": {
+              "pearson": 0.6169093136274282,
+              "spearman": 0.6244815506713283,
+              "n": 1447
+            },
+            "faced_ppda_5": {
+              "pearson": 0.5681901914055746,
+              "spearman": 0.56778423966746,
+              "n": 1447
+            },
+            "faced_deep_5": {
+              "pearson": -0.4611936856084798,
+              "spearman": -0.4819125745606946,
+              "n": 1447
+            },
+            "own_ppda_10": {
+              "pearson": -0.23847915965329122,
+              "spearman": -0.21101539691840465,
+              "n": 1447
+            },
+            "own_deep_10": {
+              "pearson": 0.6884453436050874,
+              "spearman": 0.7043260296656632,
+              "n": 1447
+            },
+            "faced_ppda_10": {
+              "pearson": 0.6175580252505208,
+              "spearman": 0.6014119696017298,
+              "n": 1447
+            },
+            "faced_deep_10": {
+              "pearson": -0.5410789915671974,
+              "spearman": -0.570253532663386,
+              "n": 1447
+            }
+          },
+          "def0_pure": {
+            "own_ppda_5": {
+              "pearson": 0.2397501794444634,
+              "spearman": 0.22514453685012442,
+              "n": 1447
+            },
+            "own_deep_5": {
+              "pearson": -0.4621504867423248,
+              "spearman": -0.47123656074365217,
+              "n": 1447
+            },
+            "faced_ppda_5": {
+              "pearson": -0.49232567927872334,
+              "spearman": -0.5274442049479989,
+              "n": 1447
+            },
+            "faced_deep_5": {
+              "pearson": 0.5771596470144057,
+              "spearman": 0.5744169240796527,
+              "n": 1447
+            },
+            "own_ppda_10": {
+              "pearson": 0.25873493564075206,
+              "spearman": 0.22927543960829241,
+              "n": 1447
+            },
+            "own_deep_10": {
+              "pearson": -0.5128249677743824,
+              "spearman": -0.5290656713689671,
+              "n": 1447
+            },
+            "faced_ppda_10": {
+              "pearson": -0.5240534613639445,
+              "spearman": -0.5503823408571175,
+              "n": 1447
+            },
+            "faced_deep_10": {
+              "pearson": 0.674707344551627,
+              "spearman": 0.6837997628925789,
+              "n": 1447
+            }
+          }
+        }
+      },
+      "window_status_train": {
+        "home_r5": {
+          "full": 701,
+          "partial": 23,
+          "insufficient": 34
+        },
+        "home_r10": {
+          "full": 643,
+          "partial": 81,
+          "insufficient": 34
+        },
+        "away_r5": {
+          "full": 700,
+          "partial": 23,
+          "insufficient": 35
+        },
+        "away_r10": {
+          "full": 643,
+          "partial": 80,
+          "insufficient": 35
+        }
+      },
+      "fallback_rate_train": {
+        "home": 0.02631578947368421,
+        "away": 0.02631578947368421
+      }
+    },
+    "Premier League": {
+      "matches_all": 1560,
+      "matches_train": 760,
+      "join": {
+        "matches_all": 1560,
+        "matched": 1560,
+        "unmatched_no_record": 0,
+        "unmatched_in_train": 0,
+        "unmatched_all": []
+      },
+      "engine_reconstruction_check": {
+        "max_abs_diff_u25": 0.0,
+        "max_abs_diff_gg": 0.0,
+        "matches": 1560
+      },
+      "glm": {
+        "label": "Premier League (train, senza la prima giornata incompleta del walk-forward)",
+        "n_matches": 721,
+        "n_dropped_missing_features": 29,
+        "mean_goals": 3.0651872399445215,
+        "mean_lambda_total": 2.8885814734650666,
+        "dispersion_pearson": 0.982212509564627,
+        "lr_stat_vs_offset_only": 9.624368134992437,
+        "lr_df": 8,
+        "lr_p_value": 0.2923859285599121,
+        "log_likelihood": -1387.643156569949,
+        "log_likelihood_offset_only": -1392.4553406374453,
+        "coefficients": [
+          {
+            "covariate": "own_ppda_5",
+            "beta": 0.002777489552003646,
+            "se": 0.006428006529153092,
+            "z": 0.43209189962810884,
+            "p_value": 0.6656746218036215,
+            "beta_standardized": 0.01957436265101785,
+            "p_value_standardized": 0.6656746218036227
+          },
+          {
+            "covariate": "own_deep_5",
+            "beta": 0.00125100474050435,
+            "se": 0.01228062345722109,
+            "z": 0.10186817834307513,
+            "p_value": 0.9188613085350931,
+            "beta_standardized": 0.006049733236451555,
+            "p_value_standardized": 0.9188613085350963
+          },
+          {
+            "covariate": "faced_ppda_5",
+            "beta": 0.0002834679794067006,
+            "se": 0.00665000559814644,
+            "z": 0.042626727936245924,
+            "p_value": 0.9659990890379767,
+            "beta_standardized": 0.002241172751011716,
+            "p_value_standardized": 0.965999089037969
+          },
+          {
+            "covariate": "faced_deep_5",
+            "beta": -0.0015138324001499795,
+            "se": 0.011905171864808092,
+            "z": -0.12715754273358254,
+            "p_value": 0.8988157085212782,
+            "beta_standardized": -0.0059200331902219345,
+            "p_value_standardized": 0.8988157085212841
+          },
+          {
+            "covariate": "own_ppda_10",
+            "beta": 0.0023018633127328473,
+            "se": 0.0078306610555556,
+            "z": 0.2939551713963855,
+            "p_value": 0.7687921587521205,
+            "beta_standardized": 0.01448514197625677,
+            "p_value_standardized": 0.768792158752118
+          },
+          {
+            "covariate": "own_deep_10",
+            "beta": 0.019207043400338953,
+            "se": 0.014472814340965047,
+            "z": 1.3271118490046372,
+            "p_value": 0.18447168629821642,
+            "beta_standardized": 0.08494268404095706,
+            "p_value_standardized": 0.18447168629821464
+          },
+          {
+            "covariate": "faced_ppda_10",
+            "beta": -0.00806243651690078,
+            "se": 0.00774294574531179,
+            "z": -1.0412621736091119,
+            "p_value": 0.2977538872223915,
+            "beta_standardized": -0.05829383603602377,
+            "p_value_standardized": 0.2977538872223895
+          },
+          {
+            "covariate": "faced_deep_10",
+            "beta": 0.005686253656881739,
+            "se": 0.015158141013973064,
+            "z": 0.3751286949791562,
+            "p_value": 0.7075647571972246,
+            "beta_standardized": 0.018959915853239875,
+            "p_value_standardized": 0.7075647571972291
+          }
+        ],
+        "correlation_matrix": {
+          "own_ppda_5": {
+            "own_ppda_5": 1.0,
+            "own_deep_5": -0.491,
+            "faced_ppda_5": -0.299,
+            "faced_deep_5": 0.418,
+            "own_ppda_10": 0.877,
+            "own_deep_10": -0.485,
+            "faced_ppda_10": -0.317,
+            "faced_deep_10": 0.438
+          },
+          "own_deep_5": {
+            "own_ppda_5": -0.491,
+            "own_deep_5": 1.0,
+            "faced_ppda_5": 0.535,
+            "faced_deep_5": -0.486,
+            "own_ppda_10": -0.537,
+            "own_deep_10": 0.926,
+            "faced_ppda_10": 0.562,
+            "faced_deep_10": -0.519
+          },
+          "faced_ppda_5": {
+            "own_ppda_5": -0.299,
+            "own_deep_5": 0.535,
+            "faced_ppda_5": 1.0,
+            "faced_deep_5": -0.463,
+            "own_ppda_10": -0.334,
+            "own_deep_10": 0.562,
+            "faced_ppda_10": 0.893,
+            "faced_deep_10": -0.451
+          },
+          "faced_deep_5": {
+            "own_ppda_5": 0.418,
+            "own_deep_5": -0.486,
+            "faced_ppda_5": -0.463,
+            "faced_deep_5": 1.0,
+            "own_ppda_10": 0.428,
+            "own_deep_10": -0.459,
+            "faced_ppda_10": -0.448,
+            "faced_deep_10": 0.858
+          },
+          "own_ppda_10": {
+            "own_ppda_5": 0.877,
+            "own_deep_5": -0.537,
+            "faced_ppda_5": -0.334,
+            "faced_deep_5": 0.428,
+            "own_ppda_10": 1.0,
+            "own_deep_10": -0.579,
+            "faced_ppda_10": -0.372,
+            "faced_deep_10": 0.522
+          },
+          "own_deep_10": {
+            "own_ppda_5": -0.485,
+            "own_deep_5": 0.926,
+            "faced_ppda_5": 0.562,
+            "faced_deep_5": -0.459,
+            "own_ppda_10": -0.579,
+            "own_deep_10": 1.0,
+            "faced_ppda_10": 0.624,
+            "faced_deep_10": -0.555
+          },
+          "faced_ppda_10": {
+            "own_ppda_5": -0.317,
+            "own_deep_5": 0.562,
+            "faced_ppda_5": 0.893,
+            "faced_deep_5": -0.448,
+            "own_ppda_10": -0.372,
+            "own_deep_10": 0.624,
+            "faced_ppda_10": 1.0,
+            "faced_deep_10": -0.536
+          },
+          "faced_deep_10": {
+            "own_ppda_5": 0.438,
+            "own_deep_5": -0.519,
+            "faced_ppda_5": -0.451,
+            "faced_deep_5": 0.858,
+            "own_ppda_10": 0.522,
+            "own_deep_10": -0.555,
+            "faced_ppda_10": -0.536,
+            "faced_deep_10": 1.0
+          }
+        },
+        "max_abs_correlation_offdiag": 0.926
+      },
+      "glm_all_train": {
+        "label": "Premier League (tutto il train)",
+        "n_matches": 721,
+        "n_dropped_missing_features": 39,
+        "dispersion_pearson": 0.982212509564627,
+        "lr_stat_vs_offset_only": 9.624368134992437,
+        "lr_df": 8,
+        "lr_p_value": 0.2923859285599121
+      },
+      "fit_dropped_breakdown": {
+        "dropped": 29,
+        "no_rolling_record": 0,
+        "window_insufficient": 29
+      },
+      "warmup_excluded": {
+        "threshold_matches_seen": 10,
+        "excluded": 10,
+        "kept": 750
+      },
+      "redundancy_vs_pure": {
+        "team_matches": 1500,
+        "correlations": {
+          "att0_pure": {
+            "own_ppda_5": {
+              "pearson": -0.4941851350393081,
+              "spearman": -0.5549986931507567,
+              "n": 1451
+            },
+            "own_deep_5": {
+              "pearson": 0.7134104103368007,
+              "spearman": 0.72482984980936,
+              "n": 1451
+            },
+            "faced_ppda_5": {
+              "pearson": 0.534984724066563,
+              "spearman": 0.5396535875933229,
+              "n": 1451
+            },
+            "faced_deep_5": {
+              "pearson": -0.49853869804765405,
+              "spearman": -0.5072014924588164,
+              "n": 1451
+            },
+            "own_ppda_10": {
+              "pearson": -0.5589399125495246,
+              "spearman": -0.6330967115369674,
+              "n": 1451
+            },
+            "own_deep_10": {
+              "pearson": 0.7677922186119047,
+              "spearman": 0.7784057944951722,
+              "n": 1451
+            },
+            "faced_ppda_10": {
+              "pearson": 0.581070497456497,
+              "spearman": 0.5785167860527102,
+              "n": 1451
+            },
+            "faced_deep_10": {
+              "pearson": -0.5908298116246569,
+              "spearman": -0.5938284322824465,
+              "n": 1451
+            }
+          },
+          "def0_pure": {
+            "own_ppda_5": {
+              "pearson": 0.37670598687011025,
+              "spearman": 0.39352946237153325,
+              "n": 1451
+            },
+            "own_deep_5": {
+              "pearson": -0.599931049608384,
+              "spearman": -0.5609314576574789,
+              "n": 1451
+            },
+            "faced_ppda_5": {
+              "pearson": -0.4769421188633932,
+              "spearman": -0.4824188067419589,
+              "n": 1451
+            },
+            "faced_deep_5": {
+              "pearson": 0.5676537811039795,
+              "spearman": 0.5574623188398456,
+              "n": 1451
+            },
+            "own_ppda_10": {
+              "pearson": 0.42461652304944153,
+              "spearman": 0.4524791551123715,
+              "n": 1451
+            },
+            "own_deep_10": {
+              "pearson": -0.6364352012615264,
+              "spearman": -0.5998960392240723,
+              "n": 1451
+            },
+            "faced_ppda_10": {
+              "pearson": -0.5307418281815651,
+              "spearman": -0.5194348656657712,
+              "n": 1451
+            },
+            "faced_deep_10": {
+              "pearson": 0.6561803105364434,
+              "spearman": 0.6376837819270301,
+              "n": 1451
+            }
+          }
+        }
+      },
+      "window_status_train": {
+        "home_r5": {
+          "full": 701,
+          "partial": 23,
+          "insufficient": 36
+        },
+        "home_r10": {
+          "full": 645,
+          "partial": 79,
+          "insufficient": 36
+        },
+        "away_r5": {
+          "full": 704,
+          "partial": 23,
+          "insufficient": 33
+        },
+        "away_r10": {
+          "full": 645,
+          "partial": 82,
+          "insufficient": 33
+        }
+      },
+      "fallback_rate_train": {
+        "home": 0.02631578947368421,
+        "away": 0.02631578947368421
+      }
+    },
+    "La Liga": {
+      "matches_all": 1574,
+      "matches_train": 760,
+      "join": {
+        "matches_all": 1574,
+        "matched": 1572,
+        "unmatched_no_record": 2,
+        "unmatched_in_train": 1,
+        "unmatched_all": [
+          {
+            "season": "2023/24",
+            "date": "2023-12-11",
+            "home": "Granada",
+            "away": "Ath Bilbao"
+          },
+          {
+            "season": "2025/26",
+            "date": "2025-09-30",
+            "home": "Valencia",
+            "away": "Oviedo"
+          }
+        ]
+      },
+      "engine_reconstruction_check": {
+        "max_abs_diff_u25": 0.0,
+        "max_abs_diff_gg": 0.0,
+        "matches": 1574
+      },
+      "glm": {
+        "label": "La Liga (train, senza la prima giornata incompleta del walk-forward)",
+        "n_matches": 720,
+        "n_dropped_missing_features": 30,
+        "mean_goals": 2.5902777777777777,
+        "mean_lambda_total": 2.5278958210795084,
+        "dispersion_pearson": 1.0297580623322549,
+        "lr_stat_vs_offset_only": 13.59016426743301,
+        "lr_df": 8,
+        "lr_p_value": 0.09309312499848613,
+        "log_likelihood": -1327.103349574072,
+        "log_likelihood_offset_only": -1333.8984317077884,
+        "coefficients": [
+          {
+            "covariate": "own_ppda_5",
+            "beta": -0.005138212858294031,
+            "se": 0.009467172302256403,
+            "z": -0.5427399749626813,
+            "p_value": 0.5873088466251591,
+            "beta_standardized": -0.025626267228448994,
+            "p_value_standardized": 0.5873088466251598
+          },
+          {
+            "covariate": "own_deep_5",
+            "beta": 0.012922819270316337,
+            "se": 0.014880893182710539,
+            "z": 0.8684169096335426,
+            "p_value": 0.38516614114626935,
+            "beta_standardized": 0.04694161465450419,
+            "p_value_standardized": 0.3851661411462711
+          },
+          {
+            "covariate": "faced_ppda_5",
+            "beta": 0.003477535310009776,
+            "se": 0.008877694105993877,
+            "z": 0.3917160546973429,
+            "p_value": 0.6952680262259003,
+            "beta_standardized": 0.019155710706076006,
+            "p_value_standardized": 0.6952680262258989
+          },
+          {
+            "covariate": "faced_deep_5",
+            "beta": 0.017322151661870944,
+            "se": 0.01582734308020881,
+            "z": 1.0944446944813693,
+            "p_value": 0.2737599908259105,
+            "beta_standardized": 0.0476293302431638,
+            "p_value_standardized": 0.2737599908259112
+          },
+          {
+            "covariate": "own_ppda_10",
+            "beta": 0.006641432120091645,
+            "se": 0.011508464672398619,
+            "z": 0.5770910637645833,
+            "p_value": 0.5638779407190817,
+            "beta_standardized": 0.027365896717449188,
+            "p_value_standardized": 0.5638779407190826
+          },
+          {
+            "covariate": "own_deep_10",
+            "beta": 0.012366330517310231,
+            "se": 0.01823905571245707,
+            "z": 0.678013747656035,
+            "p_value": 0.49776297660674784,
+            "beta_standardized": 0.04111807983993855,
+            "p_value_standardized": 0.4977629766067456
+          },
+          {
+            "covariate": "faced_ppda_10",
+            "beta": -0.006588963727714591,
+            "se": 0.011015201599573388,
+            "z": -0.5981700532807114,
+            "p_value": 0.5497264711242624,
+            "beta_standardized": -0.0317713486476276,
+            "p_value_standardized": 0.5497264711242613
+          },
+          {
+            "covariate": "faced_deep_10",
+            "beta": 0.01029574164875949,
+            "se": 0.019815002067672723,
+            "z": 0.5195932664350575,
+            "p_value": 0.6033470922713468,
+            "beta_standardized": 0.02288403041372753,
+            "p_value_standardized": 0.6033470922713471
+          }
+        ],
+        "correlation_matrix": {
+          "own_ppda_5": {
+            "own_ppda_5": 1.0,
+            "own_deep_5": -0.273,
+            "faced_ppda_5": -0.154,
+            "faced_deep_5": 0.351,
+            "own_ppda_10": 0.844,
+            "own_deep_10": -0.288,
+            "faced_ppda_10": -0.149,
+            "faced_deep_10": 0.297
+          },
+          "own_deep_5": {
+            "own_ppda_5": -0.273,
+            "own_deep_5": 1.0,
+            "faced_ppda_5": 0.531,
+            "faced_deep_5": -0.326,
+            "own_ppda_10": -0.294,
+            "own_deep_10": 0.903,
+            "faced_ppda_10": 0.547,
+            "faced_deep_10": -0.368
+          },
+          "faced_ppda_5": {
+            "own_ppda_5": -0.154,
+            "own_deep_5": 0.531,
+            "faced_ppda_5": 1.0,
+            "faced_deep_5": -0.299,
+            "own_ppda_10": -0.197,
+            "own_deep_10": 0.579,
+            "faced_ppda_10": 0.883,
+            "faced_deep_10": -0.344
+          },
+          "faced_deep_5": {
+            "own_ppda_5": 0.351,
+            "own_deep_5": -0.326,
+            "faced_ppda_5": -0.299,
+            "faced_deep_5": 1.0,
+            "own_ppda_10": 0.27,
+            "own_deep_10": -0.334,
+            "faced_ppda_10": -0.32,
+            "faced_deep_10": 0.818
+          },
+          "own_ppda_10": {
+            "own_ppda_5": 0.844,
+            "own_deep_5": -0.294,
+            "faced_ppda_5": -0.197,
+            "faced_deep_5": 0.27,
+            "own_ppda_10": 1.0,
+            "own_deep_10": -0.337,
+            "faced_ppda_10": -0.199,
+            "faced_deep_10": 0.339
+          },
+          "own_deep_10": {
+            "own_ppda_5": -0.288,
+            "own_deep_5": 0.903,
+            "faced_ppda_5": 0.579,
+            "faced_deep_5": -0.334,
+            "own_ppda_10": -0.337,
+            "own_deep_10": 1.0,
+            "faced_ppda_10": 0.647,
+            "faced_deep_10": -0.412
+          },
+          "faced_ppda_10": {
+            "own_ppda_5": -0.149,
+            "own_deep_5": 0.547,
+            "faced_ppda_5": 0.883,
+            "faced_deep_5": -0.32,
+            "own_ppda_10": -0.199,
+            "own_deep_10": 0.647,
+            "faced_ppda_10": 1.0,
+            "faced_deep_10": -0.387
+          },
+          "faced_deep_10": {
+            "own_ppda_5": 0.297,
+            "own_deep_5": -0.368,
+            "faced_ppda_5": -0.344,
+            "faced_deep_5": 0.818,
+            "own_ppda_10": 0.339,
+            "own_deep_10": -0.412,
+            "faced_ppda_10": -0.387,
+            "faced_deep_10": 1.0
+          }
+        },
+        "max_abs_correlation_offdiag": 0.903
+      },
+      "glm_all_train": {
+        "label": "La Liga (tutto il train)",
+        "n_matches": 720,
+        "n_dropped_missing_features": 40,
+        "dispersion_pearson": 1.0297580623322549,
+        "lr_stat_vs_offset_only": 13.59016426743301,
+        "lr_df": 8,
+        "lr_p_value": 0.09309312499848613
+      },
+      "fit_dropped_breakdown": {
+        "dropped": 30,
+        "no_rolling_record": 1,
+        "window_insufficient": 29
+      },
+      "warmup_excluded": {
+        "threshold_matches_seen": 10,
+        "excluded": 10,
+        "kept": 750
+      },
+      "redundancy_vs_pure": {
+        "team_matches": 1500,
+        "correlations": {
+          "att0_pure": {
+            "own_ppda_5": {
+              "pearson": -0.2037313622822614,
+              "spearman": -0.17593757974998295,
+              "n": 1449
+            },
+            "own_deep_5": {
+              "pearson": 0.7289113274278162,
+              "spearman": 0.6833240903141748,
+              "n": 1449
+            },
+            "faced_ppda_5": {
+              "pearson": 0.5685133476269045,
+              "spearman": 0.45723425974463444,
+              "n": 1449
+            },
+            "faced_deep_5": {
+              "pearson": -0.2316077293276226,
+              "spearman": -0.20511006088435096,
+              "n": 1449
+            },
+            "own_ppda_10": {
+              "pearson": -0.24516336179519416,
+              "spearman": -0.1931105323423529,
+              "n": 1449
+            },
+            "own_deep_10": {
+              "pearson": 0.7965051614124884,
+              "spearman": 0.7519172311551704,
+              "n": 1449
+            },
+            "faced_ppda_10": {
+              "pearson": 0.646716567713895,
+              "spearman": 0.5163594958637493,
+              "n": 1449
+            },
+            "faced_deep_10": {
+              "pearson": -0.31334030429341525,
+              "spearman": -0.306188318399106,
+              "n": 1449
+            }
+          },
+          "def0_pure": {
+            "own_ppda_5": {
+              "pearson": 0.26791394510638145,
+              "spearman": 0.2618106345262964,
+              "n": 1449
+            },
+            "own_deep_5": {
+              "pearson": -0.4564353449154388,
+              "spearman": -0.445230535991666,
+              "n": 1449
+            },
+            "faced_ppda_5": {
+              "pearson": -0.31930322677389517,
+              "spearman": -0.3092491707261479,
+              "n": 1449
+            },
+            "faced_deep_5": {
+              "pearson": 0.4716528553879699,
+              "spearman": 0.4528992370770225,
+              "n": 1449
+            },
+            "own_ppda_10": {
+              "pearson": 0.31456230663841944,
+              "spearman": 0.29196526527176014,
+              "n": 1449
+            },
+            "own_deep_10": {
+              "pearson": -0.5002818469670571,
+              "spearman": -0.49506243316487164,
+              "n": 1449
+            },
+            "faced_ppda_10": {
+              "pearson": -0.36068545673919694,
+              "spearman": -0.3503689937303517,
+              "n": 1449
+            },
+            "faced_deep_10": {
+              "pearson": 0.5793958715785738,
+              "spearman": 0.564924226366845,
+              "n": 1449
+            }
+          }
+        }
+      },
+      "window_status_train": {
+        "home_r5": {
+          "full": 702,
+          "partial": 22,
+          "insufficient": 35
+        },
+        "home_r10": {
+          "full": 644,
+          "partial": 80,
+          "insufficient": 35
+        },
+        "away_r5": {
+          "full": 701,
+          "partial": 24,
+          "insufficient": 34
+        },
+        "away_r10": {
+          "full": 644,
+          "partial": 81,
+          "insufficient": 34
+        }
+      },
+      "fallback_rate_train": {
+        "home": 0.02631578947368421,
+        "away": 0.02631578947368421
+      }
+    },
+    "Bundesliga": {
+      "matches_all": 1251,
+      "matches_train": 612,
+      "join": {
+        "matches_all": 1251,
+        "matched": 1250,
+        "unmatched_no_record": 1,
+        "unmatched_in_train": 0,
+        "unmatched_all": [
+          {
+            "season": "2024/25",
+            "date": "2024-11-29",
+            "home": "St Pauli",
+            "away": "Holstein Kiel"
+          }
+        ]
+      },
+      "engine_reconstruction_check": {
+        "max_abs_diff_u25": 0.0,
+        "max_abs_diff_gg": 0.0,
+        "matches": 1251
+      },
+      "glm": {
+        "label": "Bundesliga (train, senza la prima giornata incompleta del walk-forward)",
+        "n_matches": 579,
+        "n_dropped_missing_features": 24,
+        "mean_goals": 3.1899827288428324,
+        "mean_lambda_total": 3.1649380656406567,
+        "dispersion_pearson": 0.9518128672795918,
+        "lr_stat_vs_offset_only": 6.705740712921397,
+        "lr_df": 8,
+        "lr_p_value": 0.5686880207511078,
+        "log_likelihood": -1120.293625181019,
+        "log_likelihood_offset_only": -1123.6464955374797,
+        "coefficients": [
+          {
+            "covariate": "own_ppda_5",
+            "beta": 0.0074444058731579915,
+            "se": 0.008835484702194947,
+            "z": 0.8425577230990646,
+            "p_value": 0.399475843853335,
+            "beta_standardized": 0.03872192587614628,
+            "p_value_standardized": 0.39947584385333035
+          },
+          {
+            "covariate": "own_deep_5",
+            "beta": 0.0005645022493293606,
+            "se": 0.01402911258323917,
+            "z": 0.040237915689961844,
+            "p_value": 0.967903449745552,
+            "beta_standardized": 0.0022154530619947843,
+            "p_value_standardized": 0.9679034497455474
+          },
+          {
+            "covariate": "faced_ppda_5",
+            "beta": 0.011282895978109733,
+            "se": 0.008167885687866317,
+            "z": 1.3813729047250103,
+            "p_value": 0.16716433248675866,
+            "beta_standardized": 0.06658018488674992,
+            "p_value_standardized": 0.16716433248675933
+          },
+          {
+            "covariate": "faced_deep_5",
+            "beta": 0.01441048265749322,
+            "se": 0.013672258117839377,
+            "z": 1.0539943389958837,
+            "p_value": 0.29188550893980014,
+            "beta_standardized": 0.04413055053580927,
+            "p_value_standardized": 0.2918855089398007
+          },
+          {
+            "covariate": "own_ppda_10",
+            "beta": -0.01249101890719689,
+            "se": 0.010974339720988444,
+            "z": -1.1382023178403886,
+            "p_value": 0.25503601106727003,
+            "beta_standardized": -0.055861125866327105,
+            "p_value_standardized": 0.2550360110672668
+          },
+          {
+            "covariate": "own_deep_10",
+            "beta": 0.0032561795105129944,
+            "se": 0.018088696141857694,
+            "z": 0.18001184192475397,
+            "p_value": 0.8571432715515336,
+            "beta_standardized": 0.011656776326511731,
+            "p_value_standardized": 0.8571432715515389
+          },
+          {
+            "covariate": "faced_ppda_10",
+            "beta": -0.013111587561937173,
+            "se": 0.011841663066890813,
+            "z": -1.1072420729987715,
+            "p_value": 0.268189281675683,
+            "beta_standardized": -0.06576754760729278,
+            "p_value_standardized": 0.2681892816756827
+          },
+          {
+            "covariate": "faced_deep_10",
+            "beta": -0.018112164659302554,
+            "se": 0.017778498893525924,
+            "z": -1.0187679380455532,
+            "p_value": 0.3083131504238683,
+            "beta_standardized": -0.04699957679853623,
+            "p_value_standardized": 0.30831315042386853
+          }
+        ],
+        "correlation_matrix": {
+          "own_ppda_5": {
+            "own_ppda_5": 1.0,
+            "own_deep_5": -0.301,
+            "faced_ppda_5": 0.047,
+            "faced_deep_5": 0.279,
+            "own_ppda_10": 0.829,
+            "own_deep_10": -0.266,
+            "faced_ppda_10": 0.037,
+            "faced_deep_10": 0.264
+          },
+          "own_deep_5": {
+            "own_ppda_5": -0.301,
+            "own_deep_5": 1.0,
+            "faced_ppda_5": 0.608,
+            "faced_deep_5": -0.386,
+            "own_ppda_10": -0.314,
+            "own_deep_10": 0.9,
+            "faced_ppda_10": 0.677,
+            "faced_deep_10": -0.462
+          },
+          "faced_ppda_5": {
+            "own_ppda_5": 0.047,
+            "own_deep_5": 0.608,
+            "faced_ppda_5": 1.0,
+            "faced_deep_5": -0.35,
+            "own_ppda_10": 0.016,
+            "own_deep_10": 0.648,
+            "faced_ppda_10": 0.87,
+            "faced_deep_10": -0.386
+          },
+          "faced_deep_5": {
+            "own_ppda_5": 0.279,
+            "own_deep_5": -0.386,
+            "faced_ppda_5": -0.35,
+            "faced_deep_5": 1.0,
+            "own_ppda_10": 0.251,
+            "own_deep_10": -0.395,
+            "faced_ppda_10": -0.331,
+            "faced_deep_10": 0.796
+          },
+          "own_ppda_10": {
+            "own_ppda_5": 0.829,
+            "own_deep_5": -0.314,
+            "faced_ppda_5": 0.016,
+            "faced_deep_5": 0.251,
+            "own_ppda_10": 1.0,
+            "own_deep_10": -0.347,
+            "faced_ppda_10": -0.001,
+            "faced_deep_10": 0.372
+          },
+          "own_deep_10": {
+            "own_ppda_5": -0.266,
+            "own_deep_5": 0.9,
+            "faced_ppda_5": 0.648,
+            "faced_deep_5": -0.395,
+            "own_ppda_10": -0.347,
+            "own_deep_10": 1.0,
+            "faced_ppda_10": 0.755,
+            "faced_deep_10": -0.521
+          },
+          "faced_ppda_10": {
+            "own_ppda_5": 0.037,
+            "own_deep_5": 0.677,
+            "faced_ppda_5": 0.87,
+            "faced_deep_5": -0.331,
+            "own_ppda_10": -0.001,
+            "own_deep_10": 0.755,
+            "faced_ppda_10": 1.0,
+            "faced_deep_10": -0.446
+          },
+          "faced_deep_10": {
+            "own_ppda_5": 0.264,
+            "own_deep_5": -0.462,
+            "faced_ppda_5": -0.386,
+            "faced_deep_5": 0.796,
+            "own_ppda_10": 0.372,
+            "own_deep_10": -0.521,
+            "faced_ppda_10": -0.446,
+            "faced_deep_10": 1.0
+          }
+        },
+        "max_abs_correlation_offdiag": 0.9
+      },
+      "glm_all_train": {
+        "label": "Bundesliga (tutto il train)",
+        "n_matches": 579,
+        "n_dropped_missing_features": 33,
+        "dispersion_pearson": 0.9518128672795918,
+        "lr_stat_vs_offset_only": 6.705740712921397,
+        "lr_df": 8,
+        "lr_p_value": 0.5686880207511078
+      },
+      "fit_dropped_breakdown": {
+        "dropped": 24,
+        "no_rolling_record": 0,
+        "window_insufficient": 24
+      },
+      "warmup_excluded": {
+        "threshold_matches_seen": 9,
+        "excluded": 9,
+        "kept": 603
+      },
+      "redundancy_vs_pure": {
+        "team_matches": 1206,
+        "correlations": {
+          "att0_pure": {
+            "own_ppda_5": {
+              "pearson": -0.2393303377385241,
+              "spearman": -0.20822742003609113,
+              "n": 1164
+            },
+            "own_deep_5": {
+              "pearson": 0.7562638731280645,
+              "spearman": 0.6436425472824067,
+              "n": 1164
+            },
+            "faced_ppda_5": {
+              "pearson": 0.570431520314928,
+              "spearman": 0.5338951990683617,
+              "n": 1164
+            },
+            "faced_deep_5": {
+              "pearson": -0.4048863716153822,
+              "spearman": -0.3941609236238423,
+              "n": 1164
+            },
+            "own_ppda_10": {
+              "pearson": -0.28633974702068965,
+              "spearman": -0.24716869963700808,
+              "n": 1164
+            },
+            "own_deep_10": {
+              "pearson": 0.821348181250243,
+              "spearman": 0.703208538290004,
+              "n": 1164
+            },
+            "faced_ppda_10": {
+              "pearson": 0.6555628149965985,
+              "spearman": 0.5772139362616335,
+              "n": 1164
+            },
+            "faced_deep_10": {
+              "pearson": -0.4960960957761652,
+              "spearman": -0.46553877478326944,
+              "n": 1164
+            }
+          },
+          "def0_pure": {
+            "own_ppda_5": {
+              "pearson": 0.13474699947106383,
+              "spearman": 0.15298899280546444,
+              "n": 1164
+            },
+            "own_deep_5": {
+              "pearson": -0.5758992587248888,
+              "spearman": -0.5239656552147776,
+              "n": 1164
+            },
+            "faced_ppda_5": {
+              "pearson": -0.5318933924687492,
+              "spearman": -0.5389132039845619,
+              "n": 1164
+            },
+            "faced_deep_5": {
+              "pearson": 0.5280225821092284,
+              "spearman": 0.5404420679454371,
+              "n": 1164
+            },
+            "own_ppda_10": {
+              "pearson": 0.17265190522341478,
+              "spearman": 0.19429666344650487,
+              "n": 1164
+            },
+            "own_deep_10": {
+              "pearson": -0.6334168880026947,
+              "spearman": -0.5656086367065414,
+              "n": 1164
+            },
+            "faced_ppda_10": {
+              "pearson": -0.6024135251305213,
+              "spearman": -0.5743685136143591,
+              "n": 1164
+            },
+            "faced_deep_10": {
+              "pearson": 0.661248967231213,
+              "spearman": 0.6687128186651379,
+              "n": 1164
+            }
+          }
+        }
+      },
+      "window_status_train": {
+        "home_r5": {
+          "full": 563,
+          "partial": 20,
+          "insufficient": 29
+        },
+        "home_r10": {
+          "full": 512,
+          "partial": 71,
+          "insufficient": 29
+        },
+        "away_r5": {
+          "full": 561,
+          "partial": 20,
+          "insufficient": 31
+        },
+        "away_r10": {
+          "full": 512,
+          "partial": 69,
+          "insufficient": 31
+        }
+      },
+      "fallback_rate_train": {
+        "home": 0.029411764705882353,
+        "away": 0.029411764705882353
+      }
+    },
+    "Ligue 1": {
+      "matches_all": 1334,
+      "matches_train": 686,
+      "join": {
+        "matches_all": 1334,
+        "matched": 1322,
+        "unmatched_no_record": 12,
+        "unmatched_in_train": 3,
+        "unmatched_all": [
+          {
+            "season": "2022/23",
+            "date": "2023-04-28",
+            "home": "Strasbourg",
+            "away": "Lyon"
+          },
+          {
+            "season": "2023/24",
+            "date": "2023-08-11",
+            "home": "Nice",
+            "away": "Lille"
+          },
+          {
+            "season": "2023/24",
+            "date": "2023-08-13",
+            "home": "Brest",
+            "away": "Lens"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-02-06",
+            "home": "Metz",
+            "away": "Lille"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-02-07",
+            "home": "Lens",
+            "away": "Rennes"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-02-07",
+            "home": "Brest",
+            "away": "Lorient"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-02-07",
+            "home": "Nantes",
+            "away": "Lyon"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-05-02",
+            "home": "Nantes",
+            "away": "Marseille"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-05-02",
+            "home": "PSG",
+            "away": "Lorient"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-05-02",
+            "home": "Metz",
+            "away": "Monaco"
+          },
+          {
+            "season": "2025/26",
+            "date": "2026-05-02",
+            "home": "Nice",
+            "away": "Lens"
+          },
+          {
+            "season": "2026/27",
+            "date": "2026-08-23",
+            "home": "Rennes",
+            "away": "PSG"
+          }
+        ]
+      },
+      "engine_reconstruction_check": {
+        "max_abs_diff_u25": 0.0,
+        "max_abs_diff_gg": 0.0,
+        "matches": 1334
+      },
+      "glm": {
+        "label": "Ligue 1 (train, senza la prima giornata incompleta del walk-forward)",
+        "n_matches": 646,
+        "n_dropped_missing_features": 30,
+        "mean_goals": 2.718266253869969,
+        "mean_lambda_total": 2.8594286679755894,
+        "dispersion_pearson": 0.9914327327452578,
+        "lr_stat_vs_offset_only": 10.886959555133672,
+        "lr_df": 8,
+        "lr_p_value": 0.2081868650620929,
+        "log_likelihood": -1208.3211983337571,
+        "log_likelihood_offset_only": -1213.764678111324,
+        "coefficients": [
+          {
+            "covariate": "own_ppda_5",
+            "beta": -0.013743766364017697,
+            "se": 0.009847514570458541,
+            "z": -1.3956583933622684,
+            "p_value": 0.1628173891125444,
+            "beta_standardized": -0.07256288719380846,
+            "p_value_standardized": 0.1628173891125444
+          },
+          {
+            "covariate": "own_deep_5",
+            "beta": 0.02348635128880966,
+            "se": 0.015682450122898674,
+            "z": 1.4976200214095465,
+            "p_value": 0.13423200191378035,
+            "beta_standardized": 0.09266730159561899,
+            "p_value_standardized": 0.13423200191378026
+          },
+          {
+            "covariate": "faced_ppda_5",
+            "beta": 0.008030908085566982,
+            "se": 0.009747012855197012,
+            "z": 0.8239353127850838,
+            "p_value": 0.40997631430658055,
+            "beta_standardized": 0.041989925881001554,
+            "p_value_standardized": 0.40997631430658044
+          },
+          {
+            "covariate": "faced_deep_5",
+            "beta": 0.04109509318315152,
+            "se": 0.016180105955192696,
+            "z": 2.5398531565216875,
+            "p_value": 0.011089901981482735,
+            "beta_standardized": 0.124114827630499,
+            "p_value_standardized": 0.011089901981482672
+          },
+          {
+            "covariate": "own_ppda_10",
+            "beta": 0.01837522894988541,
+            "se": 0.012138587374468457,
+            "z": 1.513786438489104,
+            "p_value": 0.13008001328006485,
+            "beta_standardized": 0.08336437066590267,
+            "p_value_standardized": 0.13008001328006463
+          },
+          {
+            "covariate": "own_deep_10",
+            "beta": -0.010670975112689622,
+            "se": 0.018382539086368516,
+            "z": -0.5804951678629985,
+            "p_value": 0.5615807444123888,
+            "beta_standardized": -0.03868220497065545,
+            "p_value_standardized": 0.5615807444123873
+          },
+          {
+            "covariate": "faced_ppda_10",
+            "beta": -0.013256971425686737,
+            "se": 0.012218972014353442,
+            "z": -1.0849498149364754,
+            "p_value": 0.2779438830024239,
+            "beta_standardized": -0.059962959610465404,
+            "p_value_standardized": 0.2779438830024258
+          },
+          {
+            "covariate": "faced_deep_10",
+            "beta": -0.03657573454056422,
+            "se": 0.020826612629924694,
+            "z": -1.7562017976946676,
+            "p_value": 0.079053957867395,
+            "beta_standardized": -0.09040816016727543,
+            "p_value_standardized": 0.07905395786739472
+          }
+        ],
+        "correlation_matrix": {
+          "own_ppda_5": {
+            "own_ppda_5": 1.0,
+            "own_deep_5": -0.532,
+            "faced_ppda_5": -0.438,
+            "faced_deep_5": 0.555,
+            "own_ppda_10": 0.856,
+            "own_deep_10": -0.517,
+            "faced_ppda_10": -0.469,
+            "faced_deep_10": 0.53
+          },
+          "own_deep_5": {
+            "own_ppda_5": -0.532,
+            "own_deep_5": 1.0,
+            "faced_ppda_5": 0.559,
+            "faced_deep_5": -0.47,
+            "own_ppda_10": -0.572,
+            "own_deep_10": 0.911,
+            "faced_ppda_10": 0.587,
+            "faced_deep_10": -0.483
+          },
+          "faced_ppda_5": {
+            "own_ppda_5": -0.438,
+            "own_deep_5": 0.559,
+            "faced_ppda_5": 1.0,
+            "faced_deep_5": -0.423,
+            "own_ppda_10": -0.466,
+            "own_deep_10": 0.586,
+            "faced_ppda_10": 0.872,
+            "faced_deep_10": -0.412
+          },
+          "faced_deep_5": {
+            "own_ppda_5": 0.555,
+            "own_deep_5": -0.47,
+            "faced_ppda_5": -0.423,
+            "faced_deep_5": 1.0,
+            "own_ppda_10": 0.49,
+            "own_deep_10": -0.434,
+            "faced_ppda_10": -0.454,
+            "faced_deep_10": 0.827
+          },
+          "own_ppda_10": {
+            "own_ppda_5": 0.856,
+            "own_deep_5": -0.572,
+            "faced_ppda_5": -0.466,
+            "faced_deep_5": 0.49,
+            "own_ppda_10": 1.0,
+            "own_deep_10": -0.62,
+            "faced_ppda_10": -0.537,
+            "faced_deep_10": 0.603
+          },
+          "own_deep_10": {
+            "own_ppda_5": -0.517,
+            "own_deep_5": 0.911,
+            "faced_ppda_5": 0.586,
+            "faced_deep_5": -0.434,
+            "own_ppda_10": -0.62,
+            "own_deep_10": 1.0,
+            "faced_ppda_10": 0.66,
+            "faced_deep_10": -0.526
+          },
+          "faced_ppda_10": {
+            "own_ppda_5": -0.469,
+            "own_deep_5": 0.587,
+            "faced_ppda_5": 0.872,
+            "faced_deep_5": -0.454,
+            "own_ppda_10": -0.537,
+            "own_deep_10": 0.66,
+            "faced_ppda_10": 1.0,
+            "faced_deep_10": -0.523
+          },
+          "faced_deep_10": {
+            "own_ppda_5": 0.53,
+            "own_deep_5": -0.483,
+            "faced_ppda_5": -0.412,
+            "faced_deep_5": 0.827,
+            "own_ppda_10": 0.603,
+            "own_deep_10": -0.526,
+            "faced_ppda_10": -0.523,
+            "faced_deep_10": 1.0
+          }
+        },
+        "max_abs_correlation_offdiag": 0.911
+      },
+      "glm_all_train": {
+        "label": "Ligue 1 (tutto il train)",
+        "n_matches": 646,
+        "n_dropped_missing_features": 40,
+        "dispersion_pearson": 0.9914327327452578,
+        "lr_stat_vs_offset_only": 10.886959555133672,
+        "lr_df": 8,
+        "lr_p_value": 0.2081868650620929
+      },
+      "fit_dropped_breakdown": {
+        "dropped": 30,
+        "no_rolling_record": 3,
+        "window_insufficient": 27
+      },
+      "warmup_excluded": {
+        "threshold_matches_seen": 10,
+        "excluded": 10,
+        "kept": 676
+      },
+      "redundancy_vs_pure": {
+        "team_matches": 1352,
+        "correlations": {
+          "att0_pure": {
+            "own_ppda_5": {
+              "pearson": -0.4742254839142831,
+              "spearman": -0.5338558867654194,
+              "n": 1300
+            },
+            "own_deep_5": {
+              "pearson": 0.737083481667424,
+              "spearman": 0.7223882878317591,
+              "n": 1300
+            },
+            "faced_ppda_5": {
+              "pearson": 0.5834560966443136,
+              "spearman": 0.5533240332002949,
+              "n": 1300
+            },
+            "faced_deep_5": {
+              "pearson": -0.3919520909123747,
+              "spearman": -0.41252662211666535,
+              "n": 1300
+            },
+            "own_ppda_10": {
+              "pearson": -0.5483798643739595,
+              "spearman": -0.6254244925743081,
+              "n": 1300
+            },
+            "own_deep_10": {
+              "pearson": 0.8024515586701185,
+              "spearman": 0.7981018450890766,
+              "n": 1300
+            },
+            "faced_ppda_10": {
+              "pearson": 0.6378950503802812,
+              "spearman": 0.610144938553238,
+              "n": 1300
+            },
+            "faced_deep_10": {
+              "pearson": -0.4848594550993702,
+              "spearman": -0.5239212481622834,
+              "n": 1300
+            }
+          },
+          "def0_pure": {
+            "own_ppda_5": {
+              "pearson": 0.46490769562980183,
+              "spearman": 0.47044528969423205,
+              "n": 1300
+            },
+            "own_deep_5": {
+              "pearson": -0.5110347122950425,
+              "spearman": -0.5231361356532628,
+              "n": 1300
+            },
+            "faced_ppda_5": {
+              "pearson": -0.4362312459565603,
+              "spearman": -0.4550205148302687,
+              "n": 1300
+            },
+            "faced_deep_5": {
+              "pearson": 0.4685047835898278,
+              "spearman": 0.468145724203409,
+              "n": 1300
+            },
+            "own_ppda_10": {
+              "pearson": 0.5417782093643957,
+              "spearman": 0.5622759511909565,
+              "n": 1300
+            },
+            "own_deep_10": {
+              "pearson": -0.5521463115266847,
+              "spearman": -0.5738291194015166,
+              "n": 1300
+            },
+            "faced_ppda_10": {
+              "pearson": -0.4806455773154122,
+              "spearman": -0.509690991034046,
+              "n": 1300
+            },
+            "faced_deep_10": {
+              "pearson": 0.5479851545005683,
+              "spearman": 0.5582560630821254,
+              "n": 1300
+            }
+          }
+        }
+      },
+      "window_status_train": {
+        "home_r5": {
+          "full": 629,
+          "partial": 22,
+          "insufficient": 32
+        },
+        "home_r10": {
+          "full": 573,
+          "partial": 78,
+          "insufficient": 32
+        },
+        "away_r5": {
+          "full": 627,
+          "partial": 22,
+          "insufficient": 34
+        },
+        "away_r10": {
+          "full": 573,
+          "partial": 76,
+          "insufficient": 34
+        }
+      },
+      "fallback_rate_train": {
+        "home": 0.027696793002915453,
+        "away": 0.027696793002915453
+      }
+    }
+  },
+  "pooled": {
+    "matches_train": 3529,
+    "glm": {
+      "label": "aggregato 5 leghe (solo confronto, non e' il verdetto: i 5 fit per lega lo sono)",
+      "n_matches": 3385,
+      "n_dropped_missing_features": 144,
+      "mean_goals": 2.8197932053175774,
+      "mean_lambda_total": 2.780622430522804,
+      "dispersion_pearson": 0.9703407588715721,
+      "lr_stat_vs_offset_only": 24.021800722473927,
+      "lr_df": 8,
+      "lr_p_value": 0.002272581295200073,
+      "log_likelihood": -6354.507188404831,
+      "log_likelihood_offset_only": -6366.518088766068,
+      "coefficients": [
+        {
+          "covariate": "own_ppda_5",
+          "beta": 0.0035586906088123293,
+          "se": 0.0036383869299944234,
+          "z": 0.9780956993537199,
+          "p_value": 0.3280269946970288,
+          "beta_standardized": 0.02066604810225565,
+          "p_value_standardized": 0.3280269946970257
+        },
+        {
+          "covariate": "own_deep_5",
+          "beta": 0.00428373573234437,
+          "se": 0.006411969488340358,
+          "z": 0.6680842352936947,
+          "p_value": 0.5040798242750051,
+          "beta_standardized": 0.018053722989762416,
+          "p_value_standardized": 0.5040798242750058
+        },
+        {
+          "covariate": "faced_ppda_5",
+          "beta": 0.006608019031416031,
+          "se": 0.003610867077776609,
+          "z": 1.8300366336068281,
+          "p_value": 0.06724446110715072,
+          "beta_standardized": 0.04255039722948233,
+          "p_value_standardized": 0.06724446110715082
+        },
+        {
+          "covariate": "faced_deep_5",
+          "beta": 0.009376554141888142,
+          "se": 0.00639403357855619,
+          "z": 1.4664536910369843,
+          "p_value": 0.14252472838625732,
+          "beta_standardized": 0.032220879476080926,
+          "p_value_standardized": 0.14252472838625596
+        },
+        {
+          "covariate": "own_ppda_10",
+          "beta": -0.000955601797625917,
+          "se": 0.004387150501095055,
+          "z": -0.21781833046014581,
+          "p_value": 0.8275706618155445,
+          "beta_standardized": -0.004809389440017767,
+          "p_value_standardized": 0.8275706618155384
+        },
+        {
+          "covariate": "own_deep_10",
+          "beta": 0.00955484882464606,
+          "se": 0.0074257207477144895,
+          "z": 1.2867234237951757,
+          "p_value": 0.19819070571488484,
+          "beta_standardized": 0.03698353601756515,
+          "p_value_standardized": 0.19819070571488495
+        },
+        {
+          "covariate": "faced_ppda_10",
+          "beta": -0.011154584509321844,
+          "se": 0.004387178560720585,
+          "z": -2.542541716717755,
+          "p_value": 0.011004946347135567,
+          "beta_standardized": -0.06404276422228256,
+          "p_value_standardized": 0.01100494634713553
+        },
+        {
+          "covariate": "faced_deep_10",
+          "beta": -0.006597900733695869,
+          "se": 0.007681847194324468,
+          "z": -0.8588950765084934,
+          "p_value": 0.3903984060047593,
+          "beta_standardized": -0.01960216580521995,
+          "p_value_standardized": 0.3903984060047584
+        }
+      ],
+      "correlation_matrix": {
+        "own_ppda_5": {
+          "own_ppda_5": 1.0,
+          "own_deep_5": -0.338,
+          "faced_ppda_5": -0.195,
+          "faced_deep_5": 0.391,
+          "own_ppda_10": 0.857,
+          "own_deep_10": -0.324,
+          "faced_ppda_10": -0.197,
+          "faced_deep_10": 0.366
+        },
+        "own_deep_5": {
+          "own_ppda_5": -0.338,
+          "own_deep_5": 1.0,
+          "faced_ppda_5": 0.536,
+          "faced_deep_5": -0.224,
+          "own_ppda_10": -0.352,
+          "own_deep_10": 0.922,
+          "faced_ppda_10": 0.567,
+          "faced_deep_10": -0.227
+        },
+        "faced_ppda_5": {
+          "own_ppda_5": -0.195,
+          "own_deep_5": 0.536,
+          "faced_ppda_5": 1.0,
+          "faced_deep_5": -0.324,
+          "own_ppda_10": -0.213,
+          "own_deep_10": 0.558,
+          "faced_ppda_10": 0.892,
+          "faced_deep_10": -0.32
+        },
+        "faced_deep_5": {
+          "own_ppda_5": 0.391,
+          "own_deep_5": -0.224,
+          "faced_ppda_5": -0.324,
+          "faced_deep_5": 1.0,
+          "own_ppda_10": 0.374,
+          "own_deep_10": -0.204,
+          "faced_ppda_10": -0.313,
+          "faced_deep_10": 0.866
+        },
+        "own_ppda_10": {
+          "own_ppda_5": 0.857,
+          "own_deep_5": -0.352,
+          "faced_ppda_5": -0.213,
+          "faced_deep_5": 0.374,
+          "own_ppda_10": 1.0,
+          "own_deep_10": -0.383,
+          "faced_ppda_10": -0.236,
+          "faced_deep_10": 0.444
+        },
+        "own_deep_10": {
+          "own_ppda_5": -0.324,
+          "own_deep_5": 0.922,
+          "faced_ppda_5": 0.558,
+          "faced_deep_5": -0.204,
+          "own_ppda_10": -0.383,
+          "own_deep_10": 1.0,
+          "faced_ppda_10": 0.627,
+          "faced_deep_10": -0.249
+        },
+        "faced_ppda_10": {
+          "own_ppda_5": -0.197,
+          "own_deep_5": 0.567,
+          "faced_ppda_5": 0.892,
+          "faced_deep_5": -0.313,
+          "own_ppda_10": -0.236,
+          "own_deep_10": 0.627,
+          "faced_ppda_10": 1.0,
+          "faced_deep_10": -0.367
+        },
+        "faced_deep_10": {
+          "own_ppda_5": 0.366,
+          "own_deep_5": -0.227,
+          "faced_ppda_5": -0.32,
+          "faced_deep_5": 0.866,
+          "own_ppda_10": 0.444,
+          "own_deep_10": -0.249,
+          "faced_ppda_10": -0.367,
+          "faced_deep_10": 1.0
+        }
+      },
+      "max_abs_correlation_offdiag": 0.922
+    },
+    "glm_league_fixed_effects": {
+      "label": "aggregato 5 leghe con effetti fissi di lega",
+      "n_matches": 3385,
+      "n_dropped_missing_features": 144,
+      "mean_goals": 2.8197932053175774,
+      "mean_lambda_total": 2.780622430522804,
+      "dispersion_pearson": 0.9669773827703262,
+      "lr_stat_vs_offset_only": 24.238547048476903,
+      "lr_df": 8,
+      "lr_p_value": 0.0020899072808606865,
+      "log_likelihood": -6348.244769578747,
+      "log_likelihood_offset_only": -6360.364043102985,
+      "coefficients": [
+        {
+          "covariate": "own_ppda_5",
+          "beta": 0.0036520703870836944,
+          "se": 0.0036323008101550587,
+          "z": 1.0054427146764289,
+          "p_value": 0.3146837205337364,
+          "beta_standardized": 0.021208323675398977,
+          "p_value_standardized": 0.3146837205337355
+        },
+        {
+          "covariate": "own_deep_5",
+          "beta": 0.004131093089332169,
+          "se": 0.0064110811419699765,
+          "z": 0.6443676187917939,
+          "p_value": 0.5193370771808214,
+          "beta_standardized": 0.01741041346612402,
+          "p_value_standardized": 0.519337077180821
+        },
+        {
+          "covariate": "faced_ppda_5",
+          "beta": 0.006365401272315963,
+          "se": 0.0036082887733747617,
+          "z": 1.764105278736471,
+          "p_value": 0.07771425590948466,
+          "beta_standardized": 0.040988131446718624,
+          "p_value_standardized": 0.07771425590948243
+        },
+        {
+          "covariate": "faced_deep_5",
+          "beta": 0.009177069610902033,
+          "se": 0.006391123686752503,
+          "z": 1.4359086227550608,
+          "p_value": 0.15102834454544037,
+          "beta_standardized": 0.031535385963967474,
+          "p_value_standardized": 0.15102834454543823
+        },
+        {
+          "covariate": "own_ppda_10",
+          "beta": -0.0011231446791554413,
+          "se": 0.004410694800081554,
+          "z": -0.25464121415398644,
+          "p_value": 0.7990002239221831,
+          "beta_standardized": -0.00565260569094982,
+          "p_value_standardized": 0.7990002239221825
+        },
+        {
+          "covariate": "own_deep_10",
+          "beta": 0.012188769869191927,
+          "se": 0.007614609630073767,
+          "z": 1.6007084356698464,
+          "p_value": 0.10944151189748699,
+          "beta_standardized": 0.04717853916268237,
+          "p_value_standardized": 0.109441511897486
+        },
+        {
+          "covariate": "faced_ppda_10",
+          "beta": -0.011149062150541919,
+          "se": 0.004407756533624661,
+          "z": -2.529418779256765,
+          "p_value": 0.011425161411531397,
+          "beta_standardized": -0.0640110582344,
+          "p_value_standardized": 0.011425161411530698
+        },
+        {
+          "covariate": "faced_deep_10",
+          "beta": -0.003152003832285021,
+          "se": 0.008113135313893717,
+          "z": -0.38850625687053747,
+          "p_value": 0.6976414246904903,
+          "beta_standardized": -0.009364509142066229,
+          "p_value_standardized": 0.6976414246904866
+        }
+      ],
+      "correlation_matrix": {
+        "own_ppda_5": {
+          "own_ppda_5": 1.0,
+          "own_deep_5": -0.338,
+          "faced_ppda_5": -0.195,
+          "faced_deep_5": 0.391,
+          "own_ppda_10": 0.857,
+          "own_deep_10": -0.324,
+          "faced_ppda_10": -0.197,
+          "faced_deep_10": 0.366
+        },
+        "own_deep_5": {
+          "own_ppda_5": -0.338,
+          "own_deep_5": 1.0,
+          "faced_ppda_5": 0.536,
+          "faced_deep_5": -0.224,
+          "own_ppda_10": -0.352,
+          "own_deep_10": 0.922,
+          "faced_ppda_10": 0.567,
+          "faced_deep_10": -0.227
+        },
+        "faced_ppda_5": {
+          "own_ppda_5": -0.195,
+          "own_deep_5": 0.536,
+          "faced_ppda_5": 1.0,
+          "faced_deep_5": -0.324,
+          "own_ppda_10": -0.213,
+          "own_deep_10": 0.558,
+          "faced_ppda_10": 0.892,
+          "faced_deep_10": -0.32
+        },
+        "faced_deep_5": {
+          "own_ppda_5": 0.391,
+          "own_deep_5": -0.224,
+          "faced_ppda_5": -0.324,
+          "faced_deep_5": 1.0,
+          "own_ppda_10": 0.374,
+          "own_deep_10": -0.204,
+          "faced_ppda_10": -0.313,
+          "faced_deep_10": 0.866
+        },
+        "own_ppda_10": {
+          "own_ppda_5": 0.857,
+          "own_deep_5": -0.352,
+          "faced_ppda_5": -0.213,
+          "faced_deep_5": 0.374,
+          "own_ppda_10": 1.0,
+          "own_deep_10": -0.383,
+          "faced_ppda_10": -0.236,
+          "faced_deep_10": 0.444
+        },
+        "own_deep_10": {
+          "own_ppda_5": -0.324,
+          "own_deep_5": 0.922,
+          "faced_ppda_5": 0.558,
+          "faced_deep_5": -0.204,
+          "own_ppda_10": -0.383,
+          "own_deep_10": 1.0,
+          "faced_ppda_10": 0.627,
+          "faced_deep_10": -0.249
+        },
+        "faced_ppda_10": {
+          "own_ppda_5": -0.197,
+          "own_deep_5": 0.567,
+          "faced_ppda_5": 0.892,
+          "faced_deep_5": -0.313,
+          "own_ppda_10": -0.236,
+          "own_deep_10": 0.627,
+          "faced_ppda_10": 1.0,
+          "faced_deep_10": -0.367
+        },
+        "faced_deep_10": {
+          "own_ppda_5": 0.366,
+          "own_deep_5": -0.227,
+          "faced_ppda_5": -0.32,
+          "faced_deep_5": 0.866,
+          "own_ppda_10": 0.444,
+          "own_deep_10": -0.249,
+          "faced_ppda_10": -0.367,
+          "faced_deep_10": 1.0
+        }
+      },
+      "max_abs_correlation_offdiag": 0.922
+    }
+  },
+  "sign_consistency_across_leagues": {
+    "own_ppda_5": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": 0.016497440217808843,
+          "p_value": 0.03377764918580771
+        },
+        {
+          "league": "Premier League",
+          "beta": 0.002777489552003646,
+          "p_value": 0.6656746218036215
+        },
+        {
+          "league": "La Liga",
+          "beta": -0.005138212858294031,
+          "p_value": 0.5873088466251591
+        },
+        {
+          "league": "Bundesliga",
+          "beta": 0.0074444058731579915,
+          "p_value": 0.399475843853335
+        },
+        {
+          "league": "Ligue 1",
+          "beta": -0.013743766364017697,
+          "p_value": 0.1628173891125444
+        }
+      ],
+      "distinct_signs": [
+        "+",
+        "-"
+      ],
+      "consistent_sign": false,
+      "significant_at_5pct": [
+        {
+          "league": "Serie A",
+          "beta": 0.016497440217808843,
+          "p_value": 0.03377764918580771
+        }
+      ],
+      "significant_and_consistent": false
+    },
+    "own_deep_5": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": -0.020600087440252407,
+          "p_value": 0.21670015863661507
+        },
+        {
+          "league": "Premier League",
+          "beta": 0.00125100474050435,
+          "p_value": 0.9188613085350931
+        },
+        {
+          "league": "La Liga",
+          "beta": 0.012922819270316337,
+          "p_value": 0.38516614114626935
+        },
+        {
+          "league": "Bundesliga",
+          "beta": 0.0005645022493293606,
+          "p_value": 0.967903449745552
+        },
+        {
+          "league": "Ligue 1",
+          "beta": 0.02348635128880966,
+          "p_value": 0.13423200191378035
+        }
+      ],
+      "distinct_signs": [
+        "+",
+        "-"
+      ],
+      "consistent_sign": false,
+      "significant_at_5pct": [],
+      "significant_and_consistent": false
+    },
+    "faced_ppda_5": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": 0.012453446648302996,
+          "p_value": 0.140938859192004
+        },
+        {
+          "league": "Premier League",
+          "beta": 0.0002834679794067006,
+          "p_value": 0.9659990890379767
+        },
+        {
+          "league": "La Liga",
+          "beta": 0.003477535310009776,
+          "p_value": 0.6952680262259003
+        },
+        {
+          "league": "Bundesliga",
+          "beta": 0.011282895978109733,
+          "p_value": 0.16716433248675866
+        },
+        {
+          "league": "Ligue 1",
+          "beta": 0.008030908085566982,
+          "p_value": 0.40997631430658055
+        }
+      ],
+      "distinct_signs": [
+        "+"
+      ],
+      "consistent_sign": true,
+      "significant_at_5pct": [],
+      "significant_and_consistent": false
+    },
+    "faced_deep_5": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": -0.019336343665840718,
+          "p_value": 0.26499071319814294
+        },
+        {
+          "league": "Premier League",
+          "beta": -0.0015138324001499795,
+          "p_value": 0.8988157085212782
+        },
+        {
+          "league": "La Liga",
+          "beta": 0.017322151661870944,
+          "p_value": 0.2737599908259105
+        },
+        {
+          "league": "Bundesliga",
+          "beta": 0.01441048265749322,
+          "p_value": 0.29188550893980014
+        },
+        {
+          "league": "Ligue 1",
+          "beta": 0.04109509318315152,
+          "p_value": 0.011089901981482735
+        }
+      ],
+      "distinct_signs": [
+        "+",
+        "-"
+      ],
+      "consistent_sign": false,
+      "significant_at_5pct": [
+        {
+          "league": "Ligue 1",
+          "beta": 0.04109509318315152,
+          "p_value": 0.011089901981482735
+        }
+      ],
+      "significant_and_consistent": false
+    },
+    "own_ppda_10": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": -0.012153347198166473,
+          "p_value": 0.20063495786117092
+        },
+        {
+          "league": "Premier League",
+          "beta": 0.0023018633127328473,
+          "p_value": 0.7687921587521205
+        },
+        {
+          "league": "La Liga",
+          "beta": 0.006641432120091645,
+          "p_value": 0.5638779407190817
+        },
+        {
+          "league": "Bundesliga",
+          "beta": -0.01249101890719689,
+          "p_value": 0.25503601106727003
+        },
+        {
+          "league": "Ligue 1",
+          "beta": 0.01837522894988541,
+          "p_value": 0.13008001328006485
+        }
+      ],
+      "distinct_signs": [
+        "+",
+        "-"
+      ],
+      "consistent_sign": false,
+      "significant_at_5pct": [],
+      "significant_and_consistent": false
+    },
+    "own_deep_10": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": 0.03675063086164571,
+          "p_value": 0.06159606330091969
+        },
+        {
+          "league": "Premier League",
+          "beta": 0.019207043400338953,
+          "p_value": 0.18447168629821642
+        },
+        {
+          "league": "La Liga",
+          "beta": 0.012366330517310231,
+          "p_value": 0.49776297660674784
+        },
+        {
+          "league": "Bundesliga",
+          "beta": 0.0032561795105129944,
+          "p_value": 0.8571432715515336
+        },
+        {
+          "league": "Ligue 1",
+          "beta": -0.010670975112689622,
+          "p_value": 0.5615807444123888
+        }
+      ],
+      "distinct_signs": [
+        "+",
+        "-"
+      ],
+      "consistent_sign": false,
+      "significant_at_5pct": [],
+      "significant_and_consistent": false
+    },
+    "faced_ppda_10": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": -0.011505230695051417,
+          "p_value": 0.24866409789395572
+        },
+        {
+          "league": "Premier League",
+          "beta": -0.00806243651690078,
+          "p_value": 0.2977538872223915
+        },
+        {
+          "league": "La Liga",
+          "beta": -0.006588963727714591,
+          "p_value": 0.5497264711242624
+        },
+        {
+          "league": "Bundesliga",
+          "beta": -0.013111587561937173,
+          "p_value": 0.268189281675683
+        },
+        {
+          "league": "Ligue 1",
+          "beta": -0.013256971425686737,
+          "p_value": 0.2779438830024239
+        }
+      ],
+      "distinct_signs": [
+        "-"
+      ],
+      "consistent_sign": true,
+      "significant_at_5pct": [],
+      "significant_and_consistent": false
+    },
+    "faced_deep_10": {
+      "leagues": [
+        {
+          "league": "Serie A",
+          "beta": 0.024662364181480385,
+          "p_value": 0.24317813622668416
+        },
+        {
+          "league": "Premier League",
+          "beta": 0.005686253656881739,
+          "p_value": 0.7075647571972246
+        },
+        {
+          "league": "La Liga",
+          "beta": 0.01029574164875949,
+          "p_value": 0.6033470922713468
+        },
+        {
+          "league": "Bundesliga",
+          "beta": -0.018112164659302554,
+          "p_value": 0.3083131504238683
+        },
+        {
+          "league": "Ligue 1",
+          "beta": -0.03657573454056422,
+          "p_value": 0.079053957867395
+        }
+      ],
+      "distinct_signs": [
+        "+",
+        "-"
+      ],
+      "consistent_sign": false,
+      "significant_at_5pct": [],
+      "significant_and_consistent": false
+    }
+  }
+}

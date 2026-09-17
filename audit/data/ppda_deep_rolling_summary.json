@@ -1,0 +1,285 @@
+{
+  "per_league": {
+    "Serie A": {
+      "matches": 1560,
+      "first_kickoff": "2022-08-13T16:30:00+00:00",
+      "last_kickoff": "2026-09-14T18:45:00+00:00",
+      "no_time_kickoffs": 0,
+      "unresolved_names": 0,
+      "windows": {
+        "home_r5": {
+          "full": 1494,
+          "partial": 27,
+          "insufficient": 39,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 848.90625,
+          "ppda_nan_full_windows": 0
+        },
+        "home_r10": {
+          "full": 1427,
+          "partial": 94,
+          "insufficient": 39,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 890.0,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r5": {
+          "full": 1491,
+          "partial": 27,
+          "insufficient": 42,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 849.1458333333334,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r10": {
+          "full": 1423,
+          "partial": 95,
+          "insufficient": 42,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 885.1145833333334,
+          "ppda_nan_full_windows": 0
+        }
+      }
+    },
+    "Premier League": {
+      "matches": 1560,
+      "first_kickoff": "2022-08-05T19:00:00+00:00",
+      "last_kickoff": "2026-09-14T19:00:00+00:00",
+      "no_time_kickoffs": 0,
+      "unresolved_names": 0,
+      "windows": {
+        "home_r5": {
+          "full": 1492,
+          "partial": 25,
+          "insufficient": 43,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 841.25,
+          "ppda_nan_full_windows": 0
+        },
+        "home_r10": {
+          "full": 1431,
+          "partial": 86,
+          "insufficient": 43,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 887.2708333333334,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r5": {
+          "full": 1495,
+          "partial": 27,
+          "insufficient": 38,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 846.0625,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r10": {
+          "full": 1431,
+          "partial": 91,
+          "insufficient": 38,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 889.1041666666666,
+          "ppda_nan_full_windows": 0
+        }
+      }
+    },
+    "La Liga": {
+      "matches": 1574,
+      "first_kickoff": "2022-08-12T19:00:00+00:00",
+      "last_kickoff": "2026-09-15T19:30:00+00:00",
+      "no_time_kickoffs": 0,
+      "unresolved_names": 0,
+      "windows": {
+        "home_r5": {
+          "full": 1504,
+          "partial": 26,
+          "insufficient": 44,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 839.9375,
+          "ppda_nan_full_windows": 0
+        },
+        "home_r10": {
+          "full": 1439,
+          "partial": 91,
+          "insufficient": 44,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 874.7916666666666,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r5": {
+          "full": 1499,
+          "partial": 32,
+          "insufficient": 43,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 838.0833333333334,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r10": {
+          "full": 1434,
+          "partial": 97,
+          "insufficient": 43,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 873.84375,
+          "ppda_nan_full_windows": 0
+        }
+      }
+    },
+    "Bundesliga": {
+      "matches": 1251,
+      "first_kickoff": "2022-08-05T18:30:00+00:00",
+      "last_kickoff": "2026-09-13T15:30:00+00:00",
+      "no_time_kickoffs": 0,
+      "unresolved_names": 0,
+      "windows": {
+        "home_r5": {
+          "full": 1192,
+          "partial": 23,
+          "insufficient": 36,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 1218.9166666666667,
+          "ppda_nan_full_windows": 0
+        },
+        "home_r10": {
+          "full": 1133,
+          "partial": 82,
+          "insufficient": 36,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 1253.125,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r5": {
+          "full": 1189,
+          "partial": 23,
+          "insufficient": 39,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 1218.9583333333333,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r10": {
+          "full": 1133,
+          "partial": 79,
+          "insufficient": 39,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 1261.0416666666667,
+          "ppda_nan_full_windows": 0
+        }
+      }
+    },
+    "Ligue 1": {
+      "matches": 1334,
+      "first_kickoff": "2022-08-05T19:00:00+00:00",
+      "last_kickoff": "2026-09-13T18:45:00+00:00",
+      "no_time_kickoffs": 0,
+      "unresolved_names": 0,
+      "windows": {
+        "home_r5": {
+          "full": 1274,
+          "partial": 25,
+          "insufficient": 35,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 1204.0,
+          "ppda_nan_full_windows": 0
+        },
+        "home_r10": {
+          "full": 1212,
+          "partial": 87,
+          "insufficient": 35,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 1239.15625,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r5": {
+          "full": 1270,
+          "partial": 24,
+          "insufficient": 40,
+          "n_min": 0,
+          "n_max": 5,
+          "age_days_max": 1204.75,
+          "ppda_nan_full_windows": 0
+        },
+        "away_r10": {
+          "full": 1212,
+          "partial": 82,
+          "insufficient": 40,
+          "n_min": 0,
+          "n_max": 10,
+          "age_days_max": 1239.0,
+          "ppda_nan_full_windows": 0
+        }
+      }
+    }
+  },
+  "totals": {
+    "matches": 7279,
+    "no_time_kickoffs": 0,
+    "unresolved_names": 0
+  },
+  "windows": [
+    5,
+    10
+  ],
+  "min_matches": 3,
+  "problems": [],
+  "unresolved_names": {},
+  "generated_at": "2026-09-16T17:23:54.735720+00:00",
+  "source_dir": "/home/user/SoccerMath2.0/SoccerMath/database",
+  "leakage_test": {
+    "windows": [
+      5,
+      10
+    ],
+    "seed": 20260916,
+    "sample_per_league": 25,
+    "matches_tested": 125,
+    "injected_future_matches": 2250,
+    "max_abs_difference": 0.0,
+    "differences": [],
+    "difference_count": 0,
+    "per_league": {
+      "Serie A": {
+        "tested": 25,
+        "eligible": 1392,
+        "matches": 1560
+      },
+      "Premier League": {
+        "tested": 25,
+        "eligible": 1401,
+        "matches": 1560
+      },
+      "La Liga": {
+        "tested": 25,
+        "eligible": 1402,
+        "matches": 1574
+      },
+      "Bundesliga": {
+        "tested": 25,
+        "eligible": 1105,
+        "matches": 1251
+      },
+      "Ligue 1": {
+        "tested": 25,
+        "eligible": 1191,
+        "matches": 1334
+      }
+    }
+  },
+  "output_csv": "/home/user/SoccerMath2.0/audit/data/ppda_deep_rolling.csv",
+  "rows_written": 7279
+}

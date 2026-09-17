@@ -237,7 +237,13 @@ jobs:
                      audit/data/ppda_player_acquisizione.json \
                      audit/data/ppda_player_copertura.json \
                      audit/data/ppda_player_copertura.md
-          # Rete di sicurezza: nessun altro file deve entrare nel commit.
+          # 1. Niente da committare NON e' un errore: una settimana senza
+          #    partite nuove e senza variazioni di copertura e' un esito normale.
+          if git diff --cached --quiet; then
+            echo "Nessun cambiamento: niente da committare."
+            exit 0
+          fi
+          # 2. Rete di sicurezza: nessun file fuori dal perimetro dichiarato.
           ALLOWED='^(SoccerMath/database/ppda_deep_[a-z0-9_]+\.json|audit/data/ppda_player_acquisizione\.json|audit/data/ppda_player_copertura\.(json|md))$'
           EXTRA="$(git diff --cached --name-only | grep -v -E "$ALLOWED" || true)"
           if [ -n "$EXTRA" ]; then
@@ -245,13 +251,12 @@ jobs:
             echo "$EXTRA"
             exit 1
           fi
+          # 3. ppda_deep invariati ma evidenza nuova = esito legittimo (nessuna
+          #    partita nuova, copertura comunque a referto). Era un errore nel
+          #    primo commit di questo workflow: il run 35125626021 e' fallito
+          #    qui perche' i ppda_deep erano identici al run precedente.
           if [ -z "$(git diff --cached --name-only | grep -E '^SoccerMath/database/ppda_deep_' || true)" ]; then
-            echo "::error::nessun file ppda_deep nel commit"
-            exit 1
-          fi
-          if git diff --cached --quiet; then
-            echo "Nessun cambiamento: niente da committare."
-            exit 0
+            echo "Nessuna partita nuova nei ppda_deep: committata solo l'evidenza di copertura."
           fi
           git commit -m "auto: archivio PPDA/deep completions Understat + evidenza copertura $(date -u +%Y-%m-%dT%H:%MZ)"
           for i in 1 2 3 4; do
