@@ -155,6 +155,42 @@ altre quattro leghe hanno l'ultima partita il 13-14 settembre, gia' dentro l'arc
 Non sono partite "in piu' dentro il perimetro": il perimetro resta 1571, la copertura
 resta 100%, e le partite del perimetro assenti dal file sono **0**.
 
+#### 0.3.1 Perche' un controllo diceva "+3 partite" e quello dopo "+6"
+
+I due controlli non sono in contraddizione: misurano la stessa grandezza in due momenti
+diversi, e il secondo e' stato avviato da un push, non dal cron. Ricostruito sui file e
+sui metadati dei run, non dedotto:
+
+| Momento | Fonte | Record La Liga | Fuori perimetro | Partite |
+|---|---|---|---|---|
+| 2026-09-15 | referto di fattibilita' (baseline) | 1571 | 0 | — |
+| 2026-09-16 16:18:02Z → 16:58:23Z | run `35120920395`, file al commit `139bc6c` | 1574 | **3** | 30829, 30821, 30825 |
+| 2026-09-17 12:35:05Z → 13:15:15Z | run `35221939505`, file al commit `2c9edcb` | 1577 | **6** | i 3 di sopra **+** 30822, 30824, 30826 |
+
+Il denominatore e' identico nei due controlli: l'archivio xG committato non e' cambiato
+fra `139bc6c` e HEAD (`git diff --stat 139bc6c HEAD -- 'SoccerMath/database/xG*'` vuoto),
+quindi il perimetro La Liga e' 1571 in entrambi. Ricalcolando l'insieme fuori perimetro
+sulle **due versioni del file** con `xg_perimeter`, le 3 partite del primo controllo sono
+un **sottoinsieme stretto** delle 6 del secondo (`A <= B` vero, `A \ B` vuoto, aggiunte
+esatte `{30822, 30824, 30826}`).
+
+Le tre aggiunte sono la giornata di **mercoledi 2026-09-16**, con kickoff alle 17:00Z
+(Atletico Madrid - Osasuna, Deportivo La Coruna - Sevilla) e alle 19:30Z (Barcelona -
+Racing Santander): l'acquisizione del run precedente si era chiusa alle **16:58:23Z**, un
+minuto e trentasette secondi prima del primo di quei kickoff. Non potevano esserci.
+
+Fra i due controlli **non e' passata nessuna esecuzione del cron settimanale**: i tre run
+di `update_ppda_player.yml` esistenti sono tutti `event=push` (`35120920395`,
+`35125626021`, `35221939505`) e il workflow vive solo su questo branch, con il primo
+`schedule` utile lunedi 2026-09-21 05:00 UTC. Il secondo controllo e' il run che il push
+del fix al workflow ha innescato.
+
+La causa resta quindi **una sola**: l'archivio PPDA/deep e' avanti rispetto all'archivio
+xG perche' `update_xg.yml` gira solo martedi e venerdi alle 06:00 UTC (`cron: '0 6 * * 2,5'`),
+mentre l'acquisizione PPDA/deep e' stata fatta a richiesta. Al 2026-09-17 lo scarto e' di
+due giornate di La Liga (15 e 16 settembre); si chiudera' con il run xG di venerdi
+2026-09-18 06:00 UTC.
+
 Valori acquisiti (per contesto, non sono soglie): PPDA mediana 11.48, p05 5.50,
 p95 25.55, minimo 2.30, massimo 193.00, 2 valori non calcolabili su 14564
 squadra-partite (14562 valori validi); deep completions mediana 6.00, p05 1.00, p95 15.00,
