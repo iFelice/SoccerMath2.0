@@ -204,10 +204,22 @@ revisione.
    per squadra, non lo storico partita-per-partita) — è un lavoro sullo
    strato dati, non solo sul modello, va pianificato come task a parte.
 
-### Nota permanente
+### Nota permanente e Monitoraggio Prospettico 2026/27
 2026/27 resta **solo monitoraggio prospettico**, mai usato per validare o
 tarare nulla — è l'unico modo per avere, in futuro, un vero test fuori
 campione non contaminato da retrospettiva.
+
+<!-- elo-engine-fix-monitoring:start -->
+#### Monitoraggio Prospettico Delta Motore Elo (Clean Engine No-Boost vs Live Prod Storico)
+* **Oggetto del tracciamento:** Confronto continuo e shadow-tracking su dato reale non ancora osservato (stagione 2026/27) tra il motore Elo pulito (`SoccerMath/models/elo_engine.py` senza `xg_adj` / `+ xg_elo_boost`) e il vecchio comportamento affetto da boost retroattivo.
+* **Obiettivo scientifico:** Convertire l'evidenza forte ottenuta retrospettivamente (TEST 2025/26: $\Delta \text{ROI} = +5.20\text{ pp}$ [CI 0.36; 9.64], 99.1% del vantaggio in Premier League da quote normali < 4.00, 11 scommesse decisive a gennaio 2026) in un risultato validato fuori campione su partite non ancora disputate.
+* **Metriche di controllo minime:**
+  1. $\Delta \text{ROI}$ aggregato e per singola lega a quota de-vigata (edge > 0, puntata fissa 10€);
+  2. Brier score multiclasse 1X2 e calibrazione di Murphy (Reliability/Resolution);
+  3. Win Rate % su partite differenziali;
+  4. Tracciamento dell'esposizione a quote estreme (>4.00) vs quote normali (<4.00) per verificare la persistenza dell'ancoraggio a quote di mercato stabili.
+* **Criterio di allerta / revisione:** Qualora su un campione prospettico $\ge 200$ scommesse il $\Delta \text{ROI}$ scendesse stabilmente sotto $-3.0\text{ pp}$ con deterioramento della Reliability (delta $> +0.005$), aprire audit dedicato.
+<!-- elo-engine-fix-monitoring:end -->
 
 ---
 
