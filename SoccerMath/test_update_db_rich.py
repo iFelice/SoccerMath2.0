@@ -229,20 +229,43 @@ class TestMergePerColonna(unittest.TestCase):
         self.assertEqual(stats["matched_exact"], 1)
         self.assertEqual(merged["B365H"].iloc[0], "1.22")
 
-    def test_nomi_non_allineati_non_vengono_appaiati_ne_forzati(self):
+    def test_nome_divergente_fuori_dalla_tabella_resta_non_appaiato(self):
+        """Una squadra divergente NON in FD_MERGE_ALIASES non deve essere
+        appaiata "per caso": nessun fuzzy, nessuna somiglianza sfruttata."""
+        # "Ath Madrid" e' il canone del Live, "Atletico Madrid" la grafia che il
+        # CSV potrebbe usare: NON e' in FD_MERGE_ALIASES e clean_name non la
+        # risolve, quindi la riga deve restare fuori (nessun appaiamento furbo).
         existing = frame([
-            {"Date": "29/08/2026", "HomeTeam": "SC Paderborn", "AwayTeam": "Freiburg",
+            {"Date": "29/08/2026", "HomeTeam": "Ath Madrid", "AwayTeam": "Barcelona",
              "FTHG": "1", "B365H": ""},
         ])
         source = frame([
-            {"Div": "D1", "Date": "29/08/2026", "HomeTeam": "Paderborn",
-             "AwayTeam": "Freiburg", "FTHG": "1", "B365H": "3.1"},
+            {"Div": "SP1", "Date": "29/08/2026", "HomeTeam": "Atletico Madrid",
+             "AwayTeam": "Barcelona", "FTHG": "1", "B365H": "3.1"},
         ])
         merged, stats = rich.merge_columns(existing, source)
         self.assertEqual(stats["unmatched"], 1)
         self.assertEqual(merged["B365H"].iloc[0], "")
-        self.assertIn("nome squadra non allineato", stats["unmatched_rows"][0]["reason"])
-        self.assertIn("SC Paderborn", stats["unmatched_rows"][0]["reason"])
+        self.assertEqual(stats["unmatched_by_category"][rich.CATEGORY_MISSING_ALIAS], 1)
+        self.assertEqual(stats["unmatched_rows"][0]["category"], rich.CATEGORY_MISSING_ALIAS)
+        self.assertIn("Ath Madrid", stats["unmatched_rows"][0]["reason"])
+
+    def test_alias_simile_ma_diverso_non_appiana(self):
+        """"Hull" e' in tabella, "Hull Town" no: solo il primo chiude la chiave."""
+        for source_team, expected_unmatched in (("Hull", 0), ("Hull Town", 1)):
+            with self.subTest(source_team=source_team):
+                existing = frame([
+                    {"Date": "22/08/2026", "HomeTeam": "Hull City", "AwayTeam": "Man United",
+                     "FTHG": "2", "B365H": ""},
+                ])
+                source = frame([
+                    {"Date": "22/08/2026", "HomeTeam": source_team,
+                     "AwayTeam": "Man United", "FTHG": "2", "B365H": "8.5"},
+                ])
+                merged, stats = rich.merge_columns(existing, source)
+                self.assertEqual(stats["unmatched"], expected_unmatched)
+                if expected_unmatched:
+                    self.assertEqual(merged["B365H"].iloc[0], "")
 
     def test_righe_duplicate_sulla_stessa_chiave_riusano_la_sorgente(self):
         # "Dortmund-HSV" e "Dortmund-Hamburg" sono la stessa partita scritta due
@@ -321,6 +344,159 @@ class TestMergePerColonna(unittest.TestCase):
                     banned.add(f"pd.{func.attr}")
         self.assertFalse(banned, f"trovate chiamate vietate nel modulo: {sorted(banned)}")
         self.assertIn("VIETATO", MODULE_SOURCE)
+
+
+class TestAliasDiMerge(unittest.TestCase):
+    """La tabella alias serve SOLO a chiudere la chiave di join, in direzione
+    inversa rispetto a clean_name: nome CSV football-data -> nome del Live."""
+
+    EXPECTED_ALIASES = {
+        "Coventry": "Coventry City",
+        "Hull": "Hull City",
+        "La Coruna": "Deportivo",
+        "Malaga": "Málaga",
+        "Paderborn": "SC Paderborn",
+    }
+    # Coppia (squadra nel *_Live.csv, altra squadra della stessa partita, lega)
+    FIXTURES = [
+        ("Coventry City", "Arsenal", "E0", "Coventry"),
+        ("Hull City", "Man United", "E0", "Hull"),
+        ("Deportivo", "Elche", "SP1", "La Coruna"),
+        ("Málaga", "Levante", "SP1", "Malaga"),
+        ("SC Paderborn", "Freiburg", "D1", "Paderborn"),
+    ]
+
+    def test_la_tabella_contiene_solo_le_cinque_voci_note(self):
+        self.assertEqual(rich.FD_MERGE_ALIASES, self.EXPECTED_ALIASES)
+
+    def test_ogni_alias_appiaia_la_partita(self):
+        for live_team, other, div, csv_team in self.FIXTURES:
+            with self.subTest(alias=f"{csv_team} -> {live_team}"):
+                existing = frame([
+                    {"Date": "29/08/2026", "HomeTeam": live_team, "AwayTeam": other,
+                     "FTHG": "1", "B365H": "", "HS": ""},
+                ])
+                source = frame([
+                    {"Div": div, "Date": "29/08/2026", "HomeTeam": csv_team,
+                     "AwayTeam": other, "FTHG": "1", "B365H": "2.5", "HS": "11"},
+                ])
+                merged, stats = rich.merge_columns(existing, source)
+                self.assertEqual(stats["unmatched"], 0,
+                                 f"l'alias {csv_team!r} non ha chiuso la chiave")
+                self.assertEqual(stats["matched_exact"], 1)
+                self.assertEqual(merged["B365H"].iloc[0], "2.5")
+                self.assertEqual(merged["HS"].iloc[0], "11")
+
+    def test_senza_la_tabella_quei_cinque_casi_non_si_chiudono(self):
+        """Dimostra che e' l'alias a chiudere, non clean_name da solo."""
+        for live_team, other, div, csv_team in self.FIXTURES:
+            with self.subTest(alias=f"{csv_team} -> {live_team}"):
+                existing = frame([
+                    {"Date": "29/08/2026", "HomeTeam": live_team, "AwayTeam": other,
+                     "FTHG": "1", "B365H": ""},
+                ])
+                source = frame([
+                    {"Div": div, "Date": "29/08/2026", "HomeTeam": csv_team,
+                     "AwayTeam": other, "FTHG": "1", "B365H": "2.5"},
+                ])
+                merged, stats = rich.merge_columns(existing, source, source_aliases={})
+                self.assertEqual(stats["unmatched"], 1)
+                self.assertEqual(merged["B365H"].iloc[0], "")
+
+    def test_l_alias_non_finisce_mai_nel_csv_risultante(self):
+        existing = frame([
+            {"Date": "29/08/2026", "HomeTeam": "Coventry City", "AwayTeam": "Arsenal",
+             "FTHG": "1", "B365H": ""},
+        ])
+        source = frame([
+            {"Date": "29/08/2026", "HomeTeam": "Coventry", "AwayTeam": "Arsenal",
+             "FTHG": "1", "B365H": "2.5"},
+        ])
+        merged, _ = rich.merge_columns(existing, source)
+        self.assertEqual(merged["HomeTeam"].iloc[0], "Coventry City")
+        self.assertEqual(merged["AwayTeam"].iloc[0], "Arsenal")
+        self.assertNotIn("Coventry", merged["HomeTeam"].tolist()[0].replace("Coventry City", ""))
+
+    def test_l_alias_non_sposta_le_colonne_di_produzione(self):
+        existing = frame([
+            {"Date": "29/08/2026", "HomeTeam": "Málaga", "AwayTeam": "Levante",
+             "FTHG": "3", "FTAG": "1", "FTR": "H", "B365H": ""},
+        ])
+        source = frame([
+            {"Date": "29/08/2026", "HomeTeam": "Malaga", "AwayTeam": "Levante",
+             "FTHG": "9", "FTAG": "9", "FTR": "A", "B365H": "2.5"},
+        ])
+        merged, _ = rich.merge_columns(existing, source)
+        for col in ("Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"):
+            self.assertEqual(merged[col].tolist(), existing[col].tolist(),
+                             f"la colonna di produzione {col} e' cambiata")
+        self.assertEqual(merged["B365H"].iloc[0], "2.5")
+
+    def test_l_alias_si_applica_prima_di_clean_name_e_solo_al_lato_csv(self):
+        # join_name: alias -> clean_name
+        self.assertEqual(rich.join_name("Coventry", rich.FD_MERGE_ALIASES), "Coventry City")
+        self.assertEqual(rich.join_name("Coventry"), "Coventry")
+        # il canone del file esistente NON viene aliasato (nessuna voce lo
+        # riguarda, e build_keys(existing) non riceve la tabella)
+        self.assertEqual(rich.build_keys(frame(
+            [{"Date": "29/08/2026", "HomeTeam": "Coventry", "AwayTeam": "Arsenal"}]
+        ))[0][1], "Coventry")
+        self.assertEqual(rich.build_keys(frame(
+            [{"Date": "29/08/2026", "HomeTeam": "Coventry", "AwayTeam": "Arsenal"}]
+        ), rich.FD_MERGE_ALIASES)[0][1], "Coventry City")
+
+
+class TestClassificazioneNonAppaiate(unittest.TestCase):
+    """Le due categorie non vanno sommate in un unico numero."""
+
+    def _run(self):
+        existing = frame([
+            # squadra divergente fuori tabella -> nome mancante in alias
+            {"Date": "29/08/2026", "HomeTeam": "Ath Madrid", "AwayTeam": "Barcelona",
+             "FTHG": "1", "B365H": "", "HS": ""},
+            # squadre allineate ma data dopo l'ultimo aggiornamento del CSV
+            {"Date": "16/09/2026", "HomeTeam": "Barcelona", "AwayTeam": "Santander",
+             "FTHG": "2", "B365H": "", "HS": ""},
+            # partita appaiata
+            {"Date": "29/08/2026", "HomeTeam": "Bayern", "AwayTeam": "Stuttgart",
+             "FTHG": "5", "B365H": "", "HS": ""},
+        ])
+        source = frame([
+            {"Div": "D1", "Date": "29/08/2026", "HomeTeam": "Bayern",
+             "AwayTeam": "Stuttgart", "FTHG": "5", "B365H": "1.22", "HS": "21"},
+            # le due squadre esistono nella fonte, ma non a quella data
+            {"Div": "SP1", "Date": "30/08/2026", "HomeTeam": "Barcelona",
+             "AwayTeam": "Santander", "FTHG": "1", "B365H": "1.5", "HS": "12"},
+        ])
+        merged, stats = rich.merge_columns(existing, source)
+        categories = {r["row_index"]: r["category"] for r in stats["unmatched_rows"]}
+        reasons = {r["row_index"]: r["reason"] for r in stats["unmatched_rows"]}
+        cov = rich.coverage_report(existing, merged, categories=categories,
+                                   reasons=reasons)
+        return merged, stats, cov
+
+    def test_categorie_separate(self):
+        _, stats, _ = self._run()
+        by_cat = stats["unmatched_by_category"]
+        self.assertEqual(by_cat[rich.CATEGORY_MISSING_ALIAS], 1)
+        self.assertEqual(by_cat[rich.CATEGORY_SOURCE_LAG], 1)
+        self.assertEqual(by_cat[rich.CATEGORY_OTHER], 0)
+        self.assertEqual(stats["unmatched"], 2)
+
+    def test_il_denominatore_esclude_solo_il_ritardo_della_fonte(self):
+        _, _, cov = self._run()
+        self.assertEqual(cov["played_matches"], 3)
+        self.assertEqual(cov["eligible_matches"], 2)      # 3 - 1 di ritardo fonte
+        self.assertEqual(cov["excluded_matches"], 1)
+        self.assertEqual(cov["excluded_rows"][0]["category"], rich.CATEGORY_SOURCE_LAG)
+        # base D' (appaiabili): 1 coperta su 2
+        self.assertAlmostEqual(cov["B365H"]["ratio"], 0.5)
+        # base grezza (tutte le concluse): 1 su 3, riportata e NON usata come D'
+        self.assertAlmostEqual(cov["B365H"]["ratio_all"], 1 / 3)
+        # la riga non coperta e' quella con il nome mancante, non quella di ritardo
+        self.assertEqual(len(cov["B365H"]["missing_rows"]), 1)
+        self.assertEqual(cov["B365H"]["missing_rows"][0]["category"],
+                         rich.CATEGORY_MISSING_ALIAS)
 
 
 class TestCopertura(unittest.TestCase):

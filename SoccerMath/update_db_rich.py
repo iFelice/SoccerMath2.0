@@ -31,6 +31,17 @@ Precedenza
 * football-data.co.uk vince sulle restanti 121 colonne (Div, Time, quote,
   tiri, corner, falli, cartellini), ma solo dove il valore attuale e' vuoto.
 
+Alias di merge (direzione inversa a clean_name)
+---------------------------------------------
+``clean_name`` normalizza l'API football-data.org sul canone football-data
+(canone di PRODUZIONE: dedup di app.py, MARKET_VALUES, archivio xG) e qui NON
+si tocca. Serve la direzione opposta: riportare la grafia dei CSV
+football-data.co.uk sul canone gia' in uso nei ``*_Live.csv``. Lo fa
+``FD_MERGE_ALIASES``, 5 voci note, lookup esatto, applicato PRIMA di
+``clean_name`` e solo al lato football-data.co.uk della chiave di join. Non
+esce da questo modulo: non e' esportato, non finisce nel CSV risultante, non
+tocca team_aliases.py.
+
 Nessun set fisso di colonne
 ---------------------------
 Le colonne bookmaker driftano fra stagioni (IW*/VC* nel 22/23, 1XB*/BF* nel
@@ -88,6 +99,50 @@ LOCAL_WINS: Tuple[str, ...] = KEY_COLUMNS + (
 )
 # Valori considerati "vuoti" in un CSV letto come testo.
 BLANK_TOKENS = {"", "nan", "na", "n/a", "none", "null", "<na>"}
+
+# ==========================================
+# Alias di merge (direzione INVERSA rispetto a clean_name)
+# ==========================================
+# ``clean_name`` / ``TEAM_NAME_MAP`` / ``UNDERSTAT_NAME_MAP`` normalizzano l'API
+# football-data.org sul canone football-data.co.uk: sono il canone di
+# PRODUZIONE (chiavi di dedup di app.py, MARKET_VALUES, archivio xG) e qui non
+# si toccano.
+#
+# Il problema opposto e' un altro: il canone dei ``*_Live.csv`` e' quello
+# dell'API, mentre i CSV di football-data.co.uk usano la loro grafia. Per 5
+# squadre del 2026/27 le due grafie divergono e la chiave di join non si
+# chiude. La tabella sotto serve SOLO a chiudere quella chiave.
+#
+# Regole di ingaggio (vincolo della commessa 1bis):
+#   * direzione: nome del CSV football-data.co.uk -> nome gia' in uso nel
+#     ``*_Live.csv``;
+#   * si applica PRIMA di clean_name e solo al lato football-data.co.uk del
+#     join (il file esistente e' il canone, non si aliasa);
+#   * lookup ESATTO, nessun fuzzy: 5 voci note e basta. Un sesto caso non
+#     appaiato deve restare non appaiato e finire nel referto come "nome
+#     mancante in alias", non essere indovinato;
+#   * NON esce da questo modulo: non viene esportata, non scrive il nome alias
+#     nel CSV risultante (HomeTeam/AwayTeam sono colonne protette e restano
+#     identiche), non tocca team_aliases.py, MARKET_VALUES o la deduplica di
+#     produzione.
+FD_MERGE_ALIASES: Dict[str, str] = {
+    # Premier League
+    "Coventry": "Coventry City",
+    "Hull": "Hull City",
+    # La Liga
+    "La Coruna": "Deportivo",
+    "Malaga": "Málaga",
+    # Bundesliga
+    "Paderborn": "SC Paderborn",
+}
+
+# Categorie delle righe non appaiate: NON vanno sommate in un unico numero.
+CATEGORY_MISSING_ALIAS = "nome mancante in alias"
+CATEGORY_SOURCE_LAG = "ritardo della fonte"
+CATEGORY_OTHER = "partita assente nel CSV"
+# Categorie fisiologiche: escluse dal denominatore della copertura D', ma
+# dichiarate una per una nel referto.
+EXCLUDED_FROM_COVERAGE = (CATEGORY_SOURCE_LAG,)
 # Tolleranza sul giorno (fusi/orari serali: la data API puo' slittare di 1).
 DEFAULT_TOLERANCE_DAYS = 1
 # Sonde di copertura richieste dalla commessa (quote Bet365 e tiri casa).
@@ -246,39 +301,70 @@ def _utc_now_iso() -> str:
 # ==========================================
 # Merge per colonna
 # ==========================================
-def build_keys(df: pd.DataFrame) -> List[Tuple[object, str, str]]:
-    """Chiave di allineamento: (data normalizzata, clean_name(H), clean_name(A))."""
+def join_name(name: str, aliases: Optional[Dict[str, str]] = None) -> str:
+    """Nome per la CHIAVE DI JOIN (e solo per quella).
+
+    Con ``aliases`` la grafia del CSV football-data.co.uk viene riportata al
+    canone gia' in uso nel ``*_Live.csv`` PRIMA di ``clean_name``: e' la
+    direzione inversa rispetto a ``clean_name``, che invece normalizza l'API
+    sul canone football-data. Senza alias (lato file esistente) e' semplicemente
+    ``clean_name``, perche' il file esistente e' gia' il canone.
+    """
+    raw = str(name).strip()
+    if aliases:
+        raw = aliases.get(raw, raw)     # lookup ESATTO: nessun fuzzy
+    return clean_name(raw)
+
+
+def build_keys(df: pd.DataFrame,
+               aliases: Optional[Dict[str, str]] = None
+               ) -> List[Tuple[object, str, str]]:
+    """Chiave di allineamento: (data normalizzata, join_name(H), join_name(A))."""
     dates = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce").dt.normalize()
-    homes = df["HomeTeam"].map(clean_name)
-    aways = df["AwayTeam"].map(clean_name)
+    homes = df["HomeTeam"].map(lambda n: join_name(n, aliases))
+    aways = df["AwayTeam"].map(lambda n: join_name(n, aliases))
     return list(zip(dates.tolist(), homes.tolist(), aways.tolist()))
 
 
 def classify_unmatched(key: Tuple[object, str, str],
                        source_teams: set,
                        source_max_date,
-                       tolerance_days: int = DEFAULT_TOLERANCE_DAYS) -> str:
-    """Motivo per cui una riga del file attuale non trova la sua partita.
+                       tolerance_days: int = DEFAULT_TOLERANCE_DAYS
+                       ) -> Tuple[str, str]:
+    """(categoria, motivo) di una riga del file attuale non appaiata.
 
-    Serve al criterio di copertura: ogni partita non coperta deve avere un
-    motivo dichiarato, non un generico "dato mancante".
+    Due categorie distinte, MAI sommate in un unico numero:
+
+    * ``nome mancante in alias``: una delle due squadre non esiste fra i nomi
+      del CSV football-data (dopo alias + clean_name). E' un difetto di
+      allineamento di questa commessa e non va escluso dal denominatore;
+    * ``ritardo della fonte``: le squadre ci sono, ma la data della partita e'
+      successiva all'ultima data presente nel CSV football-data.co.uk
+      (la fonte e' indietro rispetto all'API). E' fisiologico.
+
+    Precedenza: se manca il nome NON si puo' dire che sia solo ritardo, quindi
+    il nome vince sulla data.
     """
     date, home, away = key
     missing = sorted({t for t in (home, away) if t not in source_teams})
     if missing:
-        return ("nome squadra non allineato: " + ", ".join(missing) +
-                " non compare fra i nomi del CSV football-data dopo clean_name()")
-    if source_max_date is not None and date is not None and not pd.isna(date) \
+        return (CATEGORY_MISSING_ALIAS,
+                "squadra non allineata (" + ", ".join(missing) + "): nessun alias di merge "
+                "e nessuna regola di clean_name la riporta sul nome usato nel *_Live.csv")
+    if source_max_date is not None and date is not None and not _is_nat(date) \
             and date > source_max_date:
-        return ("partita successiva all'ultimo aggiornamento del CSV "
+        return (CATEGORY_SOURCE_LAG,
+                "partita successiva all'ultimo aggiornamento del CSV football-data "
                 f"(ultima data presente: {source_max_date:%d/%m/%Y})")
-    return ("partita assente nel CSV football-data "
-            f"(chiave data+squadre non trovata, tolleranza +/- {tolerance_days} giorni)")
+    return (CATEGORY_OTHER,
+            "partita assente nel CSV football-data (chiave data+squadre non trovata, "
+            f"tolleranza +/- {tolerance_days} giorni)")
 
 
 def merge_columns(existing: pd.DataFrame, source: pd.DataFrame,
                   protected: Sequence[str] = LOCAL_WINS,
                   tolerance_days: int = DEFAULT_TOLERANCE_DAYS,
+                  source_aliases: Optional[Dict[str, str]] = FD_MERGE_ALIASES,
                   ) -> Tuple[pd.DataFrame, Dict[str, object]]:
     """Allinea ``source`` su ``existing`` e riempie SOLO le celle vuote.
 
@@ -290,7 +376,9 @@ def merge_columns(existing: pd.DataFrame, source: pd.DataFrame,
         ``source`` non ancora presenti.
     """
     merged = existing.copy()
-    src_keys = build_keys(source)
+    # Gli alias si applicano SOLO al lato football-data.co.uk: il file esistente
+    # e' il canone di produzione e non si aliasa.
+    src_keys = build_keys(source, source_aliases)
     dst_keys = build_keys(existing)
 
     # Indice posizionale delle righe sorgenti. Chiavi duplicate (non dovrebbero
@@ -376,6 +464,8 @@ def merge_columns(existing: pd.DataFrame, source: pd.DataFrame,
         if kind != "unmatched":
             continue
         date, home, away = dst_keys[i]
+        category, reason = classify_unmatched(
+            dst_keys[i], source_teams, source_max_date, tolerance_days)
         unmatched.append({
             "row_index": int(i),
             "Date": merged["Date"].iloc[i],
@@ -383,8 +473,8 @@ def merge_columns(existing: pd.DataFrame, source: pd.DataFrame,
             "AwayTeam": merged["AwayTeam"].iloc[i],
             "HomeClean": home,
             "AwayClean": away,
-            "reason": classify_unmatched(dst_keys[i], source_teams, source_max_date,
-                                         tolerance_days),
+            "category": category,
+            "reason": reason,
         })
 
     stats: Dict[str, object] = {
@@ -398,6 +488,15 @@ def merge_columns(existing: pd.DataFrame, source: pd.DataFrame,
         "matched_tolerance": sum(1 for k in match_kind if k.startswith("date")),
         "unmatched": len(unmatched),
         "unmatched_rows": unmatched,
+        "unmatched_by_category": {
+            CATEGORY_MISSING_ALIAS: sum(1 for r in unmatched
+                                        if r["category"] == CATEGORY_MISSING_ALIAS),
+            CATEGORY_SOURCE_LAG: sum(1 for r in unmatched
+                                     if r["category"] == CATEGORY_SOURCE_LAG),
+            CATEGORY_OTHER: sum(1 for r in unmatched
+                                if r["category"] == CATEGORY_OTHER),
+        },
+        "aliases_applied": dict(sorted((source_aliases or {}).items())),
         "duplicate_source_keys": duplicate_source_keys,
         "source_rows": len(source),
         "source_rows_unused": len(source) - len(used_source_rows),
@@ -409,21 +508,57 @@ def merge_columns(existing: pd.DataFrame, source: pd.DataFrame,
 def coverage_report(original: pd.DataFrame, merged: pd.DataFrame,
                     probes: Sequence[str] = COVERAGE_PROBES,
                     played_probe: str = PLAYED_PROBE,
-                    reasons: Optional[Dict[int, str]] = None) -> Dict[str, object]:
-    """Copertura delle sonde sulle partite gia' concluse (FTHG valorizzato)."""
+                    categories: Optional[Dict[int, str]] = None,
+                    reasons: Optional[Dict[int, str]] = None,
+                    excluded_categories: Sequence[str] = EXCLUDED_FROM_COVERAGE
+                    ) -> Dict[str, object]:
+    """Copertura delle sonde (B365H, HS) sulle partite gia' concluse.
+
+    Due basi di calcolo, entrambe riportate e MAI mescolate:
+
+    * ``ratio``        = coperti / **righe appaiabili in linea di principio**
+                         (partite concluse MENO le righe in categoria
+                         "ritardo della fonte", che e' fisiologica). E' la base
+                         del criterio D';
+    * ``ratio_all``    = coperti / tutte le partite concluse: la copertura
+                         grezza, che nel 2026/27 resta sotto il 100% per La
+                         Liga per il solo ritardo della fonte.
+
+    Le righe escluse sono elencate per nome in ``excluded_rows``: il numero
+    esatto e' dichiarato, non nascosto.
+    """
     played = [not _is_blank(v) for v in original.get(played_probe, pd.Series(dtype=str)).tolist()]
     played_idx = [i for i, ok in enumerate(played) if ok]
+    categories = categories or {}
+    excluded_categories = tuple(excluded_categories)
+    eligible_idx = [i for i in played_idx
+                    if categories.get(int(i)) not in excluded_categories]
     out: Dict[str, object] = {
         "played_matches": len(played_idx),
+        "eligible_matches": len(eligible_idx),
+        "excluded_matches": len(played_idx) - len(eligible_idx),
+        "excluded_categories": list(excluded_categories),
+        "excluded_rows": [],
     }
+    for i in played_idx:
+        if categories.get(int(i)) in excluded_categories:
+            out["excluded_rows"].append({
+                "row_index": int(i),
+                "Date": merged["Date"].iloc[i],
+                "HomeTeam": merged["HomeTeam"].iloc[i],
+                "AwayTeam": merged["AwayTeam"].iloc[i],
+                "category": categories.get(int(i)),
+                "reason": (reasons or {}).get(int(i), ""),
+            })
     for probe in probes:
         if probe not in merged.columns:
-            out[probe] = {"covered": 0, "ratio": 0.0, "missing": len(played_idx),
-                          "missing_rows": []}
+            out[probe] = {"covered": 0, "covered_all": 0, "ratio": 0.0,
+                          "ratio_all": 0.0, "missing": len(eligible_idx),
+                          "eligible": len(eligible_idx), "missing_rows": []}
             continue
         values = merged[probe].tolist()
         missing = []
-        for i in played_idx:
+        for i in eligible_idx:
             if _is_blank(values[i]):
                 missing.append({
                     "row_index": int(i),
@@ -432,14 +567,19 @@ def coverage_report(original: pd.DataFrame, merged: pd.DataFrame,
                     "AwayTeam": merged["AwayTeam"].iloc[i],
                     "HomeClean": clean_name(merged["HomeTeam"].iloc[i]),
                     "AwayClean": clean_name(merged["AwayTeam"].iloc[i]),
+                    "category": categories.get(int(i), ""),
                     "reason": (reasons or {}).get(
-                        int(i), "colonna non presente nella riga appaiata"),
+                        int(i), "riga appaiata ma valore vuoto nella sorgente"),
                 })
-        covered = len(played_idx) - len(missing)
+        covered = len(eligible_idx) - len(missing)
+        covered_all = sum(1 for i in played_idx if not _is_blank(values[i]))
         out[probe] = {
             "covered": covered,
+            "eligible": len(eligible_idx),
+            "ratio": (covered / len(eligible_idx)) if eligible_idx else 0.0,
+            "covered_all": covered_all,
             "played": len(played_idx),
-            "ratio": (covered / len(played_idx)) if played_idx else 0.0,
+            "ratio_all": (covered_all / len(played_idx)) if played_idx else 0.0,
             "missing": len(missing),
             "missing_rows": missing,
         }
@@ -499,7 +639,9 @@ def enrich_league(league_name: str, info: Dict[str, object], season: str,
     existing = read_existing_csv(live_path)
     merged, stats = merge_columns(existing, source, tolerance_days=tolerance_days)
     reasons = {row["row_index"]: row["reason"] for row in stats["unmatched_rows"]}
-    coverage = coverage_report(existing, merged, reasons=reasons)
+    categories = {row["row_index"]: row["category"] for row in stats["unmatched_rows"]}
+    coverage = coverage_report(existing, merged, categories=categories,
+                               reasons=reasons)
 
     columns_before = list(existing.columns)
     written = False
@@ -539,10 +681,14 @@ def _print_run(entry: Dict[str, object]) -> None:
           f"(+{len(merge['columns_added'])}), celle riempite {merge['cells_filled']}, "
           f"copertura {probe_txt}")
     if merge["unmatched"]:
-        print(f"    NON appaiate ({merge['unmatched']}):")
+        by_cat = merge["unmatched_by_category"]
+        print(f"    NON appaiate ({merge['unmatched']}): "
+              f"{by_cat[CATEGORY_MISSING_ALIAS]} nome mancante in alias, "
+              f"{by_cat[CATEGORY_SOURCE_LAG]} ritardo della fonte, "
+              f"{by_cat[CATEGORY_OTHER]} altro")
         for row in merge["unmatched_rows"]:
-            print(f"      - {row['Date']} {row['HomeTeam']} - {row['AwayTeam']} "
-                  f"[{row['HomeClean']}/{row['AwayClean']}]")
+            print(f"      - [{row['category']}] {row['Date']} {row['HomeTeam']} - "
+                  f"{row['AwayTeam']} [{row['HomeClean']}/{row['AwayClean']}]")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

@@ -52,6 +52,7 @@ _REPO_ROOT = os.path.dirname(_AUDIT_DIR)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 
 import config  # noqa: E402
+import update_db_rich as rich  # noqa: E402
 from config import MARKET_VALUES, clean_name  # noqa: E402
 
 DEFAULT_SNAPSHOT = os.path.join(_AUDIT_DIR, "data", "rich_2627_snapshot")
@@ -62,7 +63,15 @@ PRODUCTION_COLUMNS = ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]
 # Le 10 colonne scritte da update_db.py dall'API football-data.org.
 API_COLUMNS = PRODUCTION_COLUMNS + ["HTHG", "HTAG", "HTR", "Matchday"]
 COVERAGE_PROBES = ("B365H", "HS")
-COVERAGE_THRESHOLD = 0.90
+COVERAGE_THRESHOLD = 0.95          # criterio D' (soglia riscritta dalla commessa 1bis)
+# (coperti, partite concluse) attesi dalla commessa 1bis, punto 4
+EXPECTED_D_FROM_COMMESSA = {
+    "Serie A": (40, 40),
+    "Premier League": (45, 45),
+    "La Liga": (69, 75),
+    "Bundesliga": (31, 31),
+    "Ligue 1": (40, 40),
+}
 
 LEAGUE_ORDER = ["Serie A", "Premier League", "La Liga", "Bundesliga", "Ligue 1"]
 
@@ -391,8 +400,9 @@ def build_markdown(data: dict) -> str:
         ["Criterio", "Esito", "Misura"],
         [[c["id"], c["esito"], c["misura"]] for c in data["criteria_summary"]]))
     add("")
-    add(f"STOP della commessa (punto 1d): **{data['stop']['triggered']}** — "
+    add(f"STOP della commessa precedente (punto 1d): **{data['stop']['triggered']}** — "
         f"{data['stop']['detail']}")
+    add(f"- risolto da: {data['stop']['resolved_by']}")
     add("")
 
     # ---------------- punto 1
@@ -493,32 +503,58 @@ def build_markdown(data: dict) -> str:
     add("anche con il nome canonico (`Dortmund-HSV` e `Dortmund-Hamburg`, `Alavés` e")
     add("`Alaves`): il merge per colonna tratta le due righe come la stessa partita.")
     add("")
-    add("### 1.6 STOP: nomi della stagione in corso non allineati")
+    add("### 1.6 Nomi divergenti e tabella alias di merge (commessa 1bis)")
     add("")
-    if data["stop"]["triggered"].upper().startswith("SÌ") or \
-       data["stop"]["triggered"].upper().startswith("SI"):
-        add("**STOP ATTIVO.** La commessa dice: _se anche UNA squadra della stagione in")
-        add("corso ha un `clean_name` che non coincide con quello già usato nel `*_Live.csv`,")
-        add("fermarsi e riferire. Non aggiungere alias_. L'esito è questo:")
-        add("")
-        rows = []
-        for league in LEAGUE_ORDER:
-            live_only = data["preliminary"]["divergent_teams"][league]["live_only"]
-            csv_only = data["preliminary"]["divergent_teams"][league]["csv_only"]
-            for name in live_only:
-                rows.append([league, f"`{name}` (nel *_Live.csv)",
-                             ", ".join(f"`{c}`" for c in csv_only) or "—",
-                             "nessun alias aggiunto: le partite restano non appaiate"])
-        add(_table(["Lega", "nome usato nel *_Live.csv (canonico)",
-                    "nome nel CSV football-data", "conseguenza"], rows))
-        add("")
-        add("Nessun alias è stato aggiunto a `team_aliases.py`, `TEAM_NAME_MAP` o")
-        add("`MARKET_VALUES`, nessuna modifica a `clean_name`: la conseguenza è che le")
-        add("partite di queste 5 squadre restano **non appaiate** e quindi non coperte")
-        add("(è la causa diretta dello sforamento della soglia del criterio D).")
-    else:
-        add("Nessun nome divergente: tutti i `clean_name` delle squadre della stagione in")
-        add("corso coincidono con quelli già usati nei `*_Live.csv`.")
+    add("La commessa precedente ha trovato **5 squadre** il cui nome nel CSV")
+    add("football-data.co.uk non coincide con quello già usato nel `*_Live.csv`")
+    add("(canone dell'API). Le rose 2026/27 sono confermate corrette su entrambe le")
+    add("fonti: il disallineamento è puramente ortografico.")
+    add("")
+    rows = []
+    for league in LEAGUE_ORDER:
+        live_only = data["preliminary"]["divergent_teams"][league]["live_only"]
+        csv_only = data["preliminary"]["divergent_teams"][league]["csv_only"]
+        for name in live_only:
+            csv_name = data["aliases_reverse"].get(name)
+            rows.append([league, f"`{name}`",
+                         f"`{csv_name}`" if csv_name else
+                         (", ".join(f"`{c}`" for c in csv_only) or "—"),
+                         f"`{csv_name}` → `{name}`" if csv_name else "NESSUN ALIAS"])
+    add(_table(["Lega", "nome nel *_Live.csv (canone di produzione)",
+                "nome nel CSV football-data", "alias di merge"], rows))
+    add("")
+    add("La soluzione NON tocca `clean_name`, `TEAM_NAME_MAP`, `UNDERSTAT_NAME_MAP`,")
+    add("`team_aliases.py` o `MARKET_VALUES`: quelli normalizzano l'API sul canone")
+    add("football-data e sono il canone di **produzione**. La commessa 1bis aggiunge la")
+    add("direzione opposta, una tabella di alias che vive e muore dentro")
+    add("`update_db_rich.py` e serve solo a calcolare la chiave di join:")
+    add("")
+    add("```python")
+    add("FD_MERGE_ALIASES = {   # nome CSV football-data -> nome gia' nel *_Live.csv")
+    for csv_name, live_name in sorted(data["aliases"].items(), key=lambda kv: kv[1]):
+        add(f"    {csv_name!r}: {live_name!r},")
+    add("}")
+    add("```")
+    add("")
+    add("- lookup **esatto**, 5 voci note, nessun fuzzy (un sesto caso resta fuori e");
+    add("  finisce nel referto come «nome mancante in alias»);")
+    add("- applicata **prima** di `clean_name` e **solo** al lato football-data.co.uk")
+    add("  della chiave: il file esistente è il canone e non viene aliasato;")
+    add("- `HomeTeam`/`AwayTeam` del CSV risultante restano quelli di oggi: le colonne")
+    add("  sono protette, quindi il nome alias non viene mai scritto nel database.")
+    add("")
+    add("#### Righe duplicate nei `*_Live.csv` (fuori dal perimetro 1bis)")
+    add("")
+    dup = data["duplicate_rows"]
+    add(f"Righe totali **{dup['rows']}**, chiavi uniche **{dup['unique_keys']}**: "
+        f"**{dup['duplicates']} righe duplicate** (`Alavés`/`Alaves`,")
+    add("`Rayo Vallecano`/`Vallecano`, `Espanyol`/`Espanol`, `Atleti`/`Ath Madrid`, ...:")
+    add("`update_db.py` deduce i nomi grezzi dell'API, non su quelli puliti). Il merge")
+    add("per colonna tratta le righe duplicate come la stessa partita (la riga sorgente")
+    add("viene riusata, non contesa) e **non** le deduplica: la deduplica è produzione e")
+    add("va con l'integrazione (1ter), insieme al merge per colonna dentro `update_db.py`.")
+    add("Interferenza con i conteggi: nessuna — la copertura è calcolata sulle righe del")
+    add("`*_Live.csv`, duplicate comprese, e ogni riga duplicata riceve gli stessi valori.")
     add("")
     add("### 1.7 Deriva delle colonne bookmaker e colonne \"stabili\"")
     add("")
@@ -551,9 +587,9 @@ def build_markdown(data: dict) -> str:
     add("")
 
     # ---------------- criteri
-    add("## 2. Criteri di accettazione")
+    add("## 2. Criteri di accettazione (A\'/B\'/C\'/E\' ri-verificati, D\' riscritto)")
     add("")
-    add("### A) Invarianza di produzione")
+    add("### A') Invarianza di produzione (ri-verifica)")
     add("")
     a = data["criteria"]["A"]
     add(_table(["Controllo", "Esito", "Misura"],
@@ -594,7 +630,7 @@ def build_markdown(data: dict) -> str:
     add("Confronto con il fixture committato (`SoccerMath/test_fixtures/1x2_invariance.json`,")
     add(f"sha256 `{a['fixture']['sha_committed'][:16]}…`): {a['fixture']['vs_committed']}")
     add("")
-    add("### B) Idempotenza")
+    add("### B') Idempotenza (ri-verifica)")
     add("")
     b = data["criteria"]["B"]
     add(_table(["Lega", "sha256 dopo run 1", "sha256 dopo run 2", "celle riscritte nel run 2",
@@ -609,7 +645,7 @@ def build_markdown(data: dict) -> str:
     add(f"Esito: **{b['esito']}** — il secondo run non produce alcun diff sui CSV "
         f"(celle riscritte: {b['total_cells_filled_run2']}).")
     add("")
-    add("### C) Non regressione del bug di dedup")
+    add("### C') Non regressione del bug di dedup (ri-verifica)")
     add("")
     c = data["criteria"]["C"]
     add("Simulazione della sequenza reale `update_db_rich.py → update_db.py → update_db_rich.py`.")
@@ -636,37 +672,80 @@ def build_markdown(data: dict) -> str:
     for chunk in c["prerequisite"].split(". "):
         add("> " + chunk.strip().rstrip(".") + ".")
     add("")
-    add("### D) Copertura di `B365H` e `HS` (soglia 90%)")
+    add("### D') Copertura di `B365H` e `HS` (soglia 95% sulle righe appaiabili)")
     add("")
     d = data["criteria"]["D"]
-    add(_table(["Lega", "partite concluse", "B365H non nulle", "% B365H", "HS non nulli",
-                "% HS", "Esito"],
+    add("Base del criterio: partite concluse **meno** le righe in categoria «ritardo della")
+    add("fonte» (fisiologiche, dichiarate una per una qui sotto). La copertura grezza su")
+    add("tutte le partite concluse è riportata accanto, non al posto.")
+    add("")
+    add(_table(["Lega", "concluse", "escluse (ritardo fonte)", "appaiabili",
+                "coperti B365H", "% su appaiabili (D')", "% su tutte (grezza)",
+                "atteso commessa", "Esito"],
                [[league,
                  d["per_league"][league]["played"],
+                 d["per_league"][league]["excluded"],
+                 d["per_league"][league]["eligible"],
                  d["per_league"][league]["B365H"]["covered"],
                  f"{d['per_league'][league]['B365H']['ratio']:.1%}",
-                 d["per_league"][league]["HS"]["covered"],
-                 f"{d['per_league'][league]['HS']['ratio']:.1%}",
+                 f"{d['per_league'][league]['B365H']['ratio_all']:.1%}",
+                 d["per_league"][league]["expected_text"],
                  "OK" if d["per_league"][league]["ok"] else "SOTTO SOGLIA"]
                 for league in LEAGUE_ORDER]))
+    add("")
+    add("Le due sonde coincidono sempre (arrivano dalla stessa riga del CSV): "
+        "`HS` = " + "; ".join(
+            f"{league} {d['per_league'][league]['HS']['covered']}/"
+            f"{d['per_league'][league]['HS']['eligible']}"
+            for league in LEAGUE_ORDER) + ".")
     add("")
     add(f"Esito complessivo: **{d['esito']}**. Leghe sotto soglia: "
         f"{', '.join(d['under_threshold']) or 'nessuna'}.")
     add("")
-    add("Motivo per partita non coperta (le due sonde coincidono sempre: le colonne")
-    add("arrivano dalla stessa riga del CSV):")
+    add("#### Atteso vs ottenuto")
+    add("")
+    add(_table(["Lega", "atteso (commessa 1bis)", "ottenuto (concluse)", "ottenuto (appaiabili)",
+                "differenza"],
+               [[league,
+                 d["per_league"][league]["expected_text"],
+                 f"{d['per_league'][league]['B365H']['covered_all']}/"
+                 f"{d['per_league'][league]['played']} = "
+                 f"{d['per_league'][league]['B365H']['ratio_all']:.1%}",
+                 f"{d['per_league'][league]['B365H']['covered']}/"
+                 f"{d['per_league'][league]['eligible']} = "
+                 f"{d['per_league'][league]['B365H']['ratio']:.1%}",
+                 d["per_league"][league]["delta_text"] or "nessuna"]
+                for league in LEAGUE_ORDER]))
+    add("")
+    if d["delta_explanation"]:
+        for line in d["delta_explanation"]:
+            add(line)
+        add("")
+    add("Righe escluse dal denominatore (ritardo della fonte), per nome:")
     add("")
     rows = []
     for league in LEAGUE_ORDER:
-        for row in d["per_league"][league]["B365H"]["missing_rows"]:
+        for row in d["per_league"][league]["excluded_rows"]:
             rows.append([league, row["Date"], f"{row['HomeTeam']} - {row['AwayTeam']}",
                          row["reason"]])
     if rows:
         add(_table(["Lega", "Data", "Partita", "Motivo"], rows))
     else:
-        add("_nessuna partita scoperta_")
+        add("_nessuna_")
     add("")
-    add("### E) Test unitari del merge per colonna")
+    add("Righe appaiabili ma non coperte (queste sì sono un difetto della commessa):")
+    add("")
+    rows = []
+    for league in LEAGUE_ORDER:
+        for row in d["per_league"][league]["B365H"]["missing_rows"]:
+            rows.append([league, row["Date"], f"{row['HomeTeam']} - {row['AwayTeam']}",
+                         row.get("category", ""), row["reason"]])
+    if rows:
+        add(_table(["Lega", "Data", "Partita", "Categoria", "Motivo"], rows))
+    else:
+        add("_nessuna: tutte le righe appaiabili sono coperte_")
+    add("")
+    add("### E') Test unitari del merge per colonna (ri-verifica + nuovi)")
     add("")
     e = data["criteria"]["E"]
     add(f"- file: `{e['file']}`")
@@ -694,12 +773,28 @@ def build_markdown(data: dict) -> str:
     for league in LEAGUE_ORDER:
         for row in data["unmatched"]["per_league"][league]:
             rows.append([league, row["Date"], f"{row['HomeTeam']} - {row['AwayTeam']}",
-                         f"{row['HomeClean']} / {row['AwayClean']}", row["reason"]])
-    add(_table(["Lega", "Data", "Partita (come nel *_Live.csv)", "chiave pulita", "motivo"],
-               rows or [["—", "—", "nessuna", "—", "—"]]))
+                         f"{row['HomeClean']} / {row['AwayClean']}", row["category"],
+                         row["reason"]])
+    add(_table(["Lega", "Data", "Partita (come nel *_Live.csv)", "chiave pulita",
+                "categoria", "motivo"],
+               rows or [["—", "—", "nessuna", "—", "—", "—"]]))
     add("")
     add(f"Totale: {data['unmatched']['total']} righe non appaiate su "
         f"{data['unmatched']['total_rows']} righe complessive.")
+    add("")
+    add("Ripartizione per categoria (le due categorie NON si sommano in un unico")
+    add("numero, per costruzione):")
+    add("")
+    add(_table(["Categoria", "Righe", "Significato"],
+               [[cat, data["unmatched"]["by_category"].get(cat, 0), meaning]
+                for cat, meaning in (
+                    (rich.CATEGORY_MISSING_ALIAS,
+                     "difetto di allineamento di questa commessa: conta nel denominatore"),
+                    (rich.CATEGORY_SOURCE_LAG,
+                     "fonte football-data.co.uk indietro rispetto all'API: fisiologica, "
+                     "esclusa dal denominatore e dichiarata per nome"),
+                    (rich.CATEGORY_OTHER,
+                     "né nome né data: da spiegare riga per riga (atteso 0)"))]))
     add("")
     add("Passaggi di allineamento: prima data esatta, poi tolleranza ±1 giorno a parità di")
     add(f"squadre pulite. Righe appaiate al secondo passaggio: "
@@ -767,15 +862,22 @@ def main(argv=None) -> int:
                     os.path.join(work, "audit", "make_1x2_invariance_fixture.py"))
     work_db = os.path.join(work_soccer, "database")
 
+    real_db = os.path.join(repo_soccer, "database")
     print(f"[1/8] verifica preliminare dei CSV grezzi in {args.source_dir}")
     preliminary = build_preliminary_checks(
-        args.source_dir, work_db, historical_dir=os.path.join(repo_soccer, "database"))
+        args.source_dir, work_db, historical_dir=real_db)
     before = snapshot_db(work_db)
+    # Stato del database DI PRODUZIONE (sola lettura): serve al criterio A', che
+    # chiede il confronto cella per cella fra produzione e copia arricchita.
+    production = snapshot_db(real_db)
+    same_as_production = all(
+        before[lg]["sha256"] == production[lg]["sha256"] for lg in LEAGUE_ORDER)
 
     # STOP
     divergent = {lg: preliminary["divergent_teams"][lg] for lg in LEAGUE_ORDER}
     n_divergent = sum(len(v["live_only"]) for v in divergent.values())
     stop = {
+        "resolved_by": "commessa 1bis: tabella FD_MERGE_ALIASES dentro update_db_rich.py",
         "triggered": "SÌ" if n_divergent else "NO",
         "n_teams": n_divergent,
         "detail": (f"{n_divergent} squadre su 5 leghe hanno un nome divergente fra il CSV "
@@ -830,7 +932,18 @@ def main(argv=None) -> int:
 
     invariance_verdict_before = unittest_summary(combined_output(invariance_before))
     invariance_verdict_after = unittest_summary(combined_output(invariance_after))
+    prod_diff_production = []
+    for league in LEAGUE_ORDER:
+        if production[league]["production_rows"] != after[league]["production_rows"]:
+            for i, (old, new) in enumerate(zip(production[league]["production_rows"],
+                                               after[league]["production_rows"])):
+                if old != new:
+                    prod_diff_production.append(
+                        {"league": league, "row": i, "before": old, "after": new})
     a_checks = [
+        {"name": "copia isolata == produzione all'ingresso",
+         "esito": "IDENTICA" if same_as_production else "DIVERSA",
+         "misura": "sha256 dei 5 *_Live.csv confrontati prima del run"},
         {"name": "test_pt19_totali_invariance.py prima",
          "esito": "VERDE" if invariance_before["ok"] else "ROSSO",
          "misura": invariance_verdict_before},
@@ -852,6 +965,10 @@ def main(argv=None) -> int:
                          for lg in LEAGUE_ORDER) else "MODIFICATE",
          "misura": "; ".join(f"{lg}: {before[lg]['columns_count']}→"
                              f"{after[lg]['columns_count']}" for lg in LEAGUE_ORDER)},
+        {"name": "6 colonne: DB di produzione vs copia arricchita",
+         "esito": "IDENTICHE" if not prod_diff_production else "MODIFICATE",
+         "misura": f"{len(prod_diff_production)} celle diverse su {rows_before * 6} "
+                   f"fra SoccerMath/database/ e la copia isolata dopo il run"},
         {"name": "chiavi (Date, clean H, clean A)",
          "esito": "IDENTICHE" if not any(keys_removed.values()) and not any(keys_added.values())
                   else "MODIFICATE",
@@ -861,7 +978,7 @@ def main(argv=None) -> int:
     criterion_a = {
         "checks": a_checks,
         "esito": "VERDE" if all(c["esito"] in ("VERDE", "IDENTICO", "IDENTICHE",
-                                                "SOLO AGGIUNTE")
+                                                "SOLO AGGIUNTE", "IDENTICA")
                                 for c in a_checks) else "ROSSO",
         "invariance": {
             "before": {"ok": invariance_before["ok"], "verdict": invariance_verdict_before},
@@ -950,20 +1067,72 @@ def main(argv=None) -> int:
         "run3_exit_code": run3["returncode"],
     }
 
-    print("[7/8] criteri D e E")
+    print("[7/8] criteri D' e E'")
     per_league_d = {}
     for league in LEAGUE_ORDER:
         cov = run1_report["leagues"][league]["coverage"]
         ok = all(cov[p]["ratio"] >= COVERAGE_THRESHOLD for p in COVERAGE_PROBES)
+        exp_cov, exp_played = EXPECTED_D_FROM_COMMESSA.get(league, (None, None))
+        got_cov = cov["B365H"]["covered_all"]
+        got_played = cov["played_matches"]
+        expected_text = (f"{exp_cov}/{exp_played} = {exp_cov / exp_played:.1%}"
+                         if exp_cov is not None else "non dichiarato")
+        delta_text = ""
+        if exp_cov is not None and (got_cov, got_played) != (exp_cov, exp_played):
+            delta = got_cov - exp_cov
+            delta_text = (f"{got_cov}/{got_played} = {got_cov / got_played:.1%} contro "
+                          f"{expected_text} atteso: {delta:+d} "
+                          f"{'riga' if abs(delta) == 1 else 'righe'}")
         per_league_d[league] = {
             "played": cov["played_matches"],
+            "eligible": cov["eligible_matches"],
+            "excluded": cov["excluded_matches"],
+            "excluded_rows": cov["excluded_rows"],
             "B365H": cov["B365H"], "HS": cov["HS"], "ok": ok,
+            "expected_text": expected_text,
+            "delta_text": delta_text,
         }
     under = [lg for lg in LEAGUE_ORDER if not per_league_d[lg]["ok"]]
+
+    # Spiegazione automatica degli scostamenti dall'atteso: ogni riga esclusa che
+    # porta una squadra coperta da alias era contata, nel referto precedente,
+    # nella categoria "nome mancante in alias" (17 righe per la La Liga).
+    delta_explanation = []
+    for league in LEAGUE_ORDER:
+        if not per_league_d[league]["delta_text"]:
+            continue
+        aliased = {v for v in rich.FD_MERGE_ALIASES.values()}
+        delta_explanation.append(f"- **{league}**: {per_league_d[league]['delta_text']}. "
+                                 f"Righe non coperte, una per una:")
+        reclassified = []
+        for row in per_league_d[league]["excluded_rows"]:
+            teams = {clean_name(row["HomeTeam"]), clean_name(row["AwayTeam"])}
+            touched = sorted(teams & aliased)
+            if touched:
+                reclassified.append(f"`{row['Date']} {row['HomeTeam']} - {row['AwayTeam']}`")
+            note = ("porta una squadra coperta da alias (" + ", ".join(touched) + "): senza "
+                    "alias era conteggiata fra i «nomi mancanti in alias», con l'alias è "
+                    "riclassificata come ritardo della fonte"
+                    if touched else "nessuna squadra coperta da alias: era già contata come "
+                                    "ritardo della fonte anche senza alias")
+            delta_explanation.append(f"  - `{row['Date']} {row['HomeTeam']} - "
+                                     f"{row['AwayTeam']}`: {note}.")
+        if reclassified:
+            delta_explanation.append(
+                f"  - Effetto netto: le righe di ritardo fonte passano da "
+                f"{len(per_league_d[league]['excluded_rows']) - len(reclassified)} a "
+                f"{len(per_league_d[league]['excluded_rows'])} e la base D' da "
+                f"{per_league_d[league]['eligible'] + len(reclassified)} a "
+                f"{per_league_d[league]['eligible']}: "
+                + ", ".join(reclassified) +
+                " non è coperta perché la fonte non ha ancora quella partita "
+                "(ultimo aggiornamento del CSV: 14/09/2026), non per un difetto di "
+                "allineamento. La soglia non è stata toccata per far tornare il numero.")
     criterion_d = {
         "per_league": per_league_d,
         "threshold": COVERAGE_THRESHOLD,
         "under_threshold": under,
+        "delta_explanation": delta_explanation,
         "esito": "VERDE" if not under else f"ROSSO (sotto soglia: {', '.join(under)})",
     }
 
@@ -979,32 +1148,45 @@ def main(argv=None) -> int:
     }
 
     unmatched = {"per_league": {}, "total": 0, "total_rows": rows_after,
-                 "matched_with_tolerance": 0}
+                 "matched_with_tolerance": 0, "by_category": {}}
     for league in LEAGUE_ORDER:
         merge = run1_report["leagues"][league]["merge"]
         unmatched["per_league"][league] = merge["unmatched_rows"]
         unmatched["total"] += merge["unmatched"]
         unmatched["matched_with_tolerance"] += merge["matched_tolerance"]
+        for cat, count in merge["unmatched_by_category"].items():
+            unmatched["by_category"][cat] = unmatched["by_category"].get(cat, 0) + count
 
     criteria_summary = [
-        {"id": "A — invarianza di produzione", "esito": criterion_a["esito"],
+        {"id": "A' — invarianza di produzione (ri-verifica)", "esito": criterion_a["esito"],
          "misura": f"test 1X2 verde prima e dopo; fixture identico "
                    f"({'sì' if fixture_identical else 'NO'}); 6 colonne: "
                    f"{len(prod_diff)} celle cambiate; righe {rows_before}→{rows_after}"},
-        {"id": "B — idempotenza", "esito": criterion_b["esito"],
+        {"id": "B' — idempotenza (ri-verifica)", "esito": criterion_b["esito"],
          "misura": f"secondo run: {criterion_b['total_cells_filled_run2']} celle riscritte, "
                    f"sha256 identici per tutte e 5 le leghe"},
-        {"id": "C — non regressione del bug di dedup", "esito": criterion_c["esito"],
+        {"id": "C' — non regressione del bug di dedup (ri-verifica)", "esito": criterion_c["esito"],
          "misura": f"{total_zeroed} celle ricche azzerate dal merge di update_db.py "
                    f"(prerequisito dichiarato per la commessa di integrazione)"},
-        {"id": "D — copertura ≥ 90%", "esito": criterion_d["esito"],
-         "misura": "; ".join(f"{lg}: {per_league_d[lg]['B365H']['ratio']:.1%}"
-                             for lg in LEAGUE_ORDER)},
-        {"id": "E — test unitari del merge", "esito": criterion_e["verdict"],
-         "misura": f"{tests_run} test offline, tutti verdi"},
+        {"id": "D' — copertura ≥ 95% sulle appaiabili", "esito": criterion_d["esito"],
+         "misura": "; ".join(f"{lg}: {per_league_d[lg]['B365H']['ratio']:.1%} "
+                             f"({per_league_d[lg]['B365H']['covered']}/"
+                             f"{per_league_d[lg]['eligible']} appaiabili; "
+                             f"{per_league_d[lg]['B365H']['ratio_all']:.1%} su tutte le "
+                             f"concluse)" for lg in LEAGUE_ORDER)},
+        {"id": "E' — test unitari del merge", "esito": criterion_e["verdict"],
+         "misura": f"{tests_run} test offline, tutti verdi "
+                   f"(34 della commessa precedente + {tests_run - 34} nuovi sugli alias "
+                   f"e sulla classificazione)"},
     ]
 
+    total_rows = sum(before[lg]["rows"] for lg in LEAGUE_ORDER)
+    total_keys = sum(before[lg]["unique_keys"] for lg in LEAGUE_ORDER)
     data = {
+        "aliases": dict(rich.FD_MERGE_ALIASES),
+        "aliases_reverse": {v: k for k, v in rich.FD_MERGE_ALIASES.items()},
+        "duplicate_rows": {"rows": total_rows, "unique_keys": total_keys,
+                           "duplicates": total_rows - total_keys},
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "reproduce_cmd": "python audit/rich_db_audit.py",
         "snapshot_dir": os.path.relpath(args.source_dir, _REPO_ROOT),

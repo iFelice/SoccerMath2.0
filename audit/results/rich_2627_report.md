@@ -2,7 +2,7 @@
 
 Referto GENERATO da `python audit/rich_db_audit.py` (non riscritto a mano).
 
-- generato il: `2026-09-17T20:15:58Z` _(unica riga variabile fra due rigenerazioni)_
+- generato il: `2026-09-18T12:47:27Z` _(unica riga variabile fra due rigenerazioni)_
 - rigenerabile con: `python audit/rich_db_audit.py`
 - snapshot della fonte: `audit/data/rich_2627_snapshot` (5 CSV grezzi, byte per byte, + `manifest.json`)
 - file della commessa: `SoccerMath/update_db_rich.py` (nuovo), `SoccerMath/test_update_db_rich.py` (nuovo), `SoccerMath/config.py` (solo il campo `fd_code` in `LEAGUES_CONFIG`), `audit/rich_db_audit.py` (nuovo), `audit/data/rich_2627_snapshot/` (byte grezzi della fonte), `audit/results/rich_2627_report.{md,json}`
@@ -12,13 +12,14 @@ Referto GENERATO da `python audit/rich_db_audit.py` (non riscritto a mano).
 
 | Criterio | Esito | Misura |
 |---|---|---|
-| A — invarianza di produzione | VERDE | test 1X2 verde prima e dopo; fixture identico (sì); 6 colonne: 0 celle cambiate; righe 231→231 |
-| B — idempotenza | VERDE | secondo run: 0 celle riscritte, sha256 identici per tutte e 5 le leghe |
-| C — non regressione del bug di dedup | il bug si riproduce | 21083 celle ricche azzerate dal merge di update_db.py (prerequisito dichiarato per la commessa di integrazione) |
-| D — copertura ≥ 90% | ROSSO (sotto soglia: Premier League, La Liga) | Serie A: 100.0%; Premier League: 84.4%; La Liga: 77.3%; Bundesliga: 90.3%; Ligue 1: 100.0% |
-| E — test unitari del merge | VERDE | 34 test offline, tutti verdi |
+| A' — invarianza di produzione (ri-verifica) | VERDE | test 1X2 verde prima e dopo; fixture identico (sì); 6 colonne: 0 celle cambiate; righe 231→231 |
+| B' — idempotenza (ri-verifica) | VERDE | secondo run: 0 celle riscritte, sha256 identici per tutte e 5 le leghe |
+| C' — non regressione del bug di dedup (ri-verifica) | il bug si riproduce | 23158 celle ricche azzerate dal merge di update_db.py (prerequisito dichiarato per la commessa di integrazione) |
+| D' — copertura ≥ 95% sulle appaiabili | VERDE | Serie A: 100.0% (40/40 appaiabili; 100.0% su tutte le concluse); Premier League: 100.0% (45/45 appaiabili; 100.0% su tutte le concluse); La Liga: 100.0% (68/68 appaiabili; 90.7% su tutte le concluse); Bundesliga: 100.0% (31/31 appaiabili; 100.0% su tutte le concluse); Ligue 1: 100.0% (40/40 appaiabili; 100.0% su tutte le concluse) |
+| E' — test unitari del merge | VERDE | 43 test offline, tutti verdi (34 della commessa precedente + 9 nuovi sugli alias e sulla classificazione) |
 
-STOP della commessa (punto 1d): **SÌ** — 5 squadre su 5 leghe hanno un nome divergente fra il CSV football-data e il *_Live.csv (dettaglio in §1.6)
+STOP della commessa precedente (punto 1d): **SÌ** — 5 squadre su 5 leghe hanno un nome divergente fra il CSV football-data e il *_Live.csv (dettaglio in §1.6)
+- risolto da: commessa 1bis: tabella FD_MERGE_ALIASES dentro update_db_rich.py
 
 ## 1. Verifica preliminare (punto 1 della commessa)
 
@@ -108,24 +109,54 @@ scrive il nome breve dell'API e, in alcuni casi, la stessa partita ricompare
 anche con il nome canonico (`Dortmund-HSV` e `Dortmund-Hamburg`, `Alavés` e
 `Alaves`): il merge per colonna tratta le due righe come la stessa partita.
 
-### 1.6 STOP: nomi della stagione in corso non allineati
+### 1.6 Nomi divergenti e tabella alias di merge (commessa 1bis)
 
-**STOP ATTIVO.** La commessa dice: _se anche UNA squadra della stagione in
-corso ha un `clean_name` che non coincide con quello già usato nel `*_Live.csv`,
-fermarsi e riferire. Non aggiungere alias_. L'esito è questo:
+La commessa precedente ha trovato **5 squadre** il cui nome nel CSV
+football-data.co.uk non coincide con quello già usato nel `*_Live.csv`
+(canone dell'API). Le rose 2026/27 sono confermate corrette su entrambe le
+fonti: il disallineamento è puramente ortografico.
 
-| Lega | nome usato nel *_Live.csv (canonico) | nome nel CSV football-data | conseguenza |
+| Lega | nome nel *_Live.csv (canone di produzione) | nome nel CSV football-data | alias di merge |
 |---|---|---|---|
-| Premier League | `Coventry City` (nel *_Live.csv) | `Coventry`, `Hull` | nessun alias aggiunto: le partite restano non appaiate |
-| Premier League | `Hull City` (nel *_Live.csv) | `Coventry`, `Hull` | nessun alias aggiunto: le partite restano non appaiate |
-| La Liga | `Deportivo` (nel *_Live.csv) | `La Coruna`, `Malaga` | nessun alias aggiunto: le partite restano non appaiate |
-| La Liga | `Málaga` (nel *_Live.csv) | `La Coruna`, `Malaga` | nessun alias aggiunto: le partite restano non appaiate |
-| Bundesliga | `SC Paderborn` (nel *_Live.csv) | `Paderborn` | nessun alias aggiunto: le partite restano non appaiate |
+| Premier League | `Coventry City` | `Coventry` | `Coventry` → `Coventry City` |
+| Premier League | `Hull City` | `Hull` | `Hull` → `Hull City` |
+| La Liga | `Deportivo` | `La Coruna` | `La Coruna` → `Deportivo` |
+| La Liga | `Málaga` | `Malaga` | `Malaga` → `Málaga` |
+| Bundesliga | `SC Paderborn` | `Paderborn` | `Paderborn` → `SC Paderborn` |
 
-Nessun alias è stato aggiunto a `team_aliases.py`, `TEAM_NAME_MAP` o
-`MARKET_VALUES`, nessuna modifica a `clean_name`: la conseguenza è che le
-partite di queste 5 squadre restano **non appaiate** e quindi non coperte
-(è la causa diretta dello sforamento della soglia del criterio D).
+La soluzione NON tocca `clean_name`, `TEAM_NAME_MAP`, `UNDERSTAT_NAME_MAP`,
+`team_aliases.py` o `MARKET_VALUES`: quelli normalizzano l'API sul canone
+football-data e sono il canone di **produzione**. La commessa 1bis aggiunge la
+direzione opposta, una tabella di alias che vive e muore dentro
+`update_db_rich.py` e serve solo a calcolare la chiave di join:
+
+```python
+FD_MERGE_ALIASES = {   # nome CSV football-data -> nome gia' nel *_Live.csv
+    'Coventry': 'Coventry City',
+    'La Coruna': 'Deportivo',
+    'Hull': 'Hull City',
+    'Malaga': 'Málaga',
+    'Paderborn': 'SC Paderborn',
+}
+```
+
+- lookup **esatto**, 5 voci note, nessun fuzzy (un sesto caso resta fuori e
+  finisce nel referto come «nome mancante in alias»);
+- applicata **prima** di `clean_name` e **solo** al lato football-data.co.uk
+  della chiave: il file esistente è il canone e non viene aliasato;
+- `HomeTeam`/`AwayTeam` del CSV risultante restano quelli di oggi: le colonne
+  sono protette, quindi il nome alias non viene mai scritto nel database.
+
+#### Righe duplicate nei `*_Live.csv` (fuori dal perimetro 1bis)
+
+Righe totali **231**, chiavi uniche **201**: **30 righe duplicate** (`Alavés`/`Alaves`,
+`Rayo Vallecano`/`Vallecano`, `Espanyol`/`Espanol`, `Atleti`/`Ath Madrid`, ...:
+`update_db.py` deduce i nomi grezzi dell'API, non su quelli puliti). Il merge
+per colonna tratta le righe duplicate come la stessa partita (la riga sorgente
+viene riusata, non contesa) e **non** le deduplica: la deduplica è produzione e
+va con l'integrazione (1ter), insieme al merge per colonna dentro `update_db.py`.
+Interferenza con i conteggi: nessuna — la copertura è calcolata sulle righe del
+`*_Live.csv`, duplicate comprese, e ogni riga duplicata riceve gli stessi valori.
 
 ### 1.7 Deriva delle colonne bookmaker e colonne "stabili"
 
@@ -157,18 +188,20 @@ Prefissi bookmaker presenti per stagione (famiglie 1X2 e closing):
 Nessuno schema di colonne è assunto dal codice: `update_db_rich.py` unisce
 l'unione delle colonne presenti e riempie solo le celle vuote.
 
-## 2. Criteri di accettazione
+## 2. Criteri di accettazione (A'/B'/C'/E' ri-verificati, D' riscritto)
 
-### A) Invarianza di produzione
+### A') Invarianza di produzione (ri-verifica)
 
 | Controllo | Esito | Misura |
 |---|---|---|
+| copia isolata == produzione all'ingresso | IDENTICA | sha256 dei 5 *_Live.csv confrontati prima del run |
 | test_pt19_totali_invariance.py prima | VERDE | Ran 2 tests — OK |
 | test_pt19_totali_invariance.py dopo | VERDE | Ran 2 tests — OK |
 | fixture 1x2 rigenerato prima/dopo (byte a byte) | IDENTICO | 52939 byte, sha256 654e166bbcef3b56351472a1e7c29cc2… |
 | 6 colonne lette da app.py | IDENTICHE | 0 celle diverse su 1386 |
 | righe del database | IDENTICHE | 231 prima, 231 dopo |
 | colonne | SOLO AGGIUNTE | Serie A: 132→146; Premier League: 133→147; La Liga: 132→146; Bundesliga: 132→146; Ligue 1: 132→146 |
+| 6 colonne: DB di produzione vs copia arricchita | IDENTICHE | 0 celle diverse su 1386 fra SoccerMath/database/ e la copia isolata dopo il run |
 | chiavi (Date, clean H, clean A) | IDENTICHE | 0 rimosse, 0 aggiunte |
 
 Il test `SoccerMath/test_pt19_totali_invariance.py` è stato eseguito **due volte**
@@ -204,19 +237,19 @@ identici: True
 Confronto con il fixture committato (`SoccerMath/test_fixtures/1x2_invariance.json`,
 sha256 `b25e1c16efe6e680…`): diverso dal fixture committato: il database è cresciuto rispetto a quando il fixture fu generato (partite 2026/27 aggiunte dopo), quindi il campione rigenerato è un altro; il confronto valido è prima/dopo l'arricchimento
 
-### B) Idempotenza
+### B') Idempotenza (ri-verifica)
 
 | Lega | sha256 dopo run 1 | sha256 dopo run 2 | celle riscritte nel run 2 | Esito |
 |---|---|---|---|---|
 | Serie A | 20036662832f0572… | 20036662832f0572… | 0 | identico |
-| Premier League | 616bfa4fc8f9c228… | 616bfa4fc8f9c228… | 0 | identico |
-| La Liga | 935b6a1ea331d61d… | 935b6a1ea331d61d… | 0 | identico |
-| Bundesliga | d0799eb7e5f132a2… | d0799eb7e5f132a2… | 0 | identico |
+| Premier League | d4c1a622a8739b53… | d4c1a622a8739b53… | 0 | identico |
+| La Liga | 23d3f572b78dbeca… | 23d3f572b78dbeca… | 0 | identico |
+| Bundesliga | 5866df9ef470d57d… | 5866df9ef470d57d… | 0 | identico |
 | Ligue 1 | eb1a12151263360f… | eb1a12151263360f… | 0 | identico |
 
 Esito: **VERDE** — il secondo run non produce alcun diff sui CSV (celle riscritte: 0).
 
-### C) Non regressione del bug di dedup
+### C') Non regressione del bug di dedup (ri-verifica)
 
 Simulazione della sequenza reale `update_db_rich.py → update_db.py → update_db_rich.py`.
 `update_db.py` non è stato eseguito (richiede la chiave API e scriverebbe sui file
@@ -228,9 +261,9 @@ partite (le 10 colonne che l'API espone, stessi nomi squadra: il caso migliore).
 | Lega | celle ricche dopo run 1 | celle ricche dopo update_db.py | azzerate | recuperate dal run 3 di update_db_rich |
 |---|---|---|---|---|
 | Serie A | 4119 | 0 | 4119 | 4119 |
-| Premier League | 3950 | 0 | 3950 | 3950 |
-| La Liga | 5997 | 0 | 5997 | 5997 |
-| Bundesliga | 2881 | 0 | 2881 | 2881 |
+| Premier League | 4679 | 0 | 4679 | 4679 |
+| La Liga | 7033 | 0 | 7033 | 7033 |
+| Bundesliga | 3191 | 0 | 3191 | 3191 |
 | Ligue 1 | 4136 | 0 | 4136 | 4136 |
 
 Esito: **il bug si riproduce**
@@ -238,59 +271,68 @@ Esito: **il bug si riproduce**
 **Prerequisito per la commessa di integrazione (da riportare, senza modificare
 `update_db.py` in questa sede):**
 
-> il merge dentro update_db.py va rifatto per colonna (come in update_db_rich.merge_columns) PRIMA di integrare update_db_rich.py nel workflow: con il concat + drop_duplicates(keep="last") attuale, il primo run di update_db.py dopo l'arricchimento azzera 21083 celle delle colonne ricche (tutte: la riga API ha solo 10 colonne e vince sul duplicato).
+> il merge dentro update_db.py va rifatto per colonna (come in update_db_rich.merge_columns) PRIMA di integrare update_db_rich.py nel workflow: con il concat + drop_duplicates(keep="last") attuale, il primo run di update_db.py dopo l'arricchimento azzera 23158 celle delle colonne ricche (tutte: la riga API ha solo 10 colonne e vince sul duplicato).
 > Il terzo run di update_db_rich.py le recupera, ma solo perché riscarica tutto da football-data.co.uk: finché update_db.py non cambia, il dato ricco è garantito solo se update_db_rich.py gira DOPO update_db.py, e comunque la finestra in cui il dato è azzerato resta reale.
 
-### D) Copertura di `B365H` e `HS` (soglia 90%)
+### D') Copertura di `B365H` e `HS` (soglia 95% sulle righe appaiabili)
 
-| Lega | partite concluse | B365H non nulle | % B365H | HS non nulli | % HS | Esito |
-|---|---|---|---|---|---|---|
-| Serie A | 40 | 40 | 100.0% | 40 | 100.0% | OK |
-| Premier League | 45 | 38 | 84.4% | 38 | 84.4% | SOTTO SOGLIA |
-| La Liga | 75 | 58 | 77.3% | 58 | 77.3% | SOTTO SOGLIA |
-| Bundesliga | 31 | 28 | 90.3% | 28 | 90.3% | OK |
-| Ligue 1 | 40 | 40 | 100.0% | 40 | 100.0% | OK |
+Base del criterio: partite concluse **meno** le righe in categoria «ritardo della
+fonte» (fisiologiche, dichiarate una per una qui sotto). La copertura grezza su
+tutte le partite concluse è riportata accanto, non al posto.
 
-Esito complessivo: **ROSSO (sotto soglia: Premier League, La Liga)**. Leghe sotto soglia: Premier League, La Liga.
+| Lega | concluse | escluse (ritardo fonte) | appaiabili | coperti B365H | % su appaiabili (D') | % su tutte (grezza) | atteso commessa | Esito |
+|---|---|---|---|---|---|---|---|---|
+| Serie A | 40 | 0 | 40 | 40 | 100.0% | 100.0% | 40/40 = 100.0% | OK |
+| Premier League | 45 | 0 | 45 | 45 | 100.0% | 100.0% | 45/45 = 100.0% | OK |
+| La Liga | 75 | 7 | 68 | 68 | 100.0% | 90.7% | 69/75 = 92.0% | OK |
+| Bundesliga | 31 | 0 | 31 | 31 | 100.0% | 100.0% | 31/31 = 100.0% | OK |
+| Ligue 1 | 40 | 0 | 40 | 40 | 100.0% | 100.0% | 40/40 = 100.0% | OK |
 
-Motivo per partita non coperta (le due sonde coincidono sempre: le colonne
-arrivano dalla stessa riga del CSV):
+Le due sonde coincidono sempre (arrivano dalla stessa riga del CSV): `HS` = Serie A 40/40; Premier League 45/45; La Liga 68/68; Bundesliga 31/31; Ligue 1 40/40.
+
+Esito complessivo: **VERDE**. Leghe sotto soglia: nessuna.
+
+#### Atteso vs ottenuto
+
+| Lega | atteso (commessa 1bis) | ottenuto (concluse) | ottenuto (appaiabili) | differenza |
+|---|---|---|---|---|
+| Serie A | 40/40 = 100.0% | 40/40 = 100.0% | 40/40 = 100.0% | nessuna |
+| Premier League | 45/45 = 100.0% | 45/45 = 100.0% | 45/45 = 100.0% | nessuna |
+| La Liga | 69/75 = 92.0% | 68/75 = 90.7% | 68/68 = 100.0% | 68/75 = 90.7% contro 69/75 = 92.0% atteso: -1 riga |
+| Bundesliga | 31/31 = 100.0% | 31/31 = 100.0% | 31/31 = 100.0% | nessuna |
+| Ligue 1 | 40/40 = 100.0% | 40/40 = 100.0% | 40/40 = 100.0% | nessuna |
+
+- **La Liga**: 68/75 = 90.7% contro 69/75 = 92.0% atteso: -1 riga. Righe non coperte, una per una:
+  - `15/09/2026 Vallecano - Espanol`: nessuna squadra coperta da alias: era già contata come ritardo della fonte anche senza alias.
+  - `15/09/2026 Alaves - Valencia`: nessuna squadra coperta da alias: era già contata come ritardo della fonte anche senza alias.
+  - `15/09/2026 Elche - Real Madrid`: nessuna squadra coperta da alias: era già contata come ritardo della fonte anche senza alias.
+  - `16/09/2026 Levante - Ath Bilbao`: nessuna squadra coperta da alias: era già contata come ritardo della fonte anche senza alias.
+  - `16/09/2026 Deportivo - Sevilla`: porta una squadra coperta da alias (Deportivo): senza alias era conteggiata fra i «nomi mancanti in alias», con l'alias è riclassificata come ritardo della fonte.
+  - `16/09/2026 Ath Madrid - Osasuna`: nessuna squadra coperta da alias: era già contata come ritardo della fonte anche senza alias.
+  - `16/09/2026 Barcelona - Santander`: nessuna squadra coperta da alias: era già contata come ritardo della fonte anche senza alias.
+  - Effetto netto: le righe di ritardo fonte passano da 6 a 7 e la base D' da 69 a 68: `16/09/2026 Deportivo - Sevilla` non è coperta perché la fonte non ha ancora quella partita (ultimo aggiornamento del CSV: 14/09/2026), non per un difetto di allineamento. La soglia non è stata toccata per far tornare il numero.
+
+Righe escluse dal denominatore (ritardo della fonte), per nome:
 
 | Lega | Data | Partita | Motivo |
 |---|---|---|---|
-| Premier League | 21/08/2026 | Arsenal - Coventry City | nome squadra non allineato: Coventry City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 22/08/2026 | Hull City - Man United | nome squadra non allineato: Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 29/08/2026 | Coventry City - Hull City | nome squadra non allineato: Coventry City, Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 05/09/2026 | Man City - Coventry City | nome squadra non allineato: Coventry City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 05/09/2026 | Hull City - Aston Villa | nome squadra non allineato: Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 12/09/2026 | Chelsea - Hull City | nome squadra non allineato: Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 13/09/2026 | Coventry City - Brighton | nome squadra non allineato: Coventry City non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 17/08/2026 | Deportivo - Elche | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 19/08/2026 | Atleti - Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 19/08/2026 | Ath Madrid - Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 24/08/2026 | Málaga - Deportivo | nome squadra non allineato: Deportivo, Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 30/08/2026 | Real Madrid - Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 30/08/2026 | Deportivo - Valencia | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 05/09/2026 | Villarreal - Deportivo | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 06/09/2026 | Málaga - Levante | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 13/09/2026 | Celta - Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 13/09/2026 | Getafe - Deportivo | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 15/09/2026 | Vallecano - Espanol | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 15/09/2026 | Alaves - Valencia | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 15/09/2026 | Elche - Real Madrid | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 16/09/2026 | Levante - Ath Bilbao | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 16/09/2026 | Deportivo - Sevilla | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 16/09/2026 | Ath Madrid - Osasuna | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 16/09/2026 | Barcelona - Santander | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| Bundesliga | 29/08/2026 | Mainz - SC Paderborn | nome squadra non allineato: SC Paderborn non compare fra i nomi del CSV football-data dopo clean_name() |
-| Bundesliga | 05/09/2026 | SC Paderborn - Freiburg | nome squadra non allineato: SC Paderborn non compare fra i nomi del CSV football-data dopo clean_name() |
-| Bundesliga | 12/09/2026 | Dortmund - SC Paderborn | nome squadra non allineato: SC Paderborn non compare fra i nomi del CSV football-data dopo clean_name() |
+| La Liga | 15/09/2026 | Vallecano - Espanol | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 15/09/2026 | Alaves - Valencia | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 15/09/2026 | Elche - Real Madrid | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Levante - Ath Bilbao | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Deportivo - Sevilla | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Ath Madrid - Osasuna | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Barcelona - Santander | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
 
-### E) Test unitari del merge per colonna
+Righe appaiabili ma non coperte (queste sì sono un difetto della commessa):
+
+_nessuna: tutte le righe appaiabili sono coperte_
+
+### E') Test unitari del merge per colonna (ri-verifica + nuovi)
 
 - file: `SoccerMath/test_update_db_rich.py`
 - comando: `python SoccerMath/test_update_db_rich.py`
-- test eseguiti: **34**, esito **VERDE**
+- test eseguiti: **43**, esito **VERDE**
 - rete: nessuna (tutti i test sono offline)
 
 Casi richiesti dalla commessa e presenti nella suite:
@@ -307,37 +349,26 @@ Casi richiesti dalla commessa e presenti nella suite:
 
 ## 3. Partite non appaiate (tutte le leghe)
 
-| Lega | Data | Partita (come nel *_Live.csv) | chiave pulita | motivo |
-|---|---|---|---|---|
-| Premier League | 21/08/2026 | Arsenal - Coventry City | Arsenal / Coventry City | nome squadra non allineato: Coventry City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 22/08/2026 | Hull City - Man United | Hull City / Man United | nome squadra non allineato: Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 29/08/2026 | Coventry City - Hull City | Coventry City / Hull City | nome squadra non allineato: Coventry City, Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 05/09/2026 | Man City - Coventry City | Man City / Coventry City | nome squadra non allineato: Coventry City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 05/09/2026 | Hull City - Aston Villa | Hull City / Aston Villa | nome squadra non allineato: Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 12/09/2026 | Chelsea - Hull City | Chelsea / Hull City | nome squadra non allineato: Hull City non compare fra i nomi del CSV football-data dopo clean_name() |
-| Premier League | 13/09/2026 | Coventry City - Brighton | Coventry City / Brighton | nome squadra non allineato: Coventry City non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 17/08/2026 | Deportivo - Elche | Deportivo / Elche | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 19/08/2026 | Atleti - Málaga | Ath Madrid / Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 19/08/2026 | Ath Madrid - Málaga | Ath Madrid / Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 24/08/2026 | Málaga - Deportivo | Málaga / Deportivo | nome squadra non allineato: Deportivo, Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 30/08/2026 | Real Madrid - Málaga | Real Madrid / Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 30/08/2026 | Deportivo - Valencia | Deportivo / Valencia | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 05/09/2026 | Villarreal - Deportivo | Villarreal / Deportivo | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 06/09/2026 | Málaga - Levante | Málaga / Levante | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 13/09/2026 | Celta - Málaga | Celta / Málaga | nome squadra non allineato: Málaga non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 13/09/2026 | Getafe - Deportivo | Getafe / Deportivo | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 15/09/2026 | Vallecano - Espanol | Vallecano / Espanol | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 15/09/2026 | Alaves - Valencia | Alaves / Valencia | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 15/09/2026 | Elche - Real Madrid | Elche / Real Madrid | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 16/09/2026 | Levante - Ath Bilbao | Levante / Ath Bilbao | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 16/09/2026 | Deportivo - Sevilla | Deportivo / Sevilla | nome squadra non allineato: Deportivo non compare fra i nomi del CSV football-data dopo clean_name() |
-| La Liga | 16/09/2026 | Ath Madrid - Osasuna | Ath Madrid / Osasuna | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| La Liga | 16/09/2026 | Barcelona - Santander | Barcelona / Santander | partita successiva all'ultimo aggiornamento del CSV (ultima data presente: 14/09/2026) |
-| Bundesliga | 29/08/2026 | Mainz - SC Paderborn | Mainz / SC Paderborn | nome squadra non allineato: SC Paderborn non compare fra i nomi del CSV football-data dopo clean_name() |
-| Bundesliga | 05/09/2026 | SC Paderborn - Freiburg | SC Paderborn / Freiburg | nome squadra non allineato: SC Paderborn non compare fra i nomi del CSV football-data dopo clean_name() |
-| Bundesliga | 12/09/2026 | Dortmund - SC Paderborn | Dortmund / SC Paderborn | nome squadra non allineato: SC Paderborn non compare fra i nomi del CSV football-data dopo clean_name() |
+| Lega | Data | Partita (come nel *_Live.csv) | chiave pulita | categoria | motivo |
+|---|---|---|---|---|---|
+| La Liga | 15/09/2026 | Vallecano - Espanol | Vallecano / Espanol | ritardo della fonte | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 15/09/2026 | Alaves - Valencia | Alaves / Valencia | ritardo della fonte | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 15/09/2026 | Elche - Real Madrid | Elche / Real Madrid | ritardo della fonte | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Levante - Ath Bilbao | Levante / Ath Bilbao | ritardo della fonte | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Deportivo - Sevilla | Deportivo / Sevilla | ritardo della fonte | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Ath Madrid - Osasuna | Ath Madrid / Osasuna | ritardo della fonte | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
+| La Liga | 16/09/2026 | Barcelona - Santander | Barcelona / Santander | ritardo della fonte | partita successiva all'ultimo aggiornamento del CSV football-data (ultima data presente: 14/09/2026) |
 
-Totale: 27 righe non appaiate su 231 righe complessive.
+Totale: 7 righe non appaiate su 231 righe complessive.
+
+Ripartizione per categoria (le due categorie NON si sommano in un unico
+numero, per costruzione):
+
+| Categoria | Righe | Significato |
+|---|---|---|
+| nome mancante in alias | 0 | difetto di allineamento di questa commessa: conta nel denominatore |
+| ritardo della fonte | 7 | fonte football-data.co.uk indietro rispetto all'API: fisiologica, esclusa dal denominatore e dichiarata per nome |
+| partita assente nel CSV | 0 | né nome né data: da spiegare riga per riga (atteso 0) |
 
 Passaggi di allineamento: prima data esatta, poi tolleranza ±1 giorno a parità di
 squadre pulite. Righe appaiate al secondo passaggio: 0.
