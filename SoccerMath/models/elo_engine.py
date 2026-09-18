@@ -20,7 +20,6 @@ from config import (
     get_league_db_files,
     get_market_values,
 )
-from scraper_xg import get_understat_xg
 
 DEFAULT_INITIAL_RATING = 1500.0
 HOME_ADVANTAGE = 65.0
@@ -90,7 +89,6 @@ class EloEngine:
             self.is_computed = True
             return self.ratings
         all_teams = set(df["HomeClean"].unique()).union(set(df["AwayClean"].unique()))
-        xg_data = get_understat_xg(self.league_name) or {}
         for team in all_teams:
             self.ratings[team] = DEFAULT_INITIAL_RATING
             self.history[team] = []
@@ -124,16 +122,7 @@ class EloEngine:
             margin = abs(fthg - ftag)
             margin_mult = calculate_goal_margin_multiplier(margin)
 
-            xg_adj = 0.0
-            if xg_data and h_team in xg_data and a_team in xg_data:
-                h_xg = xg_data[h_team].get("xG_avg", 1.3)
-                h_xga = xg_data[h_team].get("xGA_avg", 1.3)
-                a_xg = xg_data[a_team].get("xG_avg", 1.3)
-                a_xga = xg_data[a_team].get("xGA_avg", 1.3)
-                xg_adj = ((h_xg - h_xga) - (a_xg - a_xga)) * 0.15
-
-            xg_elo_boost = max(-100, min(100, xg_adj * 400))
-            dr = r_h + self.home_adv - r_a + xg_elo_boost
+            dr = r_h + self.home_adv - r_a
             expected_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
             expected_a = 1.0 - expected_h
 
