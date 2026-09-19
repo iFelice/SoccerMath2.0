@@ -46,6 +46,10 @@ on:
 
 permissions:
   contents: read
+  # Serve SOLO al passo che pubblica il referto come commento sul PR della
+  # branch (canale di lettura per gli ambienti senza accesso agli artifact).
+  # Il workflow resta a repository immutato (verificato dal passo dedicato).
+  pull-requests: write
 
 concurrency:
   group: whoscored-missing-sample-${{ github.ref }}
@@ -119,6 +123,38 @@ jobs:
             cat "$SAMPLE_DIR/report.md" 2>/dev/null || echo "report.md non prodotto"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pubblica referto come commento sul PR della branch (se esiste)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MARKER="<!-- ws-missing-sample-report -->"
+          PR_NUMBER="$(gh pr view --json number -q .number 2>/dev/null || true)"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Nessun PR aperto su questa branch: salto il commento."
+            exit 0
+          fi
+          {
+            echo "$MARKER"
+            echo "## Campionamento WhoScored assenze pre-match — run ${{ github.run_id }}"
+            echo "- branch: \`${{ github.ref_name }}\` · commit \`${GITHUB_SHA::7}\`"
+            echo "- [Run su GitHub]($RUN_URL) · artifact: \`whoscored-missing-sample-${{ github.run_id }}\`"
+            echo
+            echo '```'
+            cat "$SAMPLE_DIR/report.md" 2>/dev/null || echo "report.md non prodotto (vedi log)"
+            echo '```'
+          } > /tmp/pr_comment.md
+          EXISTING="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --paginate -q ".[] | select(.body | contains(\"$MARKER\")) | .id" | head -n1)"
+          if [ -n "$EXISTING" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${EXISTING}" \
+              -X PATCH -F body=@/tmp/pr_comment.md >/dev/null
+            echo "Commento esistente aggiornato."
+          else
+            gh pr comment "$PR_NUMBER" --body-file /tmp/pr_comment.md >/dev/null
+            echo "Commento creato."
+          fi
 
       - name: Verifica che il repository non sia stato modificato
         if: always()
