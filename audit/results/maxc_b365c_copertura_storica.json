@@ -1,0 +1,3229 @@
+{
+  "generated_utc": "2026-09-19T13:32:05.040818+00:00",
+  "scope": {
+    "seasons_walkforward": [
+      "2022/23",
+      "2023/24",
+      "2024/25",
+      "2025/26"
+    ],
+    "season_baseline": "2026/27",
+    "leagues": {
+      "E0": "Premier League",
+      "D1": "Bundesliga",
+      "I1": "Serie A",
+      "SP1": "La Liga",
+      "F1": "Ligue 1"
+    },
+    "source": "football-data.co.uk mmz4281/{season}/{div}.csv (byte grezzi)",
+    "data_dir": "audit/data",
+    "manifest": "fd_maxc_storico_manifest.json",
+    "missing_files": []
+  },
+  "odds_validity_rule": "presente, numerica, > 1.0 (regola devig_1x2)",
+  "files": [
+    {
+      "div": "I1",
+      "league": "Serie A",
+      "season": "2223",
+      "season_label": "2022/23",
+      "file": "fd_I1_2223.csv",
+      "bytes": 171573,
+      "sha256": "9960837f37a97ae700f876c87b85a8b7a2f5a5d05a53077830c21b9db8880c45",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "I1",
+      "div_match": true,
+      "date_min": "2022-08-13",
+      "date_max": "2023-06-04",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.6959549373607099,
+          "overround_median_pct": -0.5457458829976503,
+          "overround_min_pct": -24.334616001282672,
+          "overround_max_pct": 1.815137897612118
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.630723756887957,
+          "overround_median_pct": 5.61688311688312,
+          "overround_min_pct": 3.3333333333333437,
+          "overround_max_pct": 8.044184535412601
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 7.813788705995281,
+          "D": 5.9140809182724565,
+          "A": 9.210305481174954
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.813788705995281,
+          "D": 5.9140809182724565,
+          "A": 9.210305481174954
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": -0.045947655907867674,
+          "D": 0.22494890321672048,
+          "A": -0.17900124730885175
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 13.59536018664637,
+          "D": 5.5550444553677085,
+          "A": 8.04031573127866
+        },
+        "pct_b365_is_max": {
+          "H": 0.2631578947368421,
+          "D": 1.3157894736842106,
+          "A": 0.5263157894736842
+        },
+        "outliers_gt_10pp": [
+          {
+            "date": "2023-01-13",
+            "home": "Napoli",
+            "away": "Juventus",
+            "maxc": [
+              3.85,
+              4.0,
+              4.05
+            ],
+            "b365c": [
+              1.95,
+              3.4,
+              3.8
+            ],
+            "max_abs_pp": 13.6
+          }
+        ]
+      }
+    },
+    {
+      "div": "E0",
+      "league": "Premier League",
+      "season": "2223",
+      "season_label": "2022/23",
+      "file": "fd_E0_2223.csv",
+      "bytes": 176180,
+      "sha256": "8442792d3b614c94ea3cf381bd2736805889cc1713169035368fff19c3d02380",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "E0",
+      "div_match": true,
+      "date_min": "2022-08-05",
+      "date_max": "2023-05-28",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.9061307803639833,
+          "overround_median_pct": -0.6987095088954287,
+          "overround_min_pct": -8.751705810529343,
+          "overround_max_pct": 1.1550417765734178
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.404056757240875,
+          "overround_median_pct": 5.379320653920205,
+          "overround_min_pct": 2.857142857142847,
+          "overround_max_pct": 7.915376676986563
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 7.670958780096335,
+          "D": 6.643671583783098,
+          "A": 10.080692890888713
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.670958780096335,
+          "D": 6.643671583783098,
+          "A": 10.080692890888713
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.09293894709812928,
+          "D": 0.09825260433293043,
+          "A": -0.19119155143105987
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.931895016847671,
+          "D": 4.260967025992477,
+          "A": 3.878344667974437
+        },
+        "pct_b365_is_max": {
+          "H": 0.2631578947368421,
+          "D": 0.7894736842105263,
+          "A": 0.7894736842105263
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "SP1",
+      "league": "La Liga",
+      "season": "2223",
+      "season_label": "2022/23",
+      "file": "fd_SP1_2223.csv",
+      "bytes": 172199,
+      "sha256": "53348112526b5165539df240be350083989bb258f30c0ff7cacbc0165ca7e4b3",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "SP1",
+      "div_match": true,
+      "date_min": "2022-08-12",
+      "date_max": "2023-06-04",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.6685327569169145,
+          "overround_median_pct": -0.4829027527821106,
+          "overround_min_pct": -8.650306748466264,
+          "overround_max_pct": 1.4888337468982549
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.586741152236101,
+          "overround_median_pct": 5.596756651897284,
+          "overround_min_pct": 3.5714285714285587,
+          "overround_max_pct": 7.9943899018232845
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 7.608070914543966,
+          "D": 5.637302925744009,
+          "A": 9.715338600584852
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.608070914543966,
+          "D": 5.637302925744009,
+          "A": 9.715338600584852
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": -0.03391132017171788,
+          "D": 0.26788691857728225,
+          "A": -0.23397559840556445
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 5.175507036848748,
+          "D": 2.704631850465028,
+          "A": 3.8909770657938547
+        },
+        "pct_b365_is_max": {
+          "H": 0.2631578947368421,
+          "D": 1.3157894736842106,
+          "A": 0.5263157894736842
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "D1",
+      "league": "Bundesliga",
+      "season": "2223",
+      "season_label": "2022/23",
+      "file": "fd_D1_2223.csv",
+      "bytes": 139302,
+      "sha256": "b716517b25033ce8e0243e967aa961876425a4c41e97c8aa8fa59f2aca061341",
+      "n_rows": 306,
+      "n_expected": 306,
+      "n_malformed": 0,
+      "div_in_file": "D1",
+      "div_match": true,
+      "date_min": "2022-08-05",
+      "date_max": "2023-05-27",
+      "n_played_ftr": 306,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.942115009902404,
+          "overround_median_pct": -0.7920900128508435,
+          "overround_min_pct": -7.352268327878075,
+          "overround_max_pct": 1.6098484848484862
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.411016014149584,
+          "overround_median_pct": 5.490291913441814,
+          "overround_min_pct": 1.7316017316017174,
+          "overround_max_pct": 7.915376676986585
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 306,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 306,
+        "price_gap_mean_pct": {
+          "H": 7.437225578742111,
+          "D": 6.2246791895151095,
+          "A": 9.090208314134497
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.437225578742111,
+          "D": 6.2246791895151095,
+          "A": 9.090208314134497
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": -0.011770006347065464,
+          "D": 0.172789024235235,
+          "A": -0.16101901788816939
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 6.29209593647867,
+          "D": 3.4600599776340752,
+          "A": 4.843444227005877
+        },
+        "pct_b365_is_max": {
+          "H": 0.32679738562091504,
+          "D": 2.287581699346405,
+          "A": 0.6535947712418301
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "F1",
+      "league": "Ligue 1",
+      "season": "2223",
+      "season_label": "2022/23",
+      "file": "fd_F1_2223.csv",
+      "bytes": 171165,
+      "sha256": "18ea07d922e8b6360b81189637efd5aaf44779765db856bff208d5b1acf69b2f",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "F1",
+      "div_match": true,
+      "date_min": "2022-08-05",
+      "date_max": "2023-06-03",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.7122733216900702,
+          "overround_median_pct": -0.5504911612393526,
+          "overround_min_pct": -6.405109623715033,
+          "overround_max_pct": 1.3614135868339705
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.482150725726372,
+          "overround_median_pct": 5.555555555555558,
+          "overround_min_pct": 3.4543325526932067,
+          "overround_max_pct": 8.016304347826075
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 7.0018823060875865,
+          "D": 6.500329545721269,
+          "A": 10.140355761683768
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.0018823060875865,
+          "D": 6.500329545721269,
+          "A": 10.140355761683768
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.22879026984691833,
+          "D": 0.08726093452563695,
+          "A": -0.31605120437255513
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.445360444664049,
+          "D": 2.836833259005353,
+          "A": 4.22899842547938
+        },
+        "pct_b365_is_max": {
+          "H": 0.7894736842105263,
+          "D": 1.3157894736842106,
+          "A": 1.5789473684210527
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "I1",
+      "league": "Serie A",
+      "season": "2324",
+      "season_label": "2023/24",
+      "file": "fd_I1_2324.csv",
+      "bytes": 167015,
+      "sha256": "343a89db026fe4204ebeabd663cdfee8d02a45457828fc1cb63fa630ca170723",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "I1",
+      "div_match": true,
+      "date_min": "2023-08-19",
+      "date_max": "2024-06-02",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.4211995388899313,
+          "overround_median_pct": -0.23466839717171672,
+          "overround_min_pct": -6.427609342041729,
+          "overround_max_pct": 1.989978368909151
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.491781715252859,
+          "overround_median_pct": 5.523818846262318,
+          "overround_min_pct": 2.9954326385824626,
+          "overround_max_pct": 7.9365079365079305
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 7.1577126713584,
+          "D": 5.366585454506704,
+          "A": 10.394848318841577
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.1577126713584,
+          "D": 5.605072296611967,
+          "A": 10.394848318841577
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.0752566932335836,
+          "D": 0.25473314266410274,
+          "A": -0.3299898358976858
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 10.395631571912473,
+          "D": 27.22536290523434,
+          "A": 16.829731333321877
+        },
+        "pct_b365_is_max": {
+          "H": 1.0526315789473684,
+          "D": 1.5789473684210527,
+          "A": 0.2631578947368421
+        },
+        "outliers_gt_10pp": [
+          {
+            "date": "2024-04-25",
+            "home": "Udinese",
+            "away": "Roma",
+            "maxc": [
+              5.3,
+              1.75,
+              4.08
+            ],
+            "b365c": [
+              3.25,
+              3.2,
+              2.3
+            ],
+            "max_abs_pp": 27.2
+          }
+        ]
+      }
+    },
+    {
+      "div": "E0",
+      "league": "Premier League",
+      "season": "2324",
+      "season_label": "2023/24",
+      "file": "fd_E0_2324.csv",
+      "bytes": 172196,
+      "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "E0",
+      "div_match": true,
+      "date_min": "2023-08-11",
+      "date_max": "2024-05-19",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.9330158684983842,
+          "overround_median_pct": -0.671195791758572,
+          "overround_min_pct": -16.67228477044429,
+          "overround_max_pct": 1.6923711959172971
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.39158293909353,
+          "overround_median_pct": 5.488187314894,
+          "overround_min_pct": 3.128115653040875,
+          "overround_max_pct": 7.7247888723298574
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 7.518102873355108,
+          "D": 7.165806571187044,
+          "A": 11.624731026440013
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.518102873355108,
+          "D": 7.165806571187044,
+          "A": 11.624731026440013
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.24200047896420415,
+          "D": -0.008217805780199922,
+          "A": -0.23378267318400417
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 5.2305134192264795,
+          "D": 3.40860374504261,
+          "A": 3.332715961351518
+        },
+        "pct_b365_is_max": {
+          "H": 0.2631578947368421,
+          "D": 0.7894736842105263,
+          "A": 1.0526315789473684
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "SP1",
+      "league": "La Liga",
+      "season": "2324",
+      "season_label": "2023/24",
+      "file": "fd_SP1_2324.csv",
+      "bytes": 168164,
+      "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "SP1",
+      "div_match": true,
+      "date_min": "2023-08-11",
+      "date_max": "2024-05-26",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.46388187881011517,
+          "overround_median_pct": -0.190432114361494,
+          "overround_min_pct": -7.8009687102651775,
+          "overround_max_pct": 1.9510124110229121
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.392423222790929,
+          "overround_median_pct": 5.398179338692799,
+          "overround_min_pct": 2.903995229576628,
+          "overround_max_pct": 7.659051245438686
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 6.49569559539062,
+          "D": 5.638008390440214,
+          "A": 9.544122030119478
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 6.49569559539062,
+          "D": 5.638008390440214,
+          "A": 9.544122030119478
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.15613119051209526,
+          "D": 0.15679795873211524,
+          "A": -0.312929149244209
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 5.512788466051077,
+          "D": 2.934754356167102,
+          "A": 3.5226056089629725
+        },
+        "pct_b365_is_max": {
+          "H": 1.0526315789473684,
+          "D": 1.0526315789473684,
+          "A": 0.7894736842105263
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "D1",
+      "league": "Bundesliga",
+      "season": "2324",
+      "season_label": "2023/24",
+      "file": "fd_D1_2324.csv",
+      "bytes": 135825,
+      "sha256": "1de8bc12a133dbbf71bc6ffda62082642f087f61b1b7c15ae9f2d320876fb07e",
+      "n_rows": 306,
+      "n_expected": 306,
+      "n_malformed": 0,
+      "div_in_file": "D1",
+      "div_match": true,
+      "date_min": "2023-08-18",
+      "date_max": "2024-05-18",
+      "n_played_ftr": 306,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.6657344602690939,
+          "overround_median_pct": -0.3622596012621271,
+          "overround_min_pct": -13.257198604028996,
+          "overround_max_pct": 1.8939393939394034
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.480828023342582,
+          "overround_median_pct": 5.445772718403219,
+          "overround_min_pct": 3.1746031746031633,
+          "overround_max_pct": 7.854406130268199
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 306,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 306,
+        "price_gap_mean_pct": {
+          "H": 7.111500182624497,
+          "D": 6.653801744009511,
+          "A": 10.302980555571166
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 7.111500182624497,
+          "D": 6.653801744009511,
+          "A": 10.302980555571166
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.15346189987508202,
+          "D": 0.07253899645745766,
+          "A": -0.22600089633253934
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 7.647712332170997,
+          "D": 2.8099621051687897,
+          "A": 7.676149729056217
+        },
+        "pct_b365_is_max": {
+          "H": 0.32679738562091504,
+          "D": 0.6535947712418301,
+          "A": 0.6535947712418301
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "F1",
+      "league": "Ligue 1",
+      "season": "2324",
+      "season_label": "2023/24",
+      "file": "fd_F1_2324.csv",
+      "bytes": 135000,
+      "sha256": "ca0a4bf51d5b1ccfd0e1558ea41de6bb829df6c96c759888a87248d296d5adb7",
+      "n_rows": 306,
+      "n_expected": 306,
+      "n_malformed": 0,
+      "div_in_file": "F1",
+      "div_match": true,
+      "date_min": "2023-08-11",
+      "date_max": "2024-05-19",
+      "n_played_ftr": 306,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": -0.36824417333773973,
+          "overround_median_pct": -0.22465246099601655,
+          "overround_min_pct": -6.6506589233861995,
+          "overround_max_pct": 1.8574193929644212
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.394419636375215,
+          "overround_median_pct": 5.4708348719238025,
+          "overround_min_pct": 3.52941176470587,
+          "overround_max_pct": 7.856592983613764
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BW",
+        "IW",
+        "Max",
+        "PS",
+        "V",
+        "VC",
+        "WH"
+      ],
+      "n_both": 306,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 306,
+        "price_gap_mean_pct": {
+          "H": 6.155698826416005,
+          "D": 5.61179378386611,
+          "A": 8.61423539150774
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 6.155698826416005,
+          "D": 5.61179378386611,
+          "A": 8.61423539150774
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.20057871938631708,
+          "D": 0.12628435893855522,
+          "A": -0.32686307832487166
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 3.587037216170319,
+          "D": 2.653020077129181,
+          "A": 3.6404708022300447
+        },
+        "pct_b365_is_max": {
+          "H": 0.6535947712418301,
+          "D": 0.9803921568627451,
+          "A": 0.9803921568627451
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "I1",
+      "league": "Serie A",
+      "season": "2425",
+      "season_label": "2024/25",
+      "file": "fd_I1_2425.csv",
+      "bytes": 191722,
+      "sha256": "79d87a5b18771e066ac7419b7876bfd9771a68ca117a9712375d6bc9685abee3",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "I1",
+      "div_match": true,
+      "date_min": "2024-08-17",
+      "date_max": "2025-05-25",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 0.260983307730074,
+          "overround_median_pct": 0.45524821326811127,
+          "overround_min_pct": -5.656933116887353,
+          "overround_max_pct": 2.399527186761219
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.62560823979719,
+          "overround_median_pct": 5.593251421236012,
+          "overround_min_pct": 3.952991452991439,
+          "overround_max_pct": 8.034188034188027
+        }
+      },
+      "closing_books_present": [
+        "1XB",
+        "Avg",
+        "B365",
+        "BF",
+        "BFE",
+        "BW",
+        "Max",
+        "PS",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 6.380910840260505,
+          "D": 5.031916941499008,
+          "A": 8.182275976336562
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 6.380910840260505,
+          "D": 5.031916941499008,
+          "A": 8.182275976336562
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.06797462326469636,
+          "D": 0.17124969639830656,
+          "A": -0.23922431966300325
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.067077204129857,
+          "D": 2.406600082176774,
+          "A": 3.808280968873423
+        },
+        "pct_b365_is_max": {
+          "H": 0.7894736842105263,
+          "D": 1.5789473684210527,
+          "A": 1.3157894736842106
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "E0",
+      "league": "Premier League",
+      "season": "2425",
+      "season_label": "2024/25",
+      "file": "fd_E0_2425.csv",
+      "bytes": 197110,
+      "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "E0",
+      "div_match": true,
+      "date_min": "2024-08-16",
+      "date_max": "2025-05-25",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 0.1060499025783102,
+          "overround_median_pct": 0.23055134707858915,
+          "overround_min_pct": -4.466268905610338,
+          "overround_max_pct": 2.187153931339969
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.551846765117168,
+          "overround_median_pct": 5.569249725526615,
+          "overround_min_pct": 3.950103950103956,
+          "overround_max_pct": 8.060205463088321
+        }
+      },
+      "closing_books_present": [
+        "1XB",
+        "Avg",
+        "B365",
+        "BF",
+        "BFE",
+        "BW",
+        "Max",
+        "PS",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 6.248294172773121,
+          "D": 5.942094153911696,
+          "A": 8.885748087889143
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 6.248294172773121,
+          "D": 5.942094153911696,
+          "A": 8.885748087889143
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.15479949305883978,
+          "D": 0.010134579941909881,
+          "A": -0.16493407300074864
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.598781369410299,
+          "D": 2.8763812867912826,
+          "A": 3.964907352851388
+        },
+        "pct_b365_is_max": {
+          "H": 0.7894736842105263,
+          "D": 0.2631578947368421,
+          "A": 0.5263157894736842
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "SP1",
+      "league": "La Liga",
+      "season": "2425",
+      "season_label": "2024/25",
+      "file": "fd_SP1_2425.csv",
+      "bytes": 192863,
+      "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "SP1",
+      "div_match": true,
+      "date_min": "2024-08-15",
+      "date_max": "2025-05-25",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 0.17713477947417097,
+          "overround_median_pct": 0.3789109059850859,
+          "overround_min_pct": -5.163048020190875,
+          "overround_max_pct": 2.384748289862082
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.650802086143377,
+          "overround_median_pct": 5.629458261037213,
+          "overround_min_pct": 4.061624649859952,
+          "overround_max_pct": 7.9116059379217285
+        }
+      },
+      "closing_books_present": [
+        "1XB",
+        "Avg",
+        "B365",
+        "BF",
+        "BFE",
+        "BW",
+        "Max",
+        "PS",
+        "WH"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 6.6053122860525555,
+          "D": 5.32703249273367,
+          "A": 9.043902573072476
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 6.6053122860525555,
+          "D": 5.32703249273367,
+          "A": 9.043902573072476
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.08208715239011725,
+          "D": 0.1736340317666722,
+          "A": -0.25572118415678946
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 5.6533424402368,
+          "D": 3.3250387053184975,
+          "A": 3.924353297669772
+        },
+        "pct_b365_is_max": {
+          "H": 0.2631578947368421,
+          "D": 0.7894736842105263,
+          "A": 0.7894736842105263
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "D1",
+      "league": "Bundesliga",
+      "season": "2425",
+      "season_label": "2024/25",
+      "file": "fd_D1_2425.csv",
+      "bytes": 156414,
+      "sha256": "a295c58033cfe6393cbbc28f7db85671839b960c5f1153fd3678e20ad2adb92e",
+      "n_rows": 306,
+      "n_expected": 306,
+      "n_malformed": 0,
+      "div_in_file": "D1",
+      "div_match": true,
+      "date_min": "2024-08-23",
+      "date_max": "2025-05-17",
+      "n_played_ftr": 306,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 0.026651069693911657,
+          "overround_median_pct": 0.24273074849614495,
+          "overround_min_pct": -7.076170377169566,
+          "overround_max_pct": 2.4360664784296215
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.609675662264188,
+          "overround_median_pct": 5.63114134542706,
+          "overround_min_pct": 4.027559321614449,
+          "overround_max_pct": 7.604017216642767
+        }
+      },
+      "closing_books_present": [
+        "1XB",
+        "Avg",
+        "B365",
+        "BF",
+        "BFE",
+        "BW",
+        "Max",
+        "PS",
+        "WH"
+      ],
+      "n_both": 306,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 306,
+        "price_gap_mean_pct": {
+          "H": 6.617450711819186,
+          "D": 5.842283241089426,
+          "A": 10.022361644482517
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 6.617450711819186,
+          "D": 5.842283241089426,
+          "A": 10.022361644482517
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.19218033729272582,
+          "D": 0.10734797004145659,
+          "A": -0.2995283073341821
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.082637423857472,
+          "D": 2.8714661133761226,
+          "A": 4.123352389230489
+        },
+        "pct_b365_is_max": {
+          "H": 1.3071895424836601,
+          "D": 0.32679738562091504,
+          "A": 0.9803921568627451
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "F1",
+      "league": "Ligue 1",
+      "season": "2425",
+      "season_label": "2024/25",
+      "file": "fd_F1_2425.csv",
+      "bytes": 154703,
+      "sha256": "fe6ae6a0c30d05f0ac88e0fc4a31452c7203e2b444703dfa941e22f38f20ab63",
+      "n_rows": 306,
+      "n_expected": 306,
+      "n_malformed": 0,
+      "div_in_file": "F1",
+      "div_match": true,
+      "date_min": "2024-08-16",
+      "date_max": "2025-05-17",
+      "n_played_ftr": 306,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 0.20765705057521122,
+          "overround_median_pct": 0.3734747772277114,
+          "overround_min_pct": -10.51467051467051,
+          "overround_max_pct": 2.8056751155746795
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.647586064150578,
+          "overround_median_pct": 5.60480978891923,
+          "overround_min_pct": 4.175769302790089,
+          "overround_max_pct": 7.442067736185387
+        }
+      },
+      "closing_books_present": [
+        "1XB",
+        "Avg",
+        "B365",
+        "BF",
+        "BFE",
+        "BW",
+        "Max",
+        "PS",
+        "WH"
+      ],
+      "n_both": 306,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 306,
+        "price_gap_mean_pct": {
+          "H": 6.07493748604824,
+          "D": 5.520325313740885,
+          "A": 8.512151986169076
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 6.07493748604824,
+          "D": 5.520325313740885,
+          "A": 8.512151986169076
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.17121297378129036,
+          "D": 0.08728632352971531,
+          "A": -0.25849929731100435
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.575373024572171,
+          "D": 3.8771518234020865,
+          "A": 5.86463173989526
+        },
+        "pct_b365_is_max": {
+          "H": 0.0,
+          "D": 0.9803921568627451,
+          "A": 0.9803921568627451
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "I1",
+      "league": "Serie A",
+      "season": "2526",
+      "season_label": "2025/26",
+      "file": "fd_I1_2526.csv",
+      "bytes": 196217,
+      "sha256": "709ae279617d16af226312bcceac941e71241745ddaf950bdac2b83afad4fcbb",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "I1",
+      "div_match": true,
+      "date_min": "2025-08-23",
+      "date_max": "2026-05-24",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.3985846439459504,
+          "overround_median_pct": 2.5347829768729957,
+          "overround_min_pct": -2.512922872204304,
+          "overround_max_pct": 4.5536163183221845
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.693961827352417,
+          "overround_median_pct": 5.628975199064545,
+          "overround_min_pct": 3.5213032581453474,
+          "overround_max_pct": 12.391863236315181
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BMGM",
+        "BV",
+        "BW",
+        "CL",
+        "LB",
+        "Max",
+        "PS"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 3.776341112686574,
+          "D": 3.1424210208744996,
+          "A": 5.44484776250346
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 3.776341112686574,
+          "D": 3.1424210208744996,
+          "A": 5.44484776250346
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.13982952637555984,
+          "D": 0.03805770265659604,
+          "A": -0.1778872290321546
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 3.676138608858004,
+          "D": 2.835512336712748,
+          "A": 3.4634725795141152
+        },
+        "pct_b365_is_max": {
+          "H": 20.0,
+          "D": 26.05263157894737,
+          "A": 18.42105263157895
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "E0",
+      "league": "Premier League",
+      "season": "2526",
+      "season_label": "2025/26",
+      "file": "fd_E0_2526.csv",
+      "bytes": 203438,
+      "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "E0",
+      "div_match": true,
+      "date_min": "2025-08-15",
+      "date_max": "2026-05-24",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 1.8815326982007334,
+          "overround_median_pct": 1.963494595073545,
+          "overround_min_pct": -2.9503105590062084,
+          "overround_max_pct": 3.961495832702666
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.593227834287615,
+          "overround_median_pct": 5.555555555555558,
+          "overround_min_pct": 3.9215686274509665,
+          "overround_max_pct": 12.070815951321023
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BMGM",
+        "BV",
+        "BW",
+        "CL",
+        "LB",
+        "Max",
+        "PS"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 4.0929365675158165,
+          "D": 3.055700718279473,
+          "A": 6.106063100300009
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 4.0929365675158165,
+          "D": 3.055700718279473,
+          "A": 6.106063100300009
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.1651874494654528,
+          "D": 0.15939182036786115,
+          "A": -0.32457926983331264
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 2.974439185913641,
+          "D": 1.8499002043015134,
+          "A": 3.9925587483448877
+        },
+        "pct_b365_is_max": {
+          "H": 14.473684210526315,
+          "D": 25.526315789473685,
+          "A": 9.210526315789474
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "SP1",
+      "league": "La Liga",
+      "season": "2526",
+      "season_label": "2025/26",
+      "file": "fd_SP1_2526.csv",
+      "bytes": 197653,
+      "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5",
+      "n_rows": 380,
+      "n_expected": 380,
+      "n_malformed": 0,
+      "div_in_file": "SP1",
+      "div_match": true,
+      "date_min": "2025-08-15",
+      "date_max": "2026-05-24",
+      "n_played_ftr": 380,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.187353942099257,
+          "overround_median_pct": 2.5625986916309462,
+          "overround_min_pct": -58.13465287149497,
+          "overround_max_pct": 4.625439919557572
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 380,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 380,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.638545410411639,
+          "overround_median_pct": 5.545322284663367,
+          "overround_min_pct": 3.664302600472813,
+          "overround_max_pct": 11.904761904761907
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BMGM",
+        "BV",
+        "BW",
+        "CL",
+        "LB",
+        "Max",
+        "PS"
+      ],
+      "n_both": 380,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 380,
+        "price_gap_mean_pct": {
+          "H": 3.3863733062473687,
+          "D": 3.3644120539410056,
+          "A": 6.38831983155849
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 3.3863733062473687,
+          "D": 3.3644120539410056,
+          "A": 6.38831983155849
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.24169190712537209,
+          "D": 0.05986609617564097,
+          "A": -0.3015580033010134
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 15.178109681219604,
+          "D": 13.410665615047474,
+          "A": 28.588775296267094
+        },
+        "pct_b365_is_max": {
+          "H": 21.31578947368421,
+          "D": 27.105263157894736,
+          "A": 15.789473684210526
+        },
+        "outliers_gt_10pp": [
+          {
+            "date": "2025-08-16",
+            "home": "Mallorca",
+            "away": "Barcelona",
+            "maxc": [
+              9.5,
+              7.8,
+              5.4
+            ],
+            "b365c": [
+              9.5,
+              5.5,
+              1.3
+            ],
+            "max_abs_pp": 28.6
+          }
+        ]
+      }
+    },
+    {
+      "div": "D1",
+      "league": "Bundesliga",
+      "season": "2526",
+      "season_label": "2025/26",
+      "file": "fd_D1_2526.csv",
+      "bytes": 159944,
+      "sha256": "618301a4b39918225a8ccc57f0f839d675e1abd92fa3a3ccd9a67acd7c79dd7f",
+      "n_rows": 306,
+      "n_expected": 306,
+      "n_malformed": 0,
+      "div_in_file": "D1",
+      "div_match": true,
+      "date_min": "2025-08-22",
+      "date_max": "2026-05-16",
+      "n_played_ftr": 306,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.4871994392048435,
+          "overround_median_pct": 2.681996711728174,
+          "overround_min_pct": -4.714135851035928,
+          "overround_max_pct": 4.588284157633704
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.65875770736855,
+          "overround_median_pct": 5.641190641190619,
+          "overround_min_pct": 3.3439231019876114,
+          "overround_max_pct": 11.471861471861477
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BMGM",
+        "BV",
+        "BW",
+        "CL",
+        "LB",
+        "Max",
+        "PS"
+      ],
+      "n_both": 306,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 306,
+        "price_gap_mean_pct": {
+          "H": 3.343752846057249,
+          "D": 2.873593963807484,
+          "A": 5.345233133438226
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 3.343752846057249,
+          "D": 2.873593963807484,
+          "A": 5.345233133438226
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.15656640041605846,
+          "D": 0.07329731180425103,
+          "A": -0.22986371222030946
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.892788154579875,
+          "D": 2.1272991976434286,
+          "A": 4.110759546298737
+        },
+        "pct_b365_is_max": {
+          "H": 17.973856209150327,
+          "D": 33.66013071895425,
+          "A": 16.99346405228758
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "F1",
+      "league": "Ligue 1",
+      "season": "2526",
+      "season_label": "2025/26",
+      "file": "fd_F1_2526.csv",
+      "bytes": 158471,
+      "sha256": "898b7ddcd373cfe955ae353b1a98cf7f1c8757ca10b69d53039f4e098e88f192",
+      "n_rows": 306,
+      "n_expected": 306,
+      "n_malformed": 0,
+      "div_in_file": "F1",
+      "div_match": true,
+      "date_min": "2025-08-15",
+      "date_max": "2026-05-17",
+      "n_played_ftr": 306,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.2936927360590884,
+          "overround_median_pct": 2.506452927591374,
+          "overround_min_pct": -13.009049773755654,
+          "overround_max_pct": 4.704067861962602
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 306,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 306,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.619641720054198,
+          "overround_median_pct": 5.5709001062845935,
+          "overround_min_pct": 3.8560997870398683,
+          "overround_max_pct": 11.519795657726695
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BMGM",
+        "BV",
+        "BW",
+        "CL",
+        "LB",
+        "Max",
+        "PS"
+      ],
+      "n_both": 306,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 306,
+        "price_gap_mean_pct": {
+          "H": 3.3182670449860896,
+          "D": 3.493265227382431,
+          "A": 5.762777013508162
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 3.3182670449860896,
+          "D": 3.493265227382431,
+          "A": 5.762777013508162
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.25602193330916595,
+          "D": -0.023346930078479194,
+          "A": -0.23267500323068613
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 4.509826840376585,
+          "D": 4.373695829679139,
+          "A": 8.6937127649923
+        },
+        "pct_b365_is_max": {
+          "H": 22.22222222222222,
+          "D": 23.856209150326798,
+          "A": 17.320261437908496
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "I1",
+      "league": "Serie A",
+      "season": "2627",
+      "season_label": "2026/27",
+      "file": "fd_I1_2627.csv",
+      "bytes": 19221,
+      "sha256": "058bb14deaf7ee1f04b1629a23a75dd2f9168306c90a50352abfaf9fba538f83",
+      "n_rows": 40,
+      "n_expected": null,
+      "n_malformed": 0,
+      "div_in_file": "I1",
+      "div_match": true,
+      "date_min": "2026-08-22",
+      "date_max": "2026-09-14",
+      "n_played_ftr": 40,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 40,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.371755569060527,
+          "overround_median_pct": 2.4545503424813875,
+          "overround_min_pct": 0.14781966001478075,
+          "overround_max_pct": 4.36507936507935
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 40,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.6531181197490055,
+          "overround_median_pct": 5.694235317755814,
+          "overround_min_pct": 3.950103950103956,
+          "overround_max_pct": 6.666666666666665
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BV",
+        "BW",
+        "Max",
+        "PP",
+        "SKB"
+      ],
+      "n_both": 40,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 40,
+        "price_gap_mean_pct": {
+          "H": 2.7365492213350473,
+          "D": 4.204749891678414,
+          "A": 5.223685656361239
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 2.7365492213350473,
+          "D": 4.204749891678414,
+          "A": 5.223685656361239
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.43561306049355875,
+          "D": -0.1598251946446175,
+          "A": -0.2757878658489411
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 2.072599077983961,
+          "D": 1.7445388349514563,
+          "A": 2.246527932420117
+        },
+        "pct_b365_is_max": {
+          "H": 32.5,
+          "D": 20.0,
+          "A": 12.5
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "E0",
+      "league": "Premier League",
+      "season": "2627",
+      "season_label": "2026/27",
+      "file": "fd_E0_2627.csv",
+      "bytes": 20004,
+      "sha256": "a5bf08a220af79c2ecd2f3e51fa5f9ea6941c812c3a1f9c49b802c92e11bbd1d",
+      "n_rows": 40,
+      "n_expected": null,
+      "n_malformed": 0,
+      "div_in_file": "E0",
+      "div_match": true,
+      "date_min": "2026-08-21",
+      "date_max": "2026-09-14",
+      "n_played_ftr": 40,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 40,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.0495111956868977,
+          "overround_median_pct": 2.3627462829058032,
+          "overround_min_pct": -9.35897435897436,
+          "overround_max_pct": 3.7851037851037717
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 40,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 40,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.632522141814967,
+          "overround_median_pct": 5.584795321637426,
+          "overround_min_pct": 3.6363636363636376,
+          "overround_max_pct": 7.9365079365079305
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BV",
+        "BW",
+        "Max",
+        "PP",
+        "SKB"
+      ],
+      "n_both": 40,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 40,
+        "price_gap_mean_pct": {
+          "H": 2.8039262178658793,
+          "D": 3.741307876134651,
+          "A": 5.854105979413963
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 2.8039262178658793,
+          "D": 3.741307876134651,
+          "A": 5.854105979413963
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.3880056687564465,
+          "D": -0.005452056169971064,
+          "A": -0.3825536125864726
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 3.9464378768703954,
+          "D": 3.2392242983696806,
+          "A": 7.18566217524007
+        },
+        "pct_b365_is_max": {
+          "H": 17.5,
+          "D": 15.0,
+          "A": 10.0
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "SP1",
+      "league": "La Liga",
+      "season": "2627",
+      "season_label": "2026/27",
+      "file": "fd_SP1_2627.csv",
+      "bytes": 28496,
+      "sha256": "819130d1d82c12d8e8df0b0fc7c6602d8f5affd444e988e65754c3ef9db41582",
+      "n_rows": 59,
+      "n_expected": null,
+      "n_malformed": 0,
+      "div_in_file": "SP1",
+      "div_match": true,
+      "date_min": "2026-08-15",
+      "date_max": "2026-09-17",
+      "n_played_ftr": 59,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 59,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 59,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 59,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 59,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.327359252329858,
+          "overround_median_pct": 2.537117083255014,
+          "overround_min_pct": -0.7361858155825907,
+          "overround_max_pct": 4.082693787566805
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 59,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 59,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 59,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 59,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.460041649735766,
+          "overround_median_pct": 5.444444444444452,
+          "overround_min_pct": 4.324391046741272,
+          "overround_max_pct": 6.8859649122807065
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BV",
+        "BW",
+        "Max",
+        "PP",
+        "SKB"
+      ],
+      "n_both": 59,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 59,
+        "price_gap_mean_pct": {
+          "H": 3.781148889364329,
+          "D": 4.113870063668434,
+          "A": 5.212146480705433
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 3.781148889364329,
+          "D": 4.113870063668434,
+          "A": 5.212146480705433
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.13518781229795448,
+          "D": -0.10641479452689803,
+          "A": -0.028773017771055828
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 2.534252329602782,
+          "D": 1.7962294491229742,
+          "A": 1.9985501449854892
+        },
+        "pct_b365_is_max": {
+          "H": 15.254237288135593,
+          "D": 27.11864406779661,
+          "A": 25.423728813559322
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "D1",
+      "league": "Bundesliga",
+      "season": "2627",
+      "season_label": "2026/27",
+      "file": "fd_D1_2627.csv",
+      "bytes": 13395,
+      "sha256": "486b62db6acd9e6941d7d41340b7043b2f0145b72c99c0aec512412860a8e854",
+      "n_rows": 27,
+      "n_expected": null,
+      "n_malformed": 0,
+      "div_in_file": "D1",
+      "div_match": true,
+      "date_min": "2026-08-28",
+      "date_max": "2026-09-13",
+      "n_played_ftr": 27,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 27,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 27,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 27,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 27,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.692242815705816,
+          "overround_median_pct": 2.84829378906033,
+          "overround_min_pct": 0.6573999951483334,
+          "overround_max_pct": 4.589371980676327
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 27,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 27,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 27,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 27,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.634636748957543,
+          "overround_median_pct": 5.555555555555558,
+          "overround_min_pct": 4.415934332753735,
+          "overround_max_pct": 7.568922305764403
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BV",
+        "BW",
+        "Max",
+        "PP",
+        "SKB"
+      ],
+      "n_both": 27,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 27,
+        "price_gap_mean_pct": {
+          "H": 2.5475418349057044,
+          "D": 3.4221440063579265,
+          "A": 4.3935297324934295
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 2.5475418349057044,
+          "D": 3.4221440063579265,
+          "A": 4.3935297324934295
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.2323170624174882,
+          "D": -0.10059693840381423,
+          "A": -0.13172012401366862
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 2.2810494119674396,
+          "D": 1.3294513058237103,
+          "A": 1.7356653599276268
+        },
+        "pct_b365_is_max": {
+          "H": 22.22222222222222,
+          "D": 33.333333333333336,
+          "A": 14.814814814814815
+        },
+        "outliers_gt_10pp": []
+      }
+    },
+    {
+      "div": "F1",
+      "league": "Ligue 1",
+      "season": "2627",
+      "season_label": "2026/27",
+      "file": "fd_F1_2627.csv",
+      "bytes": 17596,
+      "sha256": "e96952ea08cb5b8b2796260d66b611b9f0749afb300bb986bddb85c234032328",
+      "n_rows": 36,
+      "n_expected": null,
+      "n_malformed": 0,
+      "div_in_file": "F1",
+      "div_match": true,
+      "date_min": "2026-08-21",
+      "date_max": "2026-09-13",
+      "n_played_ftr": 36,
+      "columns": {
+        "MaxC": {
+          "cols": [
+            "MaxCH",
+            "MaxCD",
+            "MaxCA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "MaxCH": {
+              "n_valid": 36,
+              "pct_valid": 100.0
+            },
+            "MaxCD": {
+              "n_valid": 36,
+              "pct_valid": 100.0
+            },
+            "MaxCA": {
+              "n_valid": 36,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 36,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 2.578866497212539,
+          "overround_median_pct": 2.7695958108329144,
+          "overround_min_pct": 0.8333333333333304,
+          "overround_max_pct": 4.473540643753404
+        },
+        "B365C": {
+          "cols": [
+            "B365CH",
+            "B365CD",
+            "B365CA"
+          ],
+          "missing_cols": [],
+          "present": true,
+          "colstats": {
+            "B365CH": {
+              "n_valid": 36,
+              "pct_valid": 100.0
+            },
+            "B365CD": {
+              "n_valid": 36,
+              "pct_valid": 100.0
+            },
+            "B365CA": {
+              "n_valid": 36,
+              "pct_valid": 100.0
+            }
+          },
+          "n_triplet_valid": 36,
+          "pct_triplet_valid": 100.0,
+          "overround_mean_pct": 5.722784435799073,
+          "overround_median_pct": 5.723522167487694,
+          "overround_min_pct": 4.804804804804785,
+          "overround_max_pct": 6.814381270902992
+        }
+      },
+      "closing_books_present": [
+        "Avg",
+        "B365",
+        "BFD",
+        "BFE",
+        "BV",
+        "BW",
+        "Max",
+        "PP",
+        "SKB"
+      ],
+      "n_both": 36,
+      "pct_both": 100.0,
+      "divergence": {
+        "n": 36,
+        "price_gap_mean_pct": {
+          "H": 3.0565289739996695,
+          "D": 3.5643828338064205,
+          "A": 4.014761999010195
+        },
+        "price_gap_mean_abs_pct": {
+          "H": 3.0565289739996695,
+          "D": 3.5643828338064205,
+          "A": 4.014761999010195
+        },
+        "devig_prob_diff_mean_pp": {
+          "H": 0.09813515749060564,
+          "D": -0.08348846490444141,
+          "A": -0.014646692586164523
+        },
+        "devig_prob_diff_max_abs_pp": {
+          "H": 2.571381653019822,
+          "D": 1.3598529231768546,
+          "A": 2.5274132041044908
+        },
+        "pct_b365_is_max": {
+          "H": 36.111111111111114,
+          "D": 16.666666666666668,
+          "A": 33.333333333333336
+        },
+        "outliers_gt_10pp": []
+      }
+    }
+  ],
+  "aggregates": {
+    "per_season": {
+      "2223": {
+        "MaxC": {
+          "micro_mean_pct": -0.7786342144776415,
+          "micro_n": 1826,
+          "macro_mean_pct": -0.7850013612468164
+        },
+        "B365C": {
+          "micro_mean_pct": 5.50666287476696,
+          "micro_n": 1826,
+          "macro_mean_pct": 5.502937681248178
+        }
+      },
+      "2324": {
+        "MaxC": {
+          "micro_mean_pct": -0.5749283279903509,
+          "micro_n": 1752,
+          "macro_mean_pct": -0.5704151839610528
+        },
+        "B365C": {
+          "micro_mean_pct": 5.429580580585517,
+          "micro_n": 1752,
+          "macro_mean_pct": 5.430207107371023
+        }
+      },
+      "2425": {
+        "MaxC": {
+          "micro_mean_pct": 0.15895098226011561,
+          "micro_n": 1752,
+          "macro_mean_pct": 0.15569522201033562
+        },
+        "B365C": {
+          "micro_mean_pct": 5.616130013062134,
+          "micro_n": 1752,
+          "macro_mean_pct": 5.6171037634945
+        }
+      },
+      "2526": {
+        "MaxC": {
+          "micro_mean_pct": 2.2377808753677058,
+          "micro_n": 1752,
+          "macro_mean_pct": 2.2496726919019747
+        },
+        "B365C": {
+          "micro_mean_pct": 5.640964356261985,
+          "micro_n": 1752,
+          "macro_mean_pct": 5.640826899894884
+        }
+      },
+      "2627": {
+        "MaxC": {
+          "micro_mean_pct": 2.3747258237676587,
+          "micro_n": 202,
+          "macro_mean_pct": 2.4039470659991276
+        },
+        "B365C": {
+          "micro_mean_pct": 5.602591582710838,
+          "micro_n": 202,
+          "macro_mean_pct": 5.620620619211271
+        }
+      }
+    },
+    "overall_walkforward": {
+      "MaxC": {
+        "micro_mean_pct": 0.2499313341271781,
+        "micro_n": 7082,
+        "macro_mean_pct": 0.2624878421761102
+      },
+      "B365C": {
+        "micro_mean_pct": 5.547899028744161,
+        "micro_n": 7082,
+        "macro_mean_pct": 5.547768863002146
+      }
+    },
+    "baseline_2627": {
+      "MaxC": {
+        "micro_mean_pct": 2.3747258237676587,
+        "micro_n": 202,
+        "macro_mean_pct": 2.4039470659991276
+      },
+      "B365C": {
+        "micro_mean_pct": 5.602591582710838,
+        "micro_n": 202,
+        "macro_mean_pct": 5.620620619211271
+      }
+    },
+    "macro_per_league_walkforward": {
+      "I1": {
+        "MaxC": {
+          "micro_mean_pct": 0.3856033688563458,
+          "micro_n": 1520,
+          "macro_mean_pct": 0.38560336885634583
+        },
+        "B365C": {
+          "micro_mean_pct": 5.610518884822606,
+          "micro_n": 1520,
+          "macro_mean_pct": 5.610518884822605
+        }
+      },
+      "E0": {
+        "MaxC": {
+          "micro_mean_pct": 0.03710898797916902,
+          "micro_n": 1520,
+          "macro_mean_pct": 0.03710898797916902
+        },
+        "B365C": {
+          "micro_mean_pct": 5.485178573934797,
+          "micro_n": 1520,
+          "macro_mean_pct": 5.485178573934797
+        }
+      },
+      "SP1": {
+        "MaxC": {
+          "micro_mean_pct": 0.3080185214615996,
+          "micro_n": 1520,
+          "macro_mean_pct": 0.30801852146159964
+        },
+        "B365C": {
+          "micro_mean_pct": 5.567127967895512,
+          "micro_n": 1520,
+          "macro_mean_pct": 5.5671279678955115
+        }
+      },
+      "D1": {
+        "MaxC": {
+          "micro_mean_pct": 0.2265002596818143,
+          "micro_n": 1224,
+          "macro_mean_pct": 0.2265002596818143
+        },
+        "B365C": {
+          "micro_mean_pct": 5.540069351781225,
+          "micro_n": 1224,
+          "macro_mean_pct": 5.540069351781225
+        }
+      },
+      "F1": {
+        "MaxC": {
+          "micro_mean_pct": 0.2943501197430822,
+          "micro_n": 1298,
+          "macro_mean_pct": 0.35520807290162243
+        },
+        "B365C": {
+          "micro_mean_pct": 5.5328824240936045,
+          "micro_n": 1298,
+          "macro_mean_pct": 5.535949536576591
+        }
+      }
+    }
+  },
+  "baseline_2627_comparison": {
+    "previous_measurement": {
+      "MaxC_pct": 2.22,
+      "B365C_pct": 5.49,
+      "note": "misurato solo sul 2026/27 in sessione precedente"
+    },
+    "recomputed_now": {
+      "MaxC_pct": 2.37,
+      "B365C_pct": 5.6,
+      "n_rows": 202
+    }
+  },
+  "verdict": {
+    "maxc_usable_walkforward": true,
+    "coverage_threshold_pct": 99.0,
+    "holes": []
+  }
+}
