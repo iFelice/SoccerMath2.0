@@ -67,11 +67,25 @@ JSONBIN_BIN_ID = _get_secret("JSONBIN_BIN_ID", "")
 # ==========================================
 # 2. GESTIONE STAGIONI
 # ==========================================
+# Il confine di stagione (1° luglio) e la finestra stagionale vivono in un
+# unico modulo foglia, condiviso da app, rollover, archivio xG e registro
+# predizioni: vedi season_calendar.py per la verifica sul calendario reale.
+from season_calendar import (  # noqa: E402,F401
+    SEASON_START_MONTH,
+    SEASON_WINDOW,
+    season_label,
+    season_start_year,
+    season_start_year_of,
+    season_window,
+    soccerdata_season_code,
+)
+
+
 def get_current_season_start_year(now=None) -> int:
     """
     Anno di inizio della stagione corrente, derivato automaticamente dalla data.
-    La stagione va da agosto a giugno: da luglio in poi si passa alla stagione
-    dell'anno in corso (es. luglio 2027 -> stagione 2027/2028).
+    La stagione va da agosto a giugno: da luglio in poi (SEASON_START_MONTH)
+    si passa alla stagione dell'anno in corso (es. luglio 2027 -> 2027/2028).
     Override manuale possibile con la variabile d'ambiente M4_CURRENT_SEASON_START_YEAR.
     """
     env_val = os.getenv("M4_CURRENT_SEASON_START_YEAR", "").strip()
@@ -79,18 +93,29 @@ def get_current_season_start_year(now=None) -> int:
         try:
             return int(env_val)
         except ValueError:
-            pass  # valore ambienete non valido: si usa il calcolo automatico
+            pass  # valore ambiente non valido: si usa il calcolo automatico
     t = now or datetime.now()
-    return t.year if t.month >= 7 else t.year - 1
+    return season_start_year_of(t)
 
 # Stagione corrente: derivata automaticamente dalla data (ago 2026 -> 2026/2027;
 # da luglio 2027 -> 2027/2028), cosi' rollover e update non richiedono interventi manuali.
 # M4_CURRENT_SEASON / M4_CURRENT_SEASON_START_YEAR consentono di forzarla se necessario.
 CURRENT_SEASON_START_YEAR = get_current_season_start_year()
-CURRENT_SEASON = os.getenv("M4_CURRENT_SEASON") or f"{CURRENT_SEASON_START_YEAR}/{CURRENT_SEASON_START_YEAR + 1}"
+CURRENT_SEASON = os.getenv("M4_CURRENT_SEASON") or season_label(CURRENT_SEASON_START_YEAR)
 
-# Stagioni storiche supportate
-HISTORICAL_SEASONS = ["2025/2026", "2024/2025", "2023/2024", "2022/2023"]
+
+def historical_seasons(current_start_year: int = None, window: int = SEASON_WINDOW) -> list:
+    """Stagioni storiche (etichette "AAAA/AAAA+1", dalla piu' recente) che
+    completano la finestra di ``window`` stagioni con la corrente: con la
+    corrente 2026/2027 -> ["2025/2026", "2024/2025", "2023/2024", "2022/2023"].
+    Stessa finestra mobile delle stagioni richieste a Understat
+    (update_all_xg_db.SEASONS): al rollover scorre da sola, nessuna lista a mano."""
+    current = CURRENT_SEASON_START_YEAR if current_start_year is None else int(current_start_year)
+    return [season_label(y) for y in reversed(season_window(current, window)[:-1])]
+
+
+# Stagioni storiche supportate: derivate dalla finestra mobile, non scritte a mano.
+HISTORICAL_SEASONS = historical_seasons()
 ALL_SEASONS = [CURRENT_SEASON] + [s for s in HISTORICAL_SEASONS if s != CURRENT_SEASON]
 
 

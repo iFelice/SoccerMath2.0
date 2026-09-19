@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import pandas as pd
 
 from season_rollover import run_rollover, rollover_league
+from team_aliases import clean_name
 
 HEADER = "Div,Date,Time,HomeTeam,AwayTeam,FTHG,FTAG,FTR,Matchday"
 
@@ -135,3 +136,62 @@ class TestRollover(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestDedupGrafieDiverse(unittest.TestCase):
+    """Commessa 1: la stessa partita registrata con due grafie ("Nottingham" e
+    "Nott'm Forest") e' UNA riga; il rollover non archivia mai un Live sporco."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.db = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_dedup_matches_normalizza_prima_di_deduplicare(self):
+        from season_rollover import dedup_matches
+        df = pd.DataFrame({
+            "Date": ["17/08/2026", "17/08/2026", "23/08/2026"],
+            "HomeTeam": ["Nottingham", "Nott'm Forest", "Brighton Hove"],
+            "AwayTeam": ["Brighton Hove", "Brighton", "Leeds United"],
+            "FTHG": [1, 1, 2], "FTAG": [0, 0, 2],
+        })
+        out = dedup_matches(df)
+        self.assertEqual(len(out), 2)
+        self.assertEqual(out["HomeTeam"].tolist(), ["Nott'm Forest", "Brighton"])
+        self.assertEqual(out["AwayTeam"].tolist(), ["Brighton", "Leeds"])
+
+    def test_rollover_pulisce_il_live_anche_senza_archiviare(self):
+        live = self.db / "Premier_Live.csv"
+        _write(live, [
+            HEADER,
+            _row("E0", "17/08/2026", "Nottingham", "Brighton Hove", 1, 0, 1),
+            _row("E0", "17/08/2026", "Nott'm Forest", "Brighton", 1, 0, 1),
+        ])
+        report = rollover_league("Premier", live, current_season=2026)
+        self.assertEqual(report["status"], "cleaned")
+        self.assertEqual(report["duplicati_rimossi"], 1)
+        df = _read(live)
+        self.assertEqual(len(df), 1)
+        self.assertEqual(df.iloc[0]["HomeTeam"], "Nott'm Forest")
+        # seconda esecuzione: nulla da fare
+        report = rollover_league("Premier", live, current_season=2026)
+        self.assertEqual(report["status"], "noop")
+        self.assertEqual(report["duplicati_rimossi"], 0)
+
+    def test_archiviazione_non_duplica_contro_archivio_con_nomi_football_data(self):
+        live = self.db / "Bundesliga_Live.csv"
+        arch = self.db / "Bundesliga_2026.csv"
+        _write(arch, [HEADER, _row("D1", "22/08/2026", "Bayern Munich", "RB Leipzig", 3, 1, 1)])
+        _write(live, [
+            HEADER,
+            _row("D1", "22/08/2026", "Bayern", "Leipzig", 3, 1, 1),   # stessa partita, grafia canonica
+            _row("D1", "29/08/2026", "Dortmund", "HSV", 2, 0, 2),
+        ])
+        report = rollover_league("Bundesliga", live, current_season=2027)
+        self.assertEqual(report["status"], "archived")
+        df = _read(arch)
+        self.assertEqual(len(df), 2, df)
+        key = df["Date"] + "|" + df["HomeTeam"].map(clean_name) + "|" + df["AwayTeam"].map(clean_name)
+        self.assertFalse(key.duplicated().any())

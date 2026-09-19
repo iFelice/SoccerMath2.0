@@ -3,8 +3,9 @@ prediction_registry.py - Versionamento del motore predittivo e helper del
 Registro Predizioni & Tracking.
 
 Questo modulo e' la fonte UNICA delle costanti di versione del prediction
-engine. Non dipende da Streamlit, pandas o da altri moduli applicativi:
-puo' essere importato da app.py, dagli script di audit e dai test.
+engine. Non dipende da Streamlit, pandas o da altri moduli applicativi (solo
+dal modulo foglia ``season_calendar`` per il confine di stagione): puo' essere
+importato da app.py, dagli script di audit e dai test.
 
 Motivazione
 ------------
@@ -51,6 +52,10 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+# Unico confine di stagione della pipeline (modulo foglia senza dipendenze,
+# come questo): prima qui valeva ``mese >= 8`` contro ``mese >= 7`` altrove.
+from season_calendar import season_label, season_start_year_of
 
 try:
     from zoneinfo import ZoneInfo
@@ -593,9 +598,7 @@ def season_from_entry(entry: Any) -> str:
     dt = parse_datetime(entry.get(DATA_FIELD))
     if dt is not None:
         dt_local = dt.astimezone(TZ_ITALY)
-        if dt_local.month >= 8:
-            return f"{dt_local.year}/{dt_local.year + 1}"
-        return f"{dt_local.year - 1}/{dt_local.year}"
+        return season_label(season_start_year_of(dt_local))
     return ""
 
 

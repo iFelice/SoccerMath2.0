@@ -746,6 +746,31 @@ class TestDeriveAverages(unittest.TestCase):
         self.assertFalse(res["written"])
         self.assertEqual(open(self.out, encoding="utf-8").read(), self.before)
 
+    def test_pre_season_tolerance_expires_past_deadline(self):
+        """Stagione 2026 con una sola partita giocata e NESSUN cutoff (as-of
+        = oggi, oltre il 15/9/2026): non e' pre-stagione, deve BLOCCARE con
+        un errore esplicito invece di uscire in silenzio con il file vecchio.
+        E' il caso in cui la tolleranza nasconderebbe un problema reale
+        (archivio perso/stagione mai acquisita a monte/date parzialmente
+        illeggibili con cutoff)."""
+        self._write_archive([match(mid=1)])
+        res = update_xg.derive_league("Serie A", 2026, database_dir=self.tmp)
+        self.assertFalse(res["written"])
+        self.assertNotIn("pre_season", res)
+        self.assertTrue(any("2026-09-15" in e for e in res["errors"]), res["errors"])
+        self.assertEqual(open(self.out, encoding="utf-8").read(), self.before)
+
+    def test_pre_season_within_window_still_tolerated(self):
+        """Stessa scarsita' di partite ma cutoff dentro la finestra pre-stagione
+        (10/08/2026 <= 15/9): resta l'uscita 0 non-errore di luglio/agosto."""
+        self._write_archive([match(mid=1, date="2026-08-05 18:00:00")])
+        res = update_xg.derive_league("Serie A", 2026, database_dir=self.tmp,
+                                      cutoff="2026-08-10T12:00:00+00:00")
+        self.assertFalse(res["written"])
+        self.assertTrue(res.get("season_starting"), res)
+        self.assertEqual(res["errors"], [])
+        self.assertEqual(open(self.out, encoding="utf-8").read(), self.before)
+
 
 # ---------------------------------------------------------------------------
 # 10. Dati reali del repository (5 leghe)

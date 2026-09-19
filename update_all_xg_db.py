@@ -25,14 +25,21 @@ Robustezza (nessun file vuoto o parziale in produzione):
     Restano invece ammesse - e riportate - le variazioni legittime: partite
     nuove, correzioni di xG sulla stessa partita, fixture non ancora giocate
     tolte dal calendario. Ridurre le stagioni richieste e' possibile solo con
-    ``--allow-dropping-seasons``;
+    ``--allow-dropping-seasons``, con un'eccezione fisiologica: con la finestra
+    mobile di default (``derive_seasons``: stagione corrente + 4 precedenti,
+    confine 1° luglio come tutta la pipeline) al rollover la stagione piu'
+    vecchia esce da sola e la stagione nuova e' tollerata assente finche'
+    Understat non la espone (``season_not_started``), ma solo fino al 15
+    settembre (``season_calendar.pre_season_deadline``): oltre quella data
+    l'assenza e' un guasto e blocca; con ``--seasons`` esplicito nessuna
+    tolleranza automatica;
   * la scrittura e' atomica (file temporaneo + ``os.replace``);
   * se una lega fallisce, l'ultimo archivio valido resta al suo posto e lo
     script esce con codice diverso da zero (il workflow non pubblica nulla).
 
 Uso:
-    python update_all_xg_db.py
-    python update_all_xg_db.py --league "Serie A" --seasons 2526 2627
+    python update_all_xg_db.py                    # finestra mobile derivata dalla data
+    python update_all_xg_db.py --league "Serie A" --seasons 2526 2627   # esplicito, rigoroso
     python update_all_xg_db.py --dry-run
     python update_all_xg_db.py --output-dir /tmp/verify \
         --baseline-dir SoccerMath/database        # verifica senza toccare i dati
@@ -46,7 +53,7 @@ import logging
 import math
 import os
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
@@ -60,12 +67,32 @@ from xg_archive import (  # noqa: E402
     parse_season,
     validate_archive,
 )
+from config import get_current_season_start_year  # noqa: E402
+from season_calendar import (  # noqa: E402
+    SEASON_WINDOW,
+    pre_season_deadline,
+    season_window,
+    soccerdata_season_code,
+    within_pre_season_tolerance,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("update_all_xg_db")
 
-# Stagioni richieste a soccerdata: dalla 2022/23 alla 2026/27.
-SEASONS: List[str] = ["2223", "2324", "2425", "2526", "2627"]
+
+def derive_seasons(current_start_year: Optional[int] = None,
+                   window: int = SEASON_WINDOW) -> List[str]:
+    """Stagioni richieste a soccerdata: finestra mobile di ``window`` stagioni
+    che termina con quella corrente (config.get_current_season_start_year,
+    confine 1° luglio). Nel 2026/27 -> ["2223", "2324", "2425", "2526", "2627"];
+    dal 1° luglio 2027 -> ["2324", ..., "2728"] senza toccare il codice."""
+    current = get_current_season_start_year() if current_start_year is None else int(current_start_year)
+    return [soccerdata_season_code(y) for y in season_window(current, window)]
+
+
+# Finestra derivata dalla data (non piu' una lista scritta a mano): la stagione
+# corrente entra da sola il 1° luglio e la piu' vecchia esce dalla finestra.
+SEASONS: List[str] = derive_seasons()
 
 # Colonne di Understat.read_schedule() usate (verificate su soccerdata 1.9.1).
 OUTPUT_COLUMNS = {
@@ -193,20 +220,54 @@ def _write_atomic(path: str, records: List[dict]) -> None:
     os.replace(tmp, path)
 
 
+def _season_counts(records: Optional[Sequence[dict]]) -> Dict[int, int]:
+    counts: Dict[int, int] = {}
+    for rec in records or []:
+        if isinstance(rec, dict):
+            season = parse_season(rec.get("season"))
+            if season is not None:
+                counts[season] = counts.get(season, 0) + 1
+    return counts
+
+
 def update_league(
     league: str,
     seasons: List[str],
     output_dir: str,
     *,
     dry_run: bool = False,
-    fetcher=fetch_league,
+    fetcher=None,
     baseline_dir: Optional[str] = None,
     allow_dropping_seasons: bool = False,
+    rolling_window: bool = False,
 ) -> Dict:
-    """Scarica, valida e (solo se valido) sostituisce l'archivio della lega."""
+    """Scarica, valida e (solo se valido) sostituisce l'archivio della lega.
+
+    ``rolling_window`` va passato quando ``seasons`` e' la finestra mobile
+    derivata dalla data (``derive_seasons``) e non una scelta esplicita: al
+    rollover del 1° luglio due variazioni sono fisiologiche e NON bloccano:
+      * la stagione piu' vecchia esce dalla finestra (le sue partite spariscono
+        dall'archivio): ammesso solo per stagioni PIU' VECCHIE della finestra,
+        una stagione dentro la finestra che sparisce resta bloccante;
+      * la stagione nuova non e' ancora su Understat (compare in ``getStatData``
+        solo dopo le prime partite di agosto): ammesso solo se nemmeno la
+        baseline aveva partite di quella stagione (``season_not_started``) E
+        solo entro il 15 settembre dell'anno di inizio stagione
+        (``season_calendar.pre_season_deadline``). Senza lo smorzamento
+        temporale la tolleranza sarebbe auto-perpetuante: il primo download
+        rotto scriverebbe un archivio senza la stagione nuova, la baseline
+        successiva non l'avrebbe e ogni esecuzione successiva continuerebbe a
+        "tollerare" per tutta la stagione, in silenzio. Oltre il 15/9 (data su
+        cui nessuna delle 25 stagioni lega x 2022/23->2026/27 osservate aveva
+        ancora meno di 27 partite giocate) l'assenza e' un guasto e BLOCCA.
+        Se invece la baseline le aveva, e' una regressione e blocca come prima.
+    Con ``--seasons`` esplicito il comportamento resta rigoroso.
+    """
     result: Dict = {"league": league, "written": False, "matches": 0, "errors": []}
     path = os.path.join(output_dir, ARCHIVE_FILES[league])
     result["path"] = path
+    if fetcher is None:
+        fetcher = fetch_league  # risolto a runtime: i test possono sostituirlo
 
     try:
         records = fetcher(SOCCERDATA_LEAGUES[league], seasons)
@@ -215,13 +276,7 @@ def update_league(
         return result
 
     expected = [parse_season(s) for s in seasons]
-    problems = validate_archive(
-        records, league=league, min_matches=100,
-        expected_seasons=[s for s in expected if s],
-    )
-    if problems:
-        result["errors"].extend(problems)
-        return result
+    requested = [s for s in expected if s]
 
     # Baseline = ultimo archivio valido. In modalita' verifica l'output va in
     # una cartella temporanea, ma il confronto deve restare contro i dati veri.
@@ -230,13 +285,62 @@ def update_league(
         baseline_path = os.path.join(baseline_dir, ARCHIVE_FILES[league])
     result["baseline_path"] = baseline_path
     previous = _load_existing(baseline_path)
+
+    must_have = list(requested)
+    if rolling_window and requested:
+        current_season = max(requested)
+        new_counts = _season_counts(records)
+        old_counts = _season_counts(previous)
+        if new_counts.get(current_season, 0) == 0 and old_counts.get(current_season, 0) == 0:
+            if within_pre_season_tolerance(current_season):
+                # Pre-stagione: Understat non espone ancora la stagione nuova e
+                # nemmeno l'archivio precedente la conteneva. Non e' un errore.
+                must_have = [s for s in requested if s != current_season]
+                result["season_not_started"] = current_season
+                log.info("%s: stagione %d/%d non ancora disponibile su Understat "
+                         "(pre-stagione): archivio aggiornato con le %d stagioni "
+                         "precedenti", league, current_season, current_season + 1,
+                         len(must_have))
+            else:
+                # Oltre il termine della tolleranza pre-stagione l'assenza non
+                # e' piu' un ritardo fisiologico: senza questo blocco la
+                # tolleranza si auto-alimenterebbe (archivio riscritto senza la
+                # stagione nuova -> baseline senza -> tollerata di nuovo...) e
+                # un download rotto ad agosto resterebbe invisibile per tutta
+                # la stagione.
+                result["errors"].append(
+                    f"stagione corrente {current_season}/{current_season + 1} "
+                    f"assente dal download oltre il "
+                    f"{pre_season_deadline(current_season).isoformat()} (termine "
+                    "della tolleranza pre-stagione): guasto di acquisizione o "
+                    "calendario eccezionale da verificare a mano; archivio "
+                    "esistente lasciato invariato")
+                return result
+
+    problems = validate_archive(
+        records, league=league, min_matches=100, expected_seasons=must_have,
+    )
+    if problems:
+        result["errors"].extend(problems)
+        return result
+
     if previous:
         result["previous_matches"] = len(previous)
         diff = compare_snapshots(
             previous, records, league=league,
-            requested_seasons=[s for s in expected if s],
+            requested_seasons=requested,
             allow_dropping_seasons=allow_dropping_seasons,
         )
+        if rolling_window and diff.dropped_seasons and requested:
+            window_start = min(requested)
+            aged_out = [s for s in diff.dropped_seasons if s < window_start]
+            if aged_out and aged_out == diff.dropped_seasons:
+                # Solo stagioni piu' vecchie della finestra mobile: uscita
+                # fisiologica al rollover, riportata ma non bloccante.
+                log.info("%s: stagioni %s uscite dalla finestra mobile (%s)",
+                         league, aged_out, ", ".join(seasons))
+                result["seasons_aged_out"] = aged_out
+                diff.dropped_seasons = []
         result["diff"] = diff.to_dict()
         blocking = diff.blocking_problems
         if blocking:
@@ -253,7 +357,7 @@ def update_league(
 
         # Rete secondaria sul volume, confrontando solo le stagioni RICHIESTE
         # (ridurre le stagioni non e' un crollo dello scrape).
-        wanted = {s for s in expected if s}
+        wanted = set(requested)
         in_scope = [r for r in previous
                     if isinstance(r, dict)
                     and (not wanted or parse_season(r.get("season")) in wanted)]
@@ -279,8 +383,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         description="Unica acquisizione Understat: archivio xG per-partita")
     parser.add_argument("--league", action="append", dest="leagues",
                         choices=list(LEAGUES), help="limita a una lega (ripetibile)")
-    parser.add_argument("--seasons", nargs="+", default=SEASONS,
-                        help=f"stagioni soccerdata (default: {' '.join(SEASONS)})")
+    parser.add_argument("--seasons", nargs="+", default=None,
+                        help="stagioni soccerdata esplicite (controlli rigorosi). "
+                             "Default: finestra mobile derivata dalla data, oggi "
+                             f"{' '.join(SEASONS)}")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--baseline-dir", default=None,
                         help="cartella dell'ultimo archivio valido con cui "
@@ -298,20 +404,31 @@ def main(argv: Optional[List[str]] = None) -> int:
     leagues = args.leagues or list(LEAGUES)
     results, failures = [], 0
 
+    # Stagioni: finestra mobile (default, tolleranze di rollover attive) oppure
+    # elenco esplicito (nessuna tolleranza automatica).
+    rolling_window = not args.seasons
+    seasons = derive_seasons() if rolling_window else list(args.seasons)
+    if rolling_window:
+        log.info("Stagioni derivate dalla data (finestra mobile di %d): %s",
+                 len(seasons), ", ".join(seasons))
+
     for league in leagues:
-        log.info("Scaricamento %s (stagioni: %s)...", league, ", ".join(args.seasons))
-        res = update_league(league, list(args.seasons), args.output_dir,
+        log.info("Scaricamento %s (stagioni: %s)...", league, ", ".join(seasons))
+        res = update_league(league, seasons, args.output_dir,
                             dry_run=args.dry_run,
                             baseline_dir=args.baseline_dir,
-                            allow_dropping_seasons=args.allow_dropping_seasons)
+                            allow_dropping_seasons=args.allow_dropping_seasons,
+                            rolling_window=rolling_window)
         results.append(res)
         if res["errors"]:
             failures += 1
             for err in res["errors"]:
                 log.error("%s: %s", league, err)
         else:
-            log.info("%s: %d partite%s", league, res["matches"],
-                     "" if res["written"] else " [dry-run, non scritto]")
+            log.info("%s: %d partite%s%s", league, res["matches"],
+                     "" if res["written"] else " [dry-run, non scritto]",
+                     (f" (stagione {res['season_not_started']} non ancora iniziata)"
+                      if res.get("season_not_started") else ""))
 
     if args.report:
         os.makedirs(os.path.dirname(os.path.abspath(args.report)) or ".", exist_ok=True)

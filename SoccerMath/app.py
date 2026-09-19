@@ -38,7 +38,7 @@ from display_names import display_name
 from config import (
     FOOTBALL_DATA_API_KEY, GROQ_API_KEY, ODDS_API_KEY, JSONBIN_API_KEY, JSONBIN_BIN_ID,
     PREDICTIONS_FILE, LEAGUES_CONFIG, LEAGUE_CODE_MAP, LEAGUE_PREFIX_MAP, CURRENT_SEASON, clean_name, DATABASE_DIR,
-    LEAGUE_HOME_ADVANTAGE, get_league_db_files,
+    LEAGUE_HOME_ADVANTAGE, get_league_db_files, season_label, season_start_year,
 )
 from prediction_registry import (
     origin_of,
@@ -98,6 +98,12 @@ def format_date_italy(utc_date_str, fmt="%d/%m | %H:%M"):
         return "Data N/D"
 
 def calcola_stagione_calcolo(data_str):
+    """Etichetta di stagione ("2026/2027") della data di una partita.
+
+    Il confine di stagione e' UNICO per tutta la pipeline (season_calendar,
+    1° luglio, verificato sul calendario reale delle 5 leghe): prima qui si
+    usava ``mese >= 8`` mentre rollover/config usavano ``mese >= 7``.
+    """
     if not data_str or data_str == "Data N/D" or not isinstance(data_str, str):
         # isinstance: le righe del registro senza campo 'data' arrivano come NaN
         return "Sconosciuta"
@@ -117,11 +123,8 @@ def calcola_stagione_calcolo(data_str):
                 anno = datetime.now(ITALY_TZ).year
             else:
                 return "Sconosciuta"
-        
-        if mese >= 8: 
-            return f"{anno}/{anno+1}"
-        else: 
-            return f"{anno-1}/{anno}"
+
+        return season_label(season_start_year(anno, mese))
     except Exception as e:
         logging.warning(f"Errore calcolo stagione per '{data_str}': {e}")
         return "Sconosciuta"

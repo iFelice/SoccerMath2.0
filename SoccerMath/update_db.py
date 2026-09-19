@@ -20,6 +20,8 @@ from config import (
     FOOTBALL_DATA_API_KEY,
     clean_name,
 )
+# Stessa igiene del rollover: nomi canonici, poi deduplica su Date+Home+Away.
+from season_rollover import dedup_matches
 
 # Per retrocompatibilità interna se importato altrove
 CAMPIONATI = CAMPIONATI_UPDATE_DB
@@ -146,10 +148,13 @@ def update_live_csv(camp_name, comp_id, live_path=None):
     if os.path.exists(live_path):
         try:
             df_old = pd.read_csv(live_path, on_bad_lines="skip", low_memory=False)
-            # Unisci e rimuovi duplicati basandosi su Date+HomeTeam+AwayTeam
+            # Unisci e rimuovi duplicati basandosi su Date+HomeTeam+AwayTeam.
+            # I nomi vengono PRIMA normalizzati (clean_name): le righe scritte
+            # quando l'API usava un'altra grafia ("Nottingham" vs "Nott'm
+            # Forest") sono la stessa partita e non devono raddoppiare.
             df_merged = pd.concat([df_old, df_new], ignore_index=True)
             prima_merge = len(df_merged)
-            df_merged = df_merged.drop_duplicates(subset=["Date", "HomeTeam", "AwayTeam"], keep="last")
+            df_merged = dedup_matches(df_merged)
             _write(df_merged, live_path, f"Aggiornato (+{len(df_merged) - len(df_old)} nuove, "
                                         f"{prima_merge - len(df_merged)} duplicati sovrascritti)")
         except Exception as e:

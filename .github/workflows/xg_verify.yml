@@ -19,9 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       seasons:
-        description: "Stagioni soccerdata (formato 2627), separate da spazio"
+        description: "Stagioni soccerdata (formato 2627), separate da spazio. Vuoto = finestra mobile derivata dalla data (stagione corrente + 4 precedenti)"
         required: false
-        default: "2223 2324 2425 2526 2627"
+        default: ""
   # Un workflow presente solo su un branch non di default NON e' avviabile da
   # workflow_dispatch: il push su arena/** garantisce comunque una esecuzione
   # reale su questo branch.
@@ -54,6 +54,8 @@ jobs:
       # cartella di lavoro non versionata: la verifica non scrive mai dentro
       # SoccerMath/database ne' in audit/results
       VERIFY_DIR: ${{ github.workspace }}/xg-verify-out
+      # vuoto (default e push) = finestra mobile derivata dalla data dallo script
+      SEASONS: ${{ github.event.inputs.seasons || '' }}
 
     steps:
       - name: Checkout del branch
@@ -87,7 +89,7 @@ jobs:
       - name: Acquisizione reale delle 5 leghe (Understat)
         run: |
           python update_all_xg_db.py \
-            --seasons ${{ github.event.inputs.seasons || '2223 2324 2425 2526 2627' }} \
+            ${SEASONS:+--seasons $SEASONS} \
             --output-dir "$VERIFY_DIR/database" \
             --baseline-dir SoccerMath/database \
             --report "$VERIFY_DIR/reports/acquisizione.json"
