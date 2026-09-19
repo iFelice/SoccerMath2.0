@@ -1,0 +1,184 @@
+name: Campionamento WhoScored assenze pre-match (sola lettura)
+
+# MODALITA' VERIFICA Parte B (rediretta): campionamento stratificato REALE di
+# soccerdata.WhoScored.read_missing_players() sul perimetro 5 leghe x stagioni
+# 2022/23–2026/27, per stimare la copertura storica delle assenze pre-match
+# (infortuni + squalifiche) PRIMA di qualunque decisione su abbonamenti.
+#
+# E' lo stesso escamotage GitHub Actions usato in Parte A quando la sandbox di
+# lavoro non raggiunge la fonte dati: il job gira su un runner con rete, usa
+# solo dipendenze gia' pinnate (soccerdata==1.9.1) e non scrive nulla nel
+# repository.
+#
+# Che cosa NON fa, per costruzione:
+#   * nessun commit e nessun push (permissions: contents: read);
+#   * non scrive in SoccerMath/database ne' in audit/results: l'output va in
+#     una cartella di lavoro non versionata e viene pubblicato come artifact;
+#   * non tocca app.py, config.py o models/: le assenze non sono collegate al
+#     motore Poisson/Elo (nessun collegamento in questa fase);
+#   * nessun segreto e nessun abbonamento: fonte pubblica, rate limit interno
+#     della libreria (5s + jitter).
+#
+# Costo dichiarato: 1 pagina schedule per cella lega-stagione (25) + N pagine
+# preview campionate per cella (default 8): ~225 pagine totali al rate limit
+# della libreria; timeout ampio per costruzione.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Stagioni soccerdata (formato 2223), separate da spazio"
+        required: false
+        default: "2223 2324 2425 2526 2627"
+      matches_per_cell:
+        description: "Partite campionate per cella lega-stagione (quantili equispaziati)"
+        required: false
+        default: "8"
+  # Un workflow presente solo su un branch non di default NON e' avviabile da
+  # workflow_dispatch: il push su arena/** garantisce comunque una esecuzione
+  # reale su questo branch (stesso schema di ppda_player_verify.yml).
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - '.github/workflows/whoscored_missing_sample.yml'
+      - 'audit/whoscored_missing_players_sample.py'
+
+permissions:
+  contents: read
+  # Serve SOLO al passo che pubblica il referto come commento sul PR della
+  # branch (canale di lettura per gli ambienti senza accesso agli artifact).
+  # Il workflow resta a repository immutato (verificato dal passo dedicato).
+  pull-requests: write
+
+concurrency:
+  group: whoscored-missing-sample-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  campionamento:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    env:
+      SEASONS: ${{ github.event.inputs.seasons || '2223 2324 2425 2526 2627' }}
+      MATCHES_PER_CELL: ${{ github.event.inputs.matches_per_cell || '8' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verifica browser (WhoScored richiede Chrome via seleniumbase)
+        run: |
+          google-chrome --version || chromium --version || echo "NESSUN CHROME PREINSTALLATO"
+          { echo "### Ambiente"; google-chrome --version 2>/dev/null || true; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Installazione dipendenze (soccerdata pinnato)
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'soccerdata==1.9.1' pandas curl_cffi lxml
+          python - <<'PY'
+          from importlib.metadata import version
+          print("soccerdata installato:", version("soccerdata"))
+          try:
+              print("seleniumbase installato:", version("seleniumbase"))
+          except Exception as e:
+              print("seleniumbase: non installato?", e)
+          PY
+
+      - name: Cartella di lavoro del run (fuori dal repository)
+        run: |
+          echo "SAMPLE_DIR=$RUNNER_TEMP/ws-missing-out" >> "$GITHUB_ENV"
+          echo "Cartella di lavoro: $RUNNER_TEMP/ws-missing-out"
+
+      - name: Campionamento stratificato (5 leghe x stagioni)
+        # working-directory FUORI dal checkout: seleniumbase/soccerdata possono
+        # scrivere cartelle di servizio (es. latest_logs/) nella cwd; cosi' il
+        # repository resta verificabilmente pulito.
+        working-directory: ${{ runner.temp }}
+        run: |
+          python "$GITHUB_WORKSPACE/audit/whoscored_missing_players_sample.py" \
+            --seasons $SEASONS \
+            --matches-per-cell "$MATCHES_PER_CELL" \
+            --out-dir "$SAMPLE_DIR"
+
+      - name: Evidenza anche nei LOG (non solo artifact)
+        if: always()
+        run: |
+          echo "RUN_URL=$RUN_URL"
+          echo "==== report.md ===="
+          cat "$SAMPLE_DIR/report.md" 2>/dev/null || echo "report.md non prodotto"
+          echo "==== fine report ===="
+          # Evidenza anche nel riepilogo job (leggibile via API anche quando i
+          # log grezzi non sono scaricabili dall'ambiente di lavoro).
+          {
+            echo "## Report campionamento (vedi anche l'artifact)"
+            echo '```'
+            cat "$SAMPLE_DIR/report.md" 2>/dev/null || echo "report.md non prodotto"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pubblica referto come commento sul PR della branch (se esiste)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MARKER="<!-- ws-missing-sample-report -->"
+          PR_NUMBER="$(gh pr view --json number -q .number 2>/dev/null || true)"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Nessun PR aperto su questa branch: salto il commento."
+            exit 0
+          fi
+          {
+            echo "$MARKER"
+            echo "## Campionamento WhoScored assenze pre-match — run ${{ github.run_id }}"
+            echo "- branch: \`${{ github.ref_name }}\` · commit \`${GITHUB_SHA::7}\`"
+            echo "- [Run su GitHub]($RUN_URL) · artifact: \`whoscored-missing-sample-${{ github.run_id }}\`"
+            echo
+            echo '```'
+            cat "$SAMPLE_DIR/report.md" 2>/dev/null || echo "report.md non prodotto (vedi log)"
+            echo '```'
+          } > /tmp/pr_comment.md
+          EXISTING="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --paginate -q ".[] | select(.body | contains(\"$MARKER\")) | .id" | head -n1)"
+          if [ -n "$EXISTING" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${EXISTING}" \
+              -X PATCH -F body=@/tmp/pr_comment.md >/dev/null
+            echo "Commento esistente aggiornato."
+          else
+            gh pr comment "$PR_NUMBER" --body-file /tmp/pr_comment.md >/dev/null
+            echo "Commento creato."
+          fi
+
+      - name: Verifica che il repository non sia stato modificato
+        if: always()
+        run: |
+          DIRTY="$(git status --porcelain)"
+          if [ -n "$DIRTY" ]; then
+            {
+              echo "## ATTENZIONE: repository modificato dal campionamento"
+              echo '```'
+              echo "$DIRTY"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "$DIRTY"
+            exit 1
+          fi
+          echo "Repository pulito: nessuna modifica."
+
+      - name: Pubblica referto e pagine anomale come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whoscored-missing-sample-${{ github.run_id }}
+          path: |
+            ${{ env.SAMPLE_DIR }}/report.json
+            ${{ env.SAMPLE_DIR }}/report.md
+            ${{ env.SAMPLE_DIR }}/debug_pages/
+          if-no-files-found: warn
