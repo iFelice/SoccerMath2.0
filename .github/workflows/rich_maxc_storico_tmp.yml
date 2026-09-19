@@ -1,0 +1,126 @@
+name: "TEMP - download CSV football-data storici (MaxC* vs B365C*)"
+
+# WORKFLOW TEMPORANEO di sola DOWNLOAD (schema gia' usato per rich_2627):
+# la sandbox non raggiunge football-data.co.uk, quindi il download avviene su
+# runner GitHub. I byte grezzi (nessuna trasformazione) vengono pubblicati come
+# artifact e salvati in audit/data/. Il file viene RIMOSSO prima del commit
+# definitivo: non resta nel tree.
+#
+# Nessuna scrittura nel repo, nessun segreto, permissions: contents: read.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - '.github/workflows/rich_maxc_storico_tmp.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rich-maxc-storico-tmp
+  cancel-in-progress: true
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download byte grezzi (5 leghe x 5 stagioni, incl. 2627 per il baseline)
+        shell: python
+        run: |
+          import hashlib
+          import io
+          import json
+          import os
+          import time
+          import urllib.request
+
+          OUT = os.path.join(os.environ.get("GITHUB_WORKSPACE", "."), "fd-raw")
+          os.makedirs(OUT, exist_ok=True)
+
+          # 4 stagioni storiche del perimetro walk-forward + 2627 (baseline
+          # 2.22%/5.49% gia' misurato solo lì: ricalcolata con la STESSA metrica).
+          SEASONS = ["2223", "2324", "2425", "2526", "2627"]
+          DIVS = {
+              "E0": "england-premier-league",
+              "D1": "germany-bundesliga",
+              "I1": "italy-serie-a",
+              "SP1": "spain-laliga",
+              "F1": "france-ligue-1",
+          }
+
+          manifest = []
+          for season in SEASONS:
+              for div, league in DIVS.items():
+                  url = f"https://www.football-data.co.uk/mmz4281/{season}/{div}.csv"
+                  name = f"fd_{div}_{season}.csv"
+                  dest = os.path.join(OUT, name)
+                  last_err = None
+                  for attempt in range(1, 5):
+                      try:
+                          req = urllib.request.Request(
+                              url,
+                              headers={
+                                  "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) audit-fetch",
+                                  "Accept": "text/csv,*/*",
+                          },
+                          )
+                          with urllib.request.urlopen(req, timeout=60) as resp:
+                              raw = resp.read()
+                          if not raw:
+                              raise RuntimeError("corpo vuoto")
+                          head = raw[:64].decode("latin-1", "replace")
+                          if not head.upper().startswith("DIV,"):
+                              raise RuntimeError(f"contenuto inatteso: {head!r}")
+                          with open(dest, "wb") as f:
+                              f.write(raw)
+                          manifest.append(
+                              {
+                                  "file": name,
+                                  "url": url,
+                                  "league": league,
+                                  "season": season,
+                                  "bytes": len(raw),
+                                  "sha256": hashlib.sha256(raw).hexdigest(),
+                              }
+                          )
+                          print(f"ok {name}: {len(raw)} bytes sha256={manifest[-1]['sha256'][:12]}")
+                          last_err = None
+                          break
+                      except Exception as exc:  # noqa: BLE001
+                          last_err = exc
+                          print(f"retry {attempt}/4 {name}: {exc}")
+                          time.sleep(3 * attempt)
+                  if last_err is not None:
+                      raise SystemExit(f"DOWNLOAD FALLITO {url}: {last_err}")
+
+          with io.open(os.path.join(OUT, "manifest.json"), "w", encoding="utf-8") as f:
+              json.dump(manifest, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+
+          tot = sum(m["bytes"] for m in manifest)
+          print(f"TOTALE {len(manifest)} file, {tot} bytes")
+
+      - name: Riepilogo
+        run: |
+          {
+            echo "## Download CSV football-data (temporaneo)"
+            echo
+            echo "File scaricati:"
+            echo '```'
+            ls -l fd-raw/
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pubblica i byte grezzi come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fd-raw-maxc-storico-${{ github.run_id }}
+          path: fd-raw/
+          if-no-files-found: error
+          retention-days: 7
