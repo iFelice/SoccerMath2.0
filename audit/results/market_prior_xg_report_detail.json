@@ -1,0 +1,1822 @@
+{
+ "generated_at": "2026-09-19T22:12:49+00:00",
+ "leagues": [
+  {
+   "league": "Serie A",
+   "usage": {
+    "Post-Estivo": 966,
+    "Post-Invernale": 554,
+    "fallback_missing": 0
+   },
+   "xgp_usage": {
+    "previous_season": 1292,
+    "promoted": 228,
+    "no_history": 0,
+    "n_cur_sum": 28120,
+    "slots": 1520
+   },
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6514,
+      "log_loss": 1.091,
+      "brier_blend": 0.5915,
+      "log_loss_blend": 0.9913,
+      "roi_b365": -8.23,
+      "n_bet_b365": 380,
+      "roi_avg": -5.33,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6507,
+      "log_loss": 1.0867,
+      "brier_blend": 0.5916,
+      "log_loss_blend": 0.9915,
+      "roi_b365": -5.36,
+      "n_bet_b365": 380,
+      "roi_avg": -4.14,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6588,
+      "log_loss": 1.0987,
+      "brier_blend": 0.5935,
+      "log_loss_blend": 0.9947,
+      "roi_b365": -5.34,
+      "n_bet_b365": 380,
+      "roi_avg": -6.09,
+      "n_bet_avg": 380
+     },
+     "xgp": {
+      "n": 380,
+      "brier": 0.6481,
+      "log_loss": 1.084,
+      "brier_blend": 0.5907,
+      "log_loss_blend": 0.9902,
+      "roi_b365": -3.24,
+      "n_bet_b365": 380,
+      "roi_avg": 0.59,
+      "n_bet_avg": 380
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": -0.0033,
+       "ci": [
+        -0.0092,
+        0.0023
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": -0.007,
+       "ci": [
+        -0.0182,
+        0.0034
+       ],
+       "significant": false
+      },
+      "roi_b365": {
+       "delta": 4.9895,
+       "ci": [
+        -0.5,
+        10.9263
+       ],
+       "significant": false
+      }
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.621,
+      "log_loss": 1.0704,
+      "brier_blend": 0.5912,
+      "log_loss_blend": 0.992,
+      "roi_b365": 9.28,
+      "n_bet_b365": 380,
+      "roi_avg": 9.1,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6216,
+      "log_loss": 1.0691,
+      "brier_blend": 0.5909,
+      "log_loss_blend": 0.9917,
+      "roi_b365": 8.23,
+      "n_bet_b365": 380,
+      "roi_avg": 7.85,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6212,
+      "log_loss": 1.0618,
+      "brier_blend": 0.5913,
+      "log_loss_blend": 0.9923,
+      "roi_b365": 11.21,
+      "n_bet_b365": 380,
+      "roi_avg": 11.31,
+      "n_bet_avg": 380
+     },
+     "xgp": {
+      "n": 380,
+      "brier": 0.6241,
+      "log_loss": 1.0768,
+      "brier_blend": 0.5913,
+      "log_loss_blend": 0.9922,
+      "roi_b365": 7.6,
+      "n_bet_b365": 380,
+      "roi_avg": 6.08,
+      "n_bet_avg": 380
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.0031,
+       "ci": [
+        -0.003,
+        0.0088
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.0063,
+       "ci": [
+        -0.0047,
+        0.0171
+       ],
+       "significant": false
+      },
+      "roi_b365": {
+       "delta": -1.6763,
+       "ci": [
+        -8.4947,
+        4.9368
+       ],
+       "significant": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "league": "Premier League",
+   "usage": {
+    "Post-Estivo": 1002,
+    "Post-Invernale": 518,
+    "fallback_missing": 0
+   },
+   "xgp_usage": {
+    "previous_season": 1292,
+    "promoted": 228,
+    "no_history": 0,
+    "n_cur_sum": 28120,
+    "slots": 1520
+   },
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6324,
+      "log_loss": 1.067,
+      "brier_blend": 0.5903,
+      "log_loss_blend": 0.9913,
+      "roi_b365": -2.79,
+      "n_bet_b365": 380,
+      "roi_avg": -2.53,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6327,
+      "log_loss": 1.0678,
+      "brier_blend": 0.5902,
+      "log_loss_blend": 0.9913,
+      "roi_b365": -0.89,
+      "n_bet_b365": 380,
+      "roi_avg": -2.5,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6356,
+      "log_loss": 1.0722,
+      "brier_blend": 0.5906,
+      "log_loss_blend": 0.9921,
+      "roi_b365": 1.59,
+      "n_bet_b365": 380,
+      "roi_avg": 1.83,
+      "n_bet_avg": 380
+     },
+     "xgp": {
+      "n": 380,
+      "brier": 0.6275,
+      "log_loss": 1.064,
+      "brier_blend": 0.5881,
+      "log_loss_blend": 0.9881,
+      "roi_b365": 0.48,
+      "n_bet_b365": 380,
+      "roi_avg": -1.43,
+      "n_bet_avg": 380
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": -0.005,
+       "ci": [
+        -0.0137,
+        0.004
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": -0.003,
+       "ci": [
+        -0.0174,
+        0.0122
+       ],
+       "significant": false
+      },
+      "roi_b365": {
+       "delta": 3.2763,
+       "ci": [
+        -8.1184,
+        13.3605
+       ],
+       "significant": false
+      }
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6529,
+      "log_loss": 1.0909,
+      "brier_blend": 0.6119,
+      "log_loss_blend": 1.0206,
+      "roi_b365": 13.79,
+      "n_bet_b365": 380,
+      "roi_avg": 12.83,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.652,
+      "log_loss": 1.0909,
+      "brier_blend": 0.6115,
+      "log_loss_blend": 1.0201,
+      "roi_b365": 15.48,
+      "n_bet_b365": 380,
+      "roi_avg": 15.28,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6516,
+      "log_loss": 1.0901,
+      "brier_blend": 0.6112,
+      "log_loss_blend": 1.02,
+      "roi_b365": 15.08,
+      "n_bet_b365": 380,
+      "roi_avg": 14.59,
+      "n_bet_avg": 380
+     },
+     "xgp": {
+      "n": 380,
+      "brier": 0.6607,
+      "log_loss": 1.1069,
+      "brier_blend": 0.6125,
+      "log_loss_blend": 1.0213,
+      "roi_b365": 13.71,
+      "n_bet_b365": 380,
+      "roi_avg": 13.91,
+      "n_bet_avg": 380
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.0078,
+       "ci": [
+        -0.0009,
+        0.0162
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.016,
+       "ci": [
+        0.0028,
+        0.0295
+       ],
+       "significant": true
+      },
+      "roi_b365": {
+       "delta": -0.0868,
+       "ci": [
+        -7.6342,
+        7.6263
+       ],
+       "significant": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "league": "La Liga",
+   "usage": {
+    "Post-Estivo": 928,
+    "Post-Invernale": 592,
+    "fallback_missing": 0
+   },
+   "xgp_usage": {
+    "previous_season": 1292,
+    "promoted": 228,
+    "no_history": 0,
+    "n_cur_sum": 28122,
+    "slots": 1520
+   },
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.609,
+      "log_loss": 1.0427,
+      "brier_blend": 0.5789,
+      "log_loss_blend": 0.9739,
+      "roi_b365": -2.23,
+      "n_bet_b365": 380,
+      "roi_avg": -4.08,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6123,
+      "log_loss": 1.0479,
+      "brier_blend": 0.5797,
+      "log_loss_blend": 0.9752,
+      "roi_b365": -5.61,
+      "n_bet_b365": 380,
+      "roi_avg": -5.18,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6107,
+      "log_loss": 1.0349,
+      "brier_blend": 0.5806,
+      "log_loss_blend": 0.9764,
+      "roi_b365": -1.25,
+      "n_bet_b365": 380,
+      "roi_avg": -2.0,
+      "n_bet_avg": 380
+     },
+     "xgp": {
+      "n": 380,
+      "brier": 0.6118,
+      "log_loss": 1.0549,
+      "brier_blend": 0.5786,
+      "log_loss_blend": 0.9734,
+      "roi_b365": 0.09,
+      "n_bet_b365": 380,
+      "roi_avg": 0.94,
+      "n_bet_avg": 380
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.0029,
+       "ci": [
+        -0.0024,
+        0.008
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.0122,
+       "ci": [
+        0.0017,
+        0.0221
+       ],
+       "significant": true
+      },
+      "roi_b365": {
+       "delta": 2.3237,
+       "ci": [
+        -5.5632,
+        10.0526
+       ],
+       "significant": false
+      }
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 380,
+      "brier": 0.6239,
+      "log_loss": 1.08,
+      "brier_blend": 0.5823,
+      "log_loss_blend": 0.9797,
+      "roi_b365": -8.09,
+      "n_bet_b365": 380,
+      "roi_avg": -10.16,
+      "n_bet_avg": 380
+     },
+     "ver": {
+      "n": 380,
+      "brier": 0.6205,
+      "log_loss": 1.0754,
+      "brier_blend": 0.5819,
+      "log_loss_blend": 0.9792,
+      "roi_b365": -10.07,
+      "n_bet_b365": 380,
+      "roi_avg": -6.94,
+      "n_bet_avg": 380
+     },
+     "none": {
+      "n": 380,
+      "brier": 0.6177,
+      "log_loss": 1.0598,
+      "brier_blend": 0.5822,
+      "log_loss_blend": 0.9797,
+      "roi_b365": -0.58,
+      "n_bet_b365": 380,
+      "roi_avg": -1.68,
+      "n_bet_avg": 380
+     },
+     "xgp": {
+      "n": 380,
+      "brier": 0.6296,
+      "log_loss": 1.0925,
+      "brier_blend": 0.5834,
+      "log_loss_blend": 0.9812,
+      "roi_b365": -7.85,
+      "n_bet_b365": 380,
+      "roi_avg": -7.95,
+      "n_bet_avg": 380
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.0058,
+       "ci": [
+        -0.0015,
+        0.013
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.0125,
+       "ci": [
+        -0.0005,
+        0.0256
+       ],
+       "significant": false
+      },
+      "roi_b365": {
+       "delta": 0.2395,
+       "ci": [
+        -7.5132,
+        8.0816
+       ],
+       "significant": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "league": "Bundesliga",
+   "usage": {
+    "Post-Estivo": 770,
+    "Post-Invernale": 454,
+    "fallback_missing": 0
+   },
+   "xgp_usage": {
+    "previous_season": 1088,
+    "promoted": 136,
+    "no_history": 0,
+    "n_cur_sum": 20196,
+    "slots": 1224
+   },
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.6688,
+      "log_loss": 1.2195,
+      "brier_blend": 0.6133,
+      "log_loss_blend": 1.0262,
+      "roi_b365": 4.76,
+      "n_bet_b365": 306,
+      "roi_avg": 10.18,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6686,
+      "log_loss": 1.221,
+      "brier_blend": 0.613,
+      "log_loss_blend": 1.0257,
+      "roi_b365": 4.45,
+      "n_bet_b365": 306,
+      "roi_avg": 7.09,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6666,
+      "log_loss": 1.1996,
+      "brier_blend": 0.6146,
+      "log_loss_blend": 1.028,
+      "roi_b365": 6.34,
+      "n_bet_b365": 306,
+      "roi_avg": 8.2,
+      "n_bet_avg": 306
+     },
+     "xgp": {
+      "n": 306,
+      "brier": 0.6718,
+      "log_loss": 1.2257,
+      "brier_blend": 0.6138,
+      "log_loss_blend": 1.0266,
+      "roi_b365": 7.44,
+      "n_bet_b365": 306,
+      "roi_avg": 8.23,
+      "n_bet_avg": 306
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.003,
+       "ci": [
+        -0.0033,
+        0.0097
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.0062,
+       "ci": [
+        -0.0052,
+        0.0186
+       ],
+       "significant": false
+      },
+      "roi_b365": {
+       "delta": 2.6863,
+       "ci": [
+        -3.6699,
+        8.9477
+       ],
+       "significant": false
+      }
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.6434,
+      "log_loss": 1.1101,
+      "brier_blend": 0.5757,
+      "log_loss_blend": 0.9735,
+      "roi_b365": -0.38,
+      "n_bet_b365": 306,
+      "roi_avg": -1.88,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6426,
+      "log_loss": 1.1074,
+      "brier_blend": 0.5759,
+      "log_loss_blend": 0.9736,
+      "roi_b365": 0.49,
+      "n_bet_b365": 306,
+      "roi_avg": -0.33,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6449,
+      "log_loss": 1.0992,
+      "brier_blend": 0.5774,
+      "log_loss_blend": 0.9758,
+      "roi_b365": -0.15,
+      "n_bet_b365": 306,
+      "roi_avg": -0.2,
+      "n_bet_avg": 306
+     },
+     "xgp": {
+      "n": 306,
+      "brier": 0.6445,
+      "log_loss": 1.1233,
+      "brier_blend": 0.5754,
+      "log_loss_blend": 0.9732,
+      "roi_b365": 1.24,
+      "n_bet_b365": 306,
+      "roi_avg": 0.35,
+      "n_bet_avg": 306
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.0011,
+       "ci": [
+        -0.0048,
+        0.0068
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.0132,
+       "ci": [
+        0.0018,
+        0.0255
+       ],
+       "significant": true
+      },
+      "roi_b365": {
+       "delta": 1.6144,
+       "ci": [
+        -2.7974,
+        5.7745
+       ],
+       "significant": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "league": "Ligue 1",
+   "usage": {
+    "Post-Estivo": 768,
+    "Post-Invernale": 456,
+    "fallback_missing": 0
+   },
+   "xgp_usage": {
+    "previous_season": 1020,
+    "promoted": 204,
+    "no_history": 0,
+    "n_cur_sum": 20196,
+    "slots": 1224
+   },
+   "val": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.6441,
+      "log_loss": 1.0967,
+      "brier_blend": 0.5848,
+      "log_loss_blend": 0.9832,
+      "roi_b365": -3.26,
+      "n_bet_b365": 306,
+      "roi_avg": -2.77,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6402,
+      "log_loss": 1.0914,
+      "brier_blend": 0.5842,
+      "log_loss_blend": 0.9823,
+      "roi_b365": -1.94,
+      "n_bet_b365": 306,
+      "roi_avg": -1.38,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6602,
+      "log_loss": 1.1158,
+      "brier_blend": 0.5881,
+      "log_loss_blend": 0.9875,
+      "roi_b365": 1.82,
+      "n_bet_b365": 306,
+      "roi_avg": 2.57,
+      "n_bet_avg": 306
+     },
+     "xgp": {
+      "n": 306,
+      "brier": 0.6478,
+      "log_loss": 1.1066,
+      "brier_blend": 0.5849,
+      "log_loss_blend": 0.9834,
+      "roi_b365": -2.55,
+      "n_bet_b365": 306,
+      "roi_avg": -0.22,
+      "n_bet_avg": 306
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.0037,
+       "ci": [
+        -0.0049,
+        0.0127
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.0099,
+       "ci": [
+        -0.0048,
+        0.0249
+       ],
+       "significant": false
+      },
+      "roi_b365": {
+       "delta": 0.719,
+       "ci": [
+        -9.2614,
+        10.0458
+       ],
+       "significant": false
+      }
+     }
+    }
+   },
+   "test": {
+    "metrics": {
+     "static": {
+      "n": 306,
+      "brier": 0.6273,
+      "log_loss": 1.0491,
+      "brier_blend": 0.5896,
+      "log_loss_blend": 0.9894,
+      "roi_b365": -2.19,
+      "n_bet_b365": 306,
+      "roi_avg": -1.05,
+      "n_bet_avg": 306
+     },
+     "ver": {
+      "n": 306,
+      "brier": 0.6288,
+      "log_loss": 1.0517,
+      "brier_blend": 0.5899,
+      "log_loss_blend": 0.9899,
+      "roi_b365": -3.66,
+      "n_bet_b365": 306,
+      "roi_avg": -4.92,
+      "n_bet_avg": 306
+     },
+     "none": {
+      "n": 306,
+      "brier": 0.6414,
+      "log_loss": 1.0698,
+      "brier_blend": 0.5909,
+      "log_loss_blend": 0.9916,
+      "roi_b365": 0.97,
+      "n_bet_b365": 306,
+      "roi_avg": 0.48,
+      "n_bet_avg": 306
+     },
+     "xgp": {
+      "n": 306,
+      "brier": 0.6295,
+      "log_loss": 1.0526,
+      "brier_blend": 0.5897,
+      "log_loss_blend": 0.9894,
+      "roi_b365": -1.35,
+      "n_bet_b365": 306,
+      "roi_avg": -2.39,
+      "n_bet_avg": 306
+     }
+    },
+    "boot": {
+     "xgp-static": {
+      "brier": {
+       "delta": 0.0022,
+       "ci": [
+        -0.0053,
+        0.0103
+       ],
+       "significant": false
+      },
+      "log_loss": {
+       "delta": 0.0035,
+       "ci": [
+        -0.0094,
+        0.0174
+       ],
+       "significant": false
+      },
+      "roi_b365": {
+       "delta": 0.8366,
+       "ci": [
+        -7.1046,
+        9.0098
+       ],
+       "significant": false
+      }
+     }
+    }
+   }
+  }
+ ],
+ "xgp_usage": {
+  "previous_season": 5984,
+  "promoted": 1024,
+  "no_history": 0,
+  "n_cur_sum": 124754,
+  "slots": 7008
+ },
+ "overall": {
+  "val": {
+   "metrics": {
+    "static": {
+     "n": 1752,
+     "brier": 0.6398,
+     "log_loss": 1.0988,
+     "brier_blend": 0.5911,
+     "log_loss_blend": 0.9922,
+     "roi_b365": -2.61,
+     "n_bet_b365": 1752,
+     "roi_avg": -1.3,
+     "n_bet_avg": 1752
+    },
+    "ver": {
+     "n": 1752,
+     "brier": 0.6398,
+     "log_loss": 1.0985,
+     "brier_blend": 0.5912,
+     "log_loss_blend": 0.9923,
+     "roi_b365": -2.13,
+     "n_bet_b365": 1752,
+     "roi_avg": -1.57,
+     "n_bet_avg": 1752
+    },
+    "none": {
+     "n": 1752,
+     "brier": 0.6449,
+     "log_loss": 1.0997,
+     "brier_blend": 0.5928,
+     "log_loss_blend": 0.9947,
+     "roi_b365": 0.34,
+     "n_bet_b365": 1752,
+     "roi_avg": 0.52,
+     "n_bet_avg": 1752
+    },
+    "xgp": {
+     "n": 1752,
+     "brier": 0.6398,
+     "log_loss": 1.1021,
+     "brier_blend": 0.5905,
+     "log_loss_blend": 0.9912,
+     "roi_b365": 0.28,
+     "n_bet_b365": 1752,
+     "roi_avg": 1.42,
+     "n_bet_avg": 1752
+    }
+   },
+   "boot": {
+    "xgp-static": {
+     "brier": {
+      "delta": -0.0,
+      "ci": [
+       -0.0031,
+       0.0032
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": 0.0033,
+      "ci": [
+       -0.0022,
+       0.0092
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": 2.8916,
+      "ci": [
+       -0.8527,
+       6.6096
+      ],
+      "significant": false
+     }
+    },
+    "ver-static": {
+     "brier": {
+      "delta": -0.0001,
+      "ci": [
+       -0.0013,
+       0.0012
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": -0.0003,
+      "ci": [
+       -0.0024,
+       0.002
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": 0.4789,
+      "ci": [
+       -1.7854,
+       2.8082
+      ],
+      "significant": false
+     }
+    },
+    "none-static": {
+     "brier": {
+      "delta": 0.0051,
+      "ci": [
+       0.0015,
+       0.0089
+      ],
+      "significant": true
+     },
+     "log_loss": {
+      "delta": 0.001,
+      "ci": [
+       -0.0055,
+       0.0075
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": 2.9555,
+      "ci": [
+       -0.9589,
+       7.3938
+      ],
+      "significant": false
+     }
+    },
+    "xgp-none": {
+     "brier": {
+      "delta": -0.0051,
+      "ci": [
+       -0.01,
+       0.0001
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": 0.0023,
+      "ci": [
+       -0.007,
+       0.0119
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": -0.0639,
+      "ci": [
+       -4.8328,
+       4.3836
+      ],
+      "significant": false
+     }
+    }
+   }
+  },
+  "test": {
+   "metrics": {
+    "static": {
+     "n": 1752,
+     "brier": 0.6335,
+     "log_loss": 1.0802,
+     "brier_blend": 0.5908,
+     "log_loss_blend": 0.9919,
+     "roi_b365": 2.8,
+     "n_bet_b365": 1752,
+     "roi_avg": 2.04,
+     "n_bet_avg": 1752
+    },
+    "ver": {
+     "n": 1752,
+     "brier": 0.6329,
+     "log_loss": 1.0788,
+     "brier_blend": 0.5906,
+     "log_loss_blend": 0.9917,
+     "roi_b365": 2.41,
+     "n_bet_b365": 1752,
+     "roi_avg": 2.6,
+     "n_bet_avg": 1752
+    },
+    "none": {
+     "n": 1752,
+     "brier": 0.6347,
+     "log_loss": 1.0754,
+     "brier_blend": 0.5912,
+     "log_loss_blend": 0.9926,
+     "roi_b365": 5.72,
+     "n_bet_b365": 1752,
+     "roi_avg": 5.31,
+     "n_bet_avg": 1752
+    },
+    "xgp": {
+     "n": 1752,
+     "brier": 0.6377,
+     "log_loss": 1.0906,
+     "brier_blend": 0.5911,
+     "log_loss_blend": 0.9923,
+     "roi_b365": 2.9,
+     "n_bet_b365": 1752,
+     "roi_avg": 2.26,
+     "n_bet_avg": 1752
+    }
+   },
+   "boot": {
+    "xgp-static": {
+     "brier": {
+      "delta": 0.0042,
+      "ci": [
+       0.0011,
+       0.0075
+      ],
+      "significant": true
+     },
+     "log_loss": {
+      "delta": 0.0105,
+      "ci": [
+       0.0051,
+       0.0164
+      ],
+      "significant": true
+     },
+     "roi_b365": {
+      "delta": 0.0976,
+      "ci": [
+       -2.964,
+       3.2626
+      ],
+      "significant": false
+     }
+    },
+    "ver-static": {
+     "brier": {
+      "delta": -0.0007,
+      "ci": [
+       -0.0024,
+       0.0013
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": -0.0013,
+      "ci": [
+       -0.0043,
+       0.0018
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": -0.3967,
+      "ci": [
+       -2.8545,
+       2.1421
+      ],
+      "significant": false
+     }
+    },
+    "none-static": {
+     "brier": {
+      "delta": 0.0012,
+      "ci": [
+       -0.0025,
+       0.005
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": -0.0047,
+      "ci": [
+       -0.0114,
+       0.0018
+      ],
+      "significant": false
+     },
+     "roi_b365": {
+      "delta": 2.9161,
+      "ci": [
+       -1.1433,
+       7.0628
+      ],
+      "significant": false
+     }
+    },
+    "xgp-none": {
+     "brier": {
+      "delta": 0.003,
+      "ci": [
+       -0.0017,
+       0.0078
+      ],
+      "significant": false
+     },
+     "log_loss": {
+      "delta": 0.0152,
+      "ci": [
+       0.0065,
+       0.0239
+      ],
+      "significant": true
+     },
+     "roi_b365": {
+      "delta": -2.8185,
+      "ci": [
+       -7.2643,
+       1.4994
+      ],
+      "significant": false
+     }
+    }
+   }
+  }
+ },
+ "sensitivity": {
+  "xgp": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6398,
+    "log_loss": 1.1021,
+    "brier_blend": 0.5905,
+    "log_loss_blend": 0.9912,
+    "roi_b365": 0.28,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.42,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6377,
+    "log_loss": 1.0906,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 2.9,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.26,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m6_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6397,
+    "log_loss": 1.098,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9919,
+    "roi_b365": 0.93,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.16,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.636,
+    "log_loss": 1.0839,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9922,
+    "roi_b365": 3.53,
+    "n_bet_b365": 1752,
+    "roi_avg": 3.65,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m6_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6404,
+    "log_loss": 1.1025,
+    "brier_blend": 0.5907,
+    "log_loss_blend": 0.9914,
+    "roi_b365": 0.55,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.42,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6384,
+    "log_loss": 1.0919,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 2.77,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.82,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m6_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6415,
+    "log_loss": 1.1057,
+    "brier_blend": 0.5906,
+    "log_loss_blend": 0.9913,
+    "roi_b365": 0.02,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.4,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6399,
+    "log_loss": 1.0971,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 0.59,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.55,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m10_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6398,
+    "log_loss": 1.0978,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9921,
+    "roi_b365": 0.41,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.05,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6355,
+    "log_loss": 1.0826,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9922,
+    "roi_b365": 3.41,
+    "n_bet_b365": 1752,
+    "roi_avg": 3.29,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m10_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6399,
+    "log_loss": 1.1016,
+    "brier_blend": 0.5906,
+    "log_loss_blend": 0.9914,
+    "roi_b365": 0.35,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.96,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6378,
+    "log_loss": 1.0901,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 4.12,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.32,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m10_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6406,
+    "log_loss": 1.1044,
+    "brier_blend": 0.5905,
+    "log_loss_blend": 0.9912,
+    "roi_b365": -0.2,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.24,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.639,
+    "log_loss": 1.0949,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 1.32,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.31,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m19_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6401,
+    "log_loss": 1.0977,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 0.16,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.62,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6349,
+    "log_loss": 1.0808,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9922,
+    "roi_b365": 3.82,
+    "n_bet_b365": 1752,
+    "roi_avg": 3.43,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m19_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6395,
+    "log_loss": 1.1006,
+    "brier_blend": 0.5906,
+    "log_loss_blend": 0.9914,
+    "roi_b365": 0.13,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.92,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6369,
+    "log_loss": 1.0875,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 3.21,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.98,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.5_m19_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6398,
+    "log_loss": 1.103,
+    "brier_blend": 0.5904,
+    "log_loss_blend": 0.9911,
+    "roi_b365": -0.29,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.79,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6382,
+    "log_loss": 1.0924,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 1.47,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.71,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m6_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6395,
+    "log_loss": 1.098,
+    "brier_blend": 0.5909,
+    "log_loss_blend": 0.9917,
+    "roi_b365": 0.46,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.99,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6359,
+    "log_loss": 1.0841,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9922,
+    "roi_b365": 3.26,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.94,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m6_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6404,
+    "log_loss": 1.1028,
+    "brier_blend": 0.5906,
+    "log_loss_blend": 0.9913,
+    "roi_b365": 0.33,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.87,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6383,
+    "log_loss": 1.0921,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 2.71,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.15,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m6_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6414,
+    "log_loss": 1.106,
+    "brier_blend": 0.5905,
+    "log_loss_blend": 0.9912,
+    "roi_b365": -0.54,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.13,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6397,
+    "log_loss": 1.0975,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 2.2,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.17,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m10_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6395,
+    "log_loss": 1.0978,
+    "brier_blend": 0.5909,
+    "log_loss_blend": 0.9919,
+    "roi_b365": 0.39,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.67,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6354,
+    "log_loss": 1.0828,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9922,
+    "roi_b365": 3.29,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.45,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m10_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6406,
+    "log_loss": 1.1048,
+    "brier_blend": 0.5904,
+    "log_loss_blend": 0.9911,
+    "roi_b365": -0.33,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.21,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.639,
+    "log_loss": 1.0956,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 1.65,
+    "n_bet_b365": 1752,
+    "roi_avg": 3.4,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m19_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6397,
+    "log_loss": 1.0979,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9921,
+    "roi_b365": 0.37,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.61,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6349,
+    "log_loss": 1.0813,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9922,
+    "roi_b365": 3.44,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.3,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m19_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6395,
+    "log_loss": 1.1016,
+    "brier_blend": 0.5905,
+    "log_loss_blend": 0.9912,
+    "roi_b365": -0.08,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.22,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.637,
+    "log_loss": 1.0885,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 2.5,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.53,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.65_m19_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6399,
+    "log_loss": 1.1039,
+    "brier_blend": 0.5904,
+    "log_loss_blend": 0.991,
+    "roi_b365": -0.36,
+    "n_bet_b365": 1752,
+    "roi_avg": -0.14,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6383,
+    "log_loss": 1.0936,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 2.43,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.58,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m6_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6393,
+    "log_loss": 1.098,
+    "brier_blend": 0.5908,
+    "log_loss_blend": 0.9916,
+    "roi_b365": 0.47,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.42,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6358,
+    "log_loss": 1.0843,
+    "brier_blend": 0.5909,
+    "log_loss_blend": 0.9921,
+    "roi_b365": 3.3,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.75,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m6_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6403,
+    "log_loss": 1.103,
+    "brier_blend": 0.5906,
+    "log_loss_blend": 0.9913,
+    "roi_b365": 0.53,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.58,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6382,
+    "log_loss": 1.0925,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 1.97,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.02,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m6_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6413,
+    "log_loss": 1.1062,
+    "brier_blend": 0.5905,
+    "log_loss_blend": 0.9911,
+    "roi_b365": -0.28,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.86,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6397,
+    "log_loss": 1.098,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 2.15,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.39,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m10_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6392,
+    "log_loss": 1.098,
+    "brier_blend": 0.5908,
+    "log_loss_blend": 0.9917,
+    "roi_b365": 0.46,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.1,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6354,
+    "log_loss": 1.0832,
+    "brier_blend": 0.5909,
+    "log_loss_blend": 0.9921,
+    "roi_b365": 3.22,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.73,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m10_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6399,
+    "log_loss": 1.1025,
+    "brier_blend": 0.5905,
+    "log_loss_blend": 0.9912,
+    "roi_b365": 0.43,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.15,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6377,
+    "log_loss": 1.0911,
+    "brier_blend": 0.5911,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 3.06,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.69,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m10_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6406,
+    "log_loss": 1.1054,
+    "brier_blend": 0.5904,
+    "log_loss_blend": 0.991,
+    "roi_b365": -0.46,
+    "n_bet_b365": 1752,
+    "roi_avg": -0.63,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.639,
+    "log_loss": 1.0964,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 2.51,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.89,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m19_s0.15": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6395,
+    "log_loss": 1.0983,
+    "brier_blend": 0.5909,
+    "log_loss_blend": 0.9918,
+    "roi_b365": 0.88,
+    "n_bet_b365": 1752,
+    "roi_avg": 1.53,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6349,
+    "log_loss": 1.0819,
+    "brier_blend": 0.591,
+    "log_loss_blend": 0.9921,
+    "roi_b365": 3.27,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.05,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m19_s0.25": {
+   "val": {
+    "n": 1752,
+    "brier": 0.6396,
+    "log_loss": 1.1024,
+    "brier_blend": 0.5904,
+    "log_loss_blend": 0.9911,
+    "roi_b365": -0.42,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.68,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6371,
+    "log_loss": 1.0896,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9923,
+    "roi_b365": 3.35,
+    "n_bet_b365": 1752,
+    "roi_avg": 3.45,
+    "n_bet_avg": 1752
+   }
+  },
+  "xgp_p0.8_m19_s0.35": {
+   "val": {
+    "n": 1752,
+    "brier": 0.64,
+    "log_loss": 1.1047,
+    "brier_blend": 0.5903,
+    "log_loss_blend": 0.9909,
+    "roi_b365": -0.79,
+    "n_bet_b365": 1752,
+    "roi_avg": 0.11,
+    "n_bet_avg": 1752
+   },
+   "test": {
+    "n": 1752,
+    "brier": 0.6385,
+    "log_loss": 1.0949,
+    "brier_blend": 0.5912,
+    "log_loss_blend": 0.9924,
+    "roi_b365": 2.47,
+    "n_bet_b365": 1752,
+    "roi_avg": 2.58,
+    "n_bet_avg": 1752
+   }
+  }
+ },
+ "decision": {
+  "lines": [
+   "aggregato val brier: Δ(xgp−static) -0.0000 CI [-0.0031; +0.0032] → n.s.",
+   "aggregato val log_loss: Δ(xgp−static) +0.0033 CI [-0.0022; +0.0092] → n.s.",
+   "aggregato val roi_b365: Δ(xgp−static) +2.8916 CI [-0.8527; +6.6096] → n.s.",
+   "aggregato test brier: Δ(xgp−static) +0.0042 CI [+0.0011; +0.0075] → PEGGIORA (sig.)",
+   "aggregato test log_loss: Δ(xgp−static) +0.0105 CI [+0.0051; +0.0164] → PEGGIORA (sig.)",
+   "aggregato test roi_b365: Δ(xgp−static) +0.0976 CI [-2.9640; +3.2626] → n.s."
+  ],
+  "verdict": "TENERE la tabella MARKET_VALUES: il prior xG peggiora in modo significativo aggregato test brier; aggregato test log_loss",
+  "worse": [
+   "aggregato test brier",
+   "aggregato test log_loss"
+  ]
+ }
+}

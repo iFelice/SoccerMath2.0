@@ -10,9 +10,15 @@ ancora le partite del campionato appena concluso. Questo script:
      (solo intestazione se non ce ne sono ancora), pronta per ripartire da 0
      con i dati della nuova stagione che update_db.py scarichera'.
 
+Prima di archiviare, i nomi squadra del Live vengono normalizzati
+(config.clean_name) e le righe deduplicate sulla chiave normalizzata: la
+stessa partita registrata con due grafie diverse ("Nottingham" e
+"Nott'm Forest") e' una sola riga, e l'archivio storico non eredita doppioni.
+
 Lo script e' idempotente: eseguito piu' volte non duplica nulla.
-La stagione corrente e' derivata dalla data (vedi config.get_current_season_start_year):
-da luglio in poi si considera iniziata la nuova stagione.
+La stagione corrente e' derivata dalla data (vedi config.get_current_season_start_year
+e season_calendar.SEASON_START_MONTH): da luglio in poi si considera iniziata
+la nuova stagione (confine verificato sul calendario reale delle 5 leghe).
 
 Uso:
     python season_rollover.py             # rollover reale
@@ -32,22 +38,68 @@ import config
 from config import (
     DATABASE_DIR,
     LEAGUES_CONFIG,
+    SEASON_START_MONTH,
+    clean_name,
     get_current_season_start_year,
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Chiave di deduplica: identica a quella usata da update_db.py
+# Chiave di deduplica: identica a quella usata da update_db.py. Viene applicata
+# DOPO la normalizzazione dei nomi (normalize_team_columns), quindi due grafie
+# della stessa squadra ("Nottingham" / "Nott'm Forest") sono la stessa riga.
 DEDUP_KEYS = ["Date", "HomeTeam", "AwayTeam"]
+
+
+def normalize_team_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Riscrive HomeTeam/AwayTeam con il nome canonico (config.clean_name).
+
+    Le API live hanno cambiato grafia nel tempo (es. "Brighton Hove" ->
+    "Brighton", "Atleti" -> "Ath Madrid"): update_db.py deduplicava sulla
+    chiave grezza e la stessa partita finiva nel Live due volte (30 righe
+    doppie rilevate il 19/09/2026). Normalizzare PRIMA di deduplicare rende la
+    chiave stabile e impedisce che il rollover archivi un Live sporco.
+    """
+    out = df.copy()
+    for col in ("HomeTeam", "AwayTeam"):
+        if col in out.columns:
+            out[col] = out[col].map(lambda v: clean_name(v) if isinstance(v, str) else v)
+    return out
+
+
+def dedup_matches(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalizza i nomi e deduplica su Date+HomeTeam+AwayTeam (keep='last',
+    stessa regola di update_db.py e di get_league_engine)."""
+    out = normalize_team_columns(df)
+    if all(c in out.columns for c in DEDUP_KEYS):
+        out = out.drop_duplicates(subset=DEDUP_KEYS, keep="last")
+    return out.reset_index(drop=True)
+
+
+def teams_without_market_value(df: pd.DataFrame, market_values=None) -> list:
+    """Squadre presenti nel Live (nomi canonici) senza voce in config.MARKET_VALUES.
+
+    La tabella resta scritta a mano (l'alternativa derivata dagli xG e' stata
+    valutata e scartata: audit/results/market_prior_xg_report.md). Una squadra
+    assente riceve il default 50 (fattore 0.925): non blocca nulla, ma al
+    rollover va segnalata esplicitamente per l'aggiornamento estivo.
+    """
+    values = config.MARKET_VALUES if market_values is None else market_values
+    teams = set()
+    for col in ("HomeTeam", "AwayTeam"):
+        if col in df.columns:
+            teams.update(clean_name(v) for v in df[col].dropna().astype(str))
+    return sorted(t for t in teams if t and t not in values)
 
 
 def _season_of(dates: pd.Series) -> pd.Series:
     """
     Anno di inizio stagione per ogni data (Series datetime).
-    Stagione ago-giu: da luglio in poi appartiene all'anno in corso.
+    Stagione ago-giu: dal mese SEASON_START_MONTH (luglio) in poi appartiene
+    all'anno in corso (stessa regola di config/season_calendar).
     Le date non valide (NaT) producono NaN.
     """
-    return dates.dt.year - (dates.dt.month < 7).astype(int)
+    return dates.dt.year - (dates.dt.month < SEASON_START_MONTH).astype(int)
 
 
 def _sort_by_date(frame: pd.DataFrame) -> pd.DataFrame:
@@ -78,6 +130,13 @@ def rollover_league(prefix: str, live_path, current_season: int, dry_run: bool =
     if df.empty or "Date" not in df.columns or "HomeTeam" not in df.columns or "AwayTeam" not in df.columns:
         return report
 
+    # Pulizia PRIMA di archiviare: nomi canonici + deduplica sulla chiave
+    # normalizzata. Un Live con la stessa partita in due grafie non deve mai
+    # finire nell'archivio storico (ne' restare nel Live della nuova stagione).
+    righe_prima = len(df)
+    df = dedup_matches(df)
+    report["duplicati_rimossi"] = int(righe_prima - len(df))
+
     dates = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
     seasons = _season_of(dates)
 
@@ -87,9 +146,16 @@ def rollover_league(prefix: str, live_path, current_season: int, dry_run: bool =
     df_old = df[~keep_live].copy()
 
     report["live_restanti"] = int(len(df_current))
+    report["senza_market_value"] = teams_without_market_value(df_current)
 
     if df_old.empty:
-        return report  # solo stagione corrente (o vuoto): niente da fare
+        if report["duplicati_rimossi"]:
+            # Nulla da archiviare, ma il Live conteneva doppioni: lo si riscrive
+            # pulito (idempotente: alla seconda esecuzione non cambia piu' nulla).
+            report["status"] = "cleaned"
+            if not dry_run:
+                _sort_by_date(df_current).to_csv(live_file, index=False)
+        return report  # solo stagione corrente (o vuoto): niente da archiviare
 
     for season in sorted(int(s) for s in seasons[~keep_live].dropna().unique()):
         df_season = df_old[seasons[~keep_live] == season].copy()
@@ -103,8 +169,14 @@ def rollover_league(prefix: str, live_path, current_season: int, dry_run: bool =
             except pd.errors.EmptyDataError:
                 df_archive = pd.DataFrame()
             prima = len(df_archive)
-            df_season = pd.concat([df_archive, df_season], ignore_index=True)
-            df_season = df_season.drop_duplicates(subset=DEDUP_KEYS, keep="last")
+            # L'archivio storico puo' contenere i nomi originali di football-data
+            # (es. "Bayern Munich"): la deduplica confronta le chiavi normalizzate
+            # senza riscrivere le righe gia' archiviate.
+            merged = pd.concat([df_archive, df_season], ignore_index=True)
+            key = normalize_team_columns(merged[DEDUP_KEYS]) if all(c in merged.columns for c in DEDUP_KEYS) else None
+            if key is not None:
+                merged = merged[~key.duplicated(keep="last")]
+            df_season = merged
             note = f"unito (+{len(df_season) - prima} nuove)"
         df_season = _sort_by_date(df_season)
         report["archivi"][season] = (len(df_season), note)
@@ -116,6 +188,7 @@ def rollover_league(prefix: str, live_path, current_season: int, dry_run: bool =
     if not dry_run:
         df_current.to_csv(live_file, index=False)
     report["status"] = "archived"
+    report["senza_market_value"] = teams_without_market_value(df_current)
     return report
 
 
@@ -147,12 +220,22 @@ def run_rollover(db_dir=None, now=None, dry_run: bool = False) -> int:
             errori += 1
             last_error = e
             continue
+        if report.get("duplicati_rimossi"):
+            logging.info("[%s] %d righe duplicate (stessa partita, grafie diverse) rimosse dal Live",
+                         name, report["duplicati_rimossi"])
+        if report.get("senza_market_value"):
+            logging.warning("[%s] squadre del Live senza voce in config.MARKET_VALUES "
+                            "(useranno il default 50): %s", name,
+                            ", ".join(report["senza_market_value"]))
         if report["status"] == "archived":
             archiviati += 1
             for season, (n, note) in sorted(report["archivi"].items()):
                 logging.info("[%s] archiviato %s_%d.csv -> %d partite totali (%s)",
                              name, prefix, season, n, note)
             logging.info("[%s] Live pronto alla nuova stagione: %d partite della %d/%d",
+                         name, report["live_restanti"], current_season, current_season + 1)
+        elif report["status"] == "cleaned":
+            logging.info("[%s] nulla da archiviare: Live ripulito dai duplicati (%d partite della %d/%d)",
                          name, report["live_restanti"], current_season, current_season + 1)
         else:
             logging.info("[%s] nulla da archiviare (Live gia' allineato alla stagione %d/%d)",

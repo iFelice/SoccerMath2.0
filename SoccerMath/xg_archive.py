@@ -93,6 +93,7 @@ from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from config import DATABASE_DIR, LEAGUES_CONFIG
+from season_calendar import season_start_year_of
 from team_names import canonical_team_name, resolve_team_name
 
 # ---------------------------------------------------------------------------
@@ -847,13 +848,14 @@ def season_point_in_time_averages(
         anno di inizio della stagione da aggregare. Se omesso e' DERIVATO dal
         cutoff (la stagione va da agosto a giugno: da luglio in poi si passa
         alla stagione che inizia nell'anno del cutoff), con la stessa regola
-        di ``config.get_current_season_start_year``.
+        di ``config.get_current_season_start_year`` (``season_calendar``).
     cutoff_policy / day_timezone / base_dir / records:
         stesso significato che in ``aggregate_season``.
     """
     cutoff_dt = as_utc(cutoff) if cutoff is not None else datetime.now(timezone.utc)
     if season is None:
-        season = cutoff_dt.year if cutoff_dt.month >= 7 else cutoff_dt.year - 1
+        # stessa regola di config.get_current_season_start_year (confine 1° luglio)
+        season = season_start_year_of(cutoff_dt)
     return season_averages(
         league, season, cutoff=cutoff_dt, cutoff_policy=cutoff_policy,
         day_timezone=day_timezone, base_dir=base_dir, records=records,

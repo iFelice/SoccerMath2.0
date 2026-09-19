@@ -28,6 +28,11 @@ Garanzie:
   * scrittura atomica: un errore non lascia file parziali;
   * se l'archivio manca/non valida o produce meno di ``--min-teams`` squadre,
     il file esistente NON viene sovrascritto e l'uscita e' diversa da zero;
+    ECCEZIONE dichiarata: se la stagione richiesta ha meno di ``--min-teams``
+    partite in archivio (pre-stagione o prima giornata, tipicamente luglio -
+    agosto dopo il rollover del 1° luglio) la lega viene SALTATA con uscita 0
+    (``season_not_started`` / ``season_starting`` nel report): il file della
+    stagione precedente resta valido e la catena automatica non fallisce;
   * VALIDAZIONE NOMI BLOCCANTE E PREVENTIVA: se un nome dell'archivio non e'
     risolto dalla tabella condivisa (``team_aliases``), o se due nomi grezzi
     diversi collassano sullo stesso nome canonico senza essere dichiarati in
@@ -122,6 +127,23 @@ def mapping_errors(
     return errors
 
 
+# Partite della stagione scartate NON per difetto dei dati xG: non giocate,
+# oltre il cutoff, o senza squadre. Il resto (giocate ed eleggibili) e' il
+# numeratore con cui si distingue "stagione non ancora iniziata" da "xG assenti".
+_NOT_YET_PLAYABLE = (
+    "non_giocata", "dopo_cutoff", "giorno_del_cutoff_o_dopo",
+    "data_illeggibile_con_cutoff", "squadra_mancante",
+)
+
+
+def played_before_cutoff(aggregate: SeasonAggregate) -> int:
+    """Partite della stagione gia' giocate ed entro il cutoff (a prescindere
+    dalla validita' degli xG)."""
+    skipped = aggregate.skipped or {}
+    return max(0, aggregate.matches_in_season
+               - sum(skipped.get(k, 0) for k in _NOT_YET_PLAYABLE))
+
+
 def derive_league(
     league: str,
     season: int,
@@ -176,9 +198,30 @@ def derive_league(
             return out  # file precedente intatto: niente scrittura parziale
 
     if len(aggregate.averages) < min_teams:
+        # Pre-stagione / prima giornata: la stagione richiesta (di default
+        # quella corrente, che dal 1° luglio e' la NUOVA stagione) non ha
+        # ancora abbastanza partite nell'archivio. Non e' un guasto: il file
+        # della stagione precedente resta al suo posto e la catena automatica
+        # (workflow update_xg) non deve fallire finche' Understat non pubblica
+        # le prime giornate. Con almeno ``min_teams`` partite in stagione e
+        # ancora meno di ``min_teams`` squadre valide il problema e' invece
+        # reale (xG mancanti nell'archivio) e resta bloccante.
+        played = played_before_cutoff(aggregate)
+        if played < min_teams:
+            out["season_not_started"] = played == 0
+            out["season_starting"] = played > 0
+            out["pre_season"] = (
+                f"stagione {season}/{season + 1} non ancora "
+                f"{'iniziata' if played == 0 else 'a regime'}: "
+                f"{played} partite giocate su {aggregate.matches_in_season} in "
+                f"archivio, {len(aggregate.averages)} squadre valide (minimo "
+                f"{min_teams}); file esistente lasciato invariato (pre-stagione, "
+                "non e' un errore)")
+            return out
         out["errors"].append(
             f"solo {len(aggregate.averages)} squadre con partite valide "
-            f"(minimo {min_teams}): file esistente lasciato invariato")
+            f"(minimo {min_teams}) su {played} partite giocate in stagione: "
+            "file esistente lasciato invariato")
         return out
 
     if not dry_run:
@@ -223,6 +266,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     leagues = args.leagues or list(LEAGUES)
     results = []
     failures = 0
+    skipped = 0
 
     for league in leagues:
         res = derive_league(
@@ -240,6 +284,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             failures += 1
             for err in res["errors"]:
                 log.error("%s", err)
+            continue
+        if res.get("pre_season"):
+            skipped += 1
+            log.info("%s: %s", league, res["pre_season"])
             continue
         log.info(
             "%s %s: %d squadre, %d partite valide su %d in stagione%s%s",
@@ -268,8 +316,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                       ensure_ascii=False, indent=2)
         log.info("Report salvato in %s", args.report)
 
-    ok = len(leagues) - failures
-    log.info("Completato: %d/%d leghe aggiornate", ok, len(leagues))
+    ok = len(leagues) - failures - skipped
+    log.info("Completato: %d/%d leghe aggiornate%s", ok, len(leagues),
+             f", {skipped} in attesa dell'inizio stagione" if skipped else "")
     return 1 if failures else 0
 
 

@@ -34,9 +34,9 @@ on:
   workflow_dispatch:
     inputs:
       seasons:
-        description: "Stagioni soccerdata per PPDA/deep (formato 2627), separate da spazio"
+        description: "Stagioni soccerdata per PPDA/deep (formato 2627), separate da spazio. Vuoto = finestra mobile derivata dalla data (stagione corrente + 4 precedenti)"
         required: false
-        default: "2223 2324 2425 2526 2627"
+        default: ""
       player_seasons:
         description: "Stagioni per le statistiche giocatore (vuoto = come sopra)"
         required: false
@@ -87,6 +87,8 @@ jobs:
       # NB: VERIFY_DIR non puo' stare qui: il contesto `runner` non e' un valore
       # riconosciuto in `jobs.<job_id>.env` (il workflow risulterebbe invalido).
       # Viene impostata nel primo step, dentro $GITHUB_ENV, da $RUNNER_TEMP.
+      # vuoto (default e push) = finestra mobile derivata dalla data dallo script
+      SEASONS: ${{ github.event.inputs.seasons || '' }}
       PLAYER_SEASONS: ${{ github.event.inputs.player_seasons || '' }}
       SAMPLE_MATCHES: ${{ github.event.inputs.sample_matches_per_league || '' }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -136,7 +138,7 @@ jobs:
         id: acquisizione
         run: |
           python update_all_ppda_player_db.py \
-            --seasons ${{ github.event.inputs.seasons || '2223 2324 2425 2526 2627' }} \
+            ${SEASONS:+--seasons $SEASONS} \
             ${PLAYER_SEASONS:+--player-seasons $PLAYER_SEASONS} \
             ${SAMPLE_MATCHES:+--sample-matches-per-league $SAMPLE_MATCHES} \
             --parallel-leagues ${{ github.event.inputs.parallel_leagues || '2' }} \

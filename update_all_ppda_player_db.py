@@ -136,11 +136,15 @@ from xg_archive import (  # noqa: E402
     parse_xg,
 )
 
+sys.path.insert(0, _REPO_ROOT)
+from update_all_xg_db import derive_seasons  # noqa: E402  (stessa finestra dell'archivio xG)
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("update_all_ppda_player_db")
 
-# Stagioni richieste a soccerdata: le stesse dell'archivio xG (dalla 2022/23).
-SEASONS: List[str] = ["2223", "2324", "2425", "2526", "2627"]
+# Stagioni richieste a soccerdata: le stesse dell'archivio xG, finestra mobile
+# derivata dalla data (stagione corrente + 4 precedenti, confine 1° luglio).
+SEASONS: List[str] = derive_seasons()
 
 # Versione di soccerdata verificata per queste colonne/questo formato.
 REQUIRED_SOCCERDATA_VERSION = "1.9.1"
@@ -926,6 +930,63 @@ def acquire_player_match(league: str, sd_league: str, seasons: Sequence[str], *,
 # ---------------------------------------------------------------------------
 # Acquisizione per lega
 # ---------------------------------------------------------------------------
+def _rolling_window_adjustments(league: str, seasons: Sequence[str],
+                                player_seasons: Sequence[str], schedule: Sequence[dict],
+                                datasets: Sequence[str], output_dir: str,
+                                baseline_dir: Optional[str]) -> dict:
+    """Tolleranze di rollover valide SOLO per la finestra mobile derivata dalla
+    data (mai con ``--seasons`` esplicito), le stesse di update_all_xg_db:
+
+      * ``season_not_started``: la stagione piu' recente della finestra non ha
+        ancora partite nel calendario Understat (pre-stagione, luglio-agosto) e
+        nessuna baseline la conteneva -> viene tolta dalle stagioni richieste
+        in questa esecuzione;
+      * ``seasons_aged_out``: le baseline contengono SOLO stagioni piu' vecchie
+        della finestra fra quelle non richieste -> la loro scomparsa e'
+        fisiologica e ``allow_dropping_seasons`` viene attivato per questa
+        lega. Una stagione dentro la finestra che manca resta bloccante.
+    """
+    requested = sorted({parse_season(s) for s in list(seasons) + list(player_seasons)
+                        if parse_season(s)})
+    adj = {"seasons": list(seasons), "player_seasons": list(player_seasons),
+           "allow_dropping_seasons": False, "season_not_started": None,
+           "seasons_aged_out": []}
+    if not requested:
+        return adj
+    current = max(requested)
+    window_start = min(requested)
+
+    baseline_seasons: set = set()
+    for kind in datasets:
+        base_dir = baseline_dir or output_dir
+        previous = _load_baseline(archive_path(kind, league, base_dir))
+        for rec in previous or []:
+            if isinstance(rec, dict):
+                season = parse_season(rec.get("season"))
+                if season is not None:
+                    baseline_seasons.add(season)
+
+    scheduled = {parse_season(rec.get("season")) for rec in schedule
+                 if isinstance(rec, dict)}
+    if current not in scheduled and current not in baseline_seasons:
+        adj["season_not_started"] = current
+        code = f"{current % 100:02d}{(current + 1) % 100:02d}"
+        adj["seasons"] = [s for s in seasons if s != code]
+        adj["player_seasons"] = [s for s in player_seasons if s != code]
+        log.info("%s: stagione %d/%d non ancora su Understat (pre-stagione): "
+                 "acquisizione limitata alle stagioni %s", league, current,
+                 current + 1, " ".join(adj["seasons"]))
+
+    not_requested = sorted(s for s in baseline_seasons if s not in requested)
+    aged_out = [s for s in not_requested if s < window_start]
+    if not_requested and aged_out == not_requested:
+        adj["allow_dropping_seasons"] = True
+        adj["seasons_aged_out"] = aged_out
+        log.info("%s: stagioni %s uscite dalla finestra mobile: la loro "
+                 "scomparsa dagli archivi non blocca", league, aged_out)
+    return adj
+
+
 def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence[str], *,
                    output_dir: str, baseline_dir: Optional[str], cache_dir: str,
                    datasets: Sequence[str], dry_run: bool,
@@ -936,8 +997,13 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
                    min_rows_per_match: int,
                    max_thin_matches_ratio: float,
                    max_duplicate_rows_ratio: float,
-                   max_structural_na_ratio: float) -> dict:
-    """Acquisisce i dataset richiesti per una lega (un solo snapshot per lega)."""
+                   max_structural_na_ratio: float,
+                   rolling_window: bool = False) -> dict:
+    """Acquisisce i dataset richiesti per una lega (un solo snapshot per lega).
+
+    ``rolling_window``: le stagioni sono la finestra mobile derivata dalla data
+    (non una scelta esplicita) e valgono le tolleranze di rollover di
+    ``_rolling_window_adjustments``."""
     sd_league = SOCCERDATA_LEAGUES[league]
     outcome: dict = {"league": league, "sd_league": sd_league,
                      "datasets": {}, "errors": []}
@@ -1007,6 +1073,20 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
     }
     outcome["schedule_duplicates"] = schedule_duplicates
 
+    if rolling_window:
+        adj = _rolling_window_adjustments(
+            league, seasons, player_seasons, schedule, datasets,
+            output_dir, baseline_dir)
+        seasons = adj["seasons"]
+        player_seasons = adj["player_seasons"]
+        allow_dropping_seasons = allow_dropping_seasons or adj["allow_dropping_seasons"]
+        outcome["rolling_window"] = {
+            "seasons": list(seasons),
+            "player_seasons": list(player_seasons),
+            "season_not_started": adj["season_not_started"],
+            "seasons_aged_out": adj["seasons_aged_out"],
+        }
+
     if PPDA_KIND in datasets:
         outcome["datasets"][PPDA_KIND] = acquire_ppda_deep(
             league, sd_league, seasons, output_dir=output_dir,
@@ -1043,9 +1123,10 @@ def build_parser() -> argparse.ArgumentParser:
                     "per partita) e statistiche giocatore per partita")
     parser.add_argument("--league", action="append", dest="leagues",
                         choices=list(PPDA_FILES), help="limita a una lega (ripetibile)")
-    parser.add_argument("--seasons", nargs="+", default=SEASONS,
-                        help="stagioni soccerdata per PPDA/deep "
-                             f"(default: {' '.join(SEASONS)})")
+    parser.add_argument("--seasons", nargs="+", default=None,
+                        help="stagioni soccerdata esplicite per PPDA/deep "
+                             "(controlli rigorosi). Default: finestra mobile "
+                             f"derivata dalla data, oggi {' '.join(SEASONS)}")
     parser.add_argument("--player-seasons", nargs="+", default=None,
                         help="stagioni per le statistiche giocatore "
                              "(default: le stesse di --seasons)")
@@ -1121,8 +1202,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     leagues = args.leagues or list(PPDA_FILES)
-    seasons = list(args.seasons)
+    # Finestra mobile (default, tolleranze di rollover attive) oppure elenco
+    # esplicito (nessuna tolleranza automatica).
+    rolling_window = not args.seasons
+    seasons = derive_seasons() if rolling_window else list(args.seasons)
     player_seasons = list(args.player_seasons or seasons)
+    if rolling_window:
+        log.info("Stagioni derivate dalla data (finestra mobile di %d): %s",
+                 len(seasons), " ".join(seasons))
     datasets = list(dict.fromkeys(args.datasets))
     cache_dir = args.cache_dir or tempfile.mkdtemp(prefix="soccermath-understat-")
     os.makedirs(cache_dir, exist_ok=True)
@@ -1153,7 +1240,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             min_rows_per_match=args.min_rows_per_match,
             max_thin_matches_ratio=args.max_thin_matches_ratio,
             max_duplicate_rows_ratio=args.max_duplicate_rows_ratio,
-            max_structural_na_ratio=args.max_structural_na_ratio)
+            max_structural_na_ratio=args.max_structural_na_ratio,
+            rolling_window=rolling_window)
 
     results: List[dict] = []
     if args.parallel_leagues > 1 and len(leagues) > 1:
