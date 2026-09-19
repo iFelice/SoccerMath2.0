@@ -1,0 +1,835 @@
+{
+  "generated_utc": "2026-09-19T17:16:46.015577+00:00",
+  "protocol": {
+    "source_1709": "audit/results/topmix_selector_replay_rows.csv",
+    "fresh_replay": "audit.topmix_selector_replay (motore live, point-in-time)",
+    "train": "2024/25",
+    "val_test": "2025/26",
+    "families": {
+      "OU25": [
+        "O2.5",
+        "U2.5"
+      ],
+      "GGNG": [
+        "GG",
+        "NG"
+      ],
+      "1X2": [
+        "1",
+        "2"
+      ]
+    },
+    "anchors": {
+      "UNCOND": "frequenza incondizionata evento (candidati)",
+      "PICKED": "hit rate realizzata ammesse (per mercato)"
+    },
+    "threshold": 0.6,
+    "n_boot": 2000,
+    "seed": 20260919,
+    "labels": "2425 e 2526 sono entrambe stagioni gia' esaminate in passato per il selettore: 'TEST' qui vale solo per la DOMANDA shrinkage-totali, non e' un hold-out assoluto"
+  },
+  "identity_check": {
+    "TOT_identica": 1873,
+    "TOT_diversa": 0,
+    "1X2_conf_diversa": 1549,
+    "1X2_identica": 0,
+    "1X2_mercato_diverso": 0,
+    "non_nel_csv": 0,
+    "max_dconf_1x2": 0.11781600000000003
+  },
+  "fits": {
+    "OU25|TRAIN": {
+      "n": 215,
+      "hit_rate": 0.6,
+      "mean_conf": 0.648171776744186,
+      "base_uncond": {
+        "O2.5": 0.5369515011547344,
+        "U2.5": 0.4630484988452656
+      },
+      "base_picked": {
+        "O2.5": 0.6666666666666666,
+        "U2.5": 0.5642857142857143
+      },
+      "k_UNCOND_brier": {
+        "k": 0.6370947166996498,
+        "fit_score": 0.2393366493138095,
+        "raw_score": 0.24284929415572093
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.632,
+        "raw_score": 0.6798482180341946
+      },
+      "k_UNCOND_brier_ci95": [
+        0.22052030152754407,
+        1.0
+      ],
+      "k_PICKED_brier": {
+        "k": 0.0,
+        "fit_score": 0.23761904761904765,
+        "raw_score": 0.24284929415572093
+      },
+      "k_PICKED_logloss": {
+        "k": 0.0,
+        "raw_score": 0.6798482180341946
+      },
+      "k_PICKED_brier_ci95": [
+        0.0,
+        0.5242049471198801
+      ]
+    },
+    "OU25|VAL": {
+      "n": 152,
+      "hit_rate": 0.5592105263157895,
+      "mean_conf": 0.644652625,
+      "base_uncond": {
+        "O2.5": 0.5295857988165681,
+        "U2.5": 0.47041420118343197
+      },
+      "base_picked": {
+        "O2.5": 0.49122807017543857,
+        "U2.5": 0.6
+      },
+      "k_UNCOND_brier": {
+        "k": 0.6187100513679348,
+        "fit_score": 0.24531531189502442,
+        "raw_score": 0.24890536047334866
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.626,
+        "raw_score": 0.6907513902070423
+      },
+      "k_UNCOND_brier_ci95": [
+        0.0,
+        0.9098020924882891
+      ],
+      "k_PICKED_brier": {
+        "k": 0.291471664049375,
+        "fit_score": 0.24266510427267127,
+        "raw_score": 0.24890536047334866
+      },
+      "k_PICKED_logloss": {
+        "k": 0.302,
+        "raw_score": 0.6907513902070423
+      },
+      "k_PICKED_brier_ci95": [
+        0.05387584529831481,
+        1.0
+      ]
+    },
+    "OU25|POOL": {
+      "n": 367,
+      "hit_rate": 0.5831062670299727,
+      "mean_conf": 0.6467142534059945,
+      "base_uncond": {
+        "O2.5": 0.5333138515488018,
+        "U2.5": 0.46668614845119816
+      },
+      "base_picked": {
+        "O2.5": 0.5909090909090909,
+        "U2.5": 0.5787234042553191
+      },
+      "k_UNCOND_brier": {
+        "k": 0.6345042541740964,
+        "fit_score": 0.24191499335494732,
+        "raw_score": 0.245357528706891
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.634,
+        "raw_score": 0.6843639732665456
+      },
+      "k_UNCOND_brier_ci95": [
+        0.26262759000625874,
+        0.895088481570239
+      ],
+      "k_PICKED_brier": {
+        "k": 0.2821294593803416,
+        "fit_score": 0.24263930367611683,
+        "raw_score": 0.245357528706891
+      },
+      "k_PICKED_logloss": {
+        "k": 0.285,
+        "raw_score": 0.6843639732665456
+      },
+      "k_PICKED_brier_ci95": [
+        0.0,
+        1.0
+      ]
+    },
+    "GGNG|TRAIN": {
+      "n": 172,
+      "hit_rate": 0.5988372093023255,
+      "mean_conf": 0.6302857093023256,
+      "base_uncond": {
+        "GG": 0.5525404157043879,
+        "NG": 0.447459584295612
+      },
+      "base_picked": {
+        "GG": 0.6,
+        "NG": 0.5
+      },
+      "k_UNCOND_brier": {
+        "k": 0.6112342161884615,
+        "fit_score": 0.23981322578173628,
+        "raw_score": 0.24084940205797675
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.614,
+        "raw_score": 0.6747938352835
+      },
+      "k_UNCOND_brier_ci95": [
+        0.0,
+        1.0
+      ],
+      "k_PICKED_brier": {
+        "k": 0.2705809088994698,
+        "fit_score": 0.2399992990771261,
+        "raw_score": 0.24084940205797675
+      },
+      "k_PICKED_logloss": {
+        "k": 0.274,
+        "raw_score": 0.6747938352835
+      },
+      "k_PICKED_brier_ci95": [
+        0.0,
+        1.0
+      ]
+    },
+    "GGNG|VAL": {
+      "n": 202,
+      "hit_rate": 0.5891089108910891,
+      "mean_conf": 0.6284581435643564,
+      "base_uncond": {
+        "GG": 0.5390532544378698,
+        "NG": 0.46094674556213017
+      },
+      "base_picked": {
+        "GG": 0.5891089108910891,
+        "NG": 0.5891089108910891
+      },
+      "k_UNCOND_brier": {
+        "k": 0.45578818816131383,
+        "fit_score": 0.24281251975892149,
+        "raw_score": 0.24531116866410396
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.454,
+        "raw_score": 0.6841141730690783
+      },
+      "k_UNCOND_brier_ci95": [
+        0.0,
+        0.6754003513491249
+      ],
+      "k_PICKED_brier": {
+        "k": 0.0,
+        "fit_score": 0.24205960199980395,
+        "raw_score": 0.24531116866410396
+      },
+      "k_PICKED_logloss": {
+        "k": 0.0,
+        "raw_score": 0.6841141730690783
+      },
+      "k_PICKED_brier_ci95": [
+        0.0,
+        0.6392704174276042
+      ]
+    },
+    "GGNG|POOL": {
+      "n": 374,
+      "hit_rate": 0.5935828877005348,
+      "mean_conf": 0.629298628342246,
+      "base_uncond": {
+        "GG": 0.5458796025715955,
+        "NG": 0.45412039742840443
+      },
+      "base_picked": {
+        "GG": 0.5940860215053764,
+        "NG": 0.5
+      },
+      "k_UNCOND_brier": {
+        "k": 0.5171162848279637,
+        "fit_score": 0.24149767698575403,
+        "raw_score": 0.24325923321957488
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.517,
+        "raw_score": 0.6798278145152833
+      },
+      "k_UNCOND_brier_ci95": [
+        0.0,
+        1.0
+      ],
+      "k_PICKED_brier": {
+        "k": 0.0,
+        "fit_score": 0.24119515841527225,
+        "raw_score": 0.24325923321957488
+      },
+      "k_PICKED_logloss": {
+        "k": 0.0,
+        "raw_score": 0.6798278145152833
+      },
+      "k_PICKED_brier_ci95": [
+        0.0,
+        0.6757993332688683
+      ]
+    },
+    "1X2|TRAIN": {
+      "n": 605,
+      "hit_rate": 0.6595041322314049,
+      "mean_conf": 0.6978198892561984,
+      "base_uncond": {
+        "1": 0.41859122401847576,
+        "2": 0.3331408775981524
+      },
+      "base_picked": {
+        "1": 0.6738095238095239,
+        "2": 0.6270270270270271
+      },
+      "k_UNCOND_brier": {
+        "k": 0.8849281977931439,
+        "fit_score": 0.21583975291690385,
+        "raw_score": 0.21719050822415703
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.884,
+        "raw_score": 0.6257239094082666
+      },
+      "k_UNCOND_brier_ci95": [
+        0.7572816710657785,
+        1.0
+      ],
+      "k_PICKED_brier": {
+        "k": 0.8479777855818426,
+        "fit_score": 0.21696126792443984,
+        "raw_score": 0.21719050822415703
+      },
+      "k_PICKED_logloss": {
+        "k": 0.795,
+        "raw_score": 0.6257239094082666
+      },
+      "k_PICKED_brier_ci95": [
+        0.46434311957970625,
+        1.0
+      ]
+    },
+    "1X2|VAL": {
+      "n": 595,
+      "hit_rate": 0.6420168067226891,
+      "mean_conf": 0.6933758268907564,
+      "base_uncond": {
+        "1": 0.4408284023668639,
+        "2": 0.3029585798816568
+      },
+      "base_picked": {
+        "1": 0.6625916870415648,
+        "2": 0.5967741935483871
+      },
+      "k_UNCOND_brier": {
+        "k": 0.8458435298913541,
+        "fit_score": 0.21996275744404362,
+        "raw_score": 0.22227886918962855
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.856,
+        "raw_score": 0.6351031180546496
+      },
+      "k_UNCOND_brier_ci95": [
+        0.7075314348333519,
+        0.9491468429626154
+      ],
+      "k_PICKED_brier": {
+        "k": 0.8042824137055212,
+        "fit_score": 0.22186208716555456,
+        "raw_score": 0.22227886918962855
+      },
+      "k_PICKED_logloss": {
+        "k": 0.804,
+        "raw_score": 0.6351031180546496
+      },
+      "k_PICKED_brier_ci95": [
+        0.4387364939247008,
+        1.0
+      ]
+    },
+    "1X2|POOL": {
+      "n": 1200,
+      "hit_rate": 0.6508333333333334,
+      "mean_conf": 0.695616375,
+      "base_uncond": {
+        "1": 0.429573348918761,
+        "2": 0.31823495032144944
+      },
+      "base_picked": {
+        "1": 0.6682750301568154,
+        "2": 0.6118598382749326
+      },
+      "k_UNCOND_brier": {
+        "k": 0.8661509732743067,
+        "fit_score": 0.21793065307907813,
+        "raw_score": 0.21971348720287
+      },
+      "k_UNCOND_logloss": {
+        "k": 0.871,
+        "raw_score": 0.630374433695432
+      },
+      "k_UNCOND_brier_ci95": [
+        0.7707722827569214,
+        0.943147330627719
+      ],
+      "k_PICKED_brier": {
+        "k": 0.8318095445335617,
+        "fit_score": 0.2194212348054794,
+        "raw_score": 0.21971348720287
+      },
+      "k_PICKED_logloss": {
+        "k": 0.804,
+        "raw_score": 0.630374433695432
+      },
+      "k_PICKED_brier_ci95": [
+        0.556641336209609,
+        1.0
+      ]
+    }
+  },
+  "fits_1x2_source_1709": {
+    "TRAIN": {
+      "n": 548,
+      "k_picked_brier": 0.909114176716897
+    },
+    "VAL": {
+      "n": 576,
+      "k_picked_brier": 0.8307944842450096
+    },
+    "POOL": {
+      "n": 1124,
+      "k_picked_brier": 0.9012765393799874
+    }
+  },
+  "frozen_test": {
+    "OU25": {
+      "n_train": 215,
+      "n_test": 152,
+      "UNCOND": {
+        "k_frozen": 0.6370947166996498,
+        "base_frozen": {
+          "O2.5": 0.5369515011547344,
+          "U2.5": 0.4630484988452656
+        },
+        "n_test": 152,
+        "n_surv": 55,
+        "n_gone": 97,
+        "n_surv_wholefile": 122,
+        "surv_hit": 0.6181818181818182,
+        "surv_hit_rawclaim": 0.6824296909090909,
+        "surv_brier_raw": 0.2322514694262,
+        "surv_brier_star": 0.23248155166449694,
+        "all_brier_raw": 0.24890536047334866,
+        "all_brier_star": 0.24564925594674258,
+        "gone_n": 97,
+        "gone_hit": 0.5257731958762887,
+        "gone_wilson95": [
+          0.42732770347454624,
+          0.6222550778376627
+        ],
+        "gone_base_uncond_mix": 0.4807844811809919,
+        "gone_base_picked_mix": 0.4760005714149663,
+        "rel_err_raw_paired": 0.12366285454545455,
+        "rel_err_star_paired": 0.10186368533952528,
+        "rel_bins_paired": [
+          {
+            "bucket": "[0.60,0.65)",
+            "n": 6,
+            "freq": 0.5,
+            "mean_raw": 0.642348,
+            "mean_star": 0.6040990537276939
+          },
+          {
+            "bucket": "[0.65,0.70)",
+            "n": 36,
+            "freq": 0.5555555555555556,
+            "mean_raw": 0.6753738055555556,
+            "mean_star": 0.6191796666308073
+          },
+          {
+            "bucket": "[0.70,0.75)",
+            "n": 12,
+            "freq": 0.8333333333333334,
+            "mean_raw": 0.7178328333333334,
+            "mean_star": 0.6365451647412267
+          },
+          {
+            "bucket": "[0.75,0.80)",
+            "n": 1,
+            "freq": 1.0,
+            "mean_raw": 0.752094,
+            "mean_star": 0.6740176505066137
+          }
+        ]
+      },
+      "PICKED": {
+        "k_frozen": 0.0,
+        "base_frozen": {
+          "O2.5": 0.6666666666666666,
+          "U2.5": 0.5642857142857143
+        },
+        "n_test": 152,
+        "n_surv": 57,
+        "n_gone": 95,
+        "n_surv_wholefile": 132,
+        "surv_hit": 0.49122807017543857,
+        "surv_hit_rawclaim": 0.6573775263157895,
+        "surv_brier_raw": 0.26759540137321053,
+        "surv_brier_star": 0.2807017543859649,
+        "all_brier_raw": 0.24890536047334866,
+        "all_brier_star": 0.25606035177228786,
+        "gone_n": 95,
+        "gone_hit": 0.6,
+        "gone_wilson95": [
+          0.49945602852914517,
+          0.6927710007594539
+        ],
+        "gone_base_uncond_mix": 0.47041420118343197,
+        "gone_base_picked_mix": 0.5642857142857143,
+        "rel_err_raw_paired": 0.1748479122807018,
+        "rel_err_star_paired": 0.1871345029239766,
+        "rel_bins_paired": [
+          {
+            "bucket": "[0.60,0.65)",
+            "n": 23,
+            "freq": 0.34782608695652173,
+            "mean_raw": 0.623254695652174,
+            "mean_star": 0.6666666666666666
+          },
+          {
+            "bucket": "[0.65,0.70)",
+            "n": 28,
+            "freq": 0.5714285714285714,
+            "mean_raw": 0.6717133571428572,
+            "mean_star": 0.6666666666666666
+          },
+          {
+            "bucket": "[0.70,0.75)",
+            "n": 5,
+            "freq": 0.6,
+            "mean_raw": 0.7151186,
+            "mean_star": 0.6666666666666666
+          },
+          {
+            "bucket": "[0.75,0.80)",
+            "n": 1,
+            "freq": 1.0,
+            "mean_raw": 0.752094,
+            "mean_star": 0.6666666666666666
+          }
+        ]
+      }
+    },
+    "GGNG": {
+      "n_train": 172,
+      "n_test": 202,
+      "UNCOND": {
+        "k_frozen": 0.6112342161884615,
+        "base_frozen": {
+          "GG": 0.5525404157043879,
+          "NG": 0.447459584295612
+        },
+        "n_test": 202,
+        "n_surv": 80,
+        "n_gone": 122,
+        "n_surv_wholefile": 153,
+        "surv_hit": 0.5625,
+        "surv_hit_rawclaim": 0.6502966625,
+        "surv_brier_raw": 0.2530959692363125,
+        "surv_brier_star": 0.24809346112108024,
+        "all_brier_raw": 0.24531116866410396,
+        "all_brier_star": 0.24309202226998905,
+        "gone_n": 122,
+        "gone_hit": 0.6065573770491803,
+        "gone_wilson95": [
+          0.5178907916893675,
+          0.688718383405096
+        ],
+        "gone_base_uncond_mix": 0.5390532544378698,
+        "gone_base_picked_mix": 0.5525404157043879,
+        "rel_err_raw_paired": 0.08779666249999998,
+        "rel_err_star_paired": 0.049792378592029715,
+        "rel_bins_paired": [
+          {
+            "bucket": "[0.60,0.65)",
+            "n": 45,
+            "freq": 0.5333333333333333,
+            "mean_raw": 0.6398454666666666,
+            "mean_star": 0.60590425009861
+          },
+          {
+            "bucket": "[0.65,0.70)",
+            "n": 35,
+            "freq": 0.6,
+            "mean_raw": 0.6637339142857143,
+            "mean_star": 0.6205056866549978
+          }
+        ]
+      },
+      "PICKED": {
+        "k_frozen": 0.2705809088994698,
+        "base_frozen": {
+          "GG": 0.6,
+          "NG": 0.5
+        },
+        "n_test": 202,
+        "n_surv": 202,
+        "n_gone": 0,
+        "n_surv_wholefile": 372,
+        "surv_hit": 0.5891089108910891,
+        "surv_hit_rawclaim": 0.6284581435643564,
+        "surv_brier_raw": 0.24531116866410396,
+        "surv_brier_star": 0.2427785809768114,
+        "all_brier_raw": 0.24531116866410396,
+        "all_brier_star": 0.2427785809768114,
+        "gone_n": 0,
+        "gone_hit": null,
+        "gone_wilson95": [
+          NaN,
+          NaN
+        ],
+        "gone_base_uncond_mix": null,
+        "gone_base_picked_mix": null,
+        "rel_err_raw_paired": 0.03934923267326737,
+        "rel_err_star_paired": 0.018591319460146048,
+        "rel_bins_paired": [
+          {
+            "bucket": "[0.60,0.65)",
+            "n": 167,
+            "freq": 0.5868263473053892,
+            "mean_raw": 0.6210650179640719,
+            "mean_star": 0.6056997917067022
+          },
+          {
+            "bucket": "[0.65,0.70)",
+            "n": 35,
+            "freq": 0.6,
+            "mean_raw": 0.6637339142857143,
+            "mean_star": 0.6172451804551494
+          }
+        ]
+      }
+    }
+  },
+  "memory_223_741": {
+    "k_pooled_uncond": 0.6075018586616185,
+    "survivors_recomputed": 236,
+    "denominator": 741,
+    "memory_estimate": "223/741"
+  },
+  "threshold_alternatives_test": {
+    "OU25": {
+      "n_current_raw060": 152,
+      "hit_current": 0.5592105263157895,
+      "a_star060_n": 55,
+      "a_star060_hit": 0.6181818181818182,
+      "b_quality_neutral_t": 0.4,
+      "b_quality_neutral_n": 152,
+      "c_volume_neutral_hit": 0.5592105263157895
+    },
+    "GGNG": {
+      "n_current_raw060": 202,
+      "hit_current": 0.5891089108910891,
+      "a_star060_n": 80,
+      "a_star060_hit": 0.5625,
+      "b_quality_neutral_t": 0.4,
+      "b_quality_neutral_n": 202,
+      "c_volume_neutral_hit": 0.5891089108910891
+    }
+  },
+  "league_fits": {
+    "OU25|Bundesliga": {
+      "TRAIN": {
+        "n": 53,
+        "k_uncond": 0.8016883608941867,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.6792452830188679,
+        "mean_conf": 0.6874283396226416
+      },
+      "POOL": {
+        "n": 76,
+        "k_uncond": 0.7597983481155484,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.6447368421052632,
+        "mean_conf": 0.6804264868421053
+      }
+    },
+    "OU25|La Liga": {
+      "TRAIN": {
+        "n": 71,
+        "k_uncond": 0.8424595793639132,
+        "ci95": [
+          0.09670432492105556,
+          1.0
+        ],
+        "hit": 0.6056338028169014,
+        "mean_conf": 0.6333744788732395
+      },
+      "POOL": {
+        "n": 129,
+        "k_uncond": 0.7963230194121715,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.5968992248062015,
+        "mean_conf": 0.6412596821705426
+      }
+    },
+    "OU25|Ligue 1": {
+      "TRAIN": {
+        "n": 13,
+        "k_uncond": null
+      },
+      "POOL": {
+        "n": 20,
+        "k_uncond": 0.8486622328721425,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.6,
+        "mean_conf": 0.63017585
+      }
+    },
+    "OU25|Premier League": {
+      "TRAIN": {
+        "n": 18,
+        "k_uncond": 0.18008270621793335,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.5555555555555556,
+        "mean_conf": 0.6360196111111112
+      },
+      "POOL": {
+        "n": 47,
+        "k_uncond": 0.0,
+        "ci95": [
+          0.0,
+          0.8291851161469975
+        ],
+        "hit": 0.46808510638297873,
+        "mean_conf": 0.6442163829787234
+      }
+    },
+    "OU25|Serie A": {
+      "TRAIN": {
+        "n": 60,
+        "k_uncond": 0.37658383745031687,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.55,
+        "mean_conf": 0.6392674500000001
+      },
+      "POOL": {
+        "n": 95,
+        "k_uncond": 0.5319197234693596,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.5684210526315789,
+        "mean_conf": 0.6318687578947368
+      }
+    },
+    "GGNG|Bundesliga": {
+      "TRAIN": {
+        "n": 69,
+        "k_uncond": 1.0,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.6521739130434783,
+        "mean_conf": 0.6337748260869566
+      },
+      "POOL": {
+        "n": 153,
+        "k_uncond": 1.0,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.6405228758169934,
+        "mean_conf": 0.632878385620915
+      }
+    },
+    "GGNG|La Liga": {
+      "TRAIN": {
+        "n": 8,
+        "k_uncond": null
+      },
+      "POOL": {
+        "n": 16,
+        "k_uncond": 0.32189324246379275,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.5625,
+        "mean_conf": 0.621881625
+      }
+    },
+    "GGNG|Ligue 1": {
+      "TRAIN": {
+        "n": 12,
+        "k_uncond": null
+      },
+      "POOL": {
+        "n": 51,
+        "k_uncond": 0.0,
+        "ci95": [
+          0.0,
+          0.016631032836843335
+        ],
+        "hit": 0.47058823529411764,
+        "mean_conf": 0.6203683137254902
+      }
+    },
+    "GGNG|Premier League": {
+      "TRAIN": {
+        "n": 77,
+        "k_uncond": 0.13496468643454804,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "hit": 0.5714285714285714,
+        "mean_conf": 0.630949
+      },
+      "POOL": {
+        "n": 147,
+        "k_uncond": 0.39223103403621773,
+        "ci95": [
+          0.0,
+          0.7102290252902784
+        ],
+        "hit": 0.5918367346938775,
+        "mean_conf": 0.6301387823129252
+      }
+    },
+    "GGNG|Serie A": {
+      "TRAIN": {
+        "n": 6,
+        "k_uncond": null
+      },
+      "POOL": {
+        "n": 7,
+        "k_uncond": null
+      }
+    }
+  }
+}
