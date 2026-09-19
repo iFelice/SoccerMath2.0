@@ -78,6 +78,9 @@ LEAGUE_PAGES = {
 }
 
 WHO_DATA_DIR = Path.home() / "soccerdata" / "data" / "WhoScored"
+# preview storica usata nella documentazione soccerdata (12/01/2021): se il
+# blocco Cloudflare vale anche per lei, la persistenza storica e' irraggiungibile
+LEGACY_PREVIEW = "https://www.whoscored.com/Matches/1485184/Preview"
 
 
 def parse_args() -> argparse.Namespace:
@@ -111,25 +114,39 @@ def diagnose(out_dir: Path) -> dict:
             res["headless_false_error"] = repr(e)
             driver = Driver(uc=True, headless=True)
             res["mode"] = "headless=True"
-        for label, url in (("home", WHOSCORED_HOME), *LEAGUE_PAGES.items()):
-            att = {"label": label, "url": url}
-            try:
-                driver.get(url)
-                time.sleep(15)
-                src = driver.page_source or ""
-                att["title"] = driver.title
-                att["source_len"] = len(src)
-                att["allRegions"] = "allRegions" in src
-                att["seasons_select"] = 'id="seasons"' in src
-                att["captcha_markers"] = [m for m in CAPTCHA_MARKERS if m in src]
-                h1s = re.findall(r"<h1[^>]*>(.*?)</h1>", src, re.S)
-                att["h1"] = [re.sub(r"<[^>]+>", "", h).strip()[:120] for h in h1s[:3]]
-                fp = pages_dir / f"diag_{label}.html"
-                fp.write_bytes(src.encode("utf-8", errors="ignore")[:512_000])
-            except Exception as e:
-                att["error"] = repr(e)
-            res["attempts"].append(att)
-            print(f"[diagnosi] {label}: {att}", flush=True)
+        probe_urls = [("home", WHOSCORED_HOME), *LEAGUE_PAGES.items(),
+                      ("legacy_preview", LEGACY_PREVIEW)]
+        for label, url in probe_urls:
+            # 3 tentativi a distanza: distingue blocco deterministico da sfida
+            # Cloudflare transitoria
+            for attempt in range(3):
+                att = {"label": label, "attempt": attempt + 1, "url": url}
+                try:
+                    driver.get(url)
+                    time.sleep(15)
+                    src = driver.page_source or ""
+                    att["title"] = driver.title
+                    att["source_len"] = len(src)
+                    att["allRegions"] = "allRegions" in src
+                    att["seasons_select"] = 'id="seasons"' in src
+                    att["missing_players"] = 'id="missing-players"' in src
+                    att["captcha_markers"] = [m for m in CAPTCHA_MARKERS if m in src]
+                    att["cloudflare_page"] = "cloudflare" in src.lower()
+                    codes = re.findall(r"[Ee]rror(?:\s+code)?:?\s*(\d{4})", src)
+                    att["cf_error_codes"] = sorted(set(codes))
+                    h1s = re.findall(r"<h1[^>]*>(.*?)</h1>", src, re.S)
+                    att["h1"] = [re.sub(r"<[^>]+>", "", h).strip()[:120] for h in h1s[:3]]
+                    fp = pages_dir / f"diag_{label}_{attempt + 1}.html"
+                    fp.write_bytes(src.encode("utf-8", errors="ignore")[:512_000])
+                except Exception as e:
+                    att["error"] = repr(e)
+                res["attempts"].append(att)
+                print(f"[diagnosi] {label} #{attempt + 1}: {att}", flush=True)
+                # se la pagina ha i dati cercati, inutile ritentare
+                if att.get("allRegions") or att.get("seasons_select") or att.get("missing_players"):
+                    break
+                if attempt < 2:
+                    time.sleep(20)
     except Exception as e:
         res["fatal"] = repr(e)
         res["traceback"] = traceback.format_exc(limit=4)
@@ -283,10 +300,25 @@ def main() -> int:
     diag = {} if args.skip_diagnose else diagnose(args.out_dir)
     env_info["diagnose"] = diag
 
-    ReaderClass = make_reader_class(extra_settle=8.0)
-
+    # Se OGNI tentativo di diagnosi non ha ottenuto alcun dato (blocco hard del
+    # sito, es. Cloudflare che serve la pagina di blocco agli IP del runner),
+    # non ha senso sparare ~100 richieste destinate a fallire: si referta il
+    # blocco come esito di fattibilita' a se' stante.
+    hard_block = bool(diag) and bool(diag.get("attempts")) and all(
+        not (a.get("allRegions") or a.get("seasons_select") or a.get("missing_players"))
+        for a in diag["attempts"]
+    )
     cells = []
-    for league in args.leagues:
+    if hard_block:
+        env_info["hard_blocked"] = True
+        for league in args.leagues:
+            for season in args.seasons:
+                cells.append({"league": league, "season": season, "matches": [],
+                              "fatal": "HARD_BLOCK: sito irraggiungibile da questo client/IP (vedi diagnosi)"})
+
+    ReaderClass = None if hard_block else make_reader_class(extra_settle=8.0)
+
+    for league in ([] if hard_block else args.leagues):
         print(f"=== {league} ===", flush=True)
         purged = purge_null_caches()
         ws = None
@@ -466,9 +498,24 @@ def main() -> int:
         "",
     ]
     if diag:
-        lines += ["## Diagnosi diretta del sito", "", "| Pagina | titolo | bytes | allRegions | captcha |", "|---|---|---|---|---|"]
+        lines += ["## Diagnosi diretta del sito", "",
+                  f"Driver: `{diag.get('mode', '?')}`", "",
+                  "| Pagina #tentativo | titolo | bytes | dati presenti | cf_error | h1 |", "|---|---|---|---|---|---|"]
         for att in diag.get("attempts", []):
-            lines.append(f"| {att.get('label')} | {str(att.get('title'))[:60]} | {att.get('source_len')} | {att.get('allRegions')} | {att.get('captcha_markers') or att.get('error','')} |")
+            dati = ("allRegions" if att.get("allRegions")
+                    else "seasons" if att.get("seasons_select")
+                    else "missing-players" if att.get("missing_players") else "NESSUNO")
+            lines.append(f"| {att.get('label')} #{att.get('attempt')} | {str(att.get('title'))[:45]} | "
+                         f"{att.get('source_len')} | {dati} | {att.get('cf_error_codes') or ''} | "
+                         f"{str(att.get('h1') or att.get('error') or '')[:80]} |")
+        blocked_all = all(not (a.get("allRegions") or a.get("seasons_select")
+                               or a.get("missing_players")) for a in diag.get("attempts", []))
+        cf_any = any(a.get("cloudflare_page") or a.get("cf_error_codes")
+                     for a in diag.get("attempts", []))
+        if blocked_all and cf_any:
+            lines += ["", "**VERDETTO DIAGNOSI: il sito blocca questo client/IP (pagina Cloudflare "
+                      "senza dati in TUTTI i tentativi): le prove sotto riflettono il blocco, non la "
+                      "qualita' del dato.**"]
         if diag.get("fatal"):
             lines.append(f"\nDiagnosi fatale: `{diag['fatal']}`")
         lines.append("")
