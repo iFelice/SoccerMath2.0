@@ -150,7 +150,22 @@ def main() -> int:
                 continue
             sample = pick_quantile_matches(schedule, args.matches_per_cell)
             now = datetime.now(timezone.utc)
-            for _, row in sample.iterrows():
+            consecutive_bad = 0
+            rows_iter = list(sample.iterrows())
+            for pos, (_, row) in enumerate(rows_iter):
+                if consecutive_bad >= 3:
+                    # la cella e' bloccata: registra le partite rimanenti come
+                    # saltate senza sprecare richieste (rate limit + retry x5)
+                    for _, rest in rows_iter[pos:]:
+                        cell["matches"].append({
+                            "game_id": None if pd.isna(rest.get("game_id")) else int(rest["game_id"]),
+                            "date": str(rest.get("date")),
+                            "home": rest.get("home_team"),
+                            "away": rest.get("away_team"),
+                            "state": cell.get("skip_reason", "SKIPPED_BLOCKED"),
+                            "skipped": True,
+                        })
+                    break
                 rec = {
                     "game_id": None if pd.isna(row.get("game_id")) else int(row["game_id"]),
                     "date": str(row.get("date")),
@@ -169,8 +184,13 @@ def main() -> int:
                     rec["rows"] = None
                     rec["error"] = repr(e)
                 rec.update(inspect_cached_page(row))
-                # classificazione esplicita
-                if rec.get("error"):
+                # classificazione esplicita: soccerdata dopo 5 tentativi rilancia
+                # "CAPTCHA detected and could not be solved." -> lo trattiamo
+                # come BLOCKED, non come errore generico.
+                err = (rec.get("error") or "").lower()
+                if rec.get("error") and ("captcha" in err or "blocked" in err):
+                    rec["state"] = "BLOCKED"
+                elif rec.get("error"):
                     rec["state"] = "FAILED"
                 elif rec.get("captcha"):
                     rec["state"] = "BLOCKED"
@@ -182,6 +202,15 @@ def main() -> int:
                     rec["state"] = "SECTION_MISSING"
                 else:
                     rec["state"] = "UNCERTAIN_NO_CACHE"
+                # circuit breaker: 3 esiti negativi consecutivi = smetto di
+                # spendere tempo sulla cella (il blocco anti-bot e' persistente)
+                if rec["state"] in ("BLOCKED", "FAILED"):
+                    consecutive_bad += 1
+                    if consecutive_bad == 3:
+                        cell["skip_reason"] = ("SKIPPED_BLOCKED" if rec["state"] == "BLOCKED"
+                                               else "SKIPPED_FAILED")
+                else:
+                    consecutive_bad = 0
                 # conserva pagine anomale per ispezione (con tetto)
                 if rec["state"] not in ("OK_ROWS", "OK_EMPTY_SECTION") and kept_pages < args.keep_pages:
                     for p in preview_cache_paths(row):
@@ -198,19 +227,22 @@ def main() -> int:
     # ---- sintesi per cella, lega, stagione -------------------------------
     def cell_summary(cell: dict) -> dict:
         ms = cell.get("matches", [])
-        n = len(ms)
+        attempted = [m for m in ms if not m.get("skipped")]
+        skipped = len(ms) - len(attempted)
         by_state = {}
-        for m in ms:
+        for m in attempted:
             by_state[m["state"]] = by_state.get(m["state"], 0) + 1
         usable = by_state.get("OK_ROWS", 0) + by_state.get("OK_EMPTY_SECTION", 0)
         return {
             "league": cell["league"],
             "season": cell["season"],
-            "n_sampled": n,
+            "n_sampled": len(attempted),
+            "n_skipped_by_breaker": skipped,
             "states": by_state,
             "usable": usable,
-            "coverage_pct": round(100.0 * usable / n, 1) if n else None,
+            "coverage_pct": round(100.0 * usable / len(attempted), 1) if attempted else None,
             "fatal": cell.get("fatal"),
+            "skip_reason": cell.get("skip_reason"),
             "schedule_rows": cell.get("schedule_rows"),
         }
 
@@ -253,13 +285,14 @@ def main() -> int:
     lines += ["", "## Per stagione", "", "| Stagione | Campionate | Utilizzabili | Copertura | Stati |", "|---|---|---|---|---|"]
     for a in report["per_season"]:
         lines.append(f"| {a['key']} | {a['n']} | {a['usable']} | {a['coverage_pct']}% | {a['states']} |")
-    lines += ["", "## Per cella", "", "| Lega | Stagione | n | stati | copertura | fatale |", "|---|---|---|---|---|---|"]
+    lines += ["", "## Per cella", "", "| Lega | Stagione | n provate | saltate | stati | copertura | fatale |", "|---|---|---|---|---|---|---|"]
     for s in summaries:
-        lines.append(f"| {s['league']} | {s['season']} | {s['n_sampled']} | {s['states']} | {s['coverage_pct']}% | {s['fatal'] or ''} |")
+        lines.append(f"| {s['league']} | {s['season']} | {s['n_sampled']} | {s['n_skipped_by_breaker']} | {s['states']} | {s['coverage_pct']}% | {s['fatal'] or s['skip_reason'] or ''} |")
     lines += [
         "",
         "Stati: OK_ROWS = righe assenti presenti; OK_EMPTY_SECTION = sezione presente ma 0 assenti (dato valido);",
-        "SECTION_MISSING = pagina letta senza sezione (buco); BLOCKED = anti-bot; FAILED = eccezione; UNCERTAIN_NO_CACHE = senza cache ispezionabile.",
+        "SECTION_MISSING = pagina letta senza sezione (buco); BLOCKED = anti-bot/CAPTCHA; FAILED = eccezione;",
+        "UNCERTAIN_NO_CACHE = senza cache ispezionabile; SKIPPED_BLOCKED/SKIPPED_FAILED = non tentate dopo 3 esiti negativi consecutivi nella cella.",
     ]
     md = "\n".join(lines)
     (args.out_dir / "report.md").write_text(md, encoding="utf-8")
