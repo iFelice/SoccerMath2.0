@@ -27,7 +27,7 @@ Le regole sono pubbliche, per competizione, e nel periodo 2022/23→2026/27 sono
 Cosa e' deterministico e cosa no:
 - **deterministico**: squalifiche per accumulo (tutte e 5 le leghe, con le regole sopra) e espulsione per doppia ammonizione (1 giornata automatica);
 - **certo ma con durata incerta**: rosso diretto → assenza alla giornata successiva garantita (squalifica minima 1 e comunque l'organo disciplinare decide entro pochi giorni), ma la durata oltre la prima giornata non e' ricostruibile dai soli cartellini;
-- **residuo non deterministico**: ricorsi accolti (annullamento), aggravamenti/sanzioni extra per condotta — frazione minoritaria, misurabile contro i comunicati ufficiali (§2.2).
+- **residuo non deterministico**: ricorsi accolti (annullamento), aggravamenti/sanzioni extra per condotta — frazione minoritaria, misurabile contro i comunicati ufficiali (§2.4).
 
 ### 2.1 Un caso noto per lega (tutti dentro la finestra dell'archivio, verificati su fonti pubbliche)
 
@@ -39,7 +39,33 @@ Cosa e' deterministico e cosa no:
 | Bundesliga | Michael Olise (Bayern), febbraio 2026 | 5a gialla → un turno di stop (piu' Kevin Diks, Gladbach, stesso meccanismo) |
 | Ligue 1 | Pierre Lees-Melou (Brest), comunicato LFP 17/04/2024 | "un match ferme a la suite d'un troisieme avertissement dans une periode incluant 10 rencontres" — la regola pre-2025/25 applicata |
 
-### 2.2 Ground truth ufficiali gratuite per validare la ricostruzione (non scraping)
+### 2.2 Reset/azzeramenti a meta' stagione: verifica esplicita per lega
+
+Nessuna delle 5 leghe ha un azzeramento del conteggio a meta' stagione; esistono pero' due meccanismi diversi che il motore deve trattare in modo diverso:
+
+| Lega | Reset meta' stagione? | Cosa esiste invece |
+|---|---|---|
+| Serie A | **No** — testo ufficiale CGS art. 19 c.9: le ammonizioni non efficaci "divengono inefficaci al termine della stagione sportiva" (o al trasferimento in Lega diversa); nessun'altra scadenza | solo la progressione dei cicli (5; poi 4, 4, 3, 2, poi ogni ammonizione — confermata dal testo FIGC ufficiale) |
+| Premier League | **No** (il conteggio NON si azzera) | **scadenze delle soglie**: la soglia a 5 vale solo fino alla 19a partita di campionato della squadra, quella a 10 fino alla 32a; dopo restano raggiungibili solo le soglie superiori (10/15). Il motore deve usare l'ordine temporale delle partite, non il conteggio secco |
+| La Liga | **No** — cicli dentro "la misma temporada y competicion" (art. 112 RFEF) | azzeramento solo tra stagioni; la 5a gialla presa all'ultima giornata NON si trascina alla stagione successiva (dal 2020) |
+| Bundesliga | **No** — la conta riparte da zero solo a inizio stagione successiva | nulla durante la stagione |
+| Ligue 1 | **No** in entrambi i regimi | pre-2025/26: finestra mobile di 10 incontri (nessun concetto di reset); dal 2025/26: cicli a 5 con reset solo a fine stagione (dichiarato nella riforma LFP) |
+
+**Caso noto che attraversa il punto critico (verificato)**: Premier League 2022/23, **Andreas Pereira** (Fulham) — The Athletic (16/01/2023) documenta che la sua 5a ammonizione arrivo' DOPO la 19a partita del Fulham e che, unico fra tutti i giocatori a 5 gialli elencati, NON sconteggio' alcuna squalifica, mentre tutti gli altri (Bentancur, Bissouma, Bruno Fernandes, Caicedo, Dalot, Maddison, McTominay, Mitrovic...) la scontarono. E' il test-case ideale per la logica delle scadenze di soglia: il motore deve prevedere "nessuna squalifica" per Pereira e squalifica per tutti gli altri. Fonti secondarie che parlano di "reset a meta' stagione in Serie A" risultano essere pagine SEO inaffidabili e sono state scartate: fa fede il testo CGS (files.figc.it) che non contiene alcun azzeramento infrastagionale; l'eventuale smentita empirica emergerebbe comunque dal confronto motore↔comunicati (§2.4) come eccesso sistematico di falsi positivi in una precisa finestra.
+
+### 2.3 Perimetro competizione: solo campionato o cumulo con le coppe? (verifica esplicita)
+
+| Lega | Accumulo gialli | Conseguenza per il motore basato su Understat (solo campionato) |
+|---|---|---|
+| Serie A | solo campionato (Coppa Italia e UEFA hanno conteggi separati; squalifiche di coppa si scontano in coppa) | corretto |
+| Premier League | solo campionato dal 2018/19 (i gialli non comunicano piu' con FA Cup/Carabao Cup; i rossi si') | corretto per le soglie a gialli; i rossi in coppa non servono per prevedere assenze di campionato... tranne il caso di rosso in coppa scontato anche in campionato (regola PL sui rossi cross-competition): margine residuo da conteggiare in audit |
+| La Liga | solo Liga (Copa del Rey ha ciclo proprio a 3) | corretto |
+| Bundesliga | solo Bundesliga (Pokal separato, esplicitato) | corretto |
+| Ligue 1 | **CUMULA con le coppe nazionali in ENTRAMBI i regimi**: pre-2025/26 le 3 ammonizioni e la finestra di 10 incontri valgono su "Ligue 1, Coupe de France, Trophée des Champions" (testo delle decisioni LFP); dal 2025/26 la regola a 5 gialli "applies across all domestic competitions, including the Coupe de France and the Trophée des Champions" (comunicato riforma) | **DICHIARATO, non silenziato: per la Ligue 1 il motore a solo campionato SOTTOSTIMA le squalifiche vicino alla soglia** — non vede i gialli di Coupe de France e sbaglia il conteggio della finestra di 10 incontri. La Ligue 1 va trattata come lega a copertura parziale finche' non si aggiungono i cartellini di coppa (fuori dal perimetro Understat) |
+
+Nota per tutte le leghe: i cartellini delle competizioni UEFA non concorrono mai alle squalifiche di campionato (le squalifiche UEFA si scontano nelle coppe UEFA), quindi il motore di campionato non perde nulla dall'Europa.
+
+### 2.4 Ground truth ufficiali gratuite per validare la ricostruzione (non scraping)
 
 - Serie A: comunicati ufficiali del Giudice Sportivo (Lega Serie A / FIGC), pubblicati a ogni turno con le squalifiche "per recidivita' in ammonizione (V infr.)" esplicite;
 - Premier League: elenco squalifiche/diffidati sul sito ufficiale della Premier League (aggiornato) + decisioni disciplinari FA;
@@ -84,7 +110,7 @@ Campi salvati oggi per riga giocatore-partita (verificato sul codice di `update_
 
 1. Rigenerare l'archivio `player_match` col workflow gia' esistente della Parte A (`ppda_player_verify.yml`) — nessuna acquisizione "nuova", e' lo stesso perimetro gia' approvato;
 2. eseguire il motore deterministico squalifiche (§2) sull'archivio e misurare precisione/richiamo contro (a) l'assenza nella partita successiva e (b) i comunicati ufficiali sui 5 casi campione;
-3. campionare WhoScored `read_missing_players` su 3 partite giocate per lega nel 2022/23, 2023/24, 2024/25 (15 preview totali) per confermare persistenza e campi nel perimetro esatto;
+3. **campionamento reale gia' predisposto**: `audit/whoscored_missing_players_sample.py` + workflow `.github/workflows/whoscored_missing_sample.yml` (stesso escamotage GitHub Actions della Parte A per le fonti irraggiungibili dalla sandbox): campione stratificato per lega × stagione (default 8 partite a quantili equispaziati per cella, 25 celle, ~225 preview), con stati espliciti OK_ROWS / OK_EMPTY_SECTION / SECTION_MISSING / BLOCKED / FAILED e copertura % per lega, stagione e cella come artifact + log. Il push sul branch esegue il campionamento; il risultato va refertato qui prima di qualunque adozione;
 4. misurare la % di join dei nomi §5 sul campione;
 5. refertare i numeri PRIMA di ogni decisione su abbonamenti; le probabili formazioni restano fuori perimetro (investimento solo prospettico, rimandato a dopo la verifica del segnale con le assenze certe).
 
