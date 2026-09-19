@@ -1,0 +1,105 @@
+# Parte B (rediretta): fattibilita' "sapere chi manca di certo e quanto vale" — sospensioni, convocazioni, infortuni, proxy di valore
+
+Referto del `2026-09-20`. La Parte B viene **rediretta**: non piu' "prevedere la formazione", ma **"sapere chi manca di certo e quanto vale"**. Ancora **sola fattibilita' dei dati, nessun codice di produzione**: le verifiche richieste sono state condotte sul sorgente pinnato di `soccerdata==1.9.1`, sull'archivio `player_match` definito dalla pipeline della PR #23 (merge 2026-09-16) e su fonti pubbliche/regolamenti, senza nuove acquisizioni dati.
+
+## 1. Sintesi del verdetto
+
+| Pezzo | Fattibile? | Storico 2022/23→2025/26 | Fonte |
+|---|---|---|---|
+| Squalifiche da accumulo cartellini | **Si', ricostruzione deterministica** (regole pubbliche, stabili nel periodo, una variazione a meta' finestra per la Ligue 1) | ricostruibile dai cartellini gia' in archivio | `player_match` (PR #23) + regolamenti §2 |
+| Squalifiche da rosso diretto | **Parziale**: l'assenza alla giornata successiva e' certa, la durata oltre la prima no (decide l'organo disciplinare) | come sopra, durata = incognita | idem |
+| Infortuni pre-match | **Si' prospettico; storico plausibile** per tutta la finestra | plausibile (evidenza documentale fino al 2021; campionamento nel perimetro §6) | WhoScored via soccerdata §4 |
+| Convocazioni nazionali per finestra | **No** per le finestre ordinarie (nessun archivio pubblico stabile); si' solo per i tornei finali (Mondiali/Europei) | solo tornei finali | FIFA/UEFA/openfootball §3 |
+| Valore dell'assente (proxy semplice) | **Si', la pipeline PR #23 basta cosi' com'e'** per proxy offensivi dei giocatori di movimento; portieri e difensori puri richiedono un proxy diverso (dichiarato) | gia' acquisito 100% | `player_match` §5 |
+
+## 2. Squalifiche: regole per lega e casi noti verificati
+
+Le regole sono pubbliche, per competizione, e nel periodo 2022/23→2026/27 sono **stabili tranne un caso** (Ligue 1):
+
+| Lega | Regola accumulo gialli (campionato) | Cicli | Note |
+|---|---|---|---|
+| Serie A | 5a ammonizione → 1 giornata (art. 19 c.9 CGS, in vigore dal 2015/16) | progressivi: 5, poi 5, 4, 3, 2, poi ogni giallo (dal 19° in poi ogni ammonizione squalifica) — schema confermato da piu' fonti ma la sequenza esatta dei cicli successivi va ricontrollata sul testo CGS vigente prima dell'implementazione | cartellini di Coppa Italia/Europa non comunicanti con la Serie A |
+| Premier League | 5 gialli nelle **prime 19 partite** di campionato della squadra → 1 giornata; 10 gialli **entro la 32a** → 2 giornate; 15 gialli in stagione → 3 giornate | soglia dipendente dall'ordine temporale delle partite (serve il calendario, che c'e') | dal 2018/19 i gialli valgono solo per competizione; i rossi invece si scontano in tutte le competizioni domestiche |
+| La Liga | 5 gialli nella stessa stagione/competizione → 1 giornata; ciclo nuovo dopo la squalifica (art. 112 Codigo Disciplinario RFEF) | uniforme (5, 5, 5...) | la 5a gialla presa all'ultima giornata non si trascina alla stagione successiva; doppia ammonizione nello stesso match: i due gialli NON contano per il ciclo |
+| Bundesliga | 5a gialla → 1 giornata; poi ogni altre 5 (10a, 15a...) | uniforme | conteggio per competizione (Pokal separato); reset a fine stagione |
+| Ligue 1 | **fino al 2024/25**: 3 ammonizioni in una finestra di 10 incontri ufficiali → 1 giornata; **dal 2025/26**: regola "a 5 gialli" come le altre leghe (riforma LFP adottata il 3/6/2025) | finestra mobile 10 partite → poi ciclo uniforme | il cambio regola cade DENTRO la finestra di backtest: il motore deve essere season-aware |
+
+Cosa e' deterministico e cosa no:
+- **deterministico**: squalifiche per accumulo (tutte e 5 le leghe, con le regole sopra) e espulsione per doppia ammonizione (1 giornata automatica);
+- **certo ma con durata incerta**: rosso diretto → assenza alla giornata successiva garantita (squalifica minima 1 e comunque l'organo disciplinare decide entro pochi giorni), ma la durata oltre la prima giornata non e' ricostruibile dai soli cartellini;
+- **residuo non deterministico**: ricorsi accolti (annullamento), aggravamenti/sanzioni extra per condotta — frazione minoritaria, misurabile contro i comunicati ufficiali (§2.2).
+
+### 2.1 Un caso noto per lega (tutti dentro la finestra dell'archivio, verificati su fonti pubbliche)
+
+| Lega | Caso | Fatto |
+|---|---|---|
+| Premier League | Joao Palhinha (Fulham) 2022/23 | 14 gialli in stagione (record eguagliato PL): implica squalifica alla 5a e alla 10a — caso limite ideale per testare entrambe le soglie e i cutoff (19a/32a partita) |
+| Serie A | Gatti e McKennie (Juventus), febbraio 2024 | fermati dal Giudice Sportivo per somma di ammonizioni (turno 2023/24) |
+| La Liga | Alejandro Catena (Osasuna), aprile 2026 | 5a gialla del ciclo → squalificato per la jornada 33 |
+| Bundesliga | Michael Olise (Bayern), febbraio 2026 | 5a gialla → un turno di stop (piu' Kevin Diks, Gladbach, stesso meccanismo) |
+| Ligue 1 | Pierre Lees-Melou (Brest), comunicato LFP 17/04/2024 | "un match ferme a la suite d'un troisieme avertissement dans une periode incluant 10 rencontres" — la regola pre-2025/25 applicata |
+
+### 2.2 Ground truth ufficiali gratuite per validare la ricostruzione (non scraping)
+
+- Serie A: comunicati ufficiali del Giudice Sportivo (Lega Serie A / FIGC), pubblicati a ogni turno con le squalifiche "per recidivita' in ammonizione (V infr.)" esplicite;
+- Premier League: elenco squalifiche/diffidati sul sito ufficiale della Premier League (aggiornato) + decisioni disciplinari FA;
+- La Liga: resoluciones del Juez de Competicion (RFEF);
+- Bundesliga: decisioni dello Sportgericht DFB (pubblicate);
+- Ligue 1: decisioni della Commission de Discipline LFP pubblicate su lfp.fr (verificate: formato stabile almeno dal 2024).
+
+Protocollo di verifica (da eseguire quando si rigenera l'archivio, §6): il motore deterministico genera "assente atteso" per ogni giornata; si confronta (a) contro l'archivio stesso (il giocatore NON ha righe nella partita successiva della stessa lega-stagione) e (b) contro i comunicati ufficiali sui casi campione; precisione/richiamo per lega, con i residuali contati e spiegati (ricorsi, ultima giornata, trasferimenti).
+
+## 3. Convocazioni in nazionale: storico 2022→oggi
+
+- **Tornei finali (gli unici con archivio stabile)**: liste ufficiali FIFA (PDF "Squad Lists" su fdp.fifa.org per Qatar 2022), Fjelstul World Cup Database (tutte le edizioni, tabella `squads` su datahub.io), openfootball/worldcup.json (pubblico dominio, 2018/2022/2026); analogo per gli Europei UEFA. Nel perimetro coprono Nov–Dic 2022, Giu–Lug 2024 (Euro), Giu–Lug 2026 (Mondiale).
+- **Finestre ordinarie (Nations League, qualificazioni, amichevoli)**: **nessuna fonte pubblica stabile** con storico: le federazioni pubblicano le liste come notizie sul proprio sito (formato editoriale, niente API, pagine che cambiano struttura); nessuna delle librerie gia' in uso espone convocazioni; API-Football copre molte partite di nazionali ma con formazioni post-match, non liste convocabili pre-finestra.
+- **Verdetto**: lo storico per-finestra 2022→oggi **non e' acquisibile da fonte stabile**; si puo' (a) usare i dati dei tornei finali + un flag statico "nazionale" per chi vi ha partecipato (sufficiente se l'uso e' rischio fatica/rotazione al rientro), e (b) iniziare la **raccolta passiva** dalle pagine federali da ora in poi, sapendo che e' scraping editoriale fragile. Le assenze *conseguenti* agli impegni in nazionale (infortuni in nazionale) arrivano comunque dai canali infortuni del club (§4).
+
+## 4. Infortuni: profondita' storica reale di WhoScored via soccerdata
+
+- **Evidenza nuova, documentale**: la guida ufficiale di soccerdata 1.9.1 mostra `read_missing_players()` funzionante sulla partita Burnley–Manchester United del **12/01/2021** (match_id 1485184), cioe' su una partita gia' giocata da ~2 anni all'epoca della docs: la tabella "missing players" **persiste nelle preview delle partite passate**, non solo in quelle future. Il nostro perimetro (dal 2022/23) e' piu' recente di cosi'.
+- Campi restituiti: `player`, `player_id` (stabile), `reason`, `status` per squadra. Il campo `status` (es. `Out` vs `Doubtful`) e' esattamente il discriminatore per "manca **di certo**": solo `Out` + squalificati contano come assenza certa; i `Doubtful` vanno trattati come incerti (questo risolve anche la sovrapposizione con le squalifiche del §2: la fonte WhoScored elenca anche gli squalificati, il motore a cartellini resta la via deterministica a costo zero).
+- Restano dichiarati e non rimossi: (a) il campionamento nel **nostro** perimetro (5 leghe × 2022/23–2026/27) va fatto prima dell'adozione — la sandbox non raggiunge whoscored.com; (b) trasporto Selenium/Chrome e rate limit 5–10 s (gia' nel referto a costo zero); (c) fonte non ufficiale, ToS restrittivi.
+- Alternativa gia' in coda: per la sola Premier League l'archivio FPL (vaastav) offre `status`/`news`/`chance_of_playing_next_round` per giornata, 2016/17→2025/26, gratuito — utilizzabile come secondo parere di validazione sulla PL.
+
+## 5. La pipeline PR #23 basta per il proxy di valore?
+
+Campi salvati oggi per riga giocatore-partita (verificato sul codice di `update_all_ppda_player_db.py`, funzione `records_from_player_match_stats`): `season, id, date, team, opponent, venue, player_id, player, position, minutes, goals, own_goals, shots, xg, xg_chain, xg_buildup, assists, xa, key_passes, yellow_cards, red_cards` (+ flag di coerenza data/stagione). Copertura finestra: 100% delle 7276 partite, 224.902 righe (referto Parte A).
+
+**Bastano per i proxy semplici richiesti, senza toccare la pipeline**:
+- `xG/90` = Σxg / Σminutes × 90 su finestra mobile, per `player_id`;
+- `(gol+assist)/90` = Σ(goals+assists) / Σminutes × 90;
+- varianti: `xA/90`, `(xG+xA)/90`, tiri/90 — tutti gia' calcolabili;
+- il join con l'assenza (da §2/§4) avviene su `(squadra, stagione, giocatore)` — stesso problema resolver gia' censito nel referto a costo zero, stessa soluzione in tre stadi.
+
+**Gaps dichiarati** (dichiarazione di fattibilita', non opinione sul modello):
+1. **portieri**: le righe Understat dei portieri non hanno segnale offensivo; serve un proxy diverso (es. confronto xG-concessi/squadra con e senza il portiere, calcolabile dagli archivi esistenti ma e' una scelta da validare, non un dato da acquisire);
+2. **difensori/mediani puri**: nessuna statistica difensiva in Understat (niente tackle/interventi) → il proxy offensivo li sottostima sistematicamente;
+3. **eta'**: non presente nelle righe (servirebbe anagrafica separata se il peso la richiedesse);
+4. **minuti con recupero**: dichiarati in Parte A (campo `time` di Understat) → denominatore /90 leggermente sovrastimato, ma omogeneo tra giocatori;
+5. **cold start**: nuovi acquisti senza storico nel perimetro (finestra dal 2022/23) e giocatori arrivati a stagione in corso (storico parziale); i trasferiti a meta' stagione compaiono sotto due squadre: la finestra mobile va fatta per `player_id`, non per squadra;
+6. **solo campionato**: minuti di coppe non presenti (segnale rotazione europeo fuori perimetro).
+
+## 6. Piano di verifica concreta (tutto a costo zero, prima di qualunque pagamento)
+
+1. Rigenerare l'archivio `player_match` col workflow gia' esistente della Parte A (`ppda_player_verify.yml`) — nessuna acquisizione "nuova", e' lo stesso perimetro gia' approvato;
+2. eseguire il motore deterministico squalifiche (§2) sull'archivio e misurare precisione/richiamo contro (a) l'assenza nella partita successiva e (b) i comunicati ufficiali sui 5 casi campione;
+3. campionare WhoScored `read_missing_players` su 3 partite giocate per lega nel 2022/23, 2023/24, 2024/25 (15 preview totali) per confermare persistenza e campi nel perimetro esatto;
+4. misurare la % di join dei nomi §5 sul campione;
+5. refertare i numeri PRIMA di ogni decisione su abbonamenti; le probabili formazioni restano fuori perimetro (investimento solo prospettico, rimandato a dopo la verifica del segnale con le assenze certe).
+
+## 7. Limiti dichiarati
+
+- Le regole del §2 sono verificate su fonti pubbliche/regolamenti citati, ma la formulazione esatta dei cicli (specie Serie A oltre il primo ciclo) va confermata sul testo normativo vigente al momento dell'implementazione;
+- il caso "persistenza preview storiche" di WhoScored e' provato dalla documentazione ufficiale per il 2021, non ancora campionato nel nostro perimetro;
+- nessuna promessa sull'efficacia: se i dati reggono, l'impatto sul modello si testa dopo, col protocollo Parte A (CI, test sul residuo, per lega);
+- nessun componente del motore toccato; nessun nuovo dato acquisito.
+
+## Fonti
+
+- Regolamenti e regole: FIGC art. 19 c.9 CGS (modifica 2015: squalifica alla quinta ammonizione) — sportmediaset.it/piccolopitch; Premier League/FA (5 gialli nelle prime 19, 10 entro la 32a, 15 in stagione) — premierleague.com/news/4425344, espn.com/id=37559743, nytimes.com/athletic/3611024; RFEF Codigo Disciplinario art. 112 — as.com/2012-08-15, sport.es/7590704; Bundesliga 5/10/15 gialli e separazione competizioni — goekick.com, 90min.de, dazn.com; LFP riforma 2025/26 (da 3-in-10 a 5 gialli) — sports.yahoo.com/GFFN 2025-07-04.
+- Casi campione: theanalyst.com "Most Cards in a Premier League Season" (Palhinha 14 gialli 2022/23); fantamaster.it (Gatti/McKennie, 2023/24); futbolfantasy.com (Catena 2026); magazin.comunio.de (Olise/Diks 2026); lfp.fr "Commission de discipline 17/04/2024" (Lees-Melou).
+- Comunicati ufficiali (ground truth): legaseriea.it/FIGC comunicati Giudice Sportivo; premierleague.com suspensions; lfp.fr discipline (verificato il formato 2024).
+- Convocazioni: FIFA Squad Lists Qatar 2022 (fdp.fifa.org PDF); Fjelstul World Cup Database (datahub.io/football/worldcup); openfootball/worldcup.json (GitHub).
+- Infortuni WhoScored: soccerdata 1.9.1 docs, pagina WhoScored (esempio read_missing_players su match_id 1485184, 12/01/2021) — soccerdata.readthedocs.io; preview live 2026/27 con sezione "Missing Players" (whoscored.com/matches/1980970/preview).
+- Pipeline PR #23: `update_all_ppda_player_db.py` (`records_from_player_match_stats`), PR #23 merge 2026-09-16, referto `audit/results/ppda_deep_player_feasibility.md`.

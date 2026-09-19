@@ -7,6 +7,8 @@ Nessuna modifica a `SoccerMath/app.py`, `SoccerMath/config.py`, `SoccerMath/mode
 Perimetro richiesto: le 5 leghe del progetto (Serie A, Premier League, La Liga, Bundesliga, Ligue 1), finestra storica di walk-forward pari all'archivio xG esistente (stagioni 2022/23, 2023/24, 2024/25, 2025/26, piu' 2026/27 corrente = 7276 partite concluse censite in Parte A [28]).
 
 > **Aggiornamento 2026-09-20**: approfondimento a costo zero su `soccerdata==1.9.1` (XI storiche via ESPN/FBref, assenze via WhoScored) in `audit/results/assenze_formazioni_soccerdata_zero_cost_verification.md`, inclusa la rettifica su Sofascore (nessun lettore lineup nella 1.9.1) e il rischio sopravvenuto su FBref (rimozione dati Opta, gennaio 2026). La via a costo zero va testata prima di qualunque abbonamento.
+>
+> **Redirezione 2026-09-20 (Parte B v2)**: l'obiettivo diventa "sapere chi manca di certo e quanto vale" (non piu' prevedere l'XI): fattibilita' di squalifiche da cartellini, convocazioni nazionali, infortuni e proxy di valore dalla pipeline PR #23 in `audit/results/assenze_certe_valore_feasibility.md`.
 
 ## 1. Sintesi del verdetto
 
