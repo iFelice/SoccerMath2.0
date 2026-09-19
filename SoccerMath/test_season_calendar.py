@@ -96,6 +96,38 @@ class TestCoerenzaFraModuli(unittest.TestCase):
         self.assertEqual(agg.season, 2026)
 
 
+class TestPreSeasonTolerance(unittest.TestCase):
+    """La tolleranza pre-stagione ha una SCADENZA (15/9): oltre quella data
+    l'assenza della stagione nuova e' un guasto, non un ritardo fisiologico."""
+
+    def test_deadline(self):
+        self.assertEqual(sc.pre_season_deadline(2026), date(2026, 9, 15))
+        self.assertEqual(sc.pre_season_deadline(2027), date(2027, 9, 15))
+
+    def test_within_window(self):
+        # tutta la finestra luglio -> 15/9 (incluso) e' tollerata
+        for when in (date(2026, 7, 1), date(2026, 8, 5), date(2026, 8, 28),
+                     date(2026, 9, 15)):
+            self.assertTrue(sc.within_pre_season_tolerance(2026, when), when)
+        # dal 16/9 no, anche a mesi di distanza (datetime o date)
+        for when in (date(2026, 9, 16), date(2026, 11, 30),
+                     datetime(2026, 10, 1, 23, 30, tzinfo=timezone.utc)):
+            self.assertFalse(sc.within_pre_season_tolerance(2026, when), when)
+
+    def test_pre_season_della_stagione_successiva(self):
+        # a meta' settembre la stagione PROSSIMA (che iniziera' l'anno dopo)
+        # non e' ovviamente ancora iniziata: assenza tollerata
+        self.assertTrue(sc.within_pre_season_tolerance(2027, date(2026, 9, 20)))
+        # e la stagione di quest'anno, appena scaduto il termine, non lo e' piu'
+        self.assertFalse(sc.within_pre_season_tolerance(2026, date(2026, 9, 20)))
+
+    def test_default_oggi(self):
+        # senza `when` si usa la data reale: deterministico per stagioni
+        # lontane dalla oggi (2020 e' sempre scaduta, 2099 sempre futura)
+        self.assertFalse(sc.within_pre_season_tolerance(2020))
+        self.assertTrue(sc.within_pre_season_tolerance(2099))
+
+
 class TestConfigDerivato(unittest.TestCase):
     def test_historical_seasons_non_scritte_a_mano(self):
         self.assertEqual(config.historical_seasons(2026),

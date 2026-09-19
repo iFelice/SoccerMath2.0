@@ -15,7 +15,9 @@ una COPIA temporanea del database reale, senza interventi manuali:
                            dall'archivio senza flag manuale, la 2728 e'
                            tollerata assente finche' Understat non la
                            pubblica (luglio) e diventa obbligatoria appena
-                           compare (agosto);
+                           compare (agosto); la tolleranza scade il 15/9
+                           (3b: oltre quella data l'assenza e' un guasto e
+                           blocca, perche' altrimenti si auto-alimenterebbe);
   4. update_xg           : derivazione delle medie per la stagione nuova ->
                            pre-stagione = uscita 0 e file precedente intatto;
                            dopo la prima giornata -> file scritto;
@@ -181,6 +183,34 @@ class TestRolloverChain2027(unittest.TestCase):
             update_all_xg_db.fetch_league = original
         self.assertEqual(seen["seasons"], update_all_xg_db.derive_seasons(config.CURRENT_SEASON_START_YEAR))
 
+    # ------------------------------------------------------------------ 3b
+    def test_3b_tolleranza_pre_stagione_scade_dopo_il_15_settembre(self):
+        """La tolleranza ``season_not_started`` e' valida solo nella finestra
+        luglio -> 15 settembre: senza la scadenza sarebbe AUTO-PERPETUANTE (il
+        primo download rotto di agosto scriverebbe un archivio senza la
+        stagione nuova, le baseline successive non l'avrebbero e ogni run
+        continuerebbe a "tollerare" fino a maggio). Qui la stagione corrente
+        e' la 2025 (termine 15/9/2025 gia' passato) e manca ovunque: deve
+        BLOCCARE con un errore esplicito, non essere tollerata."""
+        league = "Serie A"
+        seasons_2025 = update_all_xg_db.derive_seasons(2025)
+        self.assertEqual(seasons_2025[-1], "2526")
+        # "scrape rotto": il download non contiene la stagione corrente...
+        no_2025 = [r for r in load_archive(league, self.db)
+                   if parse_season(r["season"]) < 2025]
+        with tempfile.TemporaryDirectory() as out, tempfile.TemporaryDirectory() as base:
+            # ...e nemmeno la baseline (come dopo un'estate di download rotti)
+            res = update_all_xg_db.update_league(
+                league, seasons_2025, out,
+                fetcher=lambda *_a, **_k: copy.deepcopy(no_2025),
+                baseline_dir=base, rolling_window=True)
+        self.assertFalse(res["written"])
+        self.assertNotIn("season_not_started", res)
+        self.assertTrue(any("2025-09-15" in e and "tolleranza" in e
+                            for e in res["errors"]), res["errors"])
+        # contrasto: la STESSA assenza per una stagione non ancora scaduta
+        # (la 2027 di luglio) resta tollerata -> verificata in test_3.
+
     # ------------------------------------------------------------------ 4
     def test_4_derivazione_medie_pre_stagione_non_fallisce(self):
         league = "Premier League"
@@ -245,6 +275,20 @@ class TestRolloverChain2027(unittest.TestCase):
         self.assertEqual(adj["seasons"], seasons)
         # --seasons esplicito: il parser non applica la finestra (default None)
         self.assertIsNone(ppda.build_parser().parse_args([]).seasons)
+
+        # la tolleranza scade: stagione corrente 2025 assente dal calendario e
+        # dalle baseline con la data di oggi oltre il 15/9/2025 -> non tolta
+        # dalle richieste ma segnalata come assenza tardiva (acquire_league la
+        # trasforma in errore bloccante)
+        seasons_2025 = ppda.derive_seasons(2025)
+        schedule_2025 = [{"season": y, "id": i} for y in range(2021, 2025) for i in range(3)]
+        with tempfile.TemporaryDirectory() as empty:
+            adj = ppda._rolling_window_adjustments("Ligue 1", seasons_2025, seasons_2025,
+                                                   schedule_2025, [ppda.PPDA_KIND],
+                                                   empty, None)
+        self.assertIsNone(adj["season_not_started"])
+        self.assertEqual(adj["season_late_absent"], 2025)
+        self.assertEqual(adj["seasons"], seasons_2025)
 
     # ------------------------------------------------------------------ 6
     def test_6_market_values_e_alias_non_bloccano(self):

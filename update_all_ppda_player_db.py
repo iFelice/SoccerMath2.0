@@ -138,6 +138,10 @@ from xg_archive import (  # noqa: E402
 
 sys.path.insert(0, _REPO_ROOT)
 from update_all_xg_db import derive_seasons  # noqa: E402  (stessa finestra dell'archivio xG)
+from season_calendar import (  # noqa: E402
+    pre_season_deadline,
+    within_pre_season_tolerance,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("update_all_ppda_player_db")
@@ -938,9 +942,16 @@ def _rolling_window_adjustments(league: str, seasons: Sequence[str],
     data (mai con ``--seasons`` esplicito), le stesse di update_all_xg_db:
 
       * ``season_not_started``: la stagione piu' recente della finestra non ha
-        ancora partite nel calendario Understat (pre-stagione, luglio-agosto) e
-        nessuna baseline la conteneva -> viene tolta dalle stagioni richieste
-        in questa esecuzione;
+        ancora partite nel calendario Understat (pre-stagione, luglio-agosto),
+        nessuna baseline la conteneva E la data odierna e' entro il 15
+        settembre dell'anno di inizio (``season_calendar``) -> viene tolta
+        dalle stagioni richieste in questa esecuzione;
+      * ``season_late_absent``: la stagione piu' recente manca ovunque MA la
+        data odierna e' oltre il termine della tolleranza pre-stagione: non e'
+        un ritardo fisiologico ma un guasto (la tolleranza senza smorzamento
+        temporale sarebbe auto-perpetuante: il primo download rotto lascerebbe
+        la stagione fuori anche dalle baseline future). La stagione NON viene
+        tolta e la mancanza va segnalata come errore da ``acquire_league``;
       * ``seasons_aged_out``: le baseline contengono SOLO stagioni piu' vecchie
         della finestra fra quelle non richieste -> la loro scomparsa e'
         fisiologica e ``allow_dropping_seasons`` viene attivato per questa
@@ -950,7 +961,7 @@ def _rolling_window_adjustments(league: str, seasons: Sequence[str],
                         if parse_season(s)})
     adj = {"seasons": list(seasons), "player_seasons": list(player_seasons),
            "allow_dropping_seasons": False, "season_not_started": None,
-           "seasons_aged_out": []}
+           "seasons_aged_out": [], "season_late_absent": None}
     if not requested:
         return adj
     current = max(requested)
@@ -969,13 +980,20 @@ def _rolling_window_adjustments(league: str, seasons: Sequence[str],
     scheduled = {parse_season(rec.get("season")) for rec in schedule
                  if isinstance(rec, dict)}
     if current not in scheduled and current not in baseline_seasons:
-        adj["season_not_started"] = current
-        code = f"{current % 100:02d}{(current + 1) % 100:02d}"
-        adj["seasons"] = [s for s in seasons if s != code]
-        adj["player_seasons"] = [s for s in player_seasons if s != code]
-        log.info("%s: stagione %d/%d non ancora su Understat (pre-stagione): "
-                 "acquisizione limitata alle stagioni %s", league, current,
-                 current + 1, " ".join(adj["seasons"]))
+        if within_pre_season_tolerance(current):
+            adj["season_not_started"] = current
+            code = f"{current % 100:02d}{(current + 1) % 100:02d}"
+            adj["seasons"] = [s for s in seasons if s != code]
+            adj["player_seasons"] = [s for s in player_seasons if s != code]
+            log.info("%s: stagione %d/%d non ancora su Understat (pre-stagione): "
+                     "acquisizione limitata alle stagioni %s", league, current,
+                     current + 1, " ".join(adj["seasons"]))
+        else:
+            adj["season_late_absent"] = current
+            log.error("%s: stagione %d/%d assente dal calendario Understat oltre "
+                      "il %s (termine della tolleranza pre-stagione): guasto di "
+                      "acquisizione o calendario eccezionale", league, current,
+                      current + 1, pre_season_deadline(current).isoformat())
 
     not_requested = sorted(s for s in baseline_seasons if s not in requested)
     aged_out = [s for s in not_requested if s < window_start]
@@ -1085,7 +1103,23 @@ def acquire_league(league: str, seasons: Sequence[str], player_seasons: Sequence
             "player_seasons": list(player_seasons),
             "season_not_started": adj["season_not_started"],
             "seasons_aged_out": adj["seasons_aged_out"],
+            "season_late_absent": adj["season_late_absent"],
         }
+        if adj["season_late_absent"]:
+            # Oltre il termine della tolleranza pre-stagione l'assenza della
+            # stagione corrente e' un guasto, non un ritardo: si blocca qui,
+            # con un messaggio esplicito, invece di lasciare che la richiesta
+            # di una stagione inesistente fallisca a valle con errori criptici
+            # (o peggio che venga tollerata di nuovo).
+            late = adj["season_late_absent"]
+            outcome["errors"].append(
+                f"stagione corrente {late}/{late + 1} assente dal calendario "
+                f"Understat oltre il {pre_season_deadline(late).isoformat()} "
+                "(termine della tolleranza pre-stagione): guasto di "
+                "acquisizione o calendario eccezionale da verificare a mano; "
+                "baseline esistenti lasciate invariate")
+            outcome["seconds"] = round(time.monotonic() - started, 1)
+            return outcome
 
     if PPDA_KIND in datasets:
         outcome["datasets"][PPDA_KIND] = acquire_ppda_deep(

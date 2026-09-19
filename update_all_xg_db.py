@@ -29,8 +29,10 @@ Robustezza (nessun file vuoto o parziale in produzione):
     mobile di default (``derive_seasons``: stagione corrente + 4 precedenti,
     confine 1° luglio come tutta la pipeline) al rollover la stagione piu'
     vecchia esce da sola e la stagione nuova e' tollerata assente finche'
-    Understat non la espone (``season_not_started``); con ``--seasons``
-    esplicito nessuna tolleranza automatica;
+    Understat non la espone (``season_not_started``), ma solo fino al 15
+    settembre (``season_calendar.pre_season_deadline``): oltre quella data
+    l'assenza e' un guasto e blocca; con ``--seasons`` esplicito nessuna
+    tolleranza automatica;
   * la scrittura e' atomica (file temporaneo + ``os.replace``);
   * se una lega fallisce, l'ultimo archivio valido resta al suo posto e lo
     script esce con codice diverso da zero (il workflow non pubblica nulla).
@@ -68,8 +70,10 @@ from xg_archive import (  # noqa: E402
 from config import get_current_season_start_year  # noqa: E402
 from season_calendar import (  # noqa: E402
     SEASON_WINDOW,
+    pre_season_deadline,
     season_window,
     soccerdata_season_code,
+    within_pre_season_tolerance,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -247,8 +251,16 @@ def update_league(
         una stagione dentro la finestra che sparisce resta bloccante;
       * la stagione nuova non e' ancora su Understat (compare in ``getStatData``
         solo dopo le prime partite di agosto): ammesso solo se nemmeno la
-        baseline aveva partite di quella stagione (``season_not_started``); se
-        la baseline le aveva e' una regressione e blocca come prima.
+        baseline aveva partite di quella stagione (``season_not_started``) E
+        solo entro il 15 settembre dell'anno di inizio stagione
+        (``season_calendar.pre_season_deadline``). Senza lo smorzamento
+        temporale la tolleranza sarebbe auto-perpetuante: il primo download
+        rotto scriverebbe un archivio senza la stagione nuova, la baseline
+        successiva non l'avrebbe e ogni esecuzione successiva continuerebbe a
+        "tollerare" per tutta la stagione, in silenzio. Oltre il 15/9 (data su
+        cui nessuna delle 25 stagioni lega x 2022/23->2026/27 osservate aveva
+        ancora meno di 27 partite giocate) l'assenza e' un guasto e BLOCCA.
+        Se invece la baseline le aveva, e' una regressione e blocca come prima.
     Con ``--seasons`` esplicito il comportamento resta rigoroso.
     """
     result: Dict = {"league": league, "written": False, "matches": 0, "errors": []}
@@ -280,14 +292,30 @@ def update_league(
         new_counts = _season_counts(records)
         old_counts = _season_counts(previous)
         if new_counts.get(current_season, 0) == 0 and old_counts.get(current_season, 0) == 0:
-            # Pre-stagione: Understat non espone ancora la stagione nuova e
-            # nemmeno l'archivio precedente la conteneva. Non e' un errore.
-            must_have = [s for s in requested if s != current_season]
-            result["season_not_started"] = current_season
-            log.info("%s: stagione %d/%d non ancora disponibile su Understat "
-                     "(pre-stagione): archivio aggiornato con le %d stagioni "
-                     "precedenti", league, current_season, current_season + 1,
-                     len(must_have))
+            if within_pre_season_tolerance(current_season):
+                # Pre-stagione: Understat non espone ancora la stagione nuova e
+                # nemmeno l'archivio precedente la conteneva. Non e' un errore.
+                must_have = [s for s in requested if s != current_season]
+                result["season_not_started"] = current_season
+                log.info("%s: stagione %d/%d non ancora disponibile su Understat "
+                         "(pre-stagione): archivio aggiornato con le %d stagioni "
+                         "precedenti", league, current_season, current_season + 1,
+                         len(must_have))
+            else:
+                # Oltre il termine della tolleranza pre-stagione l'assenza non
+                # e' piu' un ritardo fisiologico: senza questo blocco la
+                # tolleranza si auto-alimenterebbe (archivio riscritto senza la
+                # stagione nuova -> baseline senza -> tollerata di nuovo...) e
+                # un download rotto ad agosto resterebbe invisibile per tutta
+                # la stagione.
+                result["errors"].append(
+                    f"stagione corrente {current_season}/{current_season + 1} "
+                    f"assente dal download oltre il "
+                    f"{pre_season_deadline(current_season).isoformat()} (termine "
+                    "della tolleranza pre-stagione): guasto di acquisizione o "
+                    "calendario eccezionale da verificare a mano; archivio "
+                    "esistente lasciato invariato")
+                return result
 
     problems = validate_archive(
         records, league=league, min_matches=100, expected_seasons=must_have,

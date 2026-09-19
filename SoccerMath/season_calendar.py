@@ -36,11 +36,16 @@ non per assunzione:
   Liga finirono a luglio e la Serie A il 2 agosto; nessuna regola a mese
   intero classifica correttamente quel caso (la Serie A cadrebbe fuori anche
   con agosto). Fuori dal perimetro dati e trattato come anomalia nota.
+
+Qui vive anche il TERMINE della tolleranza pre-stagione (15 settembre
+dell'anno di inizio stagione): il limite temporale oltre il quale l'assenza
+della stagione nuova dai dati smette di essere un ritardo fisiologico e
+diventa un guasto da segnalare (vedi ``pre_season_deadline``).
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import List, Optional, Union
 
 # Mese in cui inizia la nuova stagione (1 = gennaio ... 7 = luglio).
@@ -49,6 +54,22 @@ SEASON_START_MONTH = 7
 # Ampiezza della finestra stagionale usata da tutta la pipeline: stagione
 # corrente + 4 precedenti (archivio xG Understat, HISTORICAL_SEASONS, PPDA).
 SEASON_WINDOW = 5
+
+# Termine della tolleranza pre-stagione (mese e giorno): ultimo giorno in cui
+# l'assenza della stagione Y/Y+1 dai dati Understat e' considerata innocua
+# ("non ancora iniziata") invece che un guasto di acquisizione.
+#
+# Valore scelto SUI DATI, non per assunzione: su tutte le 25 combinazioni
+# lega x stagione 2022/23 -> 2026/27 presenti negli archivi (calendari
+# completi, incluso il post-Mondiale 2026/27) il primo kickoff piu' tardivo
+# e' stato il 28/08/2026 (Bundesliga) e al 15/9 di ogni stagione ogni lega
+# aveva gia' almeno 27 partite giocate, contro le 10 richieste dalla pipeline
+# (MIN_TEAMS). Un 15 settembre con meno di 10 partite giocate non e' mai
+# successo: se accade e' o un guasto (scrape rotto, date illeggibili, cutoff
+# sbagliato) o un calendario eccezionale, e in entrambi i casi la catena deve
+# fallire in modo visibile invece di tollerare in silenzio.
+PRE_SEASON_TOLERANCE_MONTH = 9
+PRE_SEASON_TOLERANCE_DAY = 15
 
 DateLike = Union[datetime, date]
 
@@ -112,3 +133,28 @@ def parse_season_start_year(value) -> Optional[int]:
     if head.isdigit() and len(head) == 4:
         return int(head)
     return None
+
+
+def pre_season_deadline(season_start_year: int) -> date:
+    """Ultimo giorno in cui l'assenza della stagione indicata e' tollerata:
+    ``2026 -> 15/09/2026`` (vedi ``PRE_SEASON_TOLERANCE_*`` per la
+    motivazione sui dati)."""
+    return date(int(season_start_year), PRE_SEASON_TOLERANCE_MONTH,
+                PRE_SEASON_TOLERANCE_DAY)
+
+
+def within_pre_season_tolerance(season_start_year: int,
+                                when: Optional[DateLike] = None) -> bool:
+    """True se ``when`` (default: adesso, data UTC) e' ancora entro la
+    finestra in cui l'assenza della stagione ``season_start_year`` e'
+    innocua, cioe' ``when`` <= 15 settembre dell'anno di inizio stagione.
+
+    Confronto a livello di DATA (il fuso e' irrilevante su un confine a
+    mesi di distanza). ``when`` accetta date, datetime o None (= oggi).
+    E' un limite solo SUPERIORE: prima del 1° luglio la stagione non esiste
+    ancora e l'assenza resta ovviamente innocua."""
+    if when is None:
+        when = datetime.now(timezone.utc)
+    if isinstance(when, datetime):
+        when = when.date()
+    return when <= pre_season_deadline(season_start_year)

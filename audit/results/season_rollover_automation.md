@@ -172,6 +172,66 @@ protocollo usa lo snapshot xG corrente come forza primaria; i confronti appaiati
    0.925); ogni voce della tabella e' raggiungibile dal nome canonico di `clean_name` e i canonici
    sono punti fissi.
 
+## Post-referto (20/09/2026) — la tolleranza pre-stagione ha una scadenza
+
+Revisione pre-merge delle condizioni esatte con cui la catena tollera l'assenza della
+stagione nuova. Entrambe le tolleranze erano **senza limite temporale**: in entrambi i
+casi esisteva uno scenario concreto in cui avrebbero nascosto un guasto reale.
+
+**Condizioni prima della correzione.**
+
+1. *Acquisizione* (`update_all_xg_db.update_league`, `rolling_window=True`):
+   ```python
+   if new_counts.get(current, 0) == 0 and old_counts.get(current, 0) == 0:
+       must_have.remove(current)   # tollerata: pre-stagione
+   ```
+2. *Derivazione* (`update_xg.derive_league`):
+   ```python
+   played = matches_in_season - sum(skipped[k] for k in _NOT_YET_PLAYABLE)
+   if played < min_teams:         # pre-stagione: exit 0, file intatto
+   ```
+
+**Il caso che nascondevano (concreto).** Un download rotto ad agosto — Understat che
+cambia markup e soccerdata restituisce zero righe per la stagione nuova invece di
+sollevare un errore — soddisfa la condizione 1 in modo "innocente" la prima volta; ma la
+tolleranza **si auto-alimenta**: l'archivio viene riscritto senza la stagione nuova, la
+baseline della corsa successiva non l'avrà e ogni esecuzione continuerà a "tollerare"
+fino a maggio, con il workflow verde e l'app che prevede sui dati della stagione prima.
+La condizione 2 ha lo stesso buco a valle: stagione assente dall'archivio → 0 partite →
+"non ancora iniziata" per sempre (e con un cutoff, anche partite con date illeggibili o
+un cutoff sbagliato finivano nello stesso sacco `_NOT_YET_PLAYABLE`). La corruzione
+totale delle date è comunque intercettata prima da `validate_archive` ("record con data
+illeggibile"); il caso residuo è la stagione mancante/parziale.
+
+**Correzione: termine della tolleranza = 15 settembre** dell'anno di inizio stagione,
+unica definizione in `season_calendar.pre_season_deadline` /
+`within_pre_season_tolerance` (confronto a livello di data; per la derivazione l'istante
+di riferimento è il cutoff, oppure "adesso" se non è dato). Valore scelto sui dati, non
+per assunzione: su tutte le 25 combinazioni lega × stagione 2022/23→2026/27 (calendari
+completi, incluso il post-Mondiale 2026/27) il primo kickoff più tardivo è stato il
+**28/08/2026** (Bundesliga) e al 15/9 ogni lega aveva **≥ 27 partite giocate** contro le
+10 richieste: un 15/9 con meno di 10 partite non è mai successo. Se accadrà sarà un
+calendario eccezionale e dovrà comunque passare da una verifica manuale, non da una
+tolleranza silenziosa.
+
+Dove scatta ora il blocco (tutti verificati su copie dei dati reali):
+
+- `update_all_xg_db.update_league`: assente ovunque **e** oltre il 15/9 → errore
+  esplicito ("stagione corrente … assente dal download oltre il 2025-09-15…"), archivio
+  intatto; in finestra (luglio-agosto) la tolleranza resta identica a prima.
+- `update_all_ppda_player_db`: `_rolling_window_adjustments` non toglie più la stagione
+  ma espone `season_late_absent`, e `acquire_league` la trasforma in errore bloccante.
+- `update_xg.derive_league`: `played < min_teams` oltre il 15/9 → errore esplicito con
+  la diagnosi (date illeggibili / cutoff errato / stagione mai acquisita); entro il 15/9
+  resta `pre_season` con uscita 0 e file intatto.
+
+Verifica di non-regressione sul percorso di produzione di oggi: `update_xg.py --dry-run`
+sui dati reali → 5/5 leghe, exit 0 (la 2026/27 è in archivio, la tolleranza non è mai
+invochiata). La simulazione 2027 (passi 3-5) è invariata perché luglio/agosto 2027 sono
+entro il termine. Suite: SoccerMath 367 passed / 1 skipped (7 test nuovi: scadenza del
+calendario, casi nascosto/tollerato della derivazione, 3b acquisizione, PPDA); audit
+355 passed con i soli 4 fallimenti pre-esistenti.
+
 ## File toccati
 
 - Nuovi: `SoccerMath/season_calendar.py`, `SoccerMath/market_prior.py` (audit),

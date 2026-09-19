@@ -32,7 +32,12 @@ Garanzie:
     partite in archivio (pre-stagione o prima giornata, tipicamente luglio -
     agosto dopo il rollover del 1° luglio) la lega viene SALTATA con uscita 0
     (``season_not_started`` / ``season_starting`` nel report): il file della
-    stagione precedente resta valido e la catena automatica non fallisce;
+    stagione precedente resta valido e la catena automatica non fallisce.
+    La tolleranza vale SOLO entro il 15 settembre dell'anno di inizio stagione
+    (``season_calendar.pre_season_deadline``): oltre quella data una stagione
+    ancora vuota o quasi e' un guasto (date illeggibili, cutoff sbagliato,
+    stagione mai acquisita a monte) o un calendario eccezionale, e BLOCCA
+    invece di essere scambiata per pre-stagione;
   * VALIDAZIONE NOMI BLOCCANTE E PREVENTIVA: se un nome dell'archivio non e'
     risolto dalla tabella condivisa (``team_aliases``), o se due nomi grezzi
     diversi collassano sullo stesso nome canonico senza essere dichiarati in
@@ -53,6 +58,10 @@ from typing import Dict, List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import CURRENT_SEASON_START_YEAR  # noqa: E402
+from season_calendar import (  # noqa: E402
+    pre_season_deadline,
+    within_pre_season_tolerance,
+)
 from team_names import NAME_MAP, UNDERSTAT_NAME_MAP, canonical_team_name  # noqa: E402
 from xg_archive import (  # noqa: E402
     ARCHIVE_TIMEZONE,
@@ -208,15 +217,40 @@ def derive_league(
         # reale (xG mancanti nell'archivio) e resta bloccante.
         played = played_before_cutoff(aggregate)
         if played < min_teams:
-            out["season_not_started"] = played == 0
-            out["season_starting"] = played > 0
-            out["pre_season"] = (
-                f"stagione {season}/{season + 1} non ancora "
-                f"{'iniziata' if played == 0 else 'a regime'}: "
-                f"{played} partite giocate su {aggregate.matches_in_season} in "
-                f"archivio, {len(aggregate.averages)} squadre valide (minimo "
-                f"{min_teams}); file esistente lasciato invariato (pre-stagione, "
-                "non e' un errore)")
+            # ...ma SOLO finche' l'istante di riferimento (il cutoff, oppure
+            # "adesso" se non e' dato) resta entro il 15 settembre dell'anno
+            # di inizio stagione. Oltre quella data (su nessuna delle 25
+            # stagioni lega x 2022/23->2026/27 osservate c'erano meno di 27
+            # partite giocate al 15/9) la scarsita' di partite NON e'
+            # pre-stagione: senza questo limite un archivio con le date
+            # illeggibili, un cutoff sbagliato o la stagione mai acquisita a
+            # monte verrebbe scambiato per "non ancora iniziata" per sempre,
+            # con uscita 0 e il file vecchio al suo posto.
+            as_of = (aggregate.cutoff.date()
+                     if getattr(aggregate, "cutoff", None) is not None else None)
+            if within_pre_season_tolerance(season, when=as_of):
+                out["season_not_started"] = played == 0
+                out["season_starting"] = played > 0
+                out["pre_season"] = (
+                    f"stagione {season}/{season + 1} non ancora "
+                    f"{'iniziata' if played == 0 else 'a regime'}: "
+                    f"{played} partite giocate su {aggregate.matches_in_season} in "
+                    f"archivio, {len(aggregate.averages)} squadre valide (minimo "
+                    f"{min_teams}); file esistente lasciato invariato (pre-stagione, "
+                    "non e' un errore)")
+                return out
+            skipped = aggregate.skipped or {}
+            out["errors"].append(
+                f"stagione {season}/{season + 1} con solo {played} partite "
+                f"giocate su {aggregate.matches_in_season} in archivio "
+                f"({len(aggregate.averages)} squadre valide, minimo {min_teams}) "
+                f"con istante di riferimento oltre il "
+                f"{pre_season_deadline(season).isoformat()} (termine della "
+                "tolleranza pre-stagione): non e' pre-stagione. Possibili cause: "
+                f"date illeggibili ({skipped.get('data_illeggibile_con_cutoff', 0)} "
+                f"partite), cutoff errato, stagione mai acquisita a monte o "
+                "calendario eccezionale — verifica manuale; file esistente "
+                "lasciato invariato")
             return out
         out["errors"].append(
             f"solo {len(aggregate.averages)} squadre con partite valide "
