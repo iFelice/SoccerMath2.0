@@ -33,6 +33,7 @@ from xg_archive import season_point_in_time_averages
 from models.elo_engine import get_current_elo, get_elo_leaderboard, predict_elo_probs, get_team_elo_history
 from models.dixon_coles import get_dixon_coles_matrix, predict_dixon_coles_probs, get_dixon_coles_team_strengths
 from models.backtest import run_backtest, compare_models_backtest, detect_value_bets
+from display_names import display_name
 
 from config import (
     FOOTBALL_DATA_API_KEY, GROQ_API_KEY, ODDS_API_KEY, JSONBIN_API_KEY, JSONBIN_BIN_ID,
@@ -1112,7 +1113,9 @@ def get_ultimi_risultati_fd(team_id, camp_sel, n=5):
             gh, ga, winner = match["score"]["fullTime"]["home"], match["score"]["fullTime"]["away"], match["score"]["winner"]
             is_home = match["homeTeam"]["id"] == team_id
             esito = "V" if (is_home and winner == "HOME_TEAM") or (not is_home and winner == "AWAY_TEAM") else ("X" if winner == "DRAW" else "P")
-            risultati.append(f"{match['homeTeam'].get('shortName','?')} {gh}-{ga} {match['awayTeam'].get('shortName','?')} ({esito})")
+            # [solo UI] shortName grezzi ("Atleti", "Barça") tradotti per la
+            # stringa mostrata; nessun uso come chiave qui.
+            risultati.append(f"{display_name(match['homeTeam'].get('shortName','?'))} {gh}-{ga} {display_name(match['awayTeam'].get('shortName','?'))} ({esito})")
         return risultati
     except Exception as e:
         logging.warning(f"Errore ultimi risultati team {team_id}: {e}")
@@ -1463,6 +1466,9 @@ def fetch_and_calc_top_mix():
         for match in matches:
             h = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?')
             a = match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
+            # [solo UI] h/a RESTANO GREZZI per le chiavi qui sotto (clean_name,
+            # Elo); il nome mostrato/salvato passa da display_name.
+            h_disp, a_disp = display_name(h), display_name(a)
             h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})
             a_s = team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
 
@@ -1478,11 +1484,15 @@ def fetch_and_calc_top_mix():
             except Exception as e:
                 logging.warning(f"Elo non disponibile per {h} vs {a} ({league}): {e}")
 
-            riga = seleziona_riga_top_mix(m_poisson, elo_probs, elo_disponibile, h, a)
+            # [solo UI] le etichette "Vittoria {squadra}" e il codice mercato
+            # usano il nome display: mercato_standard resta identico perche'
+            # etichetta e nome passati a codice_mercato_selezionato derivano
+            # dalla STESSA variabile (come prima col grezzo).
+            riga = seleziona_riga_top_mix(m_poisson, elo_probs, elo_disponibile, h_disp, a_disp)
             if riga is not None:
                 all_preds.append({
                     "league": league, "giornata": match['matchday'],
-                    "home": h, "away": a, "match_id": match.get("id"),
+                    "home": h_disp, "away": a_disp, "match_id": match.get("id"),
                     "utcDate": match['utcDate'],
                     "market": riga["market"],
                     "mercato_standard": riga["mercato_standard"],
@@ -1501,6 +1511,10 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
     for match in matches:
         try:
             h, a = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
+            # [solo UI] h/a RESTANO GREZZI per le chiavi (clean_name, Elo);
+            # etichette, pronostico e campi home/away del registro usano il
+            # nome display.
+            h_disp, a_disp = display_name(h), display_name(a)
             m_id = match.get('id')
             if not m_id: continue
             match_date_str = format_date_italy(match['utcDate'], "%d/%m/%Y %H:%M")
@@ -1510,7 +1524,7 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             # l'argmax sposta sistematicamente la scelta verso Over/NG e
             # peggiora hit rate/ROI (audit/results/ensemble_scope_analisi_rapida.md:
             # 22.6% di flip, ROI flip PRE +3.6% vs POST -6.0%, Serie A Brier +0.0119).
-            mercati = {f"Vittoria {h}": m["1"], "Pareggio": m["X"], f"Vittoria {a}": m["2"], "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"], "GG": m["gg"], "NG": 1 - m["gg"]}
+            mercati = {f"Vittoria {h_disp}": m["1"], "Pareggio": m["X"], f"Vittoria {a_disp}": m["2"], "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"], "GG": m["gg"], "NG": 1 - m["gg"]}
             best_mkt = max(mercati, key=mercati.get)
             # Probabilita' salvata: SOLO se il mercato scelto e' 1X2 si usa la
             # probabilita' blendata 0.6*Poisson+0.4*Elo (calibrazione validata
@@ -1518,13 +1532,13 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             # Se l'Elo non e' disponibile blend_elo_into_1x2 ritorna il Poisson
             # puro bit-identico.
             m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
-            prob_1x2_blend = {f"Vittoria {h}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a}": m_blend["2"]}
+            prob_1x2_blend = {f"Vittoria {h_disp}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a_disp}": m_blend["2"]}
             prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
             pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
             top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
             # Origine esplicita: senza di essa il Record "Poisson Auto" finiva
             # nel calderone "Analisi" e non era distinguibile dal Top Mix.
-            save_prediction_entry(m_id, h, a, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h, a),
+            save_prediction_entry(m_id, h_disp, a_disp, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h_disp, a_disp),
                                   origin=ORIGIN_ANALISI_RAPIDA, kickoff_utc=match.get('utcDate'),
                                   prob_poisson=round(mercati[best_mkt] * 100, 1))
             salvate += 1
@@ -1880,7 +1894,11 @@ with tab1:
             with st.container():
                 st.markdown('<div class="match-card">', unsafe_allow_html=True)
                 c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])
-                with c_h: st.markdown(f"<span class='team-name'>{h_api}<br>{a_api}</span><br><span class='match-date'>🕒 {dt}</span>", unsafe_allow_html=True)
+                # [solo UI] il nome mostrato nella card passa da display_name
+                # ("Atleti" -> "Atletico Madrid"); h_api/a_api RESTANO GREZZI
+                # per le chiavi sopra (clean_name, blend Elo) e per
+                # show_details, che fa matching contro live_data/classifica.
+                with c_h: st.markdown(f"<span class='team-name'>{display_name(h_api)}<br>{display_name(a_api)}</span><br><span class='match-date'>🕒 {dt}</span>", unsafe_allow_html=True)
                 with c1: st.markdown(f"<div class='stat-container'><span class='label-header'>1X2</span><div style='display:flex; justify-content:space-around'><div>1<br><b>{m['1']:.0%}</b></div><div>X<br><b>{m['X']:.0%}</b></div><div>2<br><b>{m['2']:.0%}</b></div></div></div>", unsafe_allow_html=True)
                 with c3: st.markdown(f"<div class='stat-container'><span class='label-header'>U/O 2.5</span><b>{m['u25']:.0%}</b> / <b>{(1-m['u25']):.0%}</b></div>", unsafe_allow_html=True)
                 with c5: st.markdown(f"<div class='stat-container'><span class='label-header'>GG/NG</span><b>{m['gg']:.0%}</b> / <b>{(1-m['gg']):.0%}</b></div>", unsafe_allow_html=True)

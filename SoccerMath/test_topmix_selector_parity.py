@@ -48,6 +48,14 @@ FIXTURE_PATH = os.path.join(HERE, "test_fixtures", "topmix_selettore_pre_refacto
 REPO_ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
+# Il POST-refactor esegue il testo CORRENTE di fetch_and_calc_top_mix, che dal
+# cambio DISPLAY_NAME_MAP (solo UI) chiama display_name(): si inietta la
+# funzione VERA. I nomi sintetici della griglia ("SACasa12"...) non hanno voci
+# in mappa, quindi e' pass-through identita' e la parita' bit-per-bit col
+# fixture PRE resta significativa: se il layer display toccasse un numero,
+# questo test continuerebbe a vederlo.
+from display_names import display_name  # noqa: E402
+
 
 def _carica_fixture():
     spec = importlib.util.spec_from_file_location("_topmix_pre_refactor", FIXTURE_PATH)
@@ -315,6 +323,7 @@ def _esegui(vecchio: bool, elemi):
         "timezone": timezone,
         "_parse_utc_date": _parse_utc,
         "clean_name": _clean_name,
+        "display_name": display_name,
         "codice_mercato_selezionato": _codice_mercato_selezionato,
         "get_league_engine": lambda lega: (mondo["stats"][lega], 1.45, 1.15, 20),
         "get_full_poisson_two_heads": _poisson_stub(mondo),
