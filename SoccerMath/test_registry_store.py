@@ -338,3 +338,29 @@ class TestFormaDellaRisposta(unittest.TestCase):
 def json_dumps(riga):
     import json as _json
     return _json.dumps(riga, ensure_ascii=False, sort_keys=True, default=str)
+
+
+class TestImpostazioniDaConfig(unittest.TestCase):
+    """I secret di Streamlit NON stanno in os.environ.
+
+    Se lo strato leggesse solo l'ambiente, in app il passaggio a Upstash non
+    avrebbe effetto: il backend resterebbe JSONBin e le credenziali Upstash
+    sarebbero "non configurate" pur essendo presenti nei secret dell'app.
+    """
+
+    def test_backend_e_credenziali_da_config(self):
+        import config
+        with mock.patch.dict(os.environ, {}, clear=True), \
+             mock.patch.object(config, "REGISTRY_BACKEND", "upstash"), \
+             mock.patch.object(config, "UPSTASH_REDIS_REST_URL", "https://db.upstash.io/"), \
+             mock.patch.object(config, "UPSTASH_REDIS_REST_TOKEN", "tok"), \
+             mock.patch.object(config, "REGISTRY_HASH_KEY", "sm:prova"):
+            self.assertEqual("upstash", rs.backend())
+            self.assertEqual(("https://db.upstash.io", "tok"), rs._upstash_config())
+            self.assertEqual("sm:prova", rs.hash_key())
+
+    def test_ambiente_ha_la_precedenza_sul_config(self):
+        import config
+        with mock.patch.dict(os.environ, {"REGISTRY_BACKEND": "jsonbin"}), \
+             mock.patch.object(config, "REGISTRY_BACKEND", "upstash"):
+            self.assertEqual("jsonbin", rs.backend())

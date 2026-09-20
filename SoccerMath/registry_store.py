@@ -43,22 +43,40 @@ class RegistryStoreError(RuntimeError):
     """Errore di lettura/scrittura del Registro (mai silenzioso)."""
 
 
+def impostazione(nome: str, default: str = "") -> str:
+    """Valore da variabile d'ambiente **oppure** da ``config``.
+
+    ``config`` copre anche i secrets di Streamlit Cloud, che NON finiscono in
+    ``os.environ``: se qui si leggesse solo l'ambiente, in app il passaggio a
+    Upstash (backend, URL, token) non avrebbe effetto e nessuno se ne
+    accorgerebbe fino al primo salvataggio rifiutato.
+    """
+    val = os.getenv(nome)
+    if val:
+        return val
+    try:
+        import config
+        return str(getattr(config, nome, "") or default)
+    except Exception:
+        return default
+
+
 def backend() -> str:
     """Backend attivo: ``REGISTRY_BACKEND``, default ``jsonbin`` (= come prima)."""
-    scelto = (os.getenv("REGISTRY_BACKEND") or BACKEND_JSONBIN).strip().lower()
+    scelto = (impostazione("REGISTRY_BACKEND", BACKEND_JSONBIN) or BACKEND_JSONBIN).strip().lower()
     if scelto not in BACKENDS:
         raise RegistryStoreError(f"REGISTRY_BACKEND sconosciuto: {scelto!r} (attesi {BACKENDS})")
     return scelto
 
 
 def _upstash_config() -> Tuple[str, str]:
-    url = (os.getenv("UPSTASH_REDIS_REST_URL") or "").strip().rstrip("/")
-    token = (os.getenv("UPSTASH_REDIS_REST_TOKEN") or "").strip()
+    url = impostazione("UPSTASH_REDIS_REST_URL").strip().rstrip("/")
+    token = impostazione("UPSTASH_REDIS_REST_TOKEN").strip()
     return url, token
 
 
 def hash_key() -> str:
-    return (os.getenv("REGISTRY_HASH_KEY") or HASH_KEY_DEFAULT).strip() or HASH_KEY_DEFAULT
+    return impostazione("REGISTRY_HASH_KEY", HASH_KEY_DEFAULT).strip() or HASH_KEY_DEFAULT
 
 
 def field_of(row: Dict[str, Any]) -> str:
