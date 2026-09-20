@@ -152,14 +152,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     L = ["# Il replay rifa' i click veri? (campione, ricostruzione all'istante del salvataggio)", "",
          f"Registro: {fonte} · righe Top Mix nel periodo: {len(periodo)} "
          f"(prima di PR#24: {len(pre)}, dopo: {len(post)}) · campione verificato: {len(risultati)}", ""]
-    L.append("| riga del Registro | salvata il | motore di allora | ricostruzione | coincide |")
-    L.append("|---|---|---|---|---|")
+    L.append("| riga del Registro | salvata il | motore di allora | nel Registro | ricostruzione | coincide |")
+    L.append("|---|---|---|---|---|---|")
     for x in risultati:
         r = x["riga"]
         etichetta = (MODEL_VARIANT_LABELS.get(x.get("variante"), x.get("variante"))
                      if x["esito"] != "non ricostruibile" else "-")
         L.append(f"| {r.get('home')} - {r.get('away')} ({r.get('campionato')}) | {r.get('salvato_il')} | "
-                 f"{etichetta} | {x.get('replay_mercato')} {x.get('replay_prob')}% "
+                 f"{etichetta} | {r.get('mercato_standard')} {r.get('prob_sicuro')}% | "
+                 f"{x.get('replay_mercato')} {x.get('replay_prob')}% "
                  f"(snapshot {x.get('snapshot')}) | {x['esito']} |")
     L.append("")
     L.append(f"**{n_ok}/{len(risultati)} coincidono** ricostruendo il click all'istante del salvataggio.")
