@@ -130,8 +130,31 @@ jobs:
             --json "$REPLAY_OUT/coverage.json" --allow-mismatch \
             2>&1 | tee "$REPLAY_OUT/coverage.txt"
 
-      # I log grezzi del job stanno su storage esterno: le ultime righe vengono
-      # ripubblicate come annotazioni (leggibili via API) per la diagnosi.
+      # I log grezzi del job stanno su storage esterno (non sempre leggibile via
+      # API): i numeri chiave e, in caso di errore, la coda del log vengono
+      # ripubblicati come annotazioni, cosi' l'esito e' verificabile senza
+      # scaricare artifact.
+      - name: Numeri chiave (annotazioni sempre)
+        if: always()
+        run: |
+          if [ -f "$REPLAY_OUT/replay_legacy_topmix.md" ]; then
+            head -n 6 "$REPLAY_OUT/replay_legacy_topmix.md" | grep -v '^\s*$' | while IFS= read -r line; do
+              echo "::warning title=replay::${line:0:900}"
+            done
+            for r in "righe Attuale" "righe Legacy" "Copertura:" "partite con ENTRAMBI" "solo modello" "coincidono"; do
+              grep -h "$r" "$REPLAY_OUT/replay_legacy_topmix.md" | head -n 4 | while IFS= read -r line; do
+                echo "::warning title=copertura::${line:0:900}"
+              done
+            done
+          else
+            echo "::warning title=replay::nessun referto prodotto"
+          fi
+          if [ -f "$REPLAY_OUT/coverage.txt" ]; then
+            head -n 12 "$REPLAY_OUT/coverage.txt" | while IFS= read -r line; do
+              echo "::warning title=coverage-live::${line:0:900}"
+            done
+          fi
+
       - name: Diagnosi (annotazioni con la coda del log)
         if: failure()
         run: |
