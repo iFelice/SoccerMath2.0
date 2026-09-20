@@ -227,8 +227,34 @@ metodo non riproduce la realta', non che i numeri sono diversi.
 
 * controllo positivo in locale: righe salvate allo stesso istante della
   ricostruzione -> **3/3 coincidono** (lo strumento misura davvero);
-* campione sul Registro vero: esito letto dal run CI del tag
-  `replay-check-sym-2026-09-20`.
+* campione sul Registro vero (tag `replay-check-sym-2026-09-20`): 46 righe Top
+  Mix nel periodo, 6 verificate (3 prima di PR#24, 3 dopo).
+
+| riga | salvata il | motore di allora | nel Registro | ricostruzione | esito |
+|---|---|---|---|---|---|
+| Stuttgart - Dortmund | 15/09 17:18 | Attuale | GG 68% | GG 68.0% | **coincide** |
+| Schalke - Elversberg | 15/09 17:18 | Attuale | OVER_2.5 70.6% | OVER_2.5 70.6% | **coincide** |
+| Man City - Sunderland | 15/09 17:18 | Attuale | 1 72.2% | 1 76.3% | stesso mercato, probabilita' diversa |
+| Ipswich Town - Liverpool | 04/09 15:25 | Legacy | 2 80.3% | non riselezionata | vedi sotto |
+| Man City - Coventry | 04/09 15:25 | Legacy | NG 99.8% | 1 78.9% | vedi sotto |
+| Hull City - Aston Villa | 04/09 15:25 | Legacy | NG 99.8% | non riselezionata | vedi sotto |
+
+Le tre righe del 04/09 15:25 hanno una spiegazione **datata**, non un'ipotesi:
+due portano **`NG 99.8%`**, che e' la firma del bug del prior NG (lambda ~0 per le
+neopromosse), e il fix e' il commit `ae8784d` del **2026-09-04 15:40:10Z**, cioe'
+**due ore e mezza DOPO** il salvataggio di quelle righe (15:25 ora italiana =
+13:25Z). Il replay rifa' il modello di **oggi**, fix compreso: non puo' riprodurre
+un numero sbagliato che il codice ha smesso di produrre. La terza differenza (Man
+City - Sunderland) e' lo stesso mercato con probabilita' diversa: il click vero
+uso' il database di quel momento, la ricostruzione il commit `e1ee3719ca06`, e
+fra i due c'e' un aggiornamento dei dati.
+
+**Conclusione onesta**: dove l'istante e la versione del codice coincidono la
+ricostruzione riproduce il click vero (2 righe su 3 esatte al decimo di punto);
+dove non coincidono il motivo e' identificato e dichiarato (dato aggiornato,
+oppure bug corretto dopo). E' anche la spiegazione del `13/80` della sezione
+«Fedelta'»: le righe storiche non sono confrontabili con il motore di oggi, ed e'
+proprio il motivo per cui la commessa chiede di **rigiocare** quelle partite.
 
 Nota di metodo: una prima versione di questa verifica e' morta in CI su una
 funzione inesistente (`check._nel_periodo`, che sta in `registry_coverage`)
