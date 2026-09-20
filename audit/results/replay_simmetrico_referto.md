@@ -96,6 +96,11 @@ Stesso schema delle due sorgenti (le differenze di qualche unità sono partite
 che l'archivio CSV non ha e l'API sì): **sempre 0 partite solo-legacy**, e il
 numero di partite solo-attuale è dello stesso ordine.
 
+La terza run CI (finestra legacy, tag `replay-check-legacy-2026-09-20`) è stata
+**avviata** ed è quella che chiude il conto con i numeri dell'API; la sua lettura
+è rimasta in sospeso per un problema di autenticazione su GitHub (token della
+sessione non più valido), non per un errore del run.
+
 ### 4.3 Le 9 partite coperte da un solo modello: misurate, non ipotizzate
 
 `audit/diagnose_scarti_model_variant.py` esegue per ognuna un **click vero**,
@@ -156,8 +161,7 @@ replay: la misura è pronta per dirlo.
   branch il workflow resta **sempre** dry-run.
 
 > **Blocco attuale (non aggirabile da qui).** Il passo `mode=write` esce subito
-> con: `mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID nei secret del
-> repo`. I due secret **non** sono configurati: senza, la CI non può né scrivere
+> con: `mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID.` I due secret **non** sono configurati: senza, la CI non può né scrivere
 > né leggere il Registro live (il controllo di copertura legge 0 righe e lo
 > dichiara: `Registro (nessun registro)`). Nessuna riga è stata scritta finora.
 > Per sbloccare: aggiungere i due secret in *Settings → Secrets and variables →
@@ -182,6 +186,8 @@ replay: la misura è pronta per dirlo.
 1. **Secret JSONBin** → sbloccano scrittura e verifica di copertura sul Registro
    live (punto §5 e requisito 4 «sul Registro»).
 2. Le **9** partite solo-attuale: dichiarate, spiegate, non forzate (§4.3).
+   È l'unico punto che richiede una decisione: l'uguaglianza dei campioni
+   esiste solo cambiando le regole del selettore, non il replay.
 3. 2 kickoff incerti (Levante-Ath Bilbao, Monaco-Lens) e 14 click con snapshot
    privo dell'archivio xG (arriva in git il 01/09): entrambe dichiarate nel
    referto, con il fallback che userebbe la produzione con quegli stessi dati.
