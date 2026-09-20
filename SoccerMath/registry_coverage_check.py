@@ -53,34 +53,35 @@ def load_registry_file(path: str) -> Tuple[List[Dict[str, Any]], str]:
 def load_registry_readonly() -> Tuple[List[Dict[str, Any]], str]:
     """Registro per la SOLA lettura. Ritorna ``(righe, fonte)``.
 
-    A differenza di ``replay_legacy_topmix.strict_load_registry`` (che precede
-    un PUT e quindi deve rifiutare i fallback) qui la lettura e' innocua: se il
-    remoto non risponde si usa il file locale e lo si DICHIARA nella fonte,
-    cosi' il numero non viene scambiato per quello del Registro live.
+    Passa dallo STESSO strato del resto del programma (``registry_store``): se il
+    Registro e' su Upstash, questo referto non puo' descrivere il bin JSONBin —
+    e' successo davvero, con la copertura e la verifica dei click che leggevano
+    108 righe mentre il replay ne scriveva 206 su un altro backend.
+
+    La lettura qui e' innocua (nessun PUT in arrivo), quindi a differenza di
+    ``replay_legacy_topmix.strict_load_registry`` un remoto non raggiungibile non
+    ferma tutto: si usa il file locale e lo si DICHIARA nella fonte, cosi' il
+    numero non viene scambiato per quello del Registro live.
     """
-    import requests
-    from config import JSONBIN_API_KEY, JSONBIN_BIN_ID, PREDICTIONS_FILE
-    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
-        try:
-            r = requests.get(f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}/latest",
-                             headers={"X-Master-Key": JSONBIN_API_KEY}, timeout=20)
-            if r.status_code == 200:
-                rec = r.json().get("record", {})
-                if isinstance(rec, dict) and isinstance(rec.get("data"), list):
-                    return rec["data"], "jsonbin"
-                if isinstance(rec, list):
-                    return rec, "jsonbin"
-            fonte = f"jsonbin HTTP {r.status_code}"
-        except Exception as e:                       # pragma: no cover - rete
-            fonte = f"jsonbin errore {e}"
-    else:
-        fonte = None
+    import registry_store
+    from config import PREDICTIONS_FILE
+    righe: Optional[List[Dict[str, Any]]] = None
+    fonte: Optional[str] = None
+    try:
+        righe, fonte = registry_store.load_rows(strict=False)
+    except Exception as e:                           # pragma: no cover - rete
+        fonte = f"errore {e}"
+    if righe is not None and fonte and fonte != "nessuno":
+        return righe, fonte
     if os.path.exists(PREDICTIONS_FILE):
         with open(PREDICTIONS_FILE, encoding="utf-8") as f:
             data = json.load(f)
-        righe = data.get("data") if isinstance(data, dict) else data
-        if isinstance(righe, list):
-            return righe, fonte or "file locale"
+        righe_file = data.get("data") if isinstance(data, dict) else data
+        if isinstance(righe_file, list):
+            # La fonte dice che si sta leggendo il file E perche' il remoto non
+            # e' stato usato: senza il perche', un numero locale sembra live.
+            motivo = "" if fonte in (None, "nessuno") else f" ({fonte})"
+            return righe_file, f"file locale{motivo}"
     return [], fonte or "nessun registro"
 
 

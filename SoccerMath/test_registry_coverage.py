@@ -13,6 +13,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import date
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -120,6 +121,71 @@ class TestCopertura(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLetturaDalBackendAttivo(unittest.TestCase):
+    """La copertura deve leggere dal backend ATTIVO, non sempre da JSONBin.
+
+    E' successo davvero: con il replay che scriveva su Upstash, copertura e
+    verifica dei click leggevano il bin JSONBin (108 righe) e il referto
+    descriveva un Registro diverso da quello scritto.
+    """
+
+    def _post_array(self, campi):
+        class _R:
+            status_code = 200
+            text = ""
+
+            def __init__(self, p):
+                self._p = p
+
+            def json(self):
+                return self._p
+
+        def finto(url, json=None, headers=None, timeout=None):  # noqa: A002
+            if str(json[0]).upper() == "HGETALL":
+                piatto = []
+                for campo, valore in campi.items():
+                    piatto += [campo, valore]
+                return _R({"result": piatto})
+            return _R({"result": 0})
+        return finto
+
+    def test_con_upstash_legge_upstash(self):
+        import json as _json
+        import requests
+        from registry_coverage_check import load_registry_readonly
+        campo = "7|top_mix||current"
+        riga = {"match_id": 7, "origin": "top_mix", "model_variant": "current", "home": "Inter",
+                "away": "Milan", "mercato_standard": "1", "prob_sicuro": 61.0}
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env), \
+             mock.patch.object(requests, "post", self._post_array({campo: _json.dumps(riga)})):
+            righe, fonte = load_registry_readonly()
+        self.assertEqual("upstash", fonte)
+        self.assertEqual([7], [r["match_id"] for r in righe])
+
+    def test_remoto_giu_dichiara_il_file_locale(self):
+        import requests
+        import tempfile
+        from registry_coverage_check import load_registry_readonly
+        import config
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump({"data": [{"match_id": 1}]}, f)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+
+        def esplode(*a, **k):
+            raise RuntimeError("rete giu'")
+
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env), mock.patch.object(requests, "post", esplode), \
+             mock.patch.object(config, "PREDICTIONS_FILE", f.name):
+            righe, fonte = load_registry_readonly()
+        self.assertTrue(fonte.startswith("file locale"), fonte)
+        self.assertEqual([1], [r["match_id"] for r in righe])
 
 
 class TestRegistroDaFile(unittest.TestCase):
