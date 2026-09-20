@@ -189,6 +189,12 @@ jobs:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          # Dove vive il Registro adesso. Variabile del repository (non un
+          # segreto): assente o 'jsonbin' = comportamento di sempre; 'upstash'
+          # commuta lettura e scrittura sull'hash Redis, senza toccare il codice.
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
           # Passata da variabile d'ambiente, non interpolata nel corpo dello
           # script: un input di dispatch non puo' diventare comando.
           EXTRA: ${{ steps.finestra.outputs.extra }}
@@ -210,11 +216,17 @@ jobs:
       # Sola lettura: conta le partite coperte da ciascun modello nel Registro
       # (dopo l'eventuale scrittura) e le differenze. Non scrive nulla: se i
       # due campioni non coincidono esce 1 e lo dice.
+      # Ogni passo che legge il Registro deve guardare lo STESSO backend del
+      # replay, altrimenti il referto descrive un Registro e il replay ne scrive
+      # un altro.
       - name: Copertura per modello nel Registro (sola lettura)
         if: steps.salta.outputs.skip != 'true'
         env:
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
         run: |
           python SoccerMath/registry_coverage_check.py \
             --from "$COVERAGE_FROM" \
@@ -257,6 +269,9 @@ jobs:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
         run: |
           # pipefail: senza, un errore dello script finiva inghiottito dalla
           # pipe e il passo risultava verde (e' successo davvero).

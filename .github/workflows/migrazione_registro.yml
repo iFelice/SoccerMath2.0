@@ -1,0 +1,147 @@
+name: Migrazione Registro (JSONBin -> Upstash)
+
+# Il comando sta nel NOME DEL TAG, come per il replay:
+#   migra-registro-prova-*   -> prova a vuoto: legge i due Registri, dice cosa
+#                               copierebbe. Nessuna scrittura.
+#   migra-registro-esegui-*  -> copia vera: una HGETALL + UN HSET, poi rilettura
+#                               e confronto riga per riga. Se un campo dell'hash
+#                               ha contenuto DIVERSO da quello su JSONBin, si
+#                               ferma PRIMA di scrivere (mai sovrascrivere).
+#
+# JSONBin non viene mai toccato da questo workflow: nessun PUT, in nessun modo.
+# I secret di Streamlit Cloud non sono visibili ai runner: UPSTASH_REDIS_REST_URL
+# e UPSTASH_REDIS_REST_TOKEN vanno aggiunti anche qui (stessi nomi).
+
+on:
+  push:
+    tags:
+      - 'migra-registro-*'
+  workflow_dispatch:
+    inputs:
+      esegui:
+        description: "Scrivere davvero sull'hash Upstash? (false = prova a vuoto)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrazione-registro
+  cancel-in-progress: false
+
+jobs:
+  migra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MIGRA_OUT: ${{ github.workspace }}/migra-out
+      ESEGUI: ${{ (startsWith(github.ref, 'refs/tags/migra-registro-esegui-') || github.event.inputs.esegui == 'true') && 'true' || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mancanti=()
+          for nome in JSONBIN_API_KEY JSONBIN_BIN_ID UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — aggiungerli in https://github.com/${{ github.repository }}/settings/secrets/actions (stessi nomi di Streamlit Cloud)."
+            exit 1
+          fi
+          echo "secret presenti: ${#mancanti[@]} mancanti"
+
+      - name: Test dello strato del Registro (nessuna scrittura)
+        run: |
+          python -m pytest -q --tb=short \
+            SoccerMath/test_registry_store.py \
+            SoccerMath/test_registry_migrate.py \
+            SoccerMath/test_registry_backend_status.py
+
+      - name: Stato dei due backend, PRIMA
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mkdir -p "$MIGRA_OUT"
+          set -o pipefail
+          python SoccerMath/registry_backend_status.py --mostra 3 \
+            2>&1 | tee "$MIGRA_OUT/stato_prima.txt"
+
+      # Scrittura: solo con il tag -esegui-. Il tag e' il comando, e resta
+      # tracciabile a posteriori (chi, quando, con quale commit).
+      - name: Migrazione (fase C)
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          ARGS=(--json "$MIGRA_OUT/migrazione.json")
+          if [ "$ESEGUI" = "true" ]; then ARGS+=(--esegui); fi
+          echo "modalita': $([ "$ESEGUI" = "true" ] && echo 'COPIA VERA' || echo 'prova a vuoto')"
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_migrate.py "${ARGS[@]}" 2>&1 | tee "$MIGRA_OUT/migrazione.txt"
+          rc=$?
+          set -e
+          grep -v '^\s*$' "$MIGRA_OUT/migrazione.txt" | head -n 20 | while IFS= read -r line; do
+            echo "::warning title=migrazione::${line:0:900}"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=migrazione::uscita $rc (2 = fermato su un conflitto, 1 = errore: vedi le righe sopra)"
+          fi
+          exit "$rc"
+
+      - name: Stato dei due backend, DOPO
+        if: always()
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_backend_status.py --json "$MIGRA_OUT/stato_dopo.json" --mostra 3 \
+            2>&1 | tee "$MIGRA_OUT/stato_dopo.txt"
+          rc=$?
+          set -e
+          grep -v '^\s*$' "$MIGRA_OUT/stato_dopo.txt" | head -n 12 | while IFS= read -r line; do
+            echo "::warning title=registro::${line:0:900}"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=registro::stato dopo uscito con $rc (un backend non risponde: vedi le righe sopra)"
+          fi
+
+      - name: Artifact (stato e referto della migrazione)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migrazione-registro-${{ github.run_id }}
+          path: ${{ env.MIGRA_OUT }}
+          if-no-files-found: warn
