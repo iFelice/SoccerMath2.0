@@ -110,7 +110,23 @@ jobs:
           else
             ARGS+=(--dump-merged "$REPLAY_OUT/predictions_merged_preview.json")
           fi
-          python SoccerMath/replay_legacy_topmix.py "${ARGS[@]}"
+          set -o pipefail
+          python SoccerMath/replay_legacy_topmix.py "${ARGS[@]}" 2>&1 \
+            | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run\|to view a Streamlit app" \
+            | tee "$REPLAY_OUT/replay.log"
+
+      # I log grezzi del job stanno su storage esterno: le ultime righe vengono
+      # ripubblicate come annotazioni (leggibili via API) per la diagnosi.
+      - name: Diagnosi (annotazioni con la coda del log)
+        if: failure()
+        run: |
+          if [ -f "$REPLAY_OUT/replay.log" ]; then
+            tail -n 60 "$REPLAY_OUT/replay.log" | grep -v '^\s*$' | tail -n 25 | while IFS= read -r line; do
+              echo "::error title=replay::${line:0:900}"
+            done
+          else
+            echo "::error title=replay::nessun log prodotto (fallimento prima dell'avvio)"
+          fi
 
       - name: Riepilogo
         if: always()
