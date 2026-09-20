@@ -233,16 +233,25 @@ jobs:
           # pipefail: senza, un errore dello script finiva inghiottito dalla
           # pipe e il passo risultava verde (e' successo davvero).
           set -o pipefail
+          # L'esito deve restare visibile ANCHE quando lo script esce 1 (nessuna
+          # coincidenza): con set -e il passo si interrompeva prima di stampare.
+          set +e
           python audit/verifica_click_live.py \
             --from "$COVERAGE_FROM" --to "${DAY_TO:-$(date -u +%F)}" \
             --per-variante "${VERIFICA_CAMPIONE:-3}" \
             --out "$REPLAY_OUT/verifica_click_live.md" \
             2>&1 | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run" \
             | tee "$REPLAY_OUT/verifica_click_live.txt"
+          rc=$?
+          set -e
           echo "--- esito della verifica (sempre visibile) ---"
-          tail -n 14 "$REPLAY_OUT/verifica_click_live.txt" | while IFS= read -r line; do
+          tail -n 16 "$REPLAY_OUT/verifica_click_live.txt" | while IFS= read -r line; do
             echo "::warning title=click-veri::${line:0:900}"
           done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=click-veri::verifica uscita con $rc: nessuna riga riprodotta o errore (vedi le righe sopra)"
+          fi
+          exit "$rc"
 
       # I log grezzi del job stanno su storage esterno (non sempre leggibile via
       # API): i numeri chiave e, in caso di errore, la coda del log vengono
