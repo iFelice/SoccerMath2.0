@@ -146,6 +146,10 @@ jobs:
                 echo "::warning title=copertura::${line:0:900}"
               done
             done
+            # Fedelta': righe current gia' scritte dai click veri vs righe ricostruite
+            sed -n "/## Fedelta/,/^## /p" "$REPLAY_OUT/replay_legacy_topmix.md" | grep -v '^\s*$' | head -n 8 | while IFS= read -r line; do
+              echo "::warning title=fedelta::${line:0:900}"
+            done
           else
             echo "::warning title=replay::nessun referto prodotto"
           fi
