@@ -101,7 +101,13 @@ from prediction_registry import (  # noqa: E402
 )
 
 UTC = timezone.utc
-PR24_MERGE_DAY = date(2026, 9, 18)          # merge di PR#24 in main: 2026-09-18 21:51:58Z
+# Merge di PR#24 in main. E' il confine fra le due commesse: PRIMA il modello
+# legacy era quello live (e il Registro ha righe legacy), DOPO il modello
+# attuale e' quello live (e il Registro ha righe attuali). Le due finestre
+# [REPLAY_START_INSTANT, PR24_MERGE_INSTANT) e [PR24_MERGE_INSTANT, adesso)
+# partizionano la storia ricostruibile: nessuna partita sta in entrambe.
+PR24_MERGE_INSTANT = datetime(2026, 9, 18, 21, 51, 58, tzinfo=timezone.utc)
+PR24_MERGE_DAY = PR24_MERGE_INSTANT.date()
 SEASON_FIRST_DAY = date(2026, 8, 15)        # prima partita della stagione 2026/27 (dall'archivio)
 # Primo istante da cui il replay e' ONESTO, misurato sul repo (non stimato):
 # la stagione 2026/27 entra nei CSV live di main col commit 48e7768 del
@@ -322,10 +328,22 @@ def fixtures_from_csv_and_archive(leagues: Optional[Iterable[str]] = None,
     return out
 
 
-def target_fixtures(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date) -> List[Fixture]:
-    """Partite CONCLUSE con kickoff (giorno UTC) nella finestra [day_from, day_to]."""
+def target_fixtures(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
+                    da_istante: Optional[datetime] = None,
+                    a_istante: Optional[datetime] = None) -> List[Fixture]:
+    """Partite CONCLUSE con kickoff nella finestra.
+
+    Giorni ``[day_from, day_to]``; se sono dati ``da_istante``/``a_istante`` il
+    confine e' l'ISTANTE (semintervallo ``[da_istante, a_istante)``), che e'
+    quello che serve per partizionare esattamente su un merge git: con i soli
+    giorni le partite del giorno del merge finirebbero in entrambe le commesse.
+    """
     out = [f for lst in fixtures.values() for f in lst
            if f.finished and day_from <= f.utc.astimezone(UTC).date() <= day_to]
+    if da_istante is not None:
+        out = [f for f in out if f.utc >= da_istante]
+    if a_istante is not None:
+        out = [f for f in out if f.utc < a_istante]
     return sorted(out, key=lambda f: (f.utc, f.league, str(f.match_id)))
 
 
@@ -688,37 +706,44 @@ def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) ->
 
 
 def compare_with_registry(existing: List[Dict[str, Any]], clicks: List[ClickResult]) -> List[Dict[str, Any]]:
-    """Fedelta' del replay: righe CURRENT ricostruite vs righe current gia' nel registro.
+    """Fedelta' del replay: riga ricostruita vs riga GIA' nel registro, per VARIANTE.
 
-    Per le partite bersaglio che hanno una riga Top Mix ``current`` scritta da
-    un click reale si confrontano mercato e probabilita'. Coincidenze =
-    conferma che snapshot/pool/motore riproducono il click vero; scarti =
-    da spiegare (snapshot diverso dall'istante del click reale, cache 30').
+    Per ogni partita bersaglio che ha nel registro una riga Top Mix della
+    stessa variante scritta da un click reale si confrontano mercato e
+    probabilita'. Coincidenze = conferma che snapshot/pool/motore riproducono
+    il click vero; scarti = da spiegare (snapshot diverso dall'istante del
+    click reale, cache 30').
+
+    Il confronto e' per variante perche' le due commesse guardano due periodi
+    diversi: nel periodo del replay simmetrico (prima di PR#24) il registro ha
+    righe LEGACY prodotte dal modello allora live, quindi e' proprio la
+    variante legacy a dover tornare; dopo PR#24 vale il contrario.
     """
     per_chiave: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for p in existing:
-        if origin_of(p) != ORIGIN_TOP_MIX or model_variant_of(p) != MODEL_VARIANT_CURRENT:
+        if origin_of(p) != ORIGIN_TOP_MIX or p.get("match_id") is None:
             continue
-        if p.get("match_id") is not None:
-            per_chiave[str(p["match_id"])] = p
+        per_chiave[(str(p["match_id"]), model_variant_of(p))] = p
     out: List[Dict[str, Any]] = []
     for c in clicks:
-        mie = {str(r.get("match_id")): r for r in c.rows.get(MODEL_VARIANT_CURRENT, [])}
-        for t in c.targets:
-            reale = per_chiave.get(str(t.match_id))
-            if reale is None:
-                continue
-            mia = mie.get(str(t.match_id))
-            out.append({
-                "match": f"{t.home}-{t.away}", "league": t.league, "kickoff": t.utc.strftime(ISO_Z),
-                "registro_mercato": reale.get("mercato_standard"), "registro_prob": reale.get("prob_sicuro"),
-                "registro_snapshot": reale.get("data_snapshot_sha"), "registro_salvato_il": reale.get("salvato_il"),
-                "replay_mercato": mia.get("mercato_standard") if mia else None,
-                "replay_prob": mia.get("prob_val") if mia else None,
-                "replay_snapshot": c.snapshot_sha,
-                "coincide": bool(mia) and mia.get("mercato_standard") == reale.get("mercato_standard")
-                            and mia.get("prob_val") == reale.get("prob_sicuro"),
-            })
+        for variante in VARIANTI:
+            mie = {str(r.get("match_id")): r for r in c.rows.get(variante, [])}
+            for t in c.targets:
+                reale = per_chiave.get((str(t.match_id), variante))
+                if reale is None:
+                    continue
+                mia = mie.get(str(t.match_id))
+                out.append({
+                    "match": f"{t.home}-{t.away}", "league": t.league, "kickoff": t.utc.strftime(ISO_Z),
+                    "variante": variante,
+                    "registro_mercato": reale.get("mercato_standard"), "registro_prob": reale.get("prob_sicuro"),
+                    "registro_snapshot": reale.get("data_snapshot_sha"), "registro_salvato_il": reale.get("salvato_il"),
+                    "replay_mercato": mia.get("mercato_standard") if mia else None,
+                    "replay_prob": mia.get("prob_val") if mia else None,
+                    "replay_snapshot": c.snapshot_sha,
+                    "coincide": bool(mia) and mia.get("mercato_standard") == reale.get("mercato_standard")
+                                and mia.get("prob_val") == reale.get("prob_sicuro"),
+                })
     return out
 
 
@@ -765,6 +790,7 @@ def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
                models: Iterable[str] = VARIANTI,
                snapshot_cache: Optional[str] = None,
                snapshot_factory: Callable[..., Any] = database_at_instant,
+               da_istante: Optional[datetime] = None, a_istante: Optional[datetime] = None,
                log: Callable[[str], None] = print) -> Tuple[ReplayReport, List[ClickResult]]:
     """Replay walk-forward dei modelli richiesti su ``[day_from, day_to]``.
 
@@ -775,7 +801,7 @@ def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
     """
     ref = ref or resolve_main_ref(repo_root)
     modelli = [m for m in models if m in VARIANTI] or list(VARIANTI)
-    bersagli = target_fixtures(fixtures, day_from, day_to)
+    bersagli = target_fixtures(fixtures, day_from, day_to, da_istante=da_istante, a_istante=a_istante)
     if leagues:
         leghe = set(leagues)
         bersagli = [b for b in bersagli if b.league in leghe]
@@ -783,7 +809,10 @@ def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
     for b in bersagli:
         per_istante.setdefault(b.utc - timedelta(seconds=1), []).append(b)
     note: List[str] = []
-    note.append(f"finestra richiesta {day_from.isoformat()} → {day_to.isoformat()}; "
+    note.append(f"finestra richiesta {day_from.isoformat()} → {day_to.isoformat()}"
+                + (f", limiti a istante [{da_istante.strftime(ISO_Z) if da_istante else '-∞'}, "
+                   f"{a_istante.strftime(ISO_Z) if a_istante else '+∞'})" if (da_istante or a_istante) else "")
+                + f"; "
                 f"primo istante onesto ricostruibile dal repo: {REPLAY_START_DAY.isoformat()} "
                 "(commit 48e7768, il primo con la stagione 2026/27 nei CSV live; "
                 "prima di allora in git c'e' un'altra stagione)")
@@ -917,12 +946,16 @@ def render_markdown(rep: ReplayReport) -> str:
                  f"{json.dumps(lk['future_rows_dropped']) if lk['future_rows_dropped'] else '—'} | "
                  f"{'; '.join(lk['dettagli']) or '—'} |")
     if rep.fedelta:
-        L.append("\n## Fedelta' (righe current del registro vs replay)\n")
-        L.append("| partita | registro | replay | snapshot reg./replay | coincide |")
-        L.append("|---|---|---|---|---|")
+        n_ok = sum(1 for f in rep.fedelta if f["coincide"])
+        L.append(f"\n## Fedelta' (righe del registro vs replay, per variante): "
+                 f"{n_ok}/{len(rep.fedelta)} coincidono\n")
+        L.append("| partita | variante | registro | replay | snapshot reg./replay | coincide |")
+        L.append("|---|---|---|---|---|---|")
         for f in rep.fedelta:
-            L.append(f"| {f['match']} ({f['league']}) | {f['registro_mercato']} {f['registro_prob']}% | "
-                     f"{f['replay_mercato']} {f['replay_prob']}% | `{f['registro_snapshot']}` / `{f['replay_snapshot']}` | {f['coincide']} |")
+            L.append(f"| {f['match']} ({f['league']}) | {etichette.get(f.get('variante'), f.get('variante'))} | "
+                     f"{f['registro_mercato']} {f['registro_prob']}% | "
+                     f"{f['replay_mercato']} {f['replay_prob']}% | "
+                     f"`{f['registro_snapshot']}` / `{f['replay_snapshot']}` | {f['coincide']} |")
     for variante, etichetta in ((MODEL_VARIANT_CURRENT, "modello attuale"),
                                 (MODEL_VARIANT_LEGACY, "modello legacy")):
         righe = rep.entries_current if variante == MODEL_VARIANT_CURRENT else rep.entries_legacy
@@ -946,6 +979,13 @@ def _parse_day(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
+def _parse_instant(s: str) -> datetime:
+    """Istante ISO-8601 UTC: ``2026-09-18T21:51:58Z`` (accetta anche ``+00:00``)."""
+    t = s.strip().replace("Z", "+00:00")
+    d = datetime.fromisoformat(t)
+    return d.replace(tzinfo=UTC) if d.tzinfo is None else d.astimezone(UTC)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--from", dest="day_from", type=_parse_day, default=REPLAY_START_DAY,
@@ -953,6 +993,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                          f"(default: {REPLAY_START_DAY.isoformat()}, primo istante ricostruibile dal repo)")
     ap.add_argument("--to", dest="day_to", type=_parse_day, default=datetime.now(UTC).date(),
                     help="ultimo giorno (UTC), YYYY-MM-DD (default: oggi)")
+    ap.add_argument("--from-instant", dest="da_istante", type=_parse_instant, default=None,
+                    metavar="ISO", help="confine iniziale a ISTANTE (YYYY-MM-DDTHH:MM:SSZ), incluso")
+    ap.add_argument("--to-instant", dest="a_istante", type=_parse_instant, default=None,
+                    metavar="ISO", help="confine finale a ISTANTE, ESCLUSO: serve a partizionare "
+                                        "esattamente su un merge git senza sovrapposizioni")
     ap.add_argument("--fixtures", choices=("api", "csv"), default="csv",
                     help="sorgente fixture: api = football-data.org (autorevole), csv = offline (validazione)")
     ap.add_argument("--model", choices=("both", MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY), default="both",
@@ -989,6 +1034,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             fixtures = fixtures_from_csv_and_archive(args.leagues)
 
         report, clicks = run_replay(fixtures, args.day_from, args.day_to, sorgente=args.fixtures,
+                                    da_istante=args.da_istante, a_istante=args.a_istante,
                                     ref=args.ref, leagues=args.leagues, models=modelli,
                                     snapshot_cache=cache)
 

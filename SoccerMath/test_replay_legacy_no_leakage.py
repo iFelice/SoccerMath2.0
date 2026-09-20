@@ -633,3 +633,79 @@ class TestEsitoScrittura(unittest.TestCase):
 
     def test_registro_non_interrogato_e_errore(self):
         self.assertTrue(replay.scrittura_fallita({"scritto": False, "motivo": "leak check fallito"}))
+
+
+class TestFinestraComplementare(unittest.TestCase):
+    """Le due commesse devono partizionare la storia: nessuna partita in
+    entrambe le finestre, ogni partita in una sola. Il confine e' l'ISTANTE del
+    merge di PR#24 (2026-09-18T21:51:58Z), non il giorno."""
+
+    def _fixture(self, mid, iso, lega="Serie A"):
+        return replay.Fixture(league=lega, match_id=mid,
+                              utc=datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc),
+                              matchday=4, home=f"H{mid}", away=f"A{mid}", status="FINISHED", gh=1, ga=0)
+
+    def test_confine_pr24_e_lo_stesso_oggetto(self):
+        self.assertEqual(replay.PR24_MERGE_INSTANT.date(), replay.PR24_MERGE_DAY)
+
+    def test_nessuna_partita_in_entrambe_le_finestre(self):
+        fx = {1: [self._fixture(1, "2026-09-18T18:00:00Z"),   # prima del merge
+                  self._fixture(2, "2026-09-18T21:51:57Z"),   # 1 s prima del merge
+                  self._fixture(3, "2026-09-18T21:51:58Z"),   # esattamente al merge
+                  self._fixture(4, "2026-09-18T22:30:00Z"),   # dopo il merge
+                  self._fixture(5, "2026-09-19T14:00:00Z")]}
+        prima = replay.target_fixtures(fx, replay.REPLAY_START_DAY, datetime.now(replay.UTC).date(),
+                                       da_istante=replay.REPLAY_START_INSTANT,
+                                       a_istante=replay.PR24_MERGE_INSTANT)
+        dopo = replay.target_fixtures(fx, replay.REPLAY_START_DAY, datetime.now(replay.UTC).date(),
+                                      da_istante=replay.PR24_MERGE_INSTANT)
+        id_prima = {f.match_id for f in prima}
+        id_dopo = {f.match_id for f in dopo}
+        self.assertEqual(id_prima, {1, 2})
+        self.assertEqual(id_dopo, {3, 4, 5})
+        self.assertEqual(id_prima & id_dopo, set(), "una partita non puo' stare in entrambe le commesse")
+        self.assertEqual(id_prima | id_dopo, {1, 2, 3, 4, 5})
+
+    def test_istante_letto_dal_testo_iso(self):
+        self.assertEqual(replay._parse_instant("2026-09-18T21:51:58Z"), replay.PR24_MERGE_INSTANT)
+        self.assertEqual(replay._parse_instant("2026-09-18T21:51:58+00:00"), replay.PR24_MERGE_INSTANT)
+
+
+class TestFedeltaPerVariante(_Base):
+    """La riga ricostruita si confronta con quella GIA' nel registro della
+    STESSA variante: nel periodo del replay simmetrico il registro ha righe
+    legacy (il modello allora live), quindi e' la variante legacy a dover
+    tornare."""
+
+    def _reale(self, variante):
+        riga = dict(replay.entries_for_targets(self.click, variante)[0])
+        riga["salvato_il"] = "10/09/2026 18:00"
+        return riga
+
+    def test_confronto_sulla_stessa_variante(self):
+        fed = replay.compare_with_registry([self._reale(MODEL_VARIANT_LEGACY)], [self.click])
+        self.assertEqual([MODEL_VARIANT_LEGACY], [f["variante"] for f in fed])
+        self.assertTrue(fed[0]["coincide"], "legacy ricostruita vs riga legacy vera, stesso snapshot")
+        self.assertEqual(self.click.snapshot_sha, fed[0]["replay_snapshot"])
+
+    def test_confronto_separa_le_varianti(self):
+        """Una riga del registro di una variante non deve MAI essere confrontata
+        con la riga ricostruita dell'altra: il confronto e' per variante."""
+        fed = replay.compare_with_registry([self._reale(MODEL_VARIANT_CURRENT)], [self.click])
+        self.assertEqual([MODEL_VARIANT_CURRENT], [f["variante"] for f in fed])
+        self.assertEqual(len(self.click.rows[MODEL_VARIANT_CURRENT]), 1)
+
+    def test_righe_non_top_mix_ignorate(self):
+        altra = self._reale(MODEL_VARIANT_LEGACY)
+        altra["origin"] = "analisi_rapida"
+        self.assertEqual([], replay.compare_with_registry([altra], [self.click]))
+
+    def test_snapshot_diverso_non_coincide(self):
+        """Se il registro ha la riga di un click vero fatto su un ALTRO snapshot
+        (qui: forzato), la probabilita' ricostruita non torna: lo scarto resta
+        visibile invece di essere nascosto."""
+        reale = self._reale(MODEL_VARIANT_LEGACY)
+        reale["data_snapshot_sha"] = "0" * 40
+        reale["prob_sicuro"] = float(reale.get("prob_sicuro") or 0) + 1.0
+        fed = replay.compare_with_registry([reale], [self.click])
+        self.assertFalse(fed[0]["coincide"])

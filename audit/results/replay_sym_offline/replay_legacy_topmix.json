@@ -1,5 +1,5 @@
 {
-  "generato_il": "2026-09-20T19:11:26Z",
+  "generato_il": "2026-09-20T19:34:36Z",
   "finestra": [
     "2026-08-30",
     "2026-09-20"
@@ -74,11 +74,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [
         "Sunderland-Fulham UNDER_2.5 80.3% rank 5 ✅",
@@ -142,11 +142,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [
         "Freiburg-Werder Bremen GG 62.1% rank 10 ✅"
@@ -206,11 +206,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": false,
+        "La Liga": false,
         "Serie A": false,
         "Bundesliga": false,
-        "Premier League": false,
-        "Ligue 1": false,
-        "La Liga": false
+        "Premier League": false
       },
       "righe_current": [
         "Real Madrid-Málaga 1 82.9% rank 3 ✅"
@@ -270,11 +270,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [
         "Rennes-Le Mans OVER_2.5 69.1% rank 5 ✅"
@@ -343,11 +343,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [
         "Man United-Ipswich 1 83.7% rank 1 ✅",
@@ -409,11 +409,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -469,11 +469,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": false,
+        "La Liga": false,
         "Serie A": false,
         "Bundesliga": false,
-        "Premier League": false,
-        "Ligue 1": false,
-        "La Liga": false
+        "Premier League": false
       },
       "righe_current": [
         "Deportivo-Valencia UNDER_2.5 64.9% rank 7 ❌"
@@ -551,11 +551,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [
         "Cagliari-Inter 2 74.8% rank 5 ✅",
@@ -619,11 +619,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": false,
+        "La Liga": false,
         "Serie A": false,
         "Bundesliga": false,
-        "Premier League": false,
-        "Ligue 1": false,
-        "La Liga": false
+        "Premier League": false
       },
       "righe_current": [
         "Celta-Athletic Bilbao UNDER_2.5 64.7% rank 9 ✅"
@@ -683,11 +683,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [
         "Lecce-Roma UNDER_2.5 62.3% rank 13 ❌"
@@ -747,11 +747,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": false,
+        "La Liga": false,
         "Serie A": false,
         "Bundesliga": false,
-        "Premier League": false,
-        "Ligue 1": false,
-        "La Liga": false
+        "Premier League": false
       },
       "righe_current": [
         "Osasuna-Getafe UNDER_2.5 82.5% rank 3 ✅"
@@ -811,11 +811,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -871,11 +871,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": false,
-        "Premier League": false,
         "Ligue 1": false,
         "La Liga": false,
-        "Bundesliga": false
+        "Serie A": false,
+        "Bundesliga": false,
+        "Premier League": false
       },
       "righe_current": [
         "Aston Villa-Arsenal 2 56.3% rank 18 ✅"
@@ -933,11 +933,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": false,
+        "La Liga": false,
         "Serie A": false,
         "Bundesliga": false,
-        "Premier League": false,
-        "Ligue 1": false,
-        "La Liga": false
+        "Premier League": false
       },
       "righe_current": [
         "Barcelona-Vallecano 1 83.7% rank 2 ✅"
@@ -997,11 +997,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -1057,11 +1057,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -1117,11 +1117,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Lyon-Auxerre 1 65.8% rank 10 ✅"
@@ -1181,11 +1181,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Stuttgart-Koln 1 76.2% rank 3 ✅"
@@ -1245,11 +1245,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -1314,11 +1314,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Ipswich-Liverpool 2 71.4% rank 6 ✅",
@@ -1377,11 +1377,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "PSG-Monaco 1 67.4% rank 7 ❌"
@@ -1441,11 +1441,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -1501,11 +1501,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -1597,11 +1597,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Leverkusen-Union Berlin 1 72.4% rank 4 ✅",
@@ -1700,11 +1700,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Man City-Coventry City 1 82.6% rank 2 ✅"
@@ -1764,11 +1764,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -1824,11 +1824,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Lens-Lorient OVER_2.5 61.5% rank 7 ❌"
@@ -1888,11 +1888,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -1966,11 +1966,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
         "Serie A": true,
-        "Premier League": true,
-        "La Liga": true,
         "Bundesliga": true,
-        "Ligue 1": true
+        "Premier League": true,
+        "La Liga": true
       },
       "righe_current": [
         "Schalke 04-Bayern 2 83.8% rank 1 ❌"
@@ -2048,11 +2048,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Nice-Le Mans GG 60.6% rank 6 ✅"
@@ -2112,11 +2112,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Villarreal-Deportivo 1 58.3% rank 6 ❌"
@@ -2203,11 +2203,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
         "Serie A": true,
-        "Premier League": true,
         "Bundesliga": true,
-        "La Liga": true,
-        "Ligue 1": true
+        "Premier League": true,
+        "La Liga": true
       },
       "righe_current": [
         "Everton-Man United GG 66.4% rank 3 ✅",
@@ -2269,11 +2269,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2329,11 +2329,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Valencia-Barcelona 2 69.4% rank 1 ✅"
@@ -2393,11 +2393,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2462,11 +2462,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Eintracht Frankfurt-Augsburg GG 68.1% rank 1 ✅"
@@ -2526,11 +2526,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2595,11 +2595,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2664,11 +2664,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2724,11 +2724,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2784,11 +2784,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2844,11 +2844,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Getafe-Celta UNDER_2.5 62.5% rank 8 ✅"
@@ -2908,11 +2908,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -2968,11 +2968,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3028,11 +3028,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3097,11 +3097,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3157,11 +3157,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3217,11 +3217,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3277,11 +3277,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3373,11 +3373,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Dortmund-SC Paderborn 1 76.0% rank 3 ✅",
@@ -3478,11 +3478,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Crystal Palace-Ipswich GG 63.8% rank 6 ✅",
@@ -3546,11 +3546,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3606,11 +3606,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3666,11 +3666,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3744,11 +3744,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
         "Serie A": true,
-        "Premier League": true,
-        "La Liga": true,
         "Bundesliga": true,
-        "Ligue 1": true
+        "Premier League": true,
+        "La Liga": true
       },
       "righe_current": [
         "Koln-Werder Bremen GG 62.5% rank 7 ✅",
@@ -3846,11 +3846,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -3915,11 +3915,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Real Madrid-Vallecano 1 77.9% rank 2 ✅",
@@ -3980,11 +3980,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Celta-Málaga UNDER_2.5 62.4% rank 6 ✅"
@@ -4062,11 +4062,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
         "Serie A": true,
-        "Premier League": true,
         "Bundesliga": true,
-        "La Liga": true,
-        "Ligue 1": true
+        "Premier League": true,
+        "La Liga": true
       },
       "righe_current": [
         "Coventry City-Brighton GG 62.1% rank 7 ❌"
@@ -4126,11 +4126,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Leipzig-Hamburg 1 68.5% rank 4 ✅"
@@ -4190,11 +4190,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Levante-Barcelona 2 75.3% rank 2 ✅"
@@ -4254,11 +4254,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -4323,11 +4323,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Elversberg-Bayern 2 73.1% rank 2 ✅",
@@ -4389,11 +4389,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -4449,11 +4449,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -4518,11 +4518,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -4578,11 +4578,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -4647,11 +4647,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Torino-Roma 2 63.3% rank 7 ✅"
@@ -4709,11 +4709,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Inter-Udinese 1 80.9% rank 2 ✅"
@@ -4782,11 +4782,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Villarreal-Betis OVER_2.5 61.1% rank 10 ✅"
@@ -4846,11 +4846,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -4906,11 +4906,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -4966,11 +4966,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Elche-Real Madrid 2 76.2% rank 4 ✅"
@@ -5028,11 +5028,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -5097,11 +5097,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Atletico Madrid-Osasuna 1 66.8% rank 7 ✅"
@@ -5161,11 +5161,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Barcelona-Racing Santander 1 86.6% rank 2 ✅"
@@ -5225,11 +5225,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Betis-Getafe 1 61.5% rank 13 ✅"
@@ -5289,11 +5289,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -5349,11 +5349,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -5409,11 +5409,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [
         "Bayern-Union Berlin 1 89.0% rank 1 ✅"
@@ -5475,11 +5475,11 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
         "Ligue 1": true,
         "La Liga": true,
-        "Bundesliga": true
+        "Serie A": true,
+        "Bundesliga": true,
+        "Premier League": true
       },
       "righe_current": [],
       "righe_legacy": [],
@@ -5546,783 +5546,17 @@
       },
       "leghe_senza_stagione": [],
       "archivio_xg": {
+        "Ligue 1": true,
+        "La Liga": true,
         "Serie A": true,
         "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
+        "Premier League": true
       },
       "righe_current": [
         "Brentford-Chelsea GG 65.3% rank 6 ❌"
       ],
       "righe_legacy": [
         "Brentford-Chelsea GG 65.3% rank 4 ❌"
-      ],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T11:29:59Z",
-      "snapshot": {
-        "sha": "d95efb3a4098954f9edd1e3ec48edd0ba797a461",
-        "short": "d95efb3a4098",
-        "committer_time": "2026-09-19T01:50:40Z",
-        "subject": "Auto-update live data 2026-09-19T01:50Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -31221,
-          "league": "Premier League",
-          "home": "Tottenham",
-          "away": "Aston Villa",
-          "kickoff": "2026-09-19T11:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-3"
-        }
-      ],
-      "pool": {
-        "Serie A": 339,
-        "Premier League": 339,
-        "La Liga": 320,
-        "Bundesliga": 278,
-        "Ligue 1": 269
-      },
-      "selezionate": {
-        "Serie A": 9,
-        "Premier League": 9,
-        "La Liga": 4,
-        "Bundesliga": 8,
-        "Ligue 1": 8
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 15,
-        "legacy": 14
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true,
-        "Bundesliga": true
-      },
-      "righe_current": [],
-      "righe_legacy": [],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T11:59:59Z",
-      "snapshot": {
-        "sha": "d95efb3a4098954f9edd1e3ec48edd0ba797a461",
-        "short": "d95efb3a4098",
-        "committer_time": "2026-09-19T01:50:40Z",
-        "subject": "Auto-update live data 2026-09-19T01:50Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -30836,
-          "league": "La Liga",
-          "home": "Osasuna",
-          "away": "Vallecano",
-          "kickoff": "2026-09-19T12:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "1-1"
-        }
-      ],
-      "pool": {
-        "Serie A": 339,
-        "Premier League": 338,
-        "La Liga": 320,
-        "Bundesliga": 278,
-        "Ligue 1": 269
-      },
-      "selezionate": {
-        "Serie A": 9,
-        "Premier League": 8,
-        "La Liga": 4,
-        "Bundesliga": 8,
-        "Ligue 1": 8
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 15,
-        "legacy": 14
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
-      },
-      "righe_current": [],
-      "righe_legacy": [],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T12:59:59Z",
-      "snapshot": {
-        "sha": "d95efb3a4098954f9edd1e3ec48edd0ba797a461",
-        "short": "d95efb3a4098",
-        "committer_time": "2026-09-19T01:50:40Z",
-        "subject": "Auto-update live data 2026-09-19T01:50Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -31978,
-          "league": "Ligue 1",
-          "home": "Paris",
-          "away": "Strasbourg",
-          "kickoff": "2026-09-19T13:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-1"
-        },
-        {
-          "match_id": -31979,
-          "league": "Ligue 1",
-          "home": "Toulouse",
-          "away": "Le Havre",
-          "kickoff": "2026-09-19T13:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "3-2"
-        },
-        {
-          "match_id": -31980,
-          "league": "Ligue 1",
-          "home": "Angers",
-          "away": "Troyes",
-          "kickoff": "2026-09-19T13:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-0"
-        },
-        {
-          "match_id": -31982,
-          "league": "Ligue 1",
-          "home": "Le Mans",
-          "away": "Lorient",
-          "kickoff": "2026-09-19T13:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-1"
-        },
-        {
-          "match_id": -31983,
-          "league": "Ligue 1",
-          "home": "Lyon",
-          "away": "Rennes",
-          "kickoff": "2026-09-19T13:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "4-0"
-        },
-        {
-          "match_id": -31601,
-          "league": "Serie A",
-          "home": "Udinese",
-          "away": "Cagliari",
-          "kickoff": "2026-09-19T13:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "0-1"
-        },
-        {
-          "match_id": -31602,
-          "league": "Serie A",
-          "home": "Bologna",
-          "away": "Torino",
-          "kickoff": "2026-09-19T13:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "1-1"
-        }
-      ],
-      "pool": {
-        "Serie A": 339,
-        "Premier League": 338,
-        "La Liga": 319,
-        "Bundesliga": 278,
-        "Ligue 1": 269
-      },
-      "selezionate": {
-        "Serie A": 9,
-        "Premier League": 8,
-        "La Liga": 3,
-        "Bundesliga": 8,
-        "Ligue 1": 8
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 15,
-        "legacy": 14
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true,
-        "Bundesliga": true
-      },
-      "righe_current": [
-        "Bologna-Torino UNDER_2.5 61.2% rank 13 ✅"
-      ],
-      "righe_legacy": [
-        "Bologna-Torino UNDER_2.5 61.2% rank 12 ✅"
-      ],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T13:29:59Z",
-      "snapshot": {
-        "sha": "d95efb3a4098954f9edd1e3ec48edd0ba797a461",
-        "short": "d95efb3a4098",
-        "committer_time": "2026-09-19T01:50:40Z",
-        "subject": "Auto-update live data 2026-09-19T01:50Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -32272,
-          "league": "Bundesliga",
-          "home": "M'gladbach",
-          "away": "Mainz",
-          "kickoff": "2026-09-19T13:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "3-4"
-        },
-        {
-          "match_id": -32273,
-          "league": "Bundesliga",
-          "home": "Ein Frankfurt",
-          "away": "Freiburg",
-          "kickoff": "2026-09-19T13:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-2"
-        },
-        {
-          "match_id": -32274,
-          "league": "Bundesliga",
-          "home": "Hamburg",
-          "away": "Koln",
-          "kickoff": "2026-09-19T13:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-1"
-        },
-        {
-          "match_id": -32275,
-          "league": "Bundesliga",
-          "home": "Werder Bremen",
-          "away": "Augsburg",
-          "kickoff": "2026-09-19T13:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "3-2"
-        }
-      ],
-      "pool": {
-        "Serie A": 337,
-        "Premier League": 338,
-        "La Liga": 319,
-        "Bundesliga": 278,
-        "Ligue 1": 262
-      },
-      "selezionate": {
-        "Serie A": 7,
-        "Premier League": 8,
-        "La Liga": 3,
-        "Bundesliga": 8,
-        "Ligue 1": 1
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 13,
-        "legacy": 12
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true,
-        "Bundesliga": true
-      },
-      "righe_current": [
-        "Borussia Mönchengladbach-Mainz GG 62.1% rank 9 ✅",
-        "Werder Bremen-Augsburg GG 61.5% rank 11 ✅",
-        "Hamburg-Koln GG 60.7% rank 12 ✅"
-      ],
-      "righe_legacy": [
-        "Borussia Mönchengladbach-Mainz GG 62.1% rank 8 ✅",
-        "Werder Bremen-Augsburg GG 61.5% rank 10 ✅",
-        "Hamburg-Koln GG 60.7% rank 11 ✅"
-      ],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T13:59:59Z",
-      "snapshot": {
-        "sha": "d95efb3a4098954f9edd1e3ec48edd0ba797a461",
-        "short": "d95efb3a4098",
-        "committer_time": "2026-09-19T01:50:40Z",
-        "subject": "Auto-update live data 2026-09-19T01:50Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -31223,
-          "league": "Premier League",
-          "home": "Newcastle",
-          "away": "Hull City",
-          "kickoff": "2026-09-19T14:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-1"
-        },
-        {
-          "match_id": -31224,
-          "league": "Premier League",
-          "home": "Brighton",
-          "away": "Arsenal",
-          "kickoff": "2026-09-19T14:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "3-0"
-        },
-        {
-          "match_id": -31226,
-          "league": "Premier League",
-          "home": "Everton",
-          "away": "Ipswich",
-          "kickoff": "2026-09-19T14:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "1-0"
-        }
-      ],
-      "pool": {
-        "Serie A": 337,
-        "Premier League": 338,
-        "La Liga": 319,
-        "Bundesliga": 274,
-        "Ligue 1": 262
-      },
-      "selezionate": {
-        "Serie A": 7,
-        "Premier League": 8,
-        "La Liga": 3,
-        "Bundesliga": 4,
-        "Ligue 1": 1
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 10,
-        "legacy": 9
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true,
-        "Bundesliga": true
-      },
-      "righe_current": [
-        "Brighton-Arsenal GG 63.2% rank 6 ❌"
-      ],
-      "righe_legacy": [
-        "Brighton-Arsenal GG 63.2% rank 6 ❌"
-      ],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T14:14:59Z",
-      "snapshot": {
-        "sha": "d95efb3a4098954f9edd1e3ec48edd0ba797a461",
-        "short": "d95efb3a4098",
-        "committer_time": "2026-09-19T01:50:40Z",
-        "subject": "Auto-update live data 2026-09-19T01:50Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -30830,
-          "league": "La Liga",
-          "home": "Ath Bilbao",
-          "away": "Alaves",
-          "kickoff": "2026-09-19T14:15:00Z",
-          "kickoff_source": "understat",
-          "risultato": "0-0"
-        }
-      ],
-      "pool": {
-        "Serie A": 337,
-        "Premier League": 333,
-        "La Liga": 319,
-        "Bundesliga": 274,
-        "Ligue 1": 262
-      },
-      "selezionate": {
-        "Serie A": 7,
-        "Premier League": 3,
-        "La Liga": 3,
-        "Bundesliga": 4,
-        "Ligue 1": 1
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 8,
-        "legacy": 7
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
-      },
-      "righe_current": [],
-      "righe_legacy": [],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T15:59:59Z",
-      "snapshot": {
-        "sha": "660ba48888fdcd1483b4686f48a77fbb7839ea80",
-        "short": "660ba48888fd",
-        "committer_time": "2026-09-19T14:54:25Z",
-        "subject": "Auto-update live data 2026-09-19T14:54Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -31603,
-          "league": "Serie A",
-          "home": "Roma",
-          "away": "Inter",
-          "kickoff": "2026-09-19T16:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "2-2"
-        }
-      ],
-      "pool": {
-        "Serie A": 337,
-        "Premier League": 333,
-        "La Liga": 318,
-        "Bundesliga": 274,
-        "Ligue 1": 262
-      },
-      "selezionate": {
-        "Serie A": 7,
-        "Premier League": 3,
-        "La Liga": 2,
-        "Bundesliga": 4,
-        "Ligue 1": 1
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 8,
-        "legacy": 7
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true,
-        "Bundesliga": true
-      },
-      "righe_current": [],
-      "righe_legacy": [],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T16:29:59Z",
-      "snapshot": {
-        "sha": "660ba48888fdcd1483b4686f48a77fbb7839ea80",
-        "short": "660ba48888fd",
-        "committer_time": "2026-09-19T14:54:25Z",
-        "subject": "Auto-update live data 2026-09-19T14:54Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -32276,
-          "league": "Bundesliga",
-          "home": "Stuttgart",
-          "away": "Dortmund",
-          "kickoff": "2026-09-19T16:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "0-1"
-        },
-        {
-          "match_id": -30832,
-          "league": "La Liga",
-          "home": "Celta",
-          "away": "Santander",
-          "kickoff": "2026-09-19T16:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "5-0"
-        },
-        {
-          "match_id": -31227,
-          "league": "Premier League",
-          "home": "Nott'm Forest",
-          "away": "Coventry City",
-          "kickoff": "2026-09-19T16:30:00Z",
-          "kickoff_source": "understat",
-          "risultato": "0-1"
-        }
-      ],
-      "pool": {
-        "Serie A": 336,
-        "Premier League": 333,
-        "La Liga": 318,
-        "Bundesliga": 274,
-        "Ligue 1": 262
-      },
-      "selezionate": {
-        "Serie A": 6,
-        "Premier League": 3,
-        "La Liga": 2,
-        "Bundesliga": 4,
-        "Ligue 1": 1
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 8,
-        "legacy": 7
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
-        "La Liga": true,
-        "Bundesliga": true,
-        "Ligue 1": true
-      },
-      "righe_current": [
-        "Stuttgart-Dortmund GG 68.0% rank 4 ❌",
-        "Nottingham Forest-Coventry City 1 58.8% rank 8 ❌"
-      ],
-      "righe_legacy": [
-        "Stuttgart-Dortmund GG 68.0% rank 2 ❌"
-      ],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T18:44:59Z",
-      "snapshot": {
-        "sha": "660ba48888fdcd1483b4686f48a77fbb7839ea80",
-        "short": "660ba48888fd",
-        "committer_time": "2026-09-19T14:54:25Z",
-        "subject": "Auto-update live data 2026-09-19T14:54Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -31604,
-          "league": "Serie A",
-          "home": "Venezia",
-          "away": "Lazio",
-          "kickoff": "2026-09-19T18:45:00Z",
-          "kickoff_source": "understat",
-          "risultato": "0-2"
-        }
-      ],
-      "pool": {
-        "Serie A": 336,
-        "Premier League": 332,
-        "La Liga": 317,
-        "Bundesliga": 273,
-        "Ligue 1": 262
-      },
-      "selezionate": {
-        "Serie A": 6,
-        "Premier League": 2,
-        "La Liga": 1,
-        "Bundesliga": 3,
-        "Ligue 1": 1
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 6,
-        "legacy": 6
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true,
-        "Bundesliga": true
-      },
-      "righe_current": [
-        "Venezia-Lazio 2 62.3% rank 5 ✅"
-      ],
-      "righe_legacy": [
-        "Venezia-Lazio 2 57.5% rank 6 ✅"
-      ],
-      "leak": {
-        "commit_before_instant": true,
-        "targets_absent_from_live_csv": true,
-        "targets_absent_from_xg_archive": true,
-        "xg_cutoff_is_instant": true,
-        "snapshot_covers_season": true,
-        "future_rows_dropped": {
-          "LaLiga_Live.csv": 1
-        },
-        "ok": true,
-        "scrivibile": true,
-        "dettagli": []
-      }
-    },
-    {
-      "instant": "2026-09-19T18:59:59Z",
-      "snapshot": {
-        "sha": "660ba48888fdcd1483b4686f48a77fbb7839ea80",
-        "short": "660ba48888fd",
-        "committer_time": "2026-09-19T14:54:25Z",
-        "subject": "Auto-update live data 2026-09-19T14:54Z"
-      },
-      "bersagli": [
-        {
-          "match_id": -30837,
-          "league": "La Liga",
-          "home": "Sevilla",
-          "away": "Barcelona",
-          "kickoff": "2026-09-19T19:00:00Z",
-          "kickoff_source": "understat",
-          "risultato": "1-3"
-        }
-      ],
-      "pool": {
-        "Serie A": 335,
-        "Premier League": 332,
-        "La Liga": 317,
-        "Bundesliga": 273,
-        "Ligue 1": 262
-      },
-      "selezionate": {
-        "Serie A": 5,
-        "Premier League": 2,
-        "La Liga": 1,
-        "Bundesliga": 3,
-        "Ligue 1": 1
-      },
-      "leghe_senza_motore": [],
-      "sopra_soglia": {
-        "current": 5,
-        "legacy": 5
-      },
-      "leghe_senza_stagione": [],
-      "archivio_xg": {
-        "Serie A": true,
-        "Bundesliga": true,
-        "Premier League": true,
-        "Ligue 1": true,
-        "La Liga": true
-      },
-      "righe_current": [
-        "Sevilla-Barcelona 2 72.3% rank 1 ✅"
-      ],
-      "righe_legacy": [
-        "Sevilla-Barcelona 2 64.4% rank 3 ✅"
       ],
       "leak": {
         "commit_before_instant": true,
@@ -8140,278 +7374,6 @@
       "gate_shadow_confidence": 0.6531150116342628,
       "gate_shadow_ammessa": true,
       "gate_off_confidence": 0.6531150116342628,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -31602,
-      "home": "Bologna",
-      "away": "Torino",
-      "campionato": "Serie A",
-      "giornata": 5,
-      "data": "19/09/2026 15:00",
-      "pronostico_sicuro": "Under 2.5 - Top Mix",
-      "mercato_standard": "UNDER_2.5",
-      "top3": [],
-      "prob_sicuro": 61.2,
-      "risultati_attesi": "",
-      "risultato_reale": "1-1",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 14:59",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 12,
-      "kickoff_utc": "2026-09-19T13:00:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "28d64bb26cb5917d",
-      "poisson": 61.2,
-      "elo": 61.2,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6119026550977261,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6119026550977261,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32272,
-      "home": "Borussia Mönchengladbach",
-      "away": "Mainz",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 15:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 62.1,
-      "risultati_attesi": "",
-      "risultato_reale": "3-4",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 8,
-      "kickoff_utc": "2026-09-19T13:30:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "f703d3fb62ab9734",
-      "poisson": 62.1,
-      "elo": 62.1,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6207598374410022,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6207598374410022,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32275,
-      "home": "Werder Bremen",
-      "away": "Augsburg",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 15:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 61.5,
-      "risultati_attesi": "",
-      "risultato_reale": "3-2",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 10,
-      "kickoff_utc": "2026-09-19T13:30:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "f977ad256a6a3d19",
-      "poisson": 61.5,
-      "elo": 61.5,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.614964962152571,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.614964962152571,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32274,
-      "home": "Hamburg",
-      "away": "Koln",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 15:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 60.7,
-      "risultati_attesi": "",
-      "risultato_reale": "2-1",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 11,
-      "kickoff_utc": "2026-09-19T13:30:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "a923455e369b6827",
-      "poisson": 60.7,
-      "elo": 60.7,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6067546415101608,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6067546415101608,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -31224,
-      "home": "Brighton",
-      "away": "Arsenal",
-      "campionato": "Premier League",
-      "giornata": 5,
-      "data": "19/09/2026 16:00",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 63.2,
-      "risultati_attesi": "",
-      "risultato_reale": "3-0",
-      "esito": "❌",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:59",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 6,
-      "kickoff_utc": "2026-09-19T14:00:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "985bddf73f601b68",
-      "poisson": 63.2,
-      "elo": 63.2,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6324255426694834,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6324255426694834,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32276,
-      "home": "Stuttgart",
-      "away": "Dortmund",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 18:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 68.0,
-      "risultati_attesi": "",
-      "risultato_reale": "0-1",
-      "esito": "❌",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 18:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 2,
-      "kickoff_utc": "2026-09-19T16:30:00Z",
-      "data_snapshot_sha": "660ba48888fd",
-      "calculation_id": "656a17a1468694d9",
-      "poisson": 68.0,
-      "elo": 68.0,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6799666315572276,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6799666315572276,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -31604,
-      "home": "Venezia",
-      "away": "Lazio",
-      "campionato": "Serie A",
-      "giornata": 5,
-      "data": "19/09/2026 20:45",
-      "pronostico_sicuro": "Vittoria Lazio - Top Mix",
-      "mercato_standard": "2",
-      "top3": [],
-      "prob_sicuro": 57.5,
-      "risultati_attesi": "",
-      "risultato_reale": "0-2",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 20:44",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 6,
-      "kickoff_utc": "2026-09-19T18:45:00Z",
-      "data_snapshot_sha": "660ba48888fd",
-      "calculation_id": "6c7d45a57185d314",
-      "poisson": 69.2,
-      "elo": 53.6,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.354318070072514,
-      "gate_shadow_ammessa": false,
-      "gate_off_confidence": 0.5754125457977628,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -30837,
-      "home": "Sevilla",
-      "away": "Barcelona",
-      "campionato": "La Liga",
-      "giornata": 7,
-      "data": "19/09/2026 21:00",
-      "pronostico_sicuro": "Vittoria Barcelona - Top Mix",
-      "mercato_standard": "2",
-      "top3": [],
-      "prob_sicuro": 64.4,
-      "risultati_attesi": "",
-      "risultato_reale": "1-3",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 20:59",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "legacy",
-      "rank": 3,
-      "kickoff_utc": "2026-09-19T19:00:00Z",
-      "data_snapshot_sha": "660ba48888fd",
-      "calculation_id": "6bf469d0e832008c",
-      "poisson": 61.3,
-      "elo": 65.5,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.5517109832255315,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6443984284074209,
       "gate_off_ammessa": true
     }
   ],
@@ -10489,317 +9451,11 @@
       "gate_shadow_ammessa": true,
       "gate_off_confidence": 0.6531150116342628,
       "gate_off_ammessa": true
-    },
-    {
-      "match_id": -31602,
-      "home": "Bologna",
-      "away": "Torino",
-      "campionato": "Serie A",
-      "giornata": 5,
-      "data": "19/09/2026 15:00",
-      "pronostico_sicuro": "Under 2.5 - Top Mix",
-      "mercato_standard": "UNDER_2.5",
-      "top3": [],
-      "prob_sicuro": 61.2,
-      "risultati_attesi": "",
-      "risultato_reale": "1-1",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 14:59",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 13,
-      "kickoff_utc": "2026-09-19T13:00:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "64d948df534abfb4",
-      "poisson": 61.2,
-      "elo": 61.2,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6119026550977261,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6119026550977261,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32272,
-      "home": "Borussia Mönchengladbach",
-      "away": "Mainz",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 15:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 62.1,
-      "risultati_attesi": "",
-      "risultato_reale": "3-4",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 9,
-      "kickoff_utc": "2026-09-19T13:30:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "89ba4455e3afdc74",
-      "poisson": 62.1,
-      "elo": 62.1,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6207598374410022,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6207598374410022,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32275,
-      "home": "Werder Bremen",
-      "away": "Augsburg",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 15:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 61.5,
-      "risultati_attesi": "",
-      "risultato_reale": "3-2",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 11,
-      "kickoff_utc": "2026-09-19T13:30:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "d3244464e086f47e",
-      "poisson": 61.5,
-      "elo": 61.5,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.614964962152571,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.614964962152571,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32274,
-      "home": "Hamburg",
-      "away": "Koln",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 15:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 60.7,
-      "risultati_attesi": "",
-      "risultato_reale": "2-1",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 12,
-      "kickoff_utc": "2026-09-19T13:30:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "aec10b78c852cd53",
-      "poisson": 60.7,
-      "elo": 60.7,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6067546415101608,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6067546415101608,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -31224,
-      "home": "Brighton",
-      "away": "Arsenal",
-      "campionato": "Premier League",
-      "giornata": 5,
-      "data": "19/09/2026 16:00",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 63.2,
-      "risultati_attesi": "",
-      "risultato_reale": "3-0",
-      "esito": "❌",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 15:59",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 6,
-      "kickoff_utc": "2026-09-19T14:00:00Z",
-      "data_snapshot_sha": "d95efb3a4098",
-      "calculation_id": "cc0623058bd66d05",
-      "poisson": 63.2,
-      "elo": 63.2,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6324255426694834,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6324255426694834,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -32276,
-      "home": "Stuttgart",
-      "away": "Dortmund",
-      "campionato": "Bundesliga",
-      "giornata": 4,
-      "data": "19/09/2026 18:30",
-      "pronostico_sicuro": "GG - Top Mix",
-      "mercato_standard": "GG",
-      "top3": [],
-      "prob_sicuro": 68.0,
-      "risultati_attesi": "",
-      "risultato_reale": "0-1",
-      "esito": "❌",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 18:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 4,
-      "kickoff_utc": "2026-09-19T16:30:00Z",
-      "data_snapshot_sha": "660ba48888fd",
-      "calculation_id": "085853aa4bccb648",
-      "poisson": 68.0,
-      "elo": 68.0,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.6799666315572276,
-      "gate_shadow_ammessa": true,
-      "gate_off_confidence": 0.6799666315572276,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -31227,
-      "home": "Nottingham Forest",
-      "away": "Coventry City",
-      "campionato": "Premier League",
-      "giornata": 5,
-      "data": "19/09/2026 18:30",
-      "pronostico_sicuro": "Vittoria Nottingham Forest - Top Mix",
-      "mercato_standard": "1",
-      "top3": [],
-      "prob_sicuro": 58.8,
-      "risultati_attesi": "",
-      "risultato_reale": "0-1",
-      "esito": "❌",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 18:29",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 8,
-      "kickoff_utc": "2026-09-19T16:30:00Z",
-      "data_snapshot_sha": "660ba48888fd",
-      "calculation_id": "861b27750cbb83dc",
-      "poisson": 67.7,
-      "elo": 55.9,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.39978256910269316,
-      "gate_shadow_ammessa": false,
-      "gate_off_confidence": 0.5884799417191645,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -31604,
-      "home": "Venezia",
-      "away": "Lazio",
-      "campionato": "Serie A",
-      "giornata": 5,
-      "data": "19/09/2026 20:45",
-      "pronostico_sicuro": "Vittoria Lazio - Top Mix",
-      "mercato_standard": "2",
-      "top3": [],
-      "prob_sicuro": 62.3,
-      "risultati_attesi": "",
-      "risultato_reale": "0-2",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 20:44",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 5,
-      "kickoff_utc": "2026-09-19T18:45:00Z",
-      "data_snapshot_sha": "660ba48888fd",
-      "calculation_id": "7c512ac372fa113e",
-      "poisson": 69.2,
-      "elo": 60.0,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.45543680248374463,
-      "gate_shadow_ammessa": false,
-      "gate_off_confidence": 0.6230375457977628,
-      "gate_off_ammessa": true
-    },
-    {
-      "match_id": -30837,
-      "home": "Sevilla",
-      "away": "Barcelona",
-      "campionato": "La Liga",
-      "giornata": 7,
-      "data": "19/09/2026 21:00",
-      "pronostico_sicuro": "Vittoria Barcelona - Top Mix",
-      "mercato_standard": "2",
-      "top3": [],
-      "prob_sicuro": 72.3,
-      "risultati_attesi": "",
-      "risultato_reale": "1-3",
-      "esito": "✅",
-      "tipo": "Top Mix",
-      "stagione": "2026/2027",
-      "salvato_il": "19/09/2026 20:59",
-      "origin": "top_mix",
-      "selector_version": "topmix_gate025_ens06_v1",
-      "model_variant": "current",
-      "rank": 1,
-      "kickoff_utc": "2026-09-19T19:00:00Z",
-      "data_snapshot_sha": "660ba48888fd",
-      "calculation_id": "00db9c0cead1476f",
-      "poisson": 61.3,
-      "elo": 76.0,
-      "elo_disponibile": true,
-      "model_version": "post_shrinkage_v1",
-      "excluded_from_current_model_stats": false,
-      "gate_shadow_confidence": 0.45533591209535323,
-      "gate_shadow_ammessa": false,
-      "gate_off_confidence": 0.723073428407421,
-      "gate_off_ammessa": true
     }
   ],
   "leak_ok": true,
   "note": [
-    "finestra richiesta 2026-08-30 → 2026-09-20; primo istante onesto ricostruibile dal repo: 2026-08-30 (commit 48e7768, il primo con la stagione 2026/27 nei CSV live; prima di allora in git c'e' un'altra stagione)",
+    "finestra richiesta 2026-08-30 → 2026-09-20, limiti a istante [2026-08-30T11:27:06Z, 2026-09-18T21:51:58Z); primo istante onesto ricostruibile dal repo: 2026-08-30 (commit 48e7768, il primo con la stagione 2026/27 nei CSV live; prima di allora in git c'e' un'altra stagione)",
     "2 partite con kickoff incerto (mezzanotte UTC del giorno CSV, piu' conservativo): Levante-Ath Bilbao, Monaco-Lens",
     "26 fixture del pool con giornata dedotta dalle righe CSV vicine (offline)",
     "1496 fixture senza giornata: escluse dal pool da select_next_matchday_matches",
@@ -10823,10 +9479,10 @@
       "2026-09-20"
     ],
     "partite": {
-      "current": 70,
-      "legacy": 61
+      "current": 61,
+      "legacy": 53
     },
-    "comuni": 61,
+    "comuni": 53,
     "solo": {
       "current": [
         {
@@ -10880,16 +9536,6 @@
           "match_id": -31200
         },
         {
-          "partita": "Nottingham Forest - Coventry City",
-          "campionato": "Premier League",
-          "data": "19/09/2026 18:30",
-          "kickoff_utc": "2026-09-19T16:30:00Z",
-          "mercato": "1",
-          "prob": 58.8,
-          "esito": "❌",
-          "match_id": -31227
-        },
-        {
           "partita": "Torino - Roma",
           "campionato": "Serie A",
           "data": "14/09/2026 18:30",
@@ -10923,8 +9569,8 @@
       "legacy": []
     },
     "righe_totali": {
-      "current": 70,
-      "legacy": 61
+      "current": 61,
+      "legacy": 53
     },
     "pareggio": false
   }

@@ -35,6 +35,21 @@ if HERE not in sys.path:
 from registry_coverage import coverage_by_variant, render_coverage, top_mix_rows  # noqa: E402
 
 
+def load_registry_file(path: str) -> Tuple[List[Dict[str, Any]], str]:
+    """Registro da FILE (es. la copia fusa scritta da ``--dump-merged``).
+
+    Serve a misurare la copertura sui dati RICOSTRUITI quando il Registro live
+    non e' raggiungibile: il numero che ne esce e' un numero su file, e la
+    fonte lo dichiara, quindi non puo' essere scambiato per quello del Registro.
+    """
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    righe = data.get("data") if isinstance(data, dict) else data
+    if not isinstance(righe, list):
+        raise SystemExit(f"{path}: attesa una lista o {{\"data\": [...]}}, trovato {type(righe).__name__}")
+    return righe, f"file {os.path.basename(path)}"
+
+
 def load_registry_readonly() -> Tuple[List[Dict[str, Any]], str]:
     """Registro per la SOLA lettura. Ritorna ``(righe, fonte)``.
 
@@ -79,17 +94,20 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="primo giorno (UTC) del periodo, YYYY-MM-DD (default: tutti)")
     ap.add_argument("--to", dest="day_to", type=_parse_day, default=None,
                     help="ultimo giorno (UTC) del periodo, YYYY-MM-DD (default: tutti)")
+    ap.add_argument("--registry", dest="registry_file", default=None, metavar="FILE",
+                    help="misura su un FILE (copia fusa) invece che sul Registro live; la fonte lo dichiara")
     ap.add_argument("--json", dest="json_out", default=None, help="scrive il dettaglio in JSON")
     ap.add_argument("--allow-mismatch", action="store_true",
                     help="esce 0 anche se i due campioni non coincidono (default: esce 1)")
     args = ap.parse_args(argv)
 
-    righe, fonte = load_registry_readonly()
+    righe, fonte = (load_registry_file(args.registry_file) if args.registry_file
+                    else load_registry_readonly())
     cov = coverage_by_variant(righe, args.day_from, args.day_to)
     cov["fonte"] = fonte
     cov["generato_il"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     testo = render_coverage(cov)
-    print(f"Registro: {fonte} · {len(righe)} righe totali · righe Top Mix nel periodo: "
+    print(f"Registro ({fonte}): {len(righe)} righe totali · righe Top Mix nel periodo: "
           f"{sum(1 for _ in top_mix_rows(righe, args.day_from, args.day_to))}")
     print(testo)
     if args.json_out:

@@ -1,13 +1,24 @@
 name: Replay Top Mix legacy (walk-forward, no-leakage)
 
-# Rifa' il click "Calcola Top Mix" col motore Elo legacy (pre-PR#24) per ogni
-# partita conclusa nella finestra, UN SECONDO PRIMA del suo kickoff, con il
-# database estratto da git com'era a quell'istante (SoccerMath/db_snapshot.py).
-# Default: dry-run (referto + JSON delle righe candidate come artifact, nessuna
-# scrittura). Con mode=write le righe legacy vengono AGGIUNTE al registro
-# (JSONBin) con model_variant="legacy": mai una riga esistente modificata,
-# caricamento remoto stretto (GET 200 obbligatorio), PUT verificato.
+# Rifa' il click "Calcola Top Mix" per ogni partita conclusa nella finestra, UN
+# SECONDO PRIMA del suo kickoff, con il database estratto da git com'era a
+# quell'istante (SoccerMath/db_snapshot.py). Ogni click produce ENTRAMBI i
+# modelli (attuale e legacy): le righe candidate vengono AGGIUNTE al registro
+# (JSONBin) ciascuna con la sua model_variant, mai una riga esistente
+# modificata, caricamento remoto stretto (GET 200 obbligatorio), PUT verificato.
 # Nessun commit, nessun push.
+#
+# Le due commesse sono le due META' della storia ricostruibile, separate
+# dall'istante del merge di PR#24 (2026-09-18T21:51:58Z), senza sovrapposizioni:
+#
+#   simmetrico:  --from 2026-08-30 --to 2026-09-18
+#                --from-instant 2026-08-30T11:27:06Z --to-instant 2026-09-18T21:51:58Z
+#   legacy:      --from 2026-09-18 --to oggi   --from-instant 2026-09-18T21:51:58Z
+#
+# Default: dry-run (referto + JSON delle righe candidate come artifact, nessuna
+# scrittura). Scrivere richiede il tag "replay-write-{sym,legacy}-*": cosi' il
+# comando sta nel nome del ref ed e' tracciabile a posteriori. Il tag
+# "replay-check-{sym,legacy}-*" esegue lo STESSO comando in sola lettura.
 
 on:
   # Il push su un branch arena/** registra il workflow (altrimenti GitHub non lo
@@ -21,6 +32,7 @@ on:
     # l'intenzione e' dichiarata nel ref e tracciabile a posteriori.
     tags:
       - 'replay-write-*'
+      - 'replay-check-*'
     paths:
       - '.github/workflows/replay_legacy_topmix.yml'
       - 'SoccerMath/replay_legacy_topmix.py'
@@ -46,6 +58,18 @@ on:
         description: "ultimo giorno UTC (YYYY-MM-DD); vuoto = oggi"
         required: false
         default: ""
+      from_instant:
+        description: "confine iniziale a ISTANTE (YYYY-MM-DDTHH:MM:SSZ), incluso"
+        required: false
+        default: ""
+      to_instant:
+        description: "confine finale a ISTANTE, escluso: partiziona su un merge senza sovrapposizioni"
+        required: false
+        default: ""
+      model:
+        description: "quali modelli scrivere: both (default), current, legacy"
+        required: false
+        default: "both"
 
 permissions:
   contents: read
@@ -61,12 +85,35 @@ jobs:
     env:
       STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
       REPLAY_OUT: ${{ github.workspace }}/replay-out
-      # Da push non ci sono input: dry-run, finestra di default (merge PR#24 -> oggi).
+      # Da push di branch non ci sono input: dry-run sulla finestra di default.
       MODE: ${{ startsWith(github.ref, 'refs/tags/replay-write-') && 'write' || github.event.inputs.mode || 'dry-run' }}
+      COMMESSA: ${{ contains(github.ref, '-sym-') && 'simmetrico' || (contains(github.ref, '-legacy-') && 'legacy' || 'input') }}
       DAY_FROM: ${{ github.event.inputs.day_from || '2026-08-30' }}
       DAY_TO: ${{ github.event.inputs.day_to || '' }}
+      FROM_INSTANT: ${{ github.event.inputs.from_instant || '' }}
+      TO_INSTANT: ${{ github.event.inputs.to_instant || '' }}
+      MODEL: ${{ github.event.inputs.model || 'both' }}
+      COVERAGE_FROM: ${{ github.event.inputs.coverage_from || '2026-08-30' }}
 
     steps:
+      # La finestra si decide qui, in un posto solo e leggibile: un tag
+      # "replay-{write,check}-sym-*" o "-legacy-*" e' il COMANDO della
+      # commessa (limiti a istante compresi), altrimenti valgono gli input.
+      - name: Finestra del replay
+        id: finestra
+        run: |
+          case "$COMMESSA" in
+            simmetrico)
+              echo "extra=--model both --from 2026-08-30 --to 2026-09-18 --from-instant 2026-08-30T11:27:06Z --to-instant 2026-09-18T21:51:58Z" >> "$GITHUB_OUTPUT" ;;
+            legacy)
+              echo "extra=--model both --from 2026-09-18 --to $(date -u +%F) --from-instant 2026-09-18T21:51:58Z" >> "$GITHUB_OUTPUT" ;;
+            *)
+              extra="--model $MODEL --from $DAY_FROM"
+              [ -n "$DAY_TO" ] && extra="$extra --to $DAY_TO"
+              [ -n "$FROM_INSTANT" ] && extra="$extra --from-instant $FROM_INSTANT"
+              [ -n "$TO_INSTANT" ] && extra="$extra --to-instant $TO_INSTANT"
+              echo "extra=$extra" >> "$GITHUB_OUTPUT" ;;
+          esac
       - name: "Checkout (storia completa: gli snapshot vengono da git)"
         uses: actions/checkout@v4
         with:
@@ -89,7 +136,7 @@ jobs:
             exit 1
           fi
           if [ "$MODE" = "write" ] && { [ -z "${{ secrets.JSONBIN_API_KEY }}" ] || [ -z "${{ secrets.JSONBIN_BIN_ID }}" ]; }; then
-            echo "::error::mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID."
+            echo "::error::mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID nei secret del repo (Settings - Secrets and variables - Actions)."
             exit 1
           fi
 
@@ -109,8 +156,9 @@ jobs:
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
         run: |
           mkdir -p "$REPLAY_OUT"
-          ARGS=(--fixtures api --ref "origin/main" --out "$REPLAY_OUT" --model both --from "$DAY_FROM")
-          if [ -n "$DAY_TO" ]; then ARGS+=(--to "$DAY_TO"); fi
+          ARGS=(--fixtures api --ref "origin/main" --out "$REPLAY_OUT")
+          # shellcheck disable=SC2206  # $extra e' una lista di argomenti costruita sopra
+          ARGS+=(${{ steps.finestra.outputs.extra }})
           if [ "$MODE" = "write" ]; then
             ARGS+=(--write)
           else
@@ -130,7 +178,7 @@ jobs:
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
         run: |
           python SoccerMath/registry_coverage_check.py \
-            --from "$DAY_FROM" \
+            --from "$COVERAGE_FROM" \
             --to "${DAY_TO:-$(date -u +%F)}" \
             --json "$REPLAY_OUT/coverage.json" --allow-mismatch \
             2>&1 | tee "$REPLAY_OUT/coverage.txt"

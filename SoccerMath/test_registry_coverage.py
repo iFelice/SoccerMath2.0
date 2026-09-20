@@ -120,3 +120,34 @@ class TestCopertura(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRegistroDaFile(unittest.TestCase):
+    """La misura su file serve a verificare i dati ricostruiti quando il
+    Registro live non e' raggiungibile: deve leggere sia una lista sia
+    {"data": [...]} e dichiarare la fonte, senza toccare nulla."""
+
+    def _file(self, contenuto):
+        import json
+        import tempfile
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(contenuto, f)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_legge_la_forma_del_registro(self):
+        from registry_coverage_check import load_registry_file
+        righe, fonte = load_registry_file(self._file({"data": [{"match_id": 1}]}))
+        self.assertEqual([{"match_id": 1}], righe)
+        self.assertTrue(fonte.startswith("file "))
+
+    def test_legge_anche_una_lista_nuda(self):
+        from registry_coverage_check import load_registry_file
+        righe, _ = load_registry_file(self._file([{"match_id": 1}, {"match_id": 2}]))
+        self.assertEqual(2, len(righe))
+
+    def test_forma_sbagliata_ferma_tutto(self):
+        from registry_coverage_check import load_registry_file
+        with self.assertRaises(SystemExit):
+            load_registry_file(self._file({"record": {"data": []}}))
