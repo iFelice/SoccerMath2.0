@@ -55,6 +55,18 @@ def leggi_upstash() -> Tuple[Optional[List[Dict[str, Any]]], str]:
         return None, f"{type(e).__name__}: {e}"
 
 
+def chiavi_upstash(quante: int = 10) -> Dict[str, Any]:
+    """DBSIZE + prime chiavi del database: dice se una scrittura e' arrivata
+    altrove (chiave diversa) o non e' arrivata affatto. Sola lettura."""
+    try:
+        dimensione = rs.upstash_raw(["DBSIZE"]).get("result")
+        testo = str(rs.upstash_raw(["KEYS", "*"]).get("result") or "")
+        chiavi = [k.strip() for k in testo.split("\n") if k.strip()][:quante]
+        return {"dbsize": dimensione, "chiavi": chiavi, "errore": None}
+    except Exception as e:
+        return {"dbsize": None, "chiavi": [], "errore": f"{type(e).__name__}: {e}"}
+
+
 def _riga_testo(r: Dict[str, Any]) -> str:
     return (f"{r.get('home')} - {r.get('away')} ({r.get('campionato')}, {r.get('data')}) "
             f"{r.get('mercato_standard')} {r.get('prob_sicuro')}% "
@@ -93,6 +105,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         L.append(f"- Upstash: **{len(righe_us)} righe** · {esito['upstash']['kb']} kB "
                  f"(tetto piano free: 256 MB)")
+        chiavi = chiavi_upstash()
+        esito["upstash"]["dbsize"] = chiavi["dbsize"]
+        esito["upstash"]["chiavi"] = chiavi["chiavi"]
+        if chiavi["errore"]:
+            L.append(f"- **chiavi del database: non leggibili** — {chiavi['errore']}")
+        else:
+            L.append(f"- chiavi nel database (**{chiavi['dbsize']}**): "
+                     + (", ".join(f"`{k}`" for k in chiavi["chiavi"]) or "nessuna"))
 
     if righe_jb is not None and righe_us is not None:
         diff = rs.confronto(righe_jb, righe_us)

@@ -41,6 +41,7 @@ jobs:
     env:
       MIGRA_OUT: ${{ github.workspace }}/migra-out
       ESEGUI: ${{ (startsWith(github.ref, 'refs/tags/migra-registro-esegui-') || github.event.inputs.esegui == 'true') && 'true' || 'false' }}
+      DIAG: ${{ startsWith(github.ref, 'refs/tags/migra-registro-diagnostica-') && 'true' || 'false' }}
 
     steps:
       - name: Checkout
@@ -101,9 +102,16 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
         run: |
-          ARGS=(--json "$MIGRA_OUT/migrazione.json")
-          if [ "$ESEGUI" = "true" ]; then ARGS+=(--esegui); fi
-          echo "modalita': $([ "$ESEGUI" = "true" ] && echo 'COPIA VERA' || echo 'prova a vuoto')"
+          if [ "$DIAG" = "true" ]; then
+            # Diagnosi: un campo in una chiave a parte, riletto subito. Serve
+            # quando una scrittura risulta inviata ma non si ritrova.
+            ARGS=(--diagnostica --json "$MIGRA_OUT/diagnostica.json")
+            echo "modalita': DIAGNOSI (1 campo in una chiave a parte, mai il Registro)"
+          else
+            ARGS=(--json "$MIGRA_OUT/migrazione.json")
+            if [ "$ESEGUI" = "true" ]; then ARGS+=(--esegui); fi
+            echo "modalita': $([ "$ESEGUI" = "true" ] && echo 'COPIA VERA' || echo 'prova a vuoto')"
+          fi
           set -o pipefail
           set +e
           python SoccerMath/registry_migrate.py "${ARGS[@]}" 2>&1 | tee "$MIGRA_OUT/migrazione.txt"

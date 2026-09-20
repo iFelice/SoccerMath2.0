@@ -92,21 +92,37 @@ def _righe_ordinate(righe: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Upstash (Redis via REST)
 # ---------------------------------------------------------------------------
-def _upstash_cmd(comando: List[Any], *, post=None) -> Any:
-    """Esegue UN comando Redis via REST. Ritorna il campo ``result``."""
+def upstash_raw(comando: List[Any], *, post=None) -> Dict[str, Any]:
+    """Esegue UN comando e ritorna la risposta GREZZA (per diagnosi e referti).
+
+    La diagnosi serve quando una scrittura "riesce" ma non si ritrova: sapere
+    cosa ha risposto davvero il servizio (``result`` o ``error``) e' l'unico modo
+    di distinguere un problema di permessi da uno di replica o di chiave.
+    """
     import requests
     url, token = _upstash_config()
     if not url or not token:
         raise RegistryStoreError("Upstash non configurato: mancano UPSTASH_REDIS_REST_URL/TOKEN")
     invia = post or requests.post
     r = invia(url, json=comando, headers={"Authorization": f"Bearer {token}"}, timeout=TIMEOUT)
+    corpo: Any
+    try:
+        corpo = r.json()
+    except Exception:
+        corpo = {"_non_json": str(getattr(r, "text", "") or "")[:300]}
+    if not isinstance(corpo, dict):
+        corpo = {"result": corpo}
     if getattr(r, "status_code", None) != 200:
         raise RegistryStoreError(f"Upstash HTTP {getattr(r, 'status_code', '?')}: "
-                                 f"{str(getattr(r, 'text', '') or '')[:300]}")
-    corpo = r.json()
-    if isinstance(corpo, dict) and corpo.get("error"):
+                                 f"{str(corpo)[:300]}")
+    if corpo.get("error"):
         raise RegistryStoreError(f"Upstash: {corpo['error']}")
-    return corpo.get("result") if isinstance(corpo, dict) else corpo
+    return corpo
+
+
+def _upstash_cmd(comando: List[Any], *, post=None) -> Any:
+    """Esegue UN comando Redis via REST. Ritorna il campo ``result``."""
+    return upstash_raw(comando, post=post).get("result")
 
 
 def upstash_rows(*, post=None) -> List[Dict[str, Any]]:
@@ -130,6 +146,7 @@ def upstash_save(righe: Iterable[Dict[str, Any]], *, post=None) -> Dict[str, Any
         attuale = {}
     coppie: List[str] = []
     scritte = saltate = 0
+    risposta: Any = None
     for riga in righe:
         campo = field_of(riga)
         valore = json.dumps(riga, ensure_ascii=False, sort_keys=True, default=str)
@@ -140,11 +157,14 @@ def upstash_save(righe: Iterable[Dict[str, Any]], *, post=None) -> Dict[str, Any
         scritte += 1
     comandi = 1                                     # la HGETALL
     if coppie:
-        _upstash_cmd(["HSET", hash_key()] + coppie, post=post)
+        # La risposta del servizio viene riportata: se l'hash poi non contiene
+        # quello che abbiamo scritto, il "perche'" sta in quel valore.
+        risposta = _upstash_cmd(["HSET", hash_key()] + coppie, post=post)
         comandi += 1
     return {"remoto": "ok", "backend": BACKEND_UPSTASH, "comandi": comandi,
             "righe_scritte": scritte, "righe_saltate": saltate,
             "righe_hash": len(attuale) + scritte,
+            "risposta_scrittura": risposta,
             "byte": sum(len(c.encode("utf-8")) for c in coppie)}
 
 

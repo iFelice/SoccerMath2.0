@@ -74,6 +74,44 @@ def pianifica() -> Dict[str, Any]:
     }
 
 
+CHIAVE_DIAG = "sm:registro:diagnostica"
+
+
+def diagnostica(*, post=None) -> Tuple[List[str], bool]:
+    """Prova di andata e ritorno: UN campo, poi riletto. Sola diagnosi.
+
+    Serve quando una scrittura "riesce" ma non si ritrova: distingue un problema
+    di chiave (il valore c'e' ma sotto un altro nome), di permessi (il servizio
+    risponde con un errore) o di conservazione (il servizio accetta e non
+    conserva). Lascia il database come l'ha trovato (la chiave di prova viene
+    rimossa se la scrittura si rilegge).
+    """
+    L: List[str] = ["## Diagnosi della scrittura su Upstash (sola prova, 1 campo)", ""]
+    ok = False
+    try:
+        prima = rs.upstash_raw(["DBSIZE"], post=post).get("result")
+        L.append(f"- DBSIZE prima: **{prima}**")
+        marca = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        risposta = rs.upstash_raw(["HSET", CHIAVE_DIAG, "prova", marca], post=post)
+        L.append(f"- `HSET {CHIAVE_DIAG} prova {marca}` -> risposta grezza: "
+                 f"`{json.dumps(risposta, ensure_ascii=False)}`")
+        letto = rs.upstash_raw(["HGETALL", CHIAVE_DIAG], post=post).get("result")
+        L.append(f"- `HGETALL {CHIAVE_DIAG}` -> `{json.dumps(letto, ensure_ascii=False)}`")
+        ok = isinstance(letto, dict) and letto.get("prova") == marca
+        L.append("- **la scrittura si rilegge**: il database accetta e conserva"
+                 if ok else
+                 "- **la scrittura NON si rilegge**: il comando viene accettato ma il "
+                 "valore non c'e' (chiave diversa, oppure replica in ritardo)")
+        if ok:
+            rs.upstash_raw(["DEL", CHIAVE_DIAG], post=post)
+            L.append("- chiave di prova rimossa (`DEL`): il database torna com'era")
+        dopo = rs.upstash_raw(["DBSIZE"], post=post).get("result")
+        L.append(f"- DBSIZE dopo: **{dopo}**")
+    except Exception as e:
+        L.append(f"- **errore**: {type(e).__name__}: {e}")
+    return L, ok
+
+
 def _report(piano: Dict[str, Any], esito: Optional[Dict[str, Any]], verifica: Optional[Dict[str, Any]],
             eseguito: bool) -> Tuple[List[str], bool]:
     L: List[str] = ["## Migrazione del Registro: JSONBin -> Upstash (fase C)", ""]
@@ -121,7 +159,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--esegui", action="store_true",
                     help="scrive davvero sull'hash (senza, si ferma al piano)")
     ap.add_argument("--json", dest="json_out", default=None, help="scrive il dettaglio in JSON")
+    ap.add_argument("--diagnostica", action="store_true",
+                    help="prova di andata e ritorno con UN campo (non tocca il Registro)")
     args = ap.parse_args(argv)
+
+    if args.diagnostica:
+        try:
+            righe, ok = diagnostica()
+        except Exception as e:  # pragma: no cover - la diagnosi non deve mai esplodere
+            righe, ok = [f"- errore: {type(e).__name__}: {e}"], False
+        print("\n".join(righe) + "\n")
+        if args.json_out:
+            _scrivi_json(args.json_out, {"diagnostica": righe, "scrittura_riletta": ok})
+        return ESITO_OK if ok else ESITO_ERRORE
 
     try:
         piano = pianifica()

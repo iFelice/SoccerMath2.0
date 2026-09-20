@@ -36,26 +36,52 @@ def _riga(match_id=1, variante="current", prob=60.0):
 
 
 class _PostFinto:
-    """Modella l'hash di Upstash: il dict e' CONDIVISO, non copiato."""
+    """Modella il database Redis: CHIAVI diverse, dict CONDIVISI (non copiati).
+
+    ``hash`` resta il dict della chiave del Registro (com'e' nei test), ``altre``
+    raccoglie le altre chiavi (es. quella della diagnosi), cosi' si puo'
+    verificare che la diagnosi non scriva dentro il Registro.
+    """
+
+    REGISTRO = "sm:registro"
 
     def __init__(self, hash_iniziale=None, ignora_hset=False):
         self.hash = hash_iniziale if hash_iniziale is not None else {}
+        self.altre = {}
         self.ignora_hset = ignora_hset
         self.comandi = []
+
+    def _store(self, chiave, crea=False):
+        if chiave == self.REGISTRO:
+            return self.hash
+        if crea:
+            return self.altre.setdefault(chiave, {})
+        return self.altre.get(chiave, {})
 
     def __call__(self, url, json=None, headers=None, timeout=None):  # noqa: A002
         self.comandi.append(list(json))
         nome = str(json[0]).upper()
+        chiave = json[1] if len(json) > 1 else None
         risultato = None
         if nome == "HGETALL":
-            risultato = dict(self.hash)
-        elif nome == "HSET" and not self.ignora_hset:
-            campi = json[2:]
-            for i in range(0, len(campi), 2):
-                self.hash[campi[i]] = campi[i + 1]
-            risultato = len(campi) // 2
+            store = self._store(chiave)
+            risultato = dict(store) if store else None
         elif nome == "HSET":
-            risultato = len(json[2:]) // 2
+            store = self._store(chiave, crea=True)
+            campi = json[2:]
+            if not self.ignora_hset:
+                for i in range(0, len(campi), 2):
+                    store[campi[i]] = campi[i + 1]
+            risultato = len(campi) // 2
+        elif nome == "DEL":
+            risultato = 1 if self._store(chiave) else 0
+            self.altre.pop(chiave, None)
+            if chiave == self.REGISTRO:
+                self.hash.clear()
+        elif nome == "DBSIZE":
+            risultato = len([k for k in [self.REGISTRO] if self.hash]) + len(self.altre)
+        elif nome == "KEYS":
+            risultato = "\n".join(([self.REGISTRO] if self.hash else []) + list(self.altre))
 
         class _R:
             status_code = 200
@@ -154,3 +180,39 @@ class TestPiano(unittest.TestCase):
         self.assertTrue(dati["coincidono"])
         self.assertEqual(2, dati["esito_copia"]["comandi"])
         self.assertEqual(1, dati["da_copiare"])
+
+
+class TestDiagnostica(unittest.TestCase):
+    """La diagnosi deve accorgersi se una scrittura non si rilegge."""
+
+    def _esegui(self, post, argv=None):
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env), mock.patch("requests.post", post):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = mig.main(argv or ["--diagnostica"])
+        return rc, out.getvalue()
+
+    def test_scrittura_che_si_rilegge(self):
+        post = _PostFinto()
+        rc, testo = self._esegui(post)
+        self.assertEqual(mig.ESITO_OK, rc)
+        self.assertIn("la scrittura si rilegge", testo)
+        self.assertEqual(["DBSIZE", "HSET", "HGETALL", "DEL", "DBSIZE"],
+                         [c[0] for c in post.comandi])
+        self.assertEqual({}, post.hash, "la chiave di prova deve sparire")
+
+    def test_scrittura_che_non_si_rilegge(self):
+        post = _PostFinto(ignora_hset=True)
+        rc, testo = self._esegui(post)
+        self.assertEqual(mig.ESITO_ERRORE, rc)
+        self.assertIn("la scrittura NON si rilegge", testo)
+        self.assertNotIn("DEL", [c[0] for c in post.comandi],
+                         "senza prova la chiave di diagnosi non va toccata")
+
+    def test_diagnostica_non_tocca_il_registro(self):
+        post = _PostFinto({_campo(_riga(1)): json.dumps(_riga(1))})
+        rc, _ = self._esegui(post)
+        self.assertEqual(mig.ESITO_OK, rc)
+        self.assertEqual(1, len(post.hash), "l'hash del Registro resta com'era")

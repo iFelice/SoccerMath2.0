@@ -41,9 +41,13 @@ class _PostRegistrato:
     def __call__(self, url, json=None, headers=None, timeout=None):  # noqa: A002
         self.comandi.append(json)
         nome = str(json[0]).upper()
-        corpo = {"result": self.hgetall}
+        corpo = {"result": None}
         if nome == "HGETALL":
             corpo = {"result": None if self.null else self.hgetall}
+        elif nome == "DBSIZE":
+            corpo = {"result": len(self.hgetall)}
+        elif nome == "KEYS":
+            corpo = {"result": "\n".join(self.hgetall)}
 
         class _R:
             status_code = 200
@@ -76,7 +80,8 @@ class TestStatoSolaLettura(unittest.TestCase):
         rc, testo = self._esegui_con_rete(post, [_riga()])
         self.assertEqual(0, rc)
         comandi = [str(c[0]).upper() for c in post.comandi]
-        self.assertEqual(["HGETALL"], comandi, "lo stato del backend e' sola lettura")
+        self.assertEqual(["HGETALL", "DBSIZE", "KEYS"], comandi,
+                         "lo stato del backend e' sola lettura: HGETALL, DBSIZE, KEYS")
         self.assertIn("i due Registri coincidono", testo)
 
     def test_chiave_inesistente_non_rompe_e_mostra_zero_righe(self):
@@ -85,7 +90,8 @@ class TestStatoSolaLettura(unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertIn("Upstash: **0 righe**", testo)
         self.assertIn("database nuovo", testo)
-        self.assertEqual(["HGETALL"], [str(c[0]).upper() for c in post.comandi])
+        self.assertEqual(["HGETALL", "DBSIZE", "KEYS"], [str(c[0]).upper() for c in post.comandi])
+        self.assertIn("chiavi nel database (**0**)", testo)
 
 
 class TestUscita(unittest.TestCase):
