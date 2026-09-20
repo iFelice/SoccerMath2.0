@@ -24,6 +24,11 @@ on:
   # Il push su un branch arena/** registra il workflow (altrimenti GitHub non lo
   # espone al dispatch finche' non e' su main) e fa girare il dry-run come CI
   # di sola lettura: mai --write da un push.
+  #
+  # Niente filtri "paths" QUI: con quelli attivi un push di TAG non fa partire
+  # nulla quando il commit e' gia' sul remoto (il tag non "tocca" file), e per
+  # una commessa comandata dal tag sarebbe un comando che non parte. Il filtro
+  # e' dentro il job (passo "Salta?"), dove branch e tag si distinguono.
   push:
     branches:
       - 'arena/**'
@@ -33,13 +38,6 @@ on:
     tags:
       - 'replay-write-*'
       - 'replay-check-*'
-    paths:
-      - '.github/workflows/replay_legacy_topmix.yml'
-      - 'SoccerMath/replay_legacy_topmix.py'
-      - 'SoccerMath/db_snapshot.py'
-      - 'SoccerMath/test_replay_legacy_no_leakage.py'
-      - 'SoccerMath/models/elo_engine_legacy.py'
-      - 'SoccerMath/models/legacy_elo.py'
   workflow_dispatch:
     inputs:
       mode:
@@ -115,6 +113,7 @@ jobs:
               echo "extra=$extra" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: "Checkout (storia completa: gli snapshot vengono da git)"
+        # nessuna guardia: il passo "Salta?" (filtro di path) ha bisogno del checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -124,12 +123,39 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Il filtro di path vive qui e non nel trigger (vedi sopra). Un tag e' un
+      # COMANDO: si esegue sempre. Un push di branch che non tocca niente del
+      # replay esce subito, senza sprecare richieste all'API.
+      - name: Salta? (push di branch senza modifiche rilevanti)
+        id: salta
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "tag ${GITHUB_REF_NAME}: si esegue sempre"
+            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          PRIMA='${{ github.event.before }}'
+          if [ -z "$PRIMA" ] || [ "$PRIMA" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${PRIMA}^{commit}" 2>/dev/null; then
+            echo "confronto non possibile (primo push o before assente): si esegue"
+            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          CAMBIATI=$(git diff --name-only "$PRIMA" '${{ github.event.after }}' || true)
+          echo "$CAMBIATI"
+          if printf '%s\n' "$CAMBIATI" | grep -qE '^(\.github/workflows/replay_legacy_topmix\.yml|SoccerMath/(replay_legacy_topmix|db_snapshot|registry_coverage|registry_coverage_check|prediction_registry)\.py|SoccerMath/models/(elo_engine_legacy|legacy_elo)\.py|SoccerMath/test_(replay_legacy_no_leakage|registry_coverage|topmix_dual_tables)\.py)$'; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "nessuna modifica rilevante per il replay: esco"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Dipendenze
+        if: steps.salta.outputs.skip != 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r SoccerMath/requirements.txt pytest
 
       - name: Secrets necessari
+        if: steps.salta.outputs.skip != 'true'
         run: |
           if [ -z "${{ secrets.FOOTBALL_DATA_API_KEY }}" ]; then
             echo "::error::FOOTBALL_DATA_API_KEY mancante: le fixture (id, orari, shortName) vengono da football-data.org."
@@ -141,6 +167,7 @@ jobs:
           fi
 
       - name: Test di non-leakage e di copertura (prima di qualunque scrittura)
+        if: steps.salta.outputs.skip != 'true'
         run: |
           python -m pytest -q --tb=short \
             SoccerMath/test_replay_legacy_no_leakage.py \
@@ -150,6 +177,7 @@ jobs:
             SoccerMath/test_topmix_dual_tables.py
 
       - name: Replay
+        if: steps.salta.outputs.skip != 'true'
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
@@ -176,6 +204,7 @@ jobs:
       # (dopo l'eventuale scrittura) e le differenze. Non scrive nulla: se i
       # due campioni non coincidono esce 1 e lo dice.
       - name: Copertura per modello nel Registro (sola lettura)
+        if: steps.salta.outputs.skip != 'true'
         env:
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
@@ -191,7 +220,7 @@ jobs:
       # ripubblicati come annotazioni, cosi' l'esito e' verificabile senza
       # scaricare artifact.
       - name: Numeri chiave (annotazioni sempre)
-        if: always()
+        if: always() && steps.salta.outputs.skip != 'true'
         run: |
           if [ -f "$REPLAY_OUT/replay_legacy_topmix.md" ]; then
             head -n 6 "$REPLAY_OUT/replay_legacy_topmix.md" | grep -v '^\s*$' | while IFS= read -r line; do
@@ -216,7 +245,7 @@ jobs:
           fi
 
       - name: Diagnosi (annotazioni con la coda del log)
-        if: failure()
+        if: failure() && steps.salta.outputs.skip != 'true'
         run: |
           if [ -f "$REPLAY_OUT/replay.log" ]; then
             tail -n 60 "$REPLAY_OUT/replay.log" | grep -v '^\s*$' | tail -n 25 | while IFS= read -r line; do
@@ -227,7 +256,7 @@ jobs:
           fi
 
       - name: Riepilogo
-        if: always()
+        if: always() && steps.salta.outputs.skip != 'true'
         run: |
           {
             echo "## Replay Top Mix legacy — mode=$MODE (evento: ${{ github.event_name }})"
@@ -248,7 +277,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Nessuna modifica a file versionati
-        if: always()
+        if: always() && steps.salta.outputs.skip != 'true'
         run: |
           if ! git diff --exit-code -- SoccerMath audit; then
             echo "::error::il replay ha modificato file committati"
@@ -257,7 +286,7 @@ jobs:
           echo "Nessun file versionato modificato."
 
       - name: Artifact (referto, righe candidate, copia fusa per anteprima)
-        if: always()
+        if: always() && steps.salta.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: replay-legacy-topmix-${{ github.run_id }}
