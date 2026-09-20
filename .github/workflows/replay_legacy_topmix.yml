@@ -34,9 +34,9 @@ on:
           - dry-run
           - write
       day_from:
-        description: "primo giorno UTC (YYYY-MM-DD); default = merge PR#24 (2026-09-18)"
+        description: "primo giorno UTC (YYYY-MM-DD); default = 2026-08-30, primo istante ricostruibile dal repo"
         required: false
-        default: "2026-09-18"
+        default: "2026-08-30"
       day_to:
         description: "ultimo giorno UTC (YYYY-MM-DD); vuoto = oggi"
         required: false
@@ -58,7 +58,7 @@ jobs:
       REPLAY_OUT: ${{ github.workspace }}/replay-out
       # Da push non ci sono input: dry-run, finestra di default (merge PR#24 -> oggi).
       MODE: ${{ github.event.inputs.mode || 'dry-run' }}
-      DAY_FROM: ${{ github.event.inputs.day_from || '2026-09-18' }}
+      DAY_FROM: ${{ github.event.inputs.day_from || '2026-08-30' }}
       DAY_TO: ${{ github.event.inputs.day_to || '' }}
 
     steps:
@@ -88,10 +88,11 @@ jobs:
             exit 1
           fi
 
-      - name: Test di non-leakage del replay (prima di qualunque scrittura)
+      - name: Test di non-leakage e di copertura (prima di qualunque scrittura)
         run: |
           python -m pytest -q --tb=short \
             SoccerMath/test_replay_legacy_no_leakage.py \
+            SoccerMath/test_registry_coverage.py \
             SoccerMath/test_legacy_elo_engine.py \
             SoccerMath/test_model_variant_registry.py \
             SoccerMath/test_topmix_dual_tables.py
@@ -103,7 +104,7 @@ jobs:
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
         run: |
           mkdir -p "$REPLAY_OUT"
-          ARGS=(--fixtures api --ref "origin/main" --out "$REPLAY_OUT" --from "$DAY_FROM")
+          ARGS=(--fixtures api --ref "origin/main" --out "$REPLAY_OUT" --model both --from "$DAY_FROM")
           if [ -n "$DAY_TO" ]; then ARGS+=(--to "$DAY_TO"); fi
           if [ "$MODE" = "write" ]; then
             ARGS+=(--write)
@@ -114,6 +115,20 @@ jobs:
           python SoccerMath/replay_legacy_topmix.py "${ARGS[@]}" 2>&1 \
             | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run\|to view a Streamlit app" \
             | tee "$REPLAY_OUT/replay.log"
+
+      # Sola lettura: conta le partite coperte da ciascun modello nel Registro
+      # (dopo l'eventuale scrittura) e le differenze. Non scrive nulla: se i
+      # due campioni non coincidono esce 1 e lo dice.
+      - name: Copertura per modello nel Registro (sola lettura)
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+        run: |
+          python SoccerMath/registry_coverage_check.py \
+            --from "$DAY_FROM" \
+            --to "${DAY_TO:-$(date -u +%F)}" \
+            --json "$REPLAY_OUT/coverage.json" --allow-mismatch \
+            2>&1 | tee "$REPLAY_OUT/coverage.txt"
 
       # I log grezzi del job stanno su storage esterno: le ultime righe vengono
       # ripubblicate come annotazioni (leggibili via API) per la diagnosi.
@@ -138,6 +153,14 @@ jobs:
               cat "$REPLAY_OUT/replay_legacy_topmix.md"
             else
               echo "Referto assente: il replay non e' arrivato in fondo."
+            fi
+            if [ -f "$REPLAY_OUT/coverage.txt" ]; then
+              echo
+              echo "### Copertura nel Registro (sola lettura)"
+              echo
+              echo '```'
+              cat "$REPLAY_OUT/coverage.txt"
+              echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

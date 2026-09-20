@@ -101,6 +101,19 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
         self.assertIn(1, cur_ids)
         self.assertNotIn(1, leg_ids)
 
+    def test_legacy_sotto_soglia_e_solo_current_ha_la_riga(self):
+        """Il Poisson scelto e' 1X2 con confidence attuale 0.63: col legacy 0.53
+        (< 0.55) la riga NON esiste per il legacy. E' la spiegazione misurata
+        delle partite coperte solo dal modello attuale (vedi
+        audit/results/replay_sym_offline/diagnosi_differenze.md)."""
+        cur_elo = lambda h, a, l: {"1": 0.70, "X": 0.18, "2": 0.12}
+        leg_elo = lambda h, a, l: {"1": 0.48, "X": 0.28, "2": 0.24}
+        righe = self._righe(cur_elo, leg_elo)
+        cur = {r["match_id"] for r in righe[MODEL_VARIANT_CURRENT]}
+        leg = {r["match_id"] for r in righe[MODEL_VARIANT_LEGACY]}
+        self.assertIn(1, cur)
+        self.assertNotIn(1, leg)
+
     def test_totali_identici_e_legacy_in_errore_isolato(self):
         """Elo legacy che solleva: la riga legacy resta Poisson puro (soglia 0,60),
         quella current non ne risente; sui Totali le due righe coincidono."""

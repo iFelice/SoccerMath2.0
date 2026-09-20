@@ -63,7 +63,9 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import sys
+import tempfile
 import time
 import zlib
 from collections import Counter
@@ -83,8 +85,11 @@ for _nome in ("streamlit.runtime.caching", "streamlit.runtime.scriptrunner_utils
     logging.getLogger(_nome).setLevel(logging.ERROR)
 
 from db_snapshot import REPO_ROOT, CommitInfo, database_at_instant, resolve_main_ref  # noqa: E402
+from config import season_start_year  # noqa: E402
+from registry_coverage import VARIANTI, coverage_by_variant, render_coverage  # noqa: E402
 from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_CURRENT,
+    MODEL_VARIANT_LABELS,
     MODEL_VARIANT_FIELD,
     MODEL_VARIANT_LEGACY,
     ORIGIN_TOP_MIX,
@@ -97,6 +102,17 @@ from prediction_registry import (  # noqa: E402
 
 UTC = timezone.utc
 PR24_MERGE_DAY = date(2026, 9, 18)          # merge di PR#24 in main: 2026-09-18 21:51:58Z
+SEASON_FIRST_DAY = date(2026, 8, 15)        # prima partita della stagione 2026/27 (dall'archivio)
+# Primo istante da cui il replay e' ONESTO, misurato sul repo (non stimato):
+# la stagione 2026/27 entra nei CSV live di main col commit 48e7768 del
+# 2026-08-30T11:27:06Z. Prima di allora la cartella dati in git descrive la
+# stagione PRECEDENTE (ultima riga 31/01/2026, e fino al 26/08/2026 sta pure
+# nel vecchio percorso ``database/``): un "replay" di quelle partite darebbe al
+# modello un database vecchio di un anno, cioe' non il modello che era live.
+# La guardia ``snapshot_covers_season`` (per click e per lega) lo verifica
+# comunque sui fatti, quindi la finestra non dipende da questa costante.
+REPLAY_START_DAY = date(2026, 8, 30)        # = giorno UTC del commit 48e7768
+REPLAY_START_INSTANT = datetime(2026, 8, 30, 11, 27, 6, tzinfo=timezone.utc)   # committer date di 48e7768
 API_PAUSE_SECONDS = 6.5                     # 10 richieste/min sul piano free di football-data.org
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -155,17 +171,42 @@ def _int_or_none(v: Any) -> Optional[int]:
         return None
 
 
+def _dedup_fixtures(fixtures: List[Fixture]) -> List[Fixture]:
+    """Una sola voce per partita (stesso ``match_id``), ordinate per kickoff.
+
+    L'API puo' restituire la stessa partita piu' di una volta (fasi diverse
+    della competizione, stagioni adiacenti): senza dedup il click la
+    replicherebbe piu' volte e il referto mostrerebbe bersagli ripetuti.
+    """
+    viste: Dict[Any, Fixture] = {}
+    for f in fixtures:
+        chiave = f.match_id if f.match_id is not None else (f.league, f.utc, f.home, f.away)
+        precedente = viste.get(chiave)
+        if precedente is None or (f.finished and not precedente.finished):
+            viste[chiave] = f
+    return sorted(viste.values(), key=lambda f: f.utc)
+
+
 def fixtures_from_api(api_key: str, leagues: Optional[Iterable[str]] = None, *,
                       http_get: Optional[Callable[..., Any]] = None,
                       pause: float = API_PAUSE_SECONDS) -> Dict[str, List[Fixture]]:
-    """Tutte le partite di stagione per lega da football-data.org (1 GET per lega)."""
+    """Tutte le partite di stagione per lega da football-data.org (1 GET per lega).
+
+    Le leghe sono quelle di ``LEAGUES_CONFIG`` e NON le chiavi di
+    ``LEAGUE_CODE_MAP``: quella mappa contiene anche gli alias ``short_name``
+    ("SerieA", "Premier", "LaLiga", "Ligue1"), per cui iterarla scaricava ogni
+    campionato DUE volte (9 GET invece di 5, con il rischio di rate-limit) e
+    produceva fixture duplicate e con un nome di lega che non esiste in
+    ``LEAGUES_CONFIG`` (KeyError nel controllo di leakage).
+    """
     import requests
-    from config import LEAGUE_CODE_MAP
+    from config import LEAGUE_CODE_MAP, LEAGUES_CONFIG
     if not api_key:
         raise ReplayError("FOOTBALL_DATA_API_KEY assente: --fixtures api non possibile")
     getter = http_get or requests.get
     out: Dict[str, List[Fixture]] = {}
-    for i, league in enumerate(list(leagues or LEAGUE_CODE_MAP.keys())):
+    leghe = [l for l in (leagues or LEAGUES_CONFIG.keys()) if l in LEAGUE_CODE_MAP]
+    for i, league in enumerate(leghe):
         if i:
             time.sleep(pause)
         r = getter(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches",
@@ -191,7 +232,7 @@ def fixtures_from_api(api_key: str, leagues: Optional[Iterable[str]] = None, *,
                 status=str(m.get("status") or ""),
                 gh=_int_or_none(score.get("home")), ga=_int_or_none(score.get("away")),
                 kickoff_source="api"))
-        out[league] = sorted(fx, key=lambda f: f.utc)
+        out[league] = _dedup_fixtures(fx)
     return out
 
 
@@ -277,7 +318,7 @@ def fixtures_from_csv_and_archive(leagues: Optional[Iterable[str]] = None,
                     away=UNDERSTAT_NAME_MAP.get(r["away_team"], r["away_team"]),
                     status="FINISHED" if r.get("is_result") else "TIMED",
                     gh=gh, ga=ga, kickoff_source="understat", matchday_inferred=md is not None))
-        out[league] = sorted(fixtures, key=lambda f: f.utc)
+        out[league] = _dedup_fixtures(fixtures)
     return out
 
 
@@ -293,11 +334,19 @@ def target_fixtures(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: 
 # ---------------------------------------------------------------------------
 @dataclass
 class LeakCheck:
-    """Prove di assenza di leakage di UN click: tutte devono essere True."""
+    """Prove di assenza di leakage di UN click: tutte devono essere True.
+
+    ``snapshot_covers_season`` non e' una prova di leakage ma il complemento
+    necessario: uno snapshot VECCHIO non fa trapelare nulla ma descrive un
+    altro campionato (nel repo le partite di agosto 2026 hanno in git la
+    stagione 2025/26), e replicarle sarebbe un numero inventato. Un click e'
+    scrivibile solo se ``ok`` e ``snapshot_covers_season``.
+    """
     commit_before_instant: bool
     targets_absent_from_live_csv: bool
     targets_absent_from_xg_archive: bool
     xg_cutoff_is_instant: bool
+    snapshot_covers_season: bool = True
     future_rows_dropped: Dict[str, int] = field(default_factory=dict)
     dettagli: List[str] = field(default_factory=list)
 
@@ -305,6 +354,10 @@ class LeakCheck:
     def ok(self) -> bool:
         return (self.commit_before_instant and self.targets_absent_from_live_csv
                 and self.targets_absent_from_xg_archive and self.xg_cutoff_is_instant)
+
+    @property
+    def scrivibile(self) -> bool:
+        return self.ok and self.snapshot_covers_season
 
 
 @dataclass
@@ -318,6 +371,12 @@ class ClickResult:
     missing: List[str]
     leak: LeakCheck
     targets: List[Fixture]
+    fuori_stagione: List[str] = field(default_factory=list)   # leghe con snapshot non della stagione
+    archivio_xg: Dict[str, bool] = field(default_factory=dict)  # lega -> archivio xG presente nello snapshot
+
+    @property
+    def scrivibile(self) -> bool:
+        return self.leak.scrivibile
 
 
 def _csv_has_result(path: str, home_clean: str, away_clean: str, giorno: date, clean_name) -> bool:
@@ -360,10 +419,39 @@ def _archive_has_result(path: str, home_clean: str, away_clean: str, giorno: dat
     return False
 
 
+def live_csv_covers_season(db_dir: str, league: str, season_start: int) -> bool:
+    """Lo snapshot contiene la stagione ``season_start`` (almeno una riga)?
+
+    Un CSV live che si ferma alla stagione precedente non e' un dato "vecchio
+    ma lecito": e' un ALTRO campionato. Le colonne usate sono le stesse del
+    motore (``Date`` in formato gg/mm/aaaa).
+    """
+    import pandas as pd
+    from config import LEAGUES_CONFIG
+    info = LEAGUES_CONFIG.get(league)
+    if not info:
+        return False
+    path = os.path.join(db_dir, os.path.basename(str(info["live_csv"])))
+    if not os.path.exists(path):
+        return False
+    try:
+        df = pd.read_csv(path, low_memory=False, usecols=lambda c: c in ("Date",))
+    except Exception:
+        return False
+    if df.empty or "Date" not in df.columns:
+        return False
+    # NB: la variabile NON si chiama `date`, altrimenti oscura la classe `date`
+    # del modulo e `date(season_start, 7, 1)` diventa una Series (TypeError).
+    giorni = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
+    inizio = pd.Timestamp(datetime(season_start, 7, 1, tzinfo=UTC))
+    return bool((giorni.dt.tz_localize(UTC, ambiguous="NaT", nonexistent="NaT") >= inizio).any())
+
+
 def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
                    targets: Optional[List[Fixture]] = None,
                    leagues: Optional[Iterable[str]] = None,
                    ref: Optional[str] = None, repo_root: str = REPO_ROOT,
+                   snapshot_cache: Optional[str] = None,
                    snapshot_factory: Callable[..., Any] = database_at_instant) -> ClickResult:
     """Il click "Calcola Top Mix" all'istante ``instant`` con i soli dati di allora."""
     import app
@@ -383,14 +471,22 @@ def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
         cutoffs.append(instant)
         return originale(league, cutoff=instant, **kw)
 
-    with snapshot_factory(instant, ref=ref, repo_root=repo_root) as snap:
+    with snapshot_factory(instant, ref=ref, repo_root=repo_root, cache_dir=snapshot_cache) as snap:
         app.season_point_in_time_averages = _point_in_time
         try:
             per_variante: Dict[str, List[Dict[str, Any]]] = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}
             pool_sizes: Dict[str, int] = {}
             selected: Dict[str, int] = {}
             missing: List[str] = []
+            fuori_stagione: List[str] = []
+            stagione = season_start_year(instant.astimezone(UTC).year, instant.astimezone(UTC).month)
             for league in leghe:
+                # Prima di tutto: la cartella dati dello snapshot parla di QUESTA
+                # stagione? Se no, si salta la lega (nessuna riga inventata).
+                if not live_csv_covers_season(snap.db_dir, league, stagione):
+                    fuori_stagione.append(league)
+                    pool_sizes[league] = 0
+                    continue
                 pool = [f.as_api_match() for f in fixtures.get(league, []) if f.utc > instant]
                 pool_sizes[league] = len(pool)
                 engine = app.get_league_engine(league)
@@ -426,10 +522,21 @@ def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
         cutoff_ok = bool(cutoffs) and all(c == instant for c in cutoffs)
         if not cutoffs:
             dettagli.append("season_point_in_time_averages mai chiamata (nessuna lega calcolata?)")
-        leak = LeakCheck(commit_ok, csv_ok, arch_ok, cutoff_ok, dict(snap.future_rows_dropped), dettagli)
+        stagione_ok = not fuori_stagione
+        if fuori_stagione:
+            dettagli.append("snapshot NON della stagione " + str(stagione) + " per: " + ", ".join(fuori_stagione)
+                            + " (in git la cartella dati descrive un'altra stagione: righe non scritte)")
+        leak = LeakCheck(commit_ok, csv_ok, arch_ok, cutoff_ok, stagione_ok,
+                         dict(snap.future_rows_dropped), dettagli)
+        # Presenza dell'archivio xG nello snapshot: non e' un leakage, e' un
+        # dato in meno che il modello di allora non aveva (in git l'archivio
+        # arriva il 01/09). Si dichiara, come la finestra.
+        archivio: Dict[str, bool] = {}
+        for lega in {t.league for t in targets} | set(leghe):
+            archivio[lega] = os.path.exists(archive_path(lega, base_dir=snap.db_dir))
         return ClickResult(instant=instant, commit=snap.commit, snapshot_sha=snap.commit.short,
                            pool_sizes=pool_sizes, selected=selected, rows=rows, missing=missing,
-                           leak=leak, targets=targets)
+                           leak=leak, targets=targets, fuori_stagione=fuori_stagione, archivio_xg=archivio)
 
 
 # ---------------------------------------------------------------------------
@@ -502,16 +609,21 @@ def _canon(entry: Dict[str, Any]) -> str:
 
 
 def merge_entries(existing: List[Dict[str, Any]], entries: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Counter]:
-    """Aggiunge le righe legacy al registro SENZA toccare nulla di esistente.
+    """Aggiunge al registro le righe del replay SENZA toccare nulla di esistente.
 
-    - solo righe ``model_variant == legacy`` (una riga current qui e' un bug);
+    - solo righe con variante esplicita (``current`` o ``legacy``: il replay
+      scrive per entrambi i modelli) e origine Top Mix: qualunque altra cosa e'
+      un bug e ferma la scrittura;
     - una riga la cui chiave (``dedup_key``) esiste gia' viene SALTATA, non
-      aggiornata (idempotenza: rilanciare il replay non modifica nulla);
+      aggiornata (idempotenza: rilanciare il replay non modifica nulla, e una
+      riga del modello attuale scritta da un click vero NON viene riscritta da
+      una riga ricostruita);
     - a fusione fatta OGNI riga preesistente deve essere ancora li', identica.
     """
     for e in entries:
-        if model_variant_of(e) != MODEL_VARIANT_LEGACY:
-            raise ReplayError(f"riga non legacy nel replay: {e.get('home')}-{e.get('away')} {e.get(MODEL_VARIANT_FIELD)!r}")
+        variante = model_variant_of(e)
+        if variante not in VARIANTI:
+            raise ReplayError(f"riga senza variante valida nel replay: {e.get('home')}-{e.get('away')} {e.get(MODEL_VARIANT_FIELD)!r}")
         if origin_of(e) != ORIGIN_TOP_MIX:
             raise ReplayError(f"riga con origine inattesa nel replay: {origin_of(e)!r}")
     prima = [_canon(p) for p in existing]
@@ -538,7 +650,12 @@ def merge_entries(existing: List[Dict[str, Any]], entries: List[Dict[str, Any]])
 
 
 def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) -> Dict[str, Any]:
-    """Fusione + (se non dry-run) scrittura con ``app.save_predictions``."""
+    """Fusione + (se non dry-run) scrittura con ``app.save_predictions``.
+
+    ``entries`` puo' contenere righe del modello attuale E del legacy: la
+    fusione aggiunge solo chiavi nuove, quindi le righe scritte dai click veri
+    restano intatte.
+    """
     import app
     from config import JSONBIN_API_KEY, JSONBIN_BIN_ID
     existing, fonte = strict_load_registry()
@@ -604,19 +721,48 @@ class ReplayReport:
     ref: str
     clicks: List[Dict[str, Any]]
     entries_legacy: List[Dict[str, Any]]
-    entries_current_non_scritte: List[Dict[str, Any]]
+    entries_current: List[Dict[str, Any]]
     leak_ok: bool
     note: List[str]
+    modelli: List[str] = field(default_factory=lambda: list(VARIANTI))
+    finestra_ok: bool = True
+    entries_legacy_non_scritte: List[Dict[str, Any]] = field(default_factory=list)
+    entries_current_non_scritte: List[Dict[str, Any]] = field(default_factory=list)
     registro: Dict[str, Any] = field(default_factory=dict)
     fedelta: List[Dict[str, Any]] = field(default_factory=list)
+    coverage: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def scrivibile(self) -> bool:
+        """Si scrive solo se NESSUN click ha buchi di leakage e la finestra dichiarata regge."""
+        return self.leak_ok and self.finestra_ok
+
+    def entries_da_scrivere(self) -> List[Dict[str, Any]]:
+        """Le righe dei modelli richiesti, in ordine di click."""
+        out: List[Dict[str, Any]] = []
+        if MODEL_VARIANT_CURRENT in self.modelli:
+            out.extend(self.entries_current)
+        if MODEL_VARIANT_LEGACY in self.modelli:
+            out.extend(self.entries_legacy)
+        return out
 
 
 def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date, *,
                sorgente: str, ref: Optional[str] = None, repo_root: str = REPO_ROOT,
                leagues: Optional[Iterable[str]] = None,
+               models: Iterable[str] = VARIANTI,
+               snapshot_cache: Optional[str] = None,
                snapshot_factory: Callable[..., Any] = database_at_instant,
                log: Callable[[str], None] = print) -> Tuple[ReplayReport, List[ClickResult]]:
+    """Replay walk-forward dei modelli richiesti su ``[day_from, day_to]``.
+
+    Ogni click e' un istante T = kickoff - 1 s di UNA o piu' partite; per ogni
+    click si producono le righe di ENTRAMBI i modelli (lo stesso click le
+    calcola insieme), ma solo quelle dei modelli in ``models`` vengono scritte
+    nel Registro: le altre restano nel referto come controprova.
+    """
     ref = ref or resolve_main_ref(repo_root)
+    modelli = [m for m in models if m in VARIANTI] or list(VARIANTI)
     bersagli = target_fixtures(fixtures, day_from, day_to)
     if leagues:
         leghe = set(leagues)
@@ -625,6 +771,12 @@ def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
     for b in bersagli:
         per_istante.setdefault(b.utc - timedelta(seconds=1), []).append(b)
     note: List[str] = []
+    note.append(f"finestra richiesta {day_from.isoformat()} → {day_to.isoformat()}; "
+                f"primo istante onesto ricostruibile dal repo: {REPLAY_START_DAY.isoformat()} "
+                "(commit 48e7768, il primo con la stagione 2026/27 nei CSV live; "
+                "prima di allora in git c'e' un'altra stagione)")
+    if day_to < REPLAY_START_DAY:
+        note.append("ATTENZIONE: nessuna partita della finestra ricade dopo l'inizio ricostruibile")
     incerti = [b for b in bersagli if b.kickoff_source == "csv_date_midnight"]
     if incerti:
         note.append(f"{len(incerti)} partite con kickoff incerto (mezzanotte UTC del giorno CSV, piu' conservativo): "
@@ -637,19 +789,22 @@ def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
         note.append(f"{senza_md} fixture senza giornata: escluse dal pool da select_next_matchday_matches")
 
     clicks: List[ClickResult] = []
-    entries_legacy: List[Dict[str, Any]] = []
-    entries_current: List[Dict[str, Any]] = []
+    entries: Dict[str, List[Dict[str, Any]]] = {v: [] for v in VARIANTI}
+    non_scritte: Dict[str, List[Dict[str, Any]]] = {v: [] for v in VARIANTI}
     righe_click: List[Dict[str, Any]] = []
     for T in sorted(per_istante):
         tg = per_istante[T]
         log(f"[replay] T={T.strftime(ISO_Z)}  bersagli={', '.join(f'{b.home}-{b.away}' for b in tg)}")
         c = simulate_click(T, fixtures, targets=tg, leagues=leagues, ref=ref, repo_root=repo_root,
-                           snapshot_factory=snapshot_factory)
+                           snapshot_factory=snapshot_factory, snapshot_cache=snapshot_cache)
         clicks.append(c)
+        # Un click non scrivibile (leak O snapshot di un'altra stagione) non
+        # produce righe da registrare: resta nel referto con i suoi dettagli.
+        destinazioni = (entries, non_scritte) if c.scrivibile else (non_scritte, non_scritte)
         leg = entries_for_targets(c, MODEL_VARIANT_LEGACY)
         cur = entries_for_targets(c, MODEL_VARIANT_CURRENT)
-        entries_legacy.extend(leg)
-        entries_current.extend(cur)
+        for variante, righe in ((MODEL_VARIANT_LEGACY, leg), (MODEL_VARIANT_CURRENT, cur)):
+            destinazioni[0 if variante in modelli else 1][variante].extend(righe)
         righe_click.append({
             "instant": T.strftime(ISO_Z),
             "snapshot": {"sha": c.commit.sha, "short": c.commit.short,
@@ -659,38 +814,74 @@ def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
                           "risultato": f"{b.gh}-{b.ga}"} for b in tg],
             "pool": c.pool_sizes, "selezionate": c.selected, "leghe_senza_motore": c.missing,
             "sopra_soglia": {v: len(r) for v, r in c.rows.items()},
-            "righe_legacy_persistite": [f"{e['home']}-{e['away']} {e['mercato_standard']} {e['prob_sicuro']}% rank {e['rank']} {e['esito']}" for e in leg],
-            "righe_current_equivalenti": [f"{e['home']}-{e['away']} {e['mercato_standard']} {e['prob_sicuro']}% rank {e['rank']} {e['esito']}" for e in cur],
+            "leghe_senza_stagione": c.fuori_stagione,
+            "archivio_xg": c.archivio_xg,
+            "righe_current": [f"{e['home']}-{e['away']} {e['mercato_standard']} {e['prob_sicuro']}% rank {e['rank']} {e['esito']}" for e in cur],
+            "righe_legacy": [f"{e['home']}-{e['away']} {e['mercato_standard']} {e['prob_sicuro']}% rank {e['rank']} {e['esito']}" for e in leg],
             "leak": {"commit_before_instant": c.leak.commit_before_instant,
                      "targets_absent_from_live_csv": c.leak.targets_absent_from_live_csv,
                      "targets_absent_from_xg_archive": c.leak.targets_absent_from_xg_archive,
                      "xg_cutoff_is_instant": c.leak.xg_cutoff_is_instant,
+                     "snapshot_covers_season": c.leak.snapshot_covers_season,
                      "future_rows_dropped": c.leak.future_rows_dropped,
-                     "ok": c.leak.ok, "dettagli": c.leak.dettagli},
+                     "ok": c.leak.ok, "scrivibile": c.leak.scrivibile, "dettagli": c.leak.dettagli},
         })
+    # Due cose diverse, tenute separate nel referto:
+    # * ``leak_ok``: la regola ferrea (commit < T, bersaglio assente da CSV e
+    #   archivio xG, cutoff xG = T). Un False qui e' un problema VERO.
+    # * ``finestra_ok``: nessun click DENTRO la finestra dichiarata ha lo
+    #   snapshot di un'altra stagione. Prima dell'inizio ricostruibile i click
+    #   sono saltati per costruzione, non per errore.
     leak_ok = all(c.leak.ok for c in clicks)
+    fuori_finestra = [c for c in clicks if not c.leak.snapshot_covers_season
+                      and c.instant >= REPLAY_START_INSTANT]
+    finestra_ok = not fuori_finestra
+    n_fuori = sum(len(c.fuori_stagione) for c in clicks)
+    n_prima = sum(1 for c in clicks if c.instant < REPLAY_START_INSTANT)
+    if n_fuori:
+        note.append(f"{n_fuori} click-lega saltati perche' lo snapshot in git non e' della stagione in corso"
+                    + (f" (di cui {n_prima} click PRIMA dell'inizio ricostruibile {REPLAY_START_INSTANT.strftime(ISO_Z)}: "
+                       "esclusi per costruzione, non rigiocabili in modo onesto)" if n_prima else ""))
+    if fuori_finestra:
+        note.append(f"ATTENZIONE: {len(fuori_finestra)} click DENTRO la finestra dichiarata non sono ricostruibili")
+    senza_archivio = sum(1 for c in clicks if not all(c.archivio_xg.values()))
+    if senza_archivio:
+        note.append(f"{senza_archivio} click con snapshot PRIVO dell'archivio xG (in git arriva il 01/09): "
+                    "la testa O/U ha usato il fallback, esattamente come la produzione con quei dati")
+    n_scarti = sum(len(v) for v in non_scritte.values())
+    if n_scarti:
+        note.append(f"{n_scarti} righe calcolate ma NON destinate al Registro (modello non richiesto o click non scrivibile)")
     report = ReplayReport(
         generato_il=datetime.now(UTC).strftime(ISO_Z), finestra=(day_from.isoformat(), day_to.isoformat()),
-        sorgente_fixture=sorgente, ref=ref, clicks=righe_click, entries_legacy=entries_legacy,
-        entries_current_non_scritte=entries_current, leak_ok=leak_ok, note=note)
+        sorgente_fixture=sorgente, ref=ref, clicks=righe_click,
+        entries_legacy=entries[MODEL_VARIANT_LEGACY], entries_current=entries[MODEL_VARIANT_CURRENT],
+        entries_legacy_non_scritte=non_scritte[MODEL_VARIANT_LEGACY],
+        entries_current_non_scritte=non_scritte[MODEL_VARIANT_CURRENT],
+        modelli=modelli, leak_ok=leak_ok, finestra_ok=finestra_ok, note=note)
     return report, clicks
 
 
 def render_markdown(rep: ReplayReport) -> str:
+    etichette = MODEL_VARIANT_LABELS
+    modelli_txt = " + ".join(etichette.get(m, m) for m in rep.modelli)
     L: List[str] = []
-    L.append("# Replay walk-forward Top Mix legacy (no-leakage)\n")
+    L.append("# Replay walk-forward Top Mix, due modelli (no-leakage)\n")
     L.append(f"Generato: {rep.generato_il} · finestra {rep.finestra[0]} → {rep.finestra[1]} · "
-             f"fixture: `{rep.sorgente_fixture}` · ref snapshot: `{rep.ref}`\n")
-    L.append(f"**Leak check complessivo: {'OK' if rep.leak_ok else 'FALLITO'}** · "
-             f"click simulati: {len(rep.clicks)} · righe legacy candidate: {len(rep.entries_legacy)} · "
-             f"righe current equivalenti (NON scritte): {len(rep.entries_current_non_scritte)}\n")
+             f"fixture: `{rep.sorgente_fixture}` · ref snapshot: `{rep.ref}` · modelli scritti: **{modelli_txt}**\n")
+    n_scrivibili = sum(1 for c in rep.clicks if c["leak"].get("scrivibile"))
+    L.append(f"**Leak check complessivo: {'OK' if rep.leak_ok else 'FALLITO'}** "
+             f"· **finestra dichiarata ricostruibile: {'OK' if rep.finestra_ok else 'FALLITA'}** "
+             f"· click simulati: {len(rep.clicks)} (scrivibili: {n_scrivibili}) "
+             f"· righe destinate al Registro: "
+             f"{len(rep.entries_current)} {etichette.get(MODEL_VARIANT_CURRENT, '')} + "
+             f"{len(rep.entries_legacy)} {etichette.get(MODEL_VARIANT_LEGACY, '')}\n")
     if rep.registro:
         L.append(f"Registro: {json.dumps(rep.registro, ensure_ascii=False)}\n")
     for n in rep.note:
         L.append(f"- nota: {n}")
     L.append("\n## Click simulati\n")
-    L.append("| T (UTC) | snapshot | commit time | bersagli | pool | selez. | sopra soglia cur/leg | righe legacy persistite | leak |")
-    L.append("|---|---|---|---|---|---|---|---|---|")
+    L.append("| T (UTC) | snapshot | commit time | bersagli | pool | selez. | sopra soglia att/leg | righe attuale | righe legacy | leak |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|")
     for c in rep.clicks:
         s = c["snapshot"]; lk = c["leak"]
         bers = "<br>".join(f"{b['home']}-{b['away']} ({b['league']}, {b['risultato']})" for b in c["bersagli"])
@@ -698,15 +889,19 @@ def render_markdown(rep: ReplayReport) -> str:
         L.append(f"| {c['instant']} | `{s['short']}` | {s['committer_time']} | {bers} | "
                  f"{sum(c['pool'].values())} | {sum(c['selezionate'].values())} | "
                  f"{c['sopra_soglia'].get('current', 0)}/{c['sopra_soglia'].get('legacy', 0)} | "
-                 f"{'<br>'.join(c['righe_legacy_persistite']) or '—'} | "
-                 f"{'OK' if lk['ok'] else 'FAIL'}{' (+' + str(drop) + ' righe future scartate)' if drop else ''} |")
+                 f"{'<br>'.join(c['righe_current']) or '—'} | "
+                 f"{'<br>'.join(c['righe_legacy']) or '—'} | "
+                 f"{'OK' if lk['scrivibile'] else 'FAIL'}"
+                 f"{' (no stagione: ' + ', '.join(c['leghe_senza_stagione']) + ')' if c.get('leghe_senza_stagione') else ''}"
+                 f"{' (+' + str(drop) + ' righe future scartate)' if drop else ''} |")
     L.append("\n## Tabella leakage per click\n")
-    L.append("| T | commit < T | bersaglio assente dal CSV | bersaglio assente da xG | cutoff xG = T | righe future scartate | dettagli |")
-    L.append("|---|---|---|---|---|---|---|")
+    L.append("| T | commit < T | bersaglio assente dal CSV | bersaglio assente da xG | cutoff xG = T | snapshot della stagione | righe future scartate | dettagli |")
+    L.append("|---|---|---|---|---|---|---|---|")
     for c in rep.clicks:
         lk = c["leak"]
         L.append(f"| {c['instant']} | {lk['commit_before_instant']} | {lk['targets_absent_from_live_csv']} | "
                  f"{lk['targets_absent_from_xg_archive']} | {lk['xg_cutoff_is_instant']} | "
+                 f"{lk['snapshot_covers_season']} | "
                  f"{json.dumps(lk['future_rows_dropped']) if lk['future_rows_dropped'] else '—'} | "
                  f"{'; '.join(lk['dettagli']) or '—'} |")
     if rep.fedelta:
@@ -716,15 +911,22 @@ def render_markdown(rep: ReplayReport) -> str:
         for f in rep.fedelta:
             L.append(f"| {f['match']} ({f['league']}) | {f['registro_mercato']} {f['registro_prob']}% | "
                      f"{f['replay_mercato']} {f['replay_prob']}% | `{f['registro_snapshot']}` / `{f['replay_snapshot']}` | {f['coincide']} |")
-    L.append("\n## Righe legacy candidate\n")
-    if not rep.entries_legacy:
-        L.append("Nessuna: nessuna partita bersaglio sopra soglia con l'Elo legacy.")
-    else:
+    for variante, etichetta in ((MODEL_VARIANT_CURRENT, "modello attuale"),
+                                (MODEL_VARIANT_LEGACY, "modello legacy")):
+        righe = rep.entries_current if variante == MODEL_VARIANT_CURRENT else rep.entries_legacy
+        L.append(f"\n## Righe del {etichetta} ({etichette.get(variante, variante)}) destinate al Registro\n")
+        if not righe:
+            L.append("Nessuna: nessuna partita bersaglio sopra le soglie con questo modello.")
+            continue
         L.append("| data | lega | partita | mercato | prob | rank | esito | risultato | snapshot | salvato_il |")
         L.append("|---|---|---|---|---|---|---|---|---|---|")
-        for e in rep.entries_legacy:
+        for e in righe:
             L.append(f"| {e['data']} | {e['campionato']} | {e['home']}-{e['away']} | {e['mercato_standard']} | "
-                     f"{e['prob_sicuro']}% | {e['rank']} | {e['esito']} | {e['risultato_reale']} | `{e['data_snapshot_sha']}` | {e['salvato_il']} |")
+                     f"{e['prob_sicuro']}% | {e['rank']} | {e['esito']} | {e['risultato_reale']} | "
+                     f"`{e['data_snapshot_sha']}` | {e['salvato_il']} |")
+    if rep.coverage:
+        L.append("\n## Copertura per modello (stesso campione?)\n")
+        L.append("```\n" + render_coverage(rep.coverage) + "\n```")
     return "\n".join(L) + "\n"
 
 
@@ -734,75 +936,104 @@ def _parse_day(s: str) -> date:
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--from", dest="day_from", type=_parse_day, default=PR24_MERGE_DAY,
-                    help="primo giorno (UTC) delle partite da replicare, YYYY-MM-DD (default: merge PR#24)")
+    ap.add_argument("--from", dest="day_from", type=_parse_day, default=REPLAY_START_DAY,
+                    help="primo giorno (UTC) delle partite da replicare, YYYY-MM-DD "
+                         f"(default: {REPLAY_START_DAY.isoformat()}, primo istante ricostruibile dal repo)")
     ap.add_argument("--to", dest="day_to", type=_parse_day, default=datetime.now(UTC).date(),
                     help="ultimo giorno (UTC), YYYY-MM-DD (default: oggi)")
     ap.add_argument("--fixtures", choices=("api", "csv"), default="csv",
                     help="sorgente fixture: api = football-data.org (autorevole), csv = offline (validazione)")
+    ap.add_argument("--model", choices=("both", MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY), default="both",
+                    help="quali modelli rigiocare e scrivere: both (default) = attuale + legacy, "
+                         "stesso Poisson e stesse soglie, ognuno con la sua variante nel Registro")
     ap.add_argument("--leagues", nargs="*", default=None, help="sottoinsieme di leghe (nomi di LEAGUES_CONFIG)")
     ap.add_argument("--ref", default=None, help="ref git di main (default: origin/main, poi main)")
     ap.add_argument("--out", default=os.path.join(REPO_ROOT, "audit", "results", "replay_legacy_topmix"),
                     help="cartella per referto markdown + JSON")
     ap.add_argument("--write", action="store_true",
-                    help="scrive le righe legacy nel registro (richiede --fixtures api); default: dry-run")
+                    help="scrive le righe nel registro (richiede --fixtures api); default: dry-run")
     ap.add_argument("--dump-merged", default=None, metavar="FILE",
-                    help="scrive in FILE (formato predictions.json) registro caricato + righe legacy candidate, "
+                    help="scrive in FILE (formato predictions.json) registro caricato + righe candidate, "
                          "SENZA toccare il registro: serve alla verifica visiva su un'anteprima di branch")
+    ap.add_argument("--snapshot-cache", default=None, metavar="DIR",
+                    help="riusa le estrazioni gia' fatte (chi passa da questa cartella la tiene: usare una tmp "
+                         "usa-e-getta se non si vuole conservarla)")
     args = ap.parse_args(argv)
 
     if args.write and args.fixtures != "api":
         print("ERRORE: --write richiede --fixtures api (id partita e nomi identici al click live).", file=sys.stderr)
         return 2
-    if args.fixtures == "api":
-        from config import FOOTBALL_DATA_API_KEY
-        fixtures = fixtures_from_api(FOOTBALL_DATA_API_KEY, args.leagues)
-    else:
-        fixtures = fixtures_from_csv_and_archive(args.leagues)
-
-    report, clicks = run_replay(fixtures, args.day_from, args.day_to, sorgente=args.fixtures,
-                                ref=args.ref, leagues=args.leagues)
-
-    # Registro: confronto di fedelta' e fusione (dry-run o scrittura)
+    modelli = list(VARIANTI) if args.model == "both" else [args.model]
+    cache = args.snapshot_cache
+    cache_effimera = None
+    if not cache:
+        cache_effimera = tempfile.mkdtemp(prefix="sm_replay_snap_")
+        cache = cache_effimera
     try:
-        existing, fonte = strict_load_registry()
-    except Exception as e:  # senza registro (offline) si va avanti col solo referto
-        existing, fonte = [], f"non disponibile ({e})"
-    report.fedelta = compare_with_registry(existing, clicks) if existing else []
-    if not report.leak_ok:
-        report.registro = {"scritto": False, "motivo": "leak check fallito"}
-    elif args.fixtures == "api" or existing:
-        try:
-            report.registro = write_to_registry(report.entries_legacy, dry_run=not args.write)
-        except ReplayError as e:
-            report.registro = {"scritto": False, "errore": str(e)}
-    else:
-        report.registro = {"scritto": False, "motivo": f"dry-run offline, registro {fonte}"}
+        if args.fixtures == "api":
+            from config import FOOTBALL_DATA_API_KEY
+            fixtures = fixtures_from_api(FOOTBALL_DATA_API_KEY, args.leagues)
+        else:
+            fixtures = fixtures_from_csv_and_archive(args.leagues)
 
-    if args.dump_merged and report.leak_ok:
-        try:
-            merged, _ = merge_entries(existing, report.entries_legacy)
-            os.makedirs(os.path.dirname(os.path.abspath(args.dump_merged)), exist_ok=True)
-            with open(args.dump_merged, "w", encoding="utf-8") as f:
-                json.dump({"data": merged}, f, ensure_ascii=False, indent=2)
-            report.note.append(f"copia fusa (registro + candidate) scritta in {args.dump_merged}: {len(merged)} righe")
-        except ReplayError as e:
-            report.note.append(f"copia fusa NON scritta: {e}")
+        report, clicks = run_replay(fixtures, args.day_from, args.day_to, sorgente=args.fixtures,
+                                    ref=args.ref, leagues=args.leagues, models=modelli,
+                                    snapshot_cache=cache)
 
-    os.makedirs(args.out, exist_ok=True)
-    md = os.path.join(args.out, "replay_legacy_topmix.md")
-    js = os.path.join(args.out, "replay_legacy_topmix.json")
-    with open(md, "w", encoding="utf-8") as f:
-        f.write(render_markdown(report))
-    with open(js, "w", encoding="utf-8") as f:
-        json.dump(asdict(report), f, ensure_ascii=False, indent=2, default=str)
-    print(render_markdown(report))
-    print(f"[replay] referto: {md}\n[replay] json: {js}")
-    if not report.leak_ok:
-        return 1
-    if args.write and not report.registro.get("scritto") and report.registro.get("azioni", {}).get("aggiunta"):
-        return 1
-    return 0
+        # Registro: confronto di fedelta', copertura e fusione (dry-run o scrittura)
+        try:
+            existing, fonte = strict_load_registry()
+        except Exception as e:  # senza registro (offline) si va avanti col solo referto
+            existing, fonte = [], f"non disponibile ({e})"
+        report.fedelta = compare_with_registry(existing, clicks) if existing else []
+        da_scrivere = report.entries_da_scrivere()
+        # Copertura: si misura sul registro FUSO (righe esistenti + righe nuove),
+        # cosi' il numero risponde alla domanda "per ogni partita del periodo il
+        # Registro ha ENTRAMBI i modelli?" e non "quante ne scrive il replay?".
+        try:
+            fuso, _ = merge_entries(existing, da_scrivere) if existing else (da_scrivere, Counter())
+            report.coverage = coverage_by_variant(fuso, args.day_from, args.day_to)
+        except ReplayError as e:
+            report.coverage = {"errore": str(e)}
+        if not report.scrivibile:
+            report.registro = {"scritto": False,
+                               "motivo": ("leak check fallito" if not report.leak_ok
+                                          else "finestra dichiarata non ricostruibile: click senza la stagione nei dati")}
+        elif args.fixtures == "api" or existing:
+            try:
+                report.registro = write_to_registry(da_scrivere, dry_run=not args.write)
+            except ReplayError as e:
+                report.registro = {"scritto": False, "errore": str(e)}
+        else:
+            report.registro = {"scritto": False, "motivo": f"dry-run offline, registro {fonte}"}
+
+        if args.dump_merged and report.scrivibile:
+            try:
+                merged, _ = merge_entries(existing, da_scrivere)
+                os.makedirs(os.path.dirname(os.path.abspath(args.dump_merged)), exist_ok=True)
+                with open(args.dump_merged, "w", encoding="utf-8") as f:
+                    json.dump({"data": merged}, f, ensure_ascii=False, indent=2)
+                report.note.append(f"copia fusa (registro + candidate) scritta in {args.dump_merged}: {len(merged)} righe")
+            except ReplayError as e:
+                report.note.append(f"copia fusa NON scritta: {e}")
+
+        os.makedirs(args.out, exist_ok=True)
+        md = os.path.join(args.out, "replay_legacy_topmix.md")
+        js = os.path.join(args.out, "replay_legacy_topmix.json")
+        with open(md, "w", encoding="utf-8") as f:
+            f.write(render_markdown(report))
+        with open(js, "w", encoding="utf-8") as f:
+            json.dump(asdict(report), f, ensure_ascii=False, indent=2, default=str)
+        print(render_markdown(report))
+        print(f"[replay] referto: {md}\n[replay] json: {js}")
+        if not report.scrivibile:
+            return 1
+        if args.write and not report.registro.get("scritto") and report.registro.get("azioni", {}).get("aggiunta"):
+            return 1
+        return 0
+    finally:
+        if cache_effimera:
+            shutil.rmtree(cache_effimera, ignore_errors=True)
 
 
 if __name__ == "__main__":

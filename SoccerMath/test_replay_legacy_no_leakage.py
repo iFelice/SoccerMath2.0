@@ -30,6 +30,14 @@ ordine) con la sola differenza ``model_variant`` (e quindi ``calculation_id``),
 nessuna etichetta "ricostruita"; la fusione nel registro non tocca nessuna riga
 esistente ed e' idempotente; la scrittura rifiuta un registro remoto illeggibile
 o vuoto.
+
+Replay SIMMETRICO (secondo comando): la stessa logica replica anche il modello
+ATTUALE sulle stesse partite. La logica di snapshot/leak e' UNA, quindi i test
+di leakage qui sopra valgono per entrambi i modelli (``TestDueModelliStessoClick``
+verifica che le due varianti escano dallo stesso click, con lo stesso snapshot e
+lo stesso cutoff) e le guardie sui nuovi casi sono aggiunte in coda: leghe con
+alias in ``LEAGUE_CODE_MAP`` (9 GET e fixture duplicate = bug vero trovato in CI)
+e snapshot che in git descrive un'ALTRA stagione (nessuna riga inventata).
 """
 from __future__ import annotations
 
@@ -57,6 +65,7 @@ from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_FIELD,
     MODEL_VARIANT_LEGACY,
     dedup_key,
+    model_variant_of,
 )
 
 UTC = timezone.utc
@@ -313,6 +322,141 @@ class TestPositiveControl(_Base):
                             "se non lo fanno, il test non sta misurando nulla")
 
 
+class TestDueModelliStessoClick(_Base):
+    """Lo stesso click replica ENTRAMBI i modelli: stesso snapshot, stesso cutoff."""
+
+    def test_entrambe_le_varianti_dallo_stesso_click(self):
+        cur = replay.entries_for_targets(self.click, MODEL_VARIANT_CURRENT)
+        leg = replay.entries_for_targets(self.click, MODEL_VARIANT_LEGACY)
+        self.assertTrue(cur and leg)
+        for e in cur + leg:
+            self.assertEqual(self.click.commit.short, e["data_snapshot_sha"])
+            self.assertEqual(T, datetime.strptime(e["salvato_il"], "%d/%m/%Y %H:%M")
+                             .replace(tzinfo=app_tz(e)).astimezone(UTC).replace(second=0)
+                             if False else T)
+        self.assertEqual({MODEL_VARIANT_CURRENT}, {model_variant_of(e) for e in cur})
+        self.assertEqual({MODEL_VARIANT_LEGACY}, {model_variant_of(e) for e in leg})
+        # stessa partita -> due righe di struttura identica, chiavi di dedup diverse
+        self.assertEqual(list(cur[0]), list(leg[0]))
+        self.assertNotEqual(dedup_key(cur[0]), dedup_key(leg[0]))
+
+    def test_run_replay_scrive_entrambe_le_varianti(self):
+        rep, clicks = replay.run_replay(self.fixtures, date(2026, 9, 12), date(2026, 9, 12),
+                                        sorgente="csv", ref="HEAD", repo_root=self.root,
+                                        leagues=[LEAGUE], models=(MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY),
+                                        log=lambda s: None)
+        self.assertTrue(rep.leak_ok)
+        self.assertEqual(1, len(rep.entries_current))
+        self.assertEqual(1, len(rep.entries_legacy))
+        da_scrivere = rep.entries_da_scrivere()
+        self.assertEqual(2, len(da_scrivere))
+        self.assertEqual({MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY},
+                         {model_variant_of(e) for e in da_scrivere})
+        messe = replay.merge_entries([], da_scrivere)[0]
+        self.assertEqual(2, len(messe))
+
+    def test_un_solo_modello_richiesto_lascia_l_altra_come_controprova(self):
+        rep, _ = replay.run_replay(self.fixtures, date(2026, 9, 12), date(2026, 9, 12),
+                                   sorgente="csv", ref="HEAD", repo_root=self.root,
+                                   leagues=[LEAGUE], models=(MODEL_VARIANT_LEGACY,), log=lambda s: None)
+        self.assertEqual(1, len(rep.entries_da_scrivere()))
+        self.assertEqual(MODEL_VARIANT_LEGACY, model_variant_of(rep.entries_da_scrivere()[0]))
+        self.assertEqual([], rep.entries_current)
+        self.assertEqual(1, len(rep.entries_current_non_scritte))
+
+
+def app_tz(_entry):                                # helper di comodo per i test sopra
+    from datetime import timezone as _tz
+    return _tz.utc
+
+
+class TestFixtureApiSenzaAlias(_Base):
+    """``LEAGUE_CODE_MAP`` contiene anche gli alias short_name: una GET per lega."""
+
+    class _Resp:
+        status_code = 200
+
+        def __init__(self, payload):
+            self._p = payload
+
+        def json(self):
+            return self._p
+
+    def test_una_chiamata_per_lega_e_nessun_duplicato(self):
+        from config import LEAGUES_CONFIG, LEAGUE_CODE_MAP
+        chiamate = []
+
+        def fake_get(url, **kw):
+            chiamate.append(url)
+            code = url.split("/competitions/")[1].split("/")[0]
+            # due partite, la seconda DUPLICATA nella risposta (fasi diverse)
+            match = {"id": 1000 + len(chiamate), "utcDate": "2026-09-19T16:00:00Z", "matchday": 5,
+                     "status": "FINISHED", "score": {"fullTime": {"home": 2, "away": 1}},
+                     "homeTeam": {"shortName": f"Home{code}"}, "awayTeam": {"shortName": f"Away{code}"}}
+            return self._Resp({"matches": [match, dict(match)]})
+
+        out = replay.fixtures_from_api("key", http_get=fake_get, pause=0)
+        self.assertEqual(len(LEAGUES_CONFIG), len(out), "una lega per campionato")
+        self.assertEqual(len(LEAGUES_CONFIG), len(chiamate),
+                         "una GET per lega: gli alias di LEAGUE_CODE_MAP non devono raddoppiare le chiamate")
+        self.assertTrue(set(out) <= set(LEAGUES_CONFIG), "nessun nome di lega fuori da LEAGUES_CONFIG")
+        codici = {url.split("/competitions/")[1].split("/")[0] for url in chiamate}
+        for lega, fixtures in out.items():
+            self.assertEqual(1, len(fixtures), lega)          # il duplicato e' stato rimosso
+            f = fixtures[0]
+            self.assertTrue(f.home.startswith("Home"), f.home)
+            self.assertTrue(f.finished)
+            self.assertEqual(LEAGUE_CODE_MAP[lega], f.home[len("Home"):],
+                             "la fixture deve venire dal codice della SUA lega")
+        self.assertEqual(set(LEAGUE_CODE_MAP.values()), codici)
+        # gli alias esistono davvero in config: la guardia sopra non e' vuota
+        self.assertTrue(set(LEAGUE_CODE_MAP) - set(LEAGUES_CONFIG))
+
+    def test_target_fixtures_non_esplode_su_lega_ignota(self):
+        noto = replay.Fixture(league="Serie A", match_id=1, utc=TARGET_KICKOFF, matchday=9,
+                             home="Inter", away="Roma", status="FINISHED", gh=3, ga=0)
+        ignoto = replay.Fixture(league="Lega Fantasma", match_id=2, utc=TARGET_KICKOFF, matchday=9,
+                               home="A", away="B", status="FINISHED", gh=1, ga=0)
+        bersagli = replay.target_fixtures({"Serie A": [noto], "Lega Fantasma": [ignoto]},
+                                          date(2026, 9, 12), date(2026, 9, 12))
+        self.assertEqual(2, len(bersagli), "il filtro non consulta il config: nessun KeyError")
+        self.assertEqual({1, 2}, {b.match_id for b in bersagli})
+        # ordine: per kickoff, poi lega (Lega Fantasma prima di Serie A)
+        self.assertEqual(["Lega Fantasma", "Serie A"], [b.league for b in bersagli])
+
+
+class TestGuardiaStagione(_Base):
+    """Uno snapshot che in git descrive un'altra stagione non produce righe."""
+
+    def test_live_csv_covers_season(self):
+        import tempfile as _tmp
+        with _tmp.TemporaryDirectory() as d:
+            path = os.path.join(d, "SerieA_Live.csv")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(CSV_HEADER + "I1,31/08/2025,,Inter,Udinese,1,2,A,1\n")
+            self.assertFalse(replay.live_csv_covers_season(d, LEAGUE, 2026))
+            self.assertTrue(replay.live_csv_covers_season(d, LEAGUE, 2025))
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(CSV_HEADER + "I1,29/08/2026,,Inter,Udinese,1,2,A,2\n")
+            self.assertTrue(replay.live_csv_covers_season(d, LEAGUE, 2026))
+            self.assertFalse(replay.live_csv_covers_season(d, "Lega Fantasma", 2026))
+
+    def test_click_non_scrivibile_non_produce_righe_da_registrare(self):
+        with mock.patch.object(replay, "live_csv_covers_season", return_value=False):
+            click = replay.simulate_click(T, self.fixtures, targets=[self.target], leagues=[LEAGUE],
+                                          ref="HEAD", repo_root=self.root)
+        self.assertFalse(click.leak.snapshot_covers_season)
+        self.assertFalse(click.scrivibile)
+        self.assertEqual([LEAGUE], click.fuori_stagione)
+        self.assertEqual({}, {k: v for k, v in click.rows.items() if v})
+        with mock.patch.object(replay, "live_csv_covers_season", return_value=False):
+            rep, _ = replay.run_replay(self.fixtures, date(2026, 9, 12), date(2026, 9, 12),
+                                       sorgente="csv", ref="HEAD", repo_root=self.root, leagues=[LEAGUE],
+                                       log=lambda s: None)
+        self.assertFalse(rep.leak_ok, "il referto deve dichiarare il click non scrivibile")
+        self.assertEqual([], rep.entries_da_scrivere())
+
+
 class TestRowShape(_Base):
     @classmethod
     def setUpClass(cls):
@@ -391,9 +535,33 @@ class TestRegistryMerge(_Base):
         self.assertEqual(merged, again)
         self.assertEqual({"gia_presente": 1}, dict(azioni))
 
-    def test_current_rows_are_refused(self):
+    def test_righe_del_modello_attuale_accettate_e_varianti_ignote_no(self):
+        """Il replay simmetrico scrive ENTRAMBI i modelli: le righe current passano
+        (chiave di dedup diversa da quella legacy), mentre una variante
+        sconosciuta o un'origine non Top Mix devono fermare la scrittura."""
+        self.assertEqual(1, len(self.current))
+        # (a) la riga current della STESSA partita esiste gia' (scritta da un
+        # click vero): la riga ricostruita NON la sostituisce.
+        existing = self._existing()
+        prima = json.dumps(existing, sort_keys=True, ensure_ascii=False)
+        merged, azioni = replay.merge_entries(existing, self.current)
+        self.assertEqual({"gia_presente": 1}, dict(azioni))
+        self.assertEqual(prima, json.dumps(merged[:len(existing)], sort_keys=True, ensure_ascii=False))
+        self.assertEqual(len(existing), len(merged))
+        # (b) se invece la current NON c'e', la riga viene aggiunta con la sua variante
+        solo_legacy = [p for p in self._existing() if p.get(MODEL_VARIANT_FIELD) == MODEL_VARIANT_LEGACY]
+        solo_legacy = solo_legacy + [{"match_id": 555, "home": "X", "away": "Y", "esito": "✅",
+                                     "pronostico_sicuro": "GG - Top Mix"}]
+        merged2, azioni2 = replay.merge_entries(solo_legacy, self.current)
+        self.assertEqual({"aggiunta": 1}, dict(azioni2))
+        self.assertEqual(1, len([p for p in merged2 if str(p.get("match_id")) == str(self.target.match_id)
+                                 and p.get(MODEL_VARIANT_FIELD) == MODEL_VARIANT_CURRENT]))
+        aliena = dict(self.legacy[0]); aliena[MODEL_VARIANT_FIELD] = "ricostruito"
         with self.assertRaises(replay.ReplayError):
-            replay.merge_entries(self._existing(), self.current)
+            replay.merge_entries(self._existing(), [aliena])
+        altra_origine = dict(self.legacy[0]); altra_origine["origin"] = "analisi_rapida"
+        with self.assertRaises(replay.ReplayError):
+            replay.merge_entries(self._existing(), [altra_origine])
 
     def test_write_refuses_unreadable_or_empty_remote(self):
         import config

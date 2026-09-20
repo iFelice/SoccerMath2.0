@@ -12,8 +12,9 @@ C < T non puo' contenere il risultato di una partita iniziata dopo T.
 Questo modulo, senza checkout e senza toccare HEAD:
 
 * trova l'ultimo commit di ``main`` con committer date < T (``main_head_at``);
-* estrae ``SoccerMath/database`` di quel commit in una cartella temporanea
-  (``git archive``);
+* estrae la cartella dati di quel commit in una cartella temporanea
+  (``git archive``): ``SoccerMath/database`` nel layout attuale, ``database``
+  alla radice in quello storico (prima del riordino del 26/08/2026);
 * opzionalmente scarta dai CSV le righe datate DOPO il giorno di T (dati
   anomali "dal futuro", p.es. una partita con data 21/10 e risultato gia'
   presente il 19/09: non e' il risultato che si sta predicendo, ma la regola
@@ -28,6 +29,7 @@ motore legacy e il filtro delle righe future.
 from __future__ import annotations
 
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -115,11 +117,34 @@ def commit_info(sha_or_ref: str, repo_root: str = REPO_ROOT) -> CommitInfo:
     return _parse_commit_line(out, sha_or_ref)
 
 
+# Il percorso dei dati e' cambiato una volta: fino al 26/08/2026 (riordino in
+# ``SoccerMath/``) la cartella era ``database/`` alla RADICE del repo. Uno
+# snapshot va letto da dove stava allora, altrimenti l'estrazione e' vuota e il
+# motore non ha niente da leggere (e' il caso delle partite di agosto: vedi
+# ``replay_legacy_topmix.WINDOW_NOTES``).
+DATABASE_SUBDIRS = (DATABASE_SUBDIR, "database")
+
+
+def database_prefix_at(sha: str, repo_root: str = REPO_ROOT) -> str:
+    """Percorso della cartella dati NEL commit ``sha`` (layout nuovo o storico)."""
+    for pref in DATABASE_SUBDIRS:
+        proc = subprocess.run(["git", "-C", repo_root, "cat-file", "-e", f"{sha}:{pref}"],
+                              capture_output=True)
+        if proc.returncode == 0:
+            return pref
+    raise RuntimeError(f"commit {sha[:12]}: nessuna cartella dati fra {DATABASE_SUBDIRS}")
+
+
 def extract_database_at(sha: str, dest: str, repo_root: str = REPO_ROOT) -> str:
-    """``git archive`` di ``SoccerMath/database`` al commit ``sha`` dentro ``dest``."""
+    """``git archive`` della cartella dati al commit ``sha`` dentro ``dest``.
+
+    Ritorna il percorso della cartella estratta: ``dest/SoccerMath/database``
+    nel layout attuale, ``dest/database`` in quello storico.
+    """
     dest = os.path.abspath(dest)
     os.makedirs(dest, exist_ok=True)
-    proc = subprocess.run(["git", "-C", repo_root, "archive", "--format=tar", sha, DATABASE_SUBDIR],
+    pref = database_prefix_at(sha, repo_root)
+    proc = subprocess.run(["git", "-C", repo_root, "archive", "--format=tar", sha, pref],
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if proc.returncode != 0:
         raise RuntimeError(f"git archive {sha} fallito: {proc.stderr.decode(errors='replace')[:300]}")
@@ -128,9 +153,9 @@ def extract_database_at(sha: str, dest: str, repo_root: str = REPO_ROOT) -> str:
             tar.extractall(dest, filter="data")
         except TypeError:  # Python < 3.12 senza filtro
             tar.extractall(dest)
-    db = os.path.join(dest, *DATABASE_SUBDIR.split("/"))
+    db = os.path.join(dest, *pref.split("/"))
     if not os.path.isdir(db):
-        raise RuntimeError(f"{DATABASE_SUBDIR} assente nel commit {sha}")
+        raise RuntimeError(f"{pref} assente nel commit {sha}")
     return db
 
 
@@ -261,18 +286,38 @@ class database_at_instant:
     ref: Optional[str] = None
     repo_root: str = REPO_ROOT
     drop_future_rows: bool = True
+    cache_dir: Optional[str] = None      # riuso fra click che condividono commit + giorno
     commit: Optional[CommitInfo] = None
     db_dir: str = ""
     future_rows_dropped: Dict[str, int] = field(default_factory=dict)
     _tmp: str = ""
+    _cached: bool = False
     _snap: Optional[Dict[str, Any]] = None
 
     def __enter__(self) -> "database_at_instant":
         self.commit = main_head_at(self.instant, self.ref, self.repo_root)
-        self._tmp = tempfile.mkdtemp(prefix="sm_pit_db_")
-        self.db_dir = extract_database_at(self.commit.sha, self._tmp, self.repo_root)
-        if self.drop_future_rows:
-            self.future_rows_dropped = drop_future_dated_rows(self.db_dir, self.instant)
+        if self.cache_dir:
+            # Una giornata di partite condivide pochi commit: si estrae una
+            # volta sola. La chiave comprende il GIORNO del cutoff, perche' le
+            # righe post-datate scartate dipendono solo da quello.
+            giorno = self.instant.astimezone(timezone.utc).date().isoformat()
+            self._tmp = os.path.join(self.cache_dir, f"{self.commit.sha[:12]}-{giorno}")
+            self._cached = os.path.isfile(os.path.join(self._tmp, _MARKER))
+        else:
+            self._tmp = tempfile.mkdtemp(prefix="sm_pit_db_")
+        if self._cached:
+            with open(os.path.join(self._tmp, _MARKER), encoding="utf-8") as f:
+                meta = json.load(f)
+            self.db_dir = os.path.join(self._tmp, meta["db_dir"])
+            self.future_rows_dropped = {k: int(v) for k, v in (meta.get("dropped") or {}).items()}
+        else:
+            self.db_dir = extract_database_at(self.commit.sha, self._tmp, self.repo_root)
+            if self.drop_future_rows:
+                self.future_rows_dropped = drop_future_dated_rows(self.db_dir, self.instant)
+            if self.cache_dir:
+                with open(os.path.join(self._tmp, _MARKER), "w", encoding="utf-8") as f:
+                    json.dump({"db_dir": os.path.relpath(self.db_dir, self._tmp),
+                               "dropped": self.future_rows_dropped}, f)
         self._snap = _snapshot_paths()
         _redirect(self.db_dir)
         clear_engine_caches()
@@ -282,6 +327,9 @@ class database_at_instant:
         if self._snap is not None:
             _restore(self._snap)
         clear_engine_caches()
-        if self._tmp:
+        if self._tmp and not self.cache_dir:
             shutil.rmtree(self._tmp, ignore_errors=True)
         return None
+
+
+_MARKER = ".snapshot_meta.json"
