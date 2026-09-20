@@ -196,6 +196,17 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     tree = ast.parse(raw_src, filename=path)
     module_src_raw = ast.unparse(tree)
     save_entry = _fn(tree, "save_prediction_entry")
+    # Dal Top Mix a due motori la FORMA del record vive in
+    # build_prediction_entry (pura, condivisa col replay legacy) e
+    # save_prediction_entry la chiama: il percorso di salvataggio da ispezionare
+    # e' l'unione dei due, altrimenti i campi risulterebbero "assenti" solo
+    # perche' spostati di una funzione.
+    build_entry = _fn(tree, "build_prediction_entry")
+    save_nodes = [n for n in (save_entry, build_entry) if n is not None]
+    if save_entry is not None and (build_entry is None
+                                   or not _calls_function(save_entry, "build_prediction_entry")):
+        save_nodes = [save_entry]
+    save_path_src = chr(10).join(ast.unparse(n) for n in save_nodes)
     save_preds = _fn(tree, "save_predictions")
     load_preds = _fn(tree, "load_predictions")
     top_mix = _fn(tree, "fetch_and_calc_top_mix")
@@ -231,7 +242,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         "passa_origine": False,
     }
     if save_entry is not None:
-        src = ast.unparse(save_entry)
+        src = save_path_src
         dedup["source"] = src
         if "match_id" in src and "return" in src:
             # if any(p.get("match_id") == match_id for p in preds): return
@@ -256,15 +267,15 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     # --- tipo: Top Mix vs Analisi (Billy non ha un tipo proprio) ---
     tipo = {
         "field": "tipo",
-        "top_mix_marker": "Top Mix" in (ast.unparse(save_entry) if save_entry else ""),
+        "top_mix_marker": "Top Mix" in (save_path_src if save_entry else ""),
         "billy_tipo_esplicito": False,
         "fallback_label": "Analisi",
         "rule": None,
     }
-    src_save = ast.unparse(save_entry) if save_entry is not None else ""
+    src_save = save_path_src if save_entry is not None else ""
     module_blob = ast.unparse(tree)
     if save_entry is not None:
-        for node in ast.walk(save_entry):
+        for node in (n for fn in save_nodes for n in ast.walk(fn)):
             if isinstance(node, ast.IfExp):
                 text = ast.unparse(node)
                 if "Top Mix" in text and "Analisi" in text:
@@ -280,7 +291,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     # --- metadata nuove predizioni ---
     facts["new_entry_fields_in_save"] = []
     if save_entry is not None:
-        src = ast.unparse(save_entry)
+        src = save_path_src
         for field in (
             "match_id", "home", "away", "campionato", "giornata", "data",
             "pronostico_sicuro", "mercato_standard", "top3", "prob_sicuro",

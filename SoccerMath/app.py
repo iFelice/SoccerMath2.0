@@ -80,7 +80,15 @@ from prediction_registry import (
     gate_shadow_fields_from_row,
     gate_off_confidence,
     gate_off_fields_from_row,
+    # --- Top Mix a due motori: variante del modello (attuale / legacy) ---
+    MODEL_VARIANT_FIELD,
+    MODEL_VARIANT_CURRENT,
+    MODEL_VARIANT_LEGACY,
+    MODEL_VARIANT_LABELS,
+    model_variant_of,
+    model_variant_label,
 )
+from models.legacy_elo import predict_elo_probs_legacy
 
 API_KEY_ODDS = ODDS_API_KEY
 API_KEY_DATA = FOOTBALL_DATA_API_KEY
@@ -357,56 +365,43 @@ def standardizza_mercato(testo, home=None, away=None):
     
     return "ALTRO"
 
-def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
-                          mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
-                          prob_poisson=None, prob_elo=None, elo_disponibile=None,
-                          snapshot_sha=None,
-                          gate_shadow_confidence=None, gate_shadow_ammessa=None,
-                          gate_off_confidence=None, gate_off_ammessa=None):
-    """Scrive UNA previsione nel registro e dice cosa ha fatto.
+def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
+                           mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
+                           prob_poisson=None, prob_elo=None, elo_disponibile=None,
+                           snapshot_sha=None,
+                           gate_shadow_confidence=None, gate_shadow_ammessa=None,
+                           gate_off_confidence=None, gate_off_ammessa=None,
+                           model_variant=MODEL_VARIANT_CURRENT, salvato_il=None):
+    """Costruisce il record del registro (nessun I/O): la forma della riga vive QUI.
 
-    Due modifiche puntuali, entrambe richieste da
-    ``audit/margini_migliorabili_topmix.md`` §7 (problemi ``dedup_match_id``,
-    ``origin_collapsed``, ``schema_gaps``):
-
-    - la chiave di unicita' non e' piu' il solo ``match_id`` ma
-      ``(match_id, origin, selector_version)``: se Analisi Rapida o Billy hanno
-      salvato per primi, la riga Top Mix NON sparisce piu', e un ricalcolo
-      aggiorna la propria previsione finche' non e' stata giudicata;
-    - ``tipo`` non e' piu' derivato dal testo libero del pronostico: l'origine
-      la passa il chiamante (``origin=ORIGIN_TOP_MIX`` ecc.) e il testo resta
-      solo il fallback per i record legacy.
-
-    ``prob_poisson``/``prob_elo``/``elo_disponibile`` salvano le DUE componenti
-    della confidence: senza di esse il numero del registro non e' riconducibile
-    a nessun vincolo del selettore (e il fallback Elo silenzioso resta
-    invisibile). ``gate_shadow_confidence``/``gate_shadow_ammessa`` sono i campi
-    della modalita' ombra del veto (referto §11quater): OPZIONALI, aggiunti al
-    record SOLO quando ``gate_shadow_confidence`` non e' ``None``, senza
-    toccare nessun campo gia' salvato. ``gate_off_confidence``/
-    ``gate_off_ammessa`` sono il SECONDO segnale ombra (referto §11quinquies:
-    gate assente, nessuno sconto), stesso pattern, indipendente dal primo.
-    Ritorna ``{"azione", "remoto", "record"}``.
+    E' la stessa funzione per il salvataggio live (``save_prediction_entry``)
+    e per il replay walk-forward del modello legacy
+    (``replay_legacy_topmix.py``): una riga ricostruita ha quindi ESATTAMENTE
+    le chiavi di una riga normale, e l'unico campo che distingue i due motori
+    e' ``model_variant`` (``current`` / ``legacy``). ``salvato_il`` e' l'ora di
+    scrittura (default: adesso, ora italiana); il replay la passa esplicita.
     """
-    preds = load_predictions()
     stagione_reale = calcola_stagione_calcolo(match_date)
     metadata = new_prediction_metadata()
     mercato_code = mercato_standard if mercato_standard else standardizza_mercato(pronostico, h, a)
     orig = resolve_origin(origin, pronostico)
     sha = snapshot_sha if snapshot_sha is not None else snapshot_fingerprint(DATABASE_DIR)
+    variante = str(model_variant or MODEL_VARIANT_CURRENT).strip().lower()
     entry = {
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
         "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": mercato_code,
         "top3": top3, "prob_sicuro": prob, "risultati_attesi": ris_attesi,
         "risultato_reale": None, "esito": "⏳", "tipo": tipo_for_origin(orig),
-        "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
+        "stagione": stagione_reale,
+        "salvato_il": salvato_il or datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
         "origin": orig,
         "selector_version": SELECTOR_VERSION_CURRENT,
+        MODEL_VARIANT_FIELD: variante,
         "rank": rank,
         "kickoff_utc": kickoff_utc or "",
         "data_snapshot_sha": sha or "",
         "calculation_id": build_calculation_id(match_id, orig, SELECTOR_VERSION_CURRENT,
-                                               kickoff_utc, sha, rank),
+                                               kickoff_utc, sha, rank, model_variant=variante),
         "poisson": prob_poisson,
         "elo": prob_elo,
         "elo_disponibile": elo_disponibile if elo_disponibile is not None else (prob_elo is not None),
@@ -424,6 +419,54 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     if gate_off_confidence is not None:
         entry[GATE_OFF_CONFIDENCE_FIELD] = gate_off_confidence
         entry[GATE_OFF_AMMESSA_FIELD] = bool(gate_off_ammessa)
+    return entry
+
+
+def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
+                          mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
+                          prob_poisson=None, prob_elo=None, elo_disponibile=None,
+                          snapshot_sha=None,
+                          gate_shadow_confidence=None, gate_shadow_ammessa=None,
+                          gate_off_confidence=None, gate_off_ammessa=None,
+                          model_variant=MODEL_VARIANT_CURRENT):
+    """Scrive UNA previsione nel registro e dice cosa ha fatto.
+
+    Due modifiche puntuali, entrambe richieste da
+    ``audit/margini_migliorabili_topmix.md`` §7 (problemi ``dedup_match_id``,
+    ``origin_collapsed``, ``schema_gaps``):
+
+    - la chiave di unicita' non e' piu' il solo ``match_id`` ma
+      ``(match_id, origin, selector_version, model_variant)``: se Analisi
+      Rapida o Billy hanno salvato per primi, la riga Top Mix NON sparisce
+      piu', e un ricalcolo aggiorna la propria previsione finche' non e' stata
+      giudicata; la riga legacy di una partita non tocca mai quella current;
+    - ``tipo`` non e' piu' derivato dal testo libero del pronostico: l'origine
+      la passa il chiamante (``origin=ORIGIN_TOP_MIX`` ecc.) e il testo resta
+      solo il fallback per i record legacy.
+
+    ``prob_poisson``/``prob_elo``/``elo_disponibile`` salvano le DUE componenti
+    della confidence: senza di esse il numero del registro non e' riconducibile
+    a nessun vincolo del selettore (e il fallback Elo silenzioso resta
+    invisibile). ``gate_shadow_confidence``/``gate_shadow_ammessa`` sono i campi
+    della modalita' ombra del veto (referto §11quater): OPZIONALI, aggiunti al
+    record SOLO quando ``gate_shadow_confidence`` non e' ``None``, senza
+    toccare nessun campo gia' salvato. ``gate_off_confidence``/
+    ``gate_off_ammessa`` sono il SECONDO segnale ombra (referto §11quinquies:
+    gate assente, nessuno sconto), stesso pattern, indipendente dal primo.
+    ``model_variant`` dice con quale motore Elo e' stata calcolata la riga
+    (``current`` default, ``legacy`` per la seconda tabella del Top Mix).
+    La forma del record e' costruita da ``build_prediction_entry``.
+    Ritorna ``{"azione", "remoto", "record"}``.
+    """
+    preds = load_predictions()
+    entry = build_prediction_entry(
+        match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
+        mercato_standard=mercato_standard, origin=origin, rank=rank, kickoff_utc=kickoff_utc,
+        prob_poisson=prob_poisson, prob_elo=prob_elo, elo_disponibile=elo_disponibile,
+        snapshot_sha=snapshot_sha,
+        gate_shadow_confidence=gate_shadow_confidence, gate_shadow_ammessa=gate_shadow_ammessa,
+        gate_off_confidence=gate_off_confidence, gate_off_ammessa=gate_off_ammessa,
+        model_variant=model_variant)
     preds, azione = upsert_prediction_entry(preds, entry)
     if azione == "gia_graduata":
         # La previsione e' gia' stata giudicata: NON si tocca, e il record nuovo

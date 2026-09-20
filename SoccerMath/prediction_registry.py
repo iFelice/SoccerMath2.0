@@ -144,6 +144,34 @@ SELECTOR_VERSION_FIELD = "selector_version"
 SELECTOR_VERSION_CURRENT = "topmix_gate025_ens06_v1"
 
 # ---------------------------------------------------------------------------
+# Variante del MODELLO: Top Mix a due motori (attuale / legacy)
+# ---------------------------------------------------------------------------
+# Dal Top Mix a due tabelle ogni riga dice con QUALE motore Elo e' stata
+# calcolata: ``current`` = ``models/elo_engine.py`` (post PR#24, senza boost
+# xG), ``legacy`` = ``models/elo_engine_legacy.py`` (il blob pre-PR#24, byte
+# per byte; vedi ``models/legacy_elo.py``). Poisson, selettore e soglie sono
+# gli stessi: cambia solo la componente Elo della confidence 1X2 e del veto.
+#
+# Compatibilita' con i record esistenti: il campo MANCA in tutto quello che e'
+# stato scritto prima, e l'assenza vale ``current`` (era l'unico modello in
+# produzione). Per questo:
+#   - ``model_variant_of`` ritorna ``current`` quando il campo manca;
+#   - ``dedup_key`` include la variante, cosi' una riga legacy della stessa
+#     partita NON collide con la riga current gia' scritta (mai sovrascritta);
+#   - ``build_calculation_id`` aggiunge la variante SOLO quando non e'
+#     ``current``: gli id gia' calcolati restano identici.
+# Non va confuso con ``model_version`` (post_shrinkage_v1 / pre_shrinkage /
+# legacy), che descrive l'era del motore Poisson e NON cambia qui.
+MODEL_VARIANT_FIELD = "model_variant"
+MODEL_VARIANT_CURRENT = "current"
+MODEL_VARIANT_LEGACY = "legacy"
+MODEL_VARIANTS = (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY)
+MODEL_VARIANT_LABELS = {
+    MODEL_VARIANT_CURRENT: "Attuale",
+    MODEL_VARIANT_LEGACY: "Legacy",
+}
+
+# ---------------------------------------------------------------------------
 # Gate shadow (audit/margini_migliorabili_topmix.md §11quater, piano §9 punto 4)
 # ---------------------------------------------------------------------------
 # Modalita' OMBRA del veto di disaccordo ``abs(poisson - elo) < 0.25``: il gate
@@ -790,7 +818,28 @@ def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def stats_current_model(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    return compute_stats([e for e in entries if is_current_model(e) and not is_excluded_from_stats(e)])
+    """Metriche del MODELLO ATTUALE: ``model_version`` corrente, non escluse e
+    variante ``current`` (il campo assente vale ``current``). Le righe della
+    variante legacy hanno lo stesso ``model_version`` ma un altro motore Elo:
+    contarle qui mescolerebbe i due modelli che il Top Mix vuole confrontare.
+    Vedi ``stats_legacy_variant`` per il blocco gemello."""
+    return compute_stats([e for e in entries if is_current_model(e) and not is_excluded_from_stats(e)
+                          and not is_legacy_variant(e)])
+
+
+def stats_legacy_variant(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """Metriche del MODELLO LEGACY (Elo pre-PR#24): stessi filtri del blocco
+    attuale, ma solo righe con ``model_variant == legacy``."""
+    return compute_stats([e for e in entries if is_current_model(e) and not is_excluded_from_stats(e)
+                          and is_legacy_variant(e)])
+
+
+def split_by_variant(entries: Iterable[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Partiziona i record per variante (``current`` / ``legacy`` / altro)."""
+    out: Dict[str, List[Dict[str, Any]]] = {}
+    for e in entries:
+        out.setdefault(model_variant_of(e), []).append(e)
+    return out
 
 
 def stats_historical(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
@@ -869,19 +918,46 @@ def selector_version_of(entry: Any) -> str:
     return str(entry.get(SELECTOR_VERSION_FIELD) or "")
 
 
-def dedup_key(entry: Any) -> Tuple[Any, str, str]:
+def model_variant_of(entry: Any) -> str:
+    """Variante del modello di una riga; il campo assente vale ``current``.
+
+    Tutti i record scritti prima del Top Mix a due motori non hanno il campo:
+    erano calcolati con l'unico modello allora in produzione, che oggi si
+    chiama ``current``. Un valore sconosciuto viene riportato com'e' (in
+    minuscolo), cosi' non si confonde con nessuna delle due varianti note.
+    """
+    if not is_dict(entry):
+        return MODEL_VARIANT_CURRENT
+    v = str(entry.get(MODEL_VARIANT_FIELD) or "").strip().lower()
+    return v or MODEL_VARIANT_CURRENT
+
+
+def is_legacy_variant(entry: Any) -> bool:
+    return model_variant_of(entry) == MODEL_VARIANT_LEGACY
+
+
+def model_variant_label(entry: Any) -> str:
+    v = model_variant_of(entry)
+    return MODEL_VARIANT_LABELS.get(v, v)
+
+
+def dedup_key(entry: Any) -> Tuple[Any, str, str, str]:
     """Chiave di unicita' di una previsione.
 
     Non piu' il solo ``match_id``: la stessa partita puo' legittimamente avere
-    UNA riga per origine (Top Mix, Analisi Rapida, Billy) e una riga per versione
-    del selettore. Il dedup per solo match_id faceva perdere la riga Top Mix
-    quando Analisi Rapida aveva salvato per prima (problema ``dedup_match_id``,
-    blocking, in results/topmix_registry_tracking.json).
+    UNA riga per origine (Top Mix, Analisi Rapida, Billy), una riga per versione
+    del selettore e una riga per variante del modello (attuale / legacy). Il
+    dedup per solo match_id faceva perdere la riga Top Mix quando Analisi
+    Rapida aveva salvato per prima (problema ``dedup_match_id``, blocking, in
+    results/topmix_registry_tracking.json). La variante entra nella chiave
+    perche' la riga legacy di una partita NON deve mai sostituire la riga
+    current gia' scritta: il campo assente vale ``current`` (record storici).
     """
     if not is_dict(entry):
-        return (None, ORIGIN_UNKNOWN, "")
+        return (None, ORIGIN_UNKNOWN, "", MODEL_VARIANT_CURRENT)
     mid = entry.get("match_id")
-    return (None if mid is None else str(mid), origin_of(entry), selector_version_of(entry))
+    return (None if mid is None else str(mid), origin_of(entry), selector_version_of(entry),
+            model_variant_of(entry))
 
 
 def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
@@ -925,10 +1001,18 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
 # ---------------------------------------------------------------------------
 def build_calculation_id(match_id: Any, origin: Any, selector_version: Any,
                          kickoff_utc: Any = None, snapshot_sha: Any = None,
-                         rank: Any = None) -> str:
-    """Id deterministico di una scrittura: stesso input -> stesso id."""
+                         rank: Any = None, model_variant: Any = None) -> str:
+    """Id deterministico di una scrittura: stesso input -> stesso id.
+
+    ``model_variant`` entra nell'hash SOLO se non e' ``current`` (o assente):
+    gli id delle righe gia' scritte, tutte del modello attuale, non cambiano, e
+    una riga legacy della stessa partita/rank/snapshot ha un id diverso.
+    """
     parti = [str(match_id), str(origin or ""), str(selector_version or ""),
              str(kickoff_utc or ""), str(snapshot_sha or ""), str(rank if rank is not None else "")]
+    variante = str(model_variant or "").strip().lower()
+    if variante and variante != MODEL_VARIANT_CURRENT:
+        parti.append(variante)
     return hashlib.sha1("|".join(parti).encode("utf-8")).hexdigest()[:16]
 
 
