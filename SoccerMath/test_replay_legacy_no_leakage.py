@@ -709,3 +709,54 @@ class TestFedeltaPerVariante(_Base):
         reale["prob_sicuro"] = float(reale.get("prob_sicuro") or 0) + 1.0
         fed = replay.compare_with_registry([reale], [self.click])
         self.assertFalse(fed[0]["coincide"])
+
+
+class TestFetchConRitentativi(unittest.TestCase):
+    """football-data.org risponde 429 sui run ravvicinati: il fetch deve
+    ritentare, non far fallire il replay con un errore di rete."""
+
+    class _Resp:
+        def __init__(self, status, payload=None, headers=None):
+            self.status_code = status
+            self._payload = payload or {"matches": []}
+            self.headers = headers or {}
+
+        def json(self):
+            return self._payload
+
+    def _getter(self, sequenza):
+        chiamate = []
+
+        def g(url, headers=None, timeout=None):
+            chiamate.append(url)
+            return sequenza[min(len(chiamate) - 1, len(sequenza) - 1)]
+        return g, chiamate
+
+    def test_ritenta_su_429_e_poi_riesce(self):
+        getter, chiamate = self._getter([self._Resp(429), self._Resp(200)])
+        attese = []
+        out = replay.fixtures_from_api("k", ["Serie A"], http_get=getter, pause=0.01,
+                                       dormi=attese.append)
+        self.assertIn("Serie A", out)
+        self.assertEqual(2, len(chiamate))
+        self.assertTrue(attese, "una 429 deve far attendere, non riprovare subito")
+
+    def test_rispetta_retry_after(self):
+        getter, _ = self._getter([self._Resp(429, headers={"Retry-After": "30"}), self._Resp(200)])
+        attese = []
+        replay.fixtures_from_api("k", ["Serie A"], http_get=getter, pause=0.01, dormi=attese.append)
+        self.assertEqual([30.0], attese)
+
+    def test_non_ritenta_su_errore_definitivo(self):
+        getter, chiamate = self._getter([self._Resp(403)])
+        with self.assertRaises(replay.ReplayError):
+            replay.fixtures_from_api("k", ["Serie A"], http_get=getter, pause=0.01,
+                                     dormi=lambda s: None)
+        self.assertEqual(1, len(chiamate), "403 non e' transitorio: un solo tentativo")
+
+    def test_si_ferma_dopo_i_tentativi(self):
+        getter, chiamate = self._getter([self._Resp(429)])
+        with self.assertRaises(replay.ReplayError):
+            replay.fixtures_from_api("k", ["Serie A"], http_get=getter, pause=0.01, tentativi=3,
+                                     dormi=lambda s: None)
+        self.assertEqual(3, len(chiamate))

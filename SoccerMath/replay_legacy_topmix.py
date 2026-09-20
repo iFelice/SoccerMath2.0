@@ -193,9 +193,43 @@ def _dedup_fixtures(fixtures: List[Fixture]) -> List[Fixture]:
     return sorted(viste.values(), key=lambda f: f.utc)
 
 
+def _get_con_ritentativi(getter: Callable[..., Any], url: str, *, headers: Dict[str, str],
+                         timeout: int, tentativi: int, pausa: float,
+                         dormi: Callable[[float], None] = time.sleep) -> Any:
+    """GET con ritentativi sui soli errori transitori (429 rate-limit, 5xx).
+
+    Il piano free di football-data.org risponde 429 appena si susseguono piu'
+    run ravvicinati: senza ritentativo la CI falliva con "HTTP 429" e nessun
+    referto, cioe' un guasto di rete travestito da errore del replay. Si
+    rispetta ``Retry-After`` se c'e', altrimenti si allunga l'attesa.
+    """
+    ultima = None
+    for n in range(max(1, tentativi)):
+        ultima = getter(url, headers=headers, timeout=timeout)
+        if getattr(ultima, "status_code", None) not in (429, 500, 502, 503, 504):
+            return ultima
+        if n + 1 >= max(1, tentativi):
+            return ultima
+        attesa = pausa * (n + 1)
+        dopo = None
+        try:
+            dopo = (getattr(ultima, "headers", {}) or {}).get("Retry-After")
+        except Exception:                                     # pragma: no cover - headers strani
+            dopo = None
+        try:
+            if dopo:
+                attesa = max(attesa, float(dopo))
+        except (TypeError, ValueError):
+            pass
+        dormi(attesa)
+    return ultima
+
+
 def fixtures_from_api(api_key: str, leagues: Optional[Iterable[str]] = None, *,
                       http_get: Optional[Callable[..., Any]] = None,
-                      pause: float = API_PAUSE_SECONDS) -> Dict[str, List[Fixture]]:
+                      pause: float = API_PAUSE_SECONDS,
+                      tentativi: int = 4, dormi: Callable[[float], None] = time.sleep,
+                      ) -> Dict[str, List[Fixture]]:
     """Tutte le partite di stagione per lega da football-data.org (1 GET per lega).
 
     Le leghe sono quelle di ``LEAGUES_CONFIG`` e NON le chiavi di
@@ -215,8 +249,10 @@ def fixtures_from_api(api_key: str, leagues: Optional[Iterable[str]] = None, *,
     for i, league in enumerate(leghe):
         if i:
             time.sleep(pause)
-        r = getter(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches",
-                   headers={"X-Auth-Token": api_key}, timeout=30)
+        r = _get_con_ritentativi(
+            getter, f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches",
+            headers={"X-Auth-Token": api_key}, timeout=30,
+            tentativi=tentativi, pausa=max(API_PAUSE_SECONDS, pause), dormi=dormi)
         if r.status_code != 200:
             raise ReplayError(f"football-data.org {league}: HTTP {r.status_code}")
         fx: List[Fixture] = []
