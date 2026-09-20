@@ -624,6 +624,16 @@ class TestEsitoScrittura(unittest.TestCase):
         self.assertFalse(replay.scrittura_fallita(
             {"scritto": False, "azioni": {"aggiunta": 0, "gia_presente": 9}}))
 
+    def test_azioni_senza_la_chiave_aggiunta_non_e_errore(self):
+        """Il caso vero, misurato in CI il 2026-09-21: rilanciando il replay a
+        Registro completo le azioni sono ``{"gia_presente": 112}`` — la chiave
+        ``aggiunta`` non esiste affatto (le azioni sono un Counter) e il comando
+        usciva 1 pur non avendo nulla da scrivere."""
+        self.assertFalse(replay.scrittura_fallita(
+            {"scritto": False, "azioni": {"gia_presente": 112}}))
+        self.assertTrue(replay.scrittura_fallita({"scritto": False}),
+                        "senza alcuna azione la fusione non e' avvenuta: e' un errore")
+
     def test_righe_volute_e_non_scritte_e_errore(self):
         self.assertTrue(replay.scrittura_fallita({"scritto": False, "azioni": {"aggiunta": 3}}))
 

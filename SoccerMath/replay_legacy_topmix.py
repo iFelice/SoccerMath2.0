@@ -707,7 +707,16 @@ def scrittura_fallita(esito: Dict[str, Any]) -> bool:
     """
     if esito.get("scritto"):
         return False
-    return esito.get("azioni", {}).get("aggiunta") != 0
+    # Distinzione che conta: se la fusione NON e' avvenuta (registro remoto
+    # vuoto, errore, leak check fallito) l'esito non ha affatto la chiave
+    # ``azioni`` -> errore. Se invece la fusione e' avvenuta e non c'era nulla da
+    # aggiungere, la chiave ``aggiunta`` puo' mancare (le azioni sono un Counter:
+    # una chiave mai toccata non esiste) e quello NON e' un errore. Con
+    # ``None != 0`` un replay rilanciato a Registro gia' completo usciva 1.
+    azioni = esito.get("azioni")
+    if azioni is None:
+        return True
+    return bool(azioni.get("aggiunta") or 0)
 
 
 def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) -> Dict[str, Any]:
