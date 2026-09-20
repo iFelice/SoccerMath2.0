@@ -1,0 +1,127 @@
+name: Replay Top Mix legacy (walk-forward, no-leakage)
+
+# Rifa' il click "Calcola Top Mix" col motore Elo legacy (pre-PR#24) per ogni
+# partita conclusa nella finestra, UN SECONDO PRIMA del suo kickoff, con il
+# database estratto da git com'era a quell'istante (SoccerMath/db_snapshot.py).
+# Default: dry-run (referto + JSON delle righe candidate come artifact, nessuna
+# scrittura). Con mode=write le righe legacy vengono AGGIUNTE al registro
+# (JSONBin) con model_variant="legacy": mai una riga esistente modificata,
+# caricamento remoto stretto (GET 200 obbligatorio), PUT verificato.
+# Nessun commit, nessun push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run (solo referto) oppure write (aggiunge le righe legacy al registro)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - write
+      day_from:
+        description: "primo giorno UTC (YYYY-MM-DD); default = merge PR#24 (2026-09-18)"
+        required: false
+        default: "2026-09-18"
+      day_to:
+        description: "ultimo giorno UTC (YYYY-MM-DD); vuoto = oggi"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: replay-legacy-topmix
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+      REPLAY_OUT: ${{ github.workspace }}/replay-out
+
+    steps:
+      - name: "Checkout (storia completa: gli snapshot vengono da git)"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        run: |
+          if [ -z "${{ secrets.FOOTBALL_DATA_API_KEY }}" ]; then
+            echo "::error::FOOTBALL_DATA_API_KEY mancante: le fixture (id, orari, shortName) vengono da football-data.org."
+            exit 1
+          fi
+          if [ "${{ github.event.inputs.mode }}" = "write" ] && { [ -z "${{ secrets.JSONBIN_API_KEY }}" ] || [ -z "${{ secrets.JSONBIN_BIN_ID }}" ]; }; then
+            echo "::error::mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID."
+            exit 1
+          fi
+
+      - name: Test di non-leakage del replay (prima di qualunque scrittura)
+        run: |
+          python -m pytest -q --tb=short \
+            SoccerMath/test_replay_legacy_no_leakage.py \
+            SoccerMath/test_legacy_elo_engine.py \
+            SoccerMath/test_model_variant_registry.py \
+            SoccerMath/test_topmix_dual_tables.py
+
+      - name: Replay
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+        run: |
+          mkdir -p "$REPLAY_OUT"
+          ARGS=(--fixtures api --ref "origin/main" --out "$REPLAY_OUT" --from "${{ github.event.inputs.day_from }}")
+          if [ -n "${{ github.event.inputs.day_to }}" ]; then ARGS+=(--to "${{ github.event.inputs.day_to }}"); fi
+          if [ "${{ github.event.inputs.mode }}" = "write" ]; then
+            ARGS+=(--write)
+          else
+            ARGS+=(--dump-merged "$REPLAY_OUT/predictions_merged_preview.json")
+          fi
+          python SoccerMath/replay_legacy_topmix.py "${ARGS[@]}"
+
+      - name: Riepilogo
+        if: always()
+        run: |
+          {
+            echo "## Replay Top Mix legacy — mode=${{ github.event.inputs.mode }}"
+            echo
+            if [ -f "$REPLAY_OUT/replay_legacy_topmix.md" ]; then
+              cat "$REPLAY_OUT/replay_legacy_topmix.md"
+            else
+              echo "Referto assente: il replay non e' arrivato in fondo."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nessuna modifica a file versionati
+        if: always()
+        run: |
+          if ! git diff --exit-code -- SoccerMath audit; then
+            echo "::error::il replay ha modificato file committati"
+            exit 1
+          fi
+          echo "Nessun file versionato modificato."
+
+      - name: Artifact (referto, righe candidate, copia fusa per anteprima)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-legacy-topmix-${{ github.run_id }}
+          path: replay-out/
+          if-no-files-found: warn
+          retention-days: 7
