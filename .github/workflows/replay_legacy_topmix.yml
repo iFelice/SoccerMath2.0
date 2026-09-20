@@ -146,7 +146,7 @@ jobs:
           fi
           CAMBIATI=$(git diff --name-only "$PRIMA" '${{ github.event.after }}' || true)
           echo "$CAMBIATI"
-          if printf '%s\n' "$CAMBIATI" | grep -qE '^(\.github/workflows/replay_legacy_topmix\.yml|SoccerMath/(replay_legacy_topmix|db_snapshot|registry_coverage|registry_coverage_check|prediction_registry)\.py|SoccerMath/models/(elo_engine_legacy|legacy_elo)\.py|SoccerMath/test_(replay_legacy_no_leakage|registry_coverage|topmix_dual_tables)\.py)$'; then
+          if printf '%s\n' "$CAMBIATI" | grep -qE '^(\.github/workflows/replay_legacy_topmix\.yml|SoccerMath/(replay_legacy_topmix|db_snapshot|registry_coverage|registry_coverage_check|prediction_registry|registry_store|registry_backend_status)\.py|SoccerMath/models/(elo_engine_legacy|legacy_elo)\.py|SoccerMath/test_(replay_legacy_no_leakage|registry_coverage|topmix_dual_tables)\.py)$'; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
           else
             echo "nessuna modifica rilevante per il replay: esco"
