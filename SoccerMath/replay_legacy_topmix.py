@@ -86,7 +86,7 @@ for _nome in ("streamlit.runtime.caching", "streamlit.runtime.scriptrunner_utils
 
 from db_snapshot import REPO_ROOT, CommitInfo, database_at_instant, resolve_main_ref  # noqa: E402
 from config import season_start_year  # noqa: E402
-from registry_coverage import VARIANTI, coverage_by_variant, render_coverage  # noqa: E402
+from registry_coverage import VARIANTI, coverage_by_variant, render_coverage, row_day  # noqa: E402
 from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_LABELS,
@@ -743,6 +743,27 @@ def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) ->
     return esito
 
 
+def _prima_di_pr24(riga: Dict[str, Any]) -> bool:
+    """True se la riga del registro descrive una partita giocata PRIMA di PR#24.
+
+    Prima di quel merge il motore live era quello vecchio: la riga e' quindi
+    un'uscita del modello legacy, qualunque cosa dica il suo campo variante
+    (assente nei record storici, dove vale "current"). Il giorno della partita
+    si legge da ``kickoff_utc`` (autorevole) o da ``data`` italiana.
+    """
+    ko = riga.get("kickoff_utc")
+    if isinstance(ko, str) and ko.strip():
+        try:
+            d = datetime.fromisoformat(ko.strip().replace("Z", "+00:00"))
+            return (d.replace(tzinfo=UTC) if d.tzinfo is None else d.astimezone(UTC)) < PR24_MERGE_INSTANT
+        except ValueError:
+            pass
+    giorno = row_day(riga)                      # da kickoff_utc o da 'data' italiana
+    if giorno is None:
+        return False
+    return giorno < PR24_MERGE_INSTANT.date()
+
+
 def compare_with_registry(existing: List[Dict[str, Any]], clicks: List[ClickResult]) -> List[Dict[str, Any]]:
     """Fedelta' del replay: riga ricostruita vs riga GIA' nel registro, per VARIANTE.
 
@@ -763,6 +784,29 @@ def compare_with_registry(existing: List[Dict[str, Any]], clicks: List[ClickResu
             continue
         per_chiave[(str(p["match_id"]), model_variant_of(p))] = p
     out: List[Dict[str, Any]] = []
+    # Controllo INCROCIATO sulle righe scritte PRIMA di PR#24: il motore allora
+    # live era quello VECCHIO, e le sue righe sono nel registro senza campo di
+    # variante (che per i record storici vale "current"): confrontarle con le
+    # righe ricostruite del modello ATTUALE sarebbe mele contro pere. Il termine
+    # di paragone giusto e' la riga LEGACY ricostruita, ed e' anche la verifica
+    # piu' forte che si possa fare: il replay rifa' davvero il click di allora?
+    for c in clicks:
+        for t in c.targets:
+            reale = per_chiave.get((str(t.match_id), MODEL_VARIANT_CURRENT))
+            if reale is None or not _prima_di_pr24(reale):
+                continue
+            mia = {str(r.get("match_id")): r for r in c.rows.get(MODEL_VARIANT_LEGACY, [])}.get(str(t.match_id))
+            out.append({
+                "match": f"{t.home}-{t.away}", "league": t.league, "kickoff": t.utc.strftime(ISO_Z),
+                "variante": "legacy (incrociata: riga scritta prima di PR#24, motore allora live)",
+                "registro_mercato": reale.get("mercato_standard"), "registro_prob": reale.get("prob_sicuro"),
+                "registro_snapshot": reale.get("data_snapshot_sha"), "registro_salvato_il": reale.get("salvato_il"),
+                "replay_mercato": mia.get("mercato_standard") if mia else None,
+                "replay_prob": mia.get("prob_val") if mia else None,
+                "replay_snapshot": c.snapshot_sha,
+                "coincide": bool(mia) and mia.get("mercato_standard") == reale.get("mercato_standard")
+                            and mia.get("prob_val") == reale.get("prob_sicuro"),
+            })
     for c in clicks:
         for variante in VARIANTI:
             mie = {str(r.get("match_id")): r for r in c.rows.get(variante, [])}

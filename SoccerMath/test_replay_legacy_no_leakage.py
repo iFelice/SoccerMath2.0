@@ -688,12 +688,35 @@ class TestFedeltaPerVariante(_Base):
         self.assertTrue(fed[0]["coincide"], "legacy ricostruita vs riga legacy vera, stesso snapshot")
         self.assertEqual(self.click.snapshot_sha, fed[0]["replay_snapshot"])
 
-    def test_confronto_separa_le_varianti(self):
-        """Una riga del registro di una variante non deve MAI essere confrontata
-        con la riga ricostruita dell'altra: il confronto e' per variante."""
-        fed = replay.compare_with_registry([self._reale(MODEL_VARIANT_CURRENT)], [self.click])
+    def test_riga_prima_di_pr24_confrontata_col_legacy(self):
+        """Prima di PR#24 il motore live era quello VECCHIO: la riga del registro
+        (variante assente = "current" per i record storici) e' un'uscita del
+        modello LEGACY, quindi il termine di paragone e' la riga legacy
+        ricostruita -- non quella attuale, che sarebbe mele contro pere."""
+        reale = self._reale(MODEL_VARIANT_CURRENT)      # scritta prima di PR#24
+        fed = replay.compare_with_registry([reale], [self.click])
+        incrociate = [f for f in fed if f["variante"].startswith("legacy (incrociata")]
+        self.assertEqual(1, len(incrociate), "la riga storica va confrontata col legacy ricostruito")
+        self.assertEqual(reale["prob_sicuro"], incrociate[0]["replay_prob"])
+        # e resta anche il confronto diretto current/current (per trasparenza)
+        dirette = [f for f in fed if f["variante"] == MODEL_VARIANT_CURRENT]
+        self.assertEqual(1, len(dirette))
+
+    def test_riga_dopo_pr24_non_e_incrociata(self):
+        """Dopo PR#24 il motore live e' quello attuale: nessun confronto
+        incrociato sul legacy, che li' non era il modello di produzione."""
+        reale = self._reale(MODEL_VARIANT_CURRENT)
+        reale["kickoff_utc"] = "2026-09-19T18:00:00Z"
+        reale["data"] = "19/09/2026 20:00"
+        fed = replay.compare_with_registry([reale], [self.click])
         self.assertEqual([MODEL_VARIANT_CURRENT], [f["variante"] for f in fed])
-        self.assertEqual(len(self.click.rows[MODEL_VARIANT_CURRENT]), 1)
+
+    def test_data_italiana_basta_quando_manca_il_kickoff(self):
+        reale = self._reale(MODEL_VARIANT_CURRENT)
+        reale.pop("kickoff_utc", None)
+        reale["data"] = "10/09/2026 18:00"
+        fed = replay.compare_with_registry([reale], [self.click])
+        self.assertTrue([f for f in fed if f["variante"].startswith("legacy (incrociata")])
 
     def test_righe_non_top_mix_ignorate(self):
         altra = self._reale(MODEL_VARIANT_LEGACY)
