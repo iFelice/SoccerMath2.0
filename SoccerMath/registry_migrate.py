@@ -95,9 +95,11 @@ def diagnostica(*, post=None) -> Tuple[List[str], bool]:
         risposta = rs.upstash_raw(["HSET", CHIAVE_DIAG, "prova", marca], post=post)
         L.append(f"- `HSET {CHIAVE_DIAG} prova {marca}` -> risposta grezza: "
                  f"`{json.dumps(risposta, ensure_ascii=False)}`")
-        letto = rs.upstash_raw(["HGETALL", CHIAVE_DIAG], post=post).get("result")
-        L.append(f"- `HGETALL {CHIAVE_DIAG}` -> `{json.dumps(letto, ensure_ascii=False)}`")
-        ok = isinstance(letto, dict) and letto.get("prova") == marca
+        grezzo = rs.upstash_raw(["HGETALL", CHIAVE_DIAG], post=post).get("result")
+        L.append(f"- `HGETALL {CHIAVE_DIAG}` -> `{json.dumps(grezzo, ensure_ascii=False)}`")
+        # La forma puo' essere un oggetto o un array piatto: si accettano entrambe.
+        letto = rs.hash_da_risposta(grezzo)
+        ok = letto.get("prova") == marca
         L.append("- **la scrittura si rilegge**: il database accetta e conserva"
                  if ok else
                  "- **la scrittura NON si rilegge**: il comando viene accettato ma il "

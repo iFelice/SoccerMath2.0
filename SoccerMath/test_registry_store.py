@@ -272,3 +272,69 @@ class TestEsitoNormalizzato(unittest.TestCase):
                                     "altro": "ignorato"})
         self.assertEqual({"backend": "upstash", "remoto": "ok", "comandi": 2,
                           "righe_scritte": 3, "righe_saltate": 1, "byte": 10}, esito)
+
+
+class TestFormaDellaRisposta(unittest.TestCase):
+    """L'API puo' rispondere con un OGGETTO o con un ARRAY piatto.
+
+    La prima copia e' stata scritta bene e riletta male: HGETALL ha restituito
+    `["campo", "valore", ...]` e il lettore, aspettandosi un oggetto, vedeva un
+    Registro vuoto. Qui si blinda entrambe le forme, e una risposta inattesa
+    deve ALZARE (mai "vuoto": su un percorso di scrittura significherebbe
+    riscrivere tutto sopra lo storico).
+    """
+
+    def _post_array(self, righe):
+        class _R:
+            status_code = 200
+            text = ""
+
+            def __init__(self, p):
+                self._p = p
+
+            def json(self):
+                return self._p
+
+        def finto(url, json=None, headers=None, timeout=None):  # noqa: A002
+            nome = str(json[0]).upper()
+            if nome == "HGETALL":
+                piatto = []
+                for r in righe:
+                    piatto += [rs.field_of(r), json_dumps(r)]
+                return _R({"result": piatto})
+            return _R({"result": len(json[2:]) // 2})
+        return finto
+
+    def test_hgetall_con_array_piatto(self):
+        righe = [_riga(), _riga(match_id=2, variante=MODEL_VARIANT_LEGACY)]
+        with mock.patch.dict(os.environ, {"UPSTASH_REDIS_REST_URL": "u", "UPSTASH_REDIS_REST_TOKEN": "t"}):
+            lette = rs.upstash_rows(post=self._post_array(righe))
+        self.assertEqual([rs.field_of(r) for r in righe], [rs.field_of(r) for r in lette])
+
+    def test_save_non_riscrive_con_array_piatto(self):
+        righe = [_riga()]
+        with mock.patch.dict(os.environ, {"UPSTASH_REDIS_REST_URL": "u", "UPSTASH_REDIS_REST_TOKEN": "t"}):
+            esito = rs.upstash_save(righe, post=self._post_array(righe))
+        self.assertEqual(0, esito["righe_scritte"], "riga identica: nessuna scrittura")
+        self.assertEqual(1, esito["comandi"], "solo la HGETALL")
+        self.assertEqual(1, esito["righe_saltate"])
+
+    def test_risposta_inattesa_alza(self):
+        def finto(url, json=None, headers=None, timeout=None):  # noqa: A002
+            class _R:
+                status_code = 200
+                text = ""
+
+                def json(self):
+                    return {"result": ["campo_spaiato"]}
+            return _R()
+        with mock.patch.dict(os.environ, {"UPSTASH_REDIS_REST_URL": "u", "UPSTASH_REDIS_REST_TOKEN": "t"}):
+            with self.assertRaises(rs.RegistryStoreError):
+                rs.upstash_rows(post=finto)
+            with self.assertRaises(rs.RegistryStoreError):
+                rs.upstash_save([_riga()], post=finto)
+
+
+def json_dumps(riga):
+    import json as _json
+    return _json.dumps(riga, ensure_ascii=False, sort_keys=True, default=str)

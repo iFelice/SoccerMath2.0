@@ -84,6 +84,48 @@ def _row_from_value(valore: Any) -> Optional[Dict[str, Any]]:
     return riga if isinstance(riga, dict) else None
 
 
+def hash_da_risposta(risultato: Any, *, dove: str = "HGETALL") -> Dict[str, Any]:
+    """Normalizza la risposta di ``HGETALL``: oggetto JSON **oppure** array piatto.
+
+    L'API REST di Upstash risponde con un array piatto (``["campo", "valore", ...]``,
+    forma RESP2) se il client non negozia la forma oggetto: i dati ci sono, ma
+    leggerli come se fossero un oggetto significherebbe vedere un Registro vuoto.
+    E' esattamente quello che e' successo nella prima copia: 108 righe scritte e
+    "0 righe" in rilettura. Qui si accettano entrambe le forme e una risposta
+    inattesa **alza** invece di essere interpretata come "vuoto" (su un percorso
+    di scrittura, "vuoto" vuol dire riscrivere tutto).
+    """
+    if risultato is None:
+        return {}
+    if isinstance(risultato, dict):
+        return risultato
+    if isinstance(risultato, list):
+        if len(risultato) % 2 != 0:
+            raise RegistryStoreError(f"Upstash: {dove} ha risposto con un array di "
+                                     f"lunghezza dispari ({len(risultato)})")
+        coppie: Dict[str, Any] = {}
+        for i in range(0, len(risultato), 2):
+            campo = risultato[i]
+            if not isinstance(campo, str):
+                raise RegistryStoreError(f"Upstash: {dove} ha risposto con un campo "
+                                         f"non testuale ({type(campo).__name__})")
+            coppie[campo] = risultato[i + 1]
+        return coppie
+    raise RegistryStoreError(f"Upstash: {dove} ha risposto in forma inattesa "
+                             f"({type(risultato).__name__})")
+
+
+def chiavi_da_risposta(risultato: Any) -> List[str]:
+    """Normalizza la risposta di ``KEYS``: array, stringa separata da spazi o nulla."""
+    if risultato is None:
+        return []
+    if isinstance(risultato, list):
+        return [str(k) for k in risultato]
+    if isinstance(risultato, str):
+        return [k for k in risultato.split("\n") if k.strip()]
+    return [str(risultato)]
+
+
 def _righe_ordinate(righe: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Ordine deterministico: per campo (stessa chiave dell'hash)."""
     return sorted(righe, key=field_of)
@@ -128,9 +170,8 @@ def _upstash_cmd(comando: List[Any], *, post=None) -> Any:
 def upstash_rows(*, post=None) -> List[Dict[str, Any]]:
     """Tutte le righe dell'hash (1 comando: ``HGETALL``)."""
     risultato = _upstash_cmd(["HGETALL", hash_key()], post=post)
-    if not isinstance(risultato, dict):
-        return []
-    righe = [r for r in (_row_from_value(v) for v in risultato.values()) if r is not None]
+    valori = hash_da_risposta(risultato)
+    righe = [r for r in (_row_from_value(v) for v in valori.values()) if r is not None]
     return _righe_ordinate(righe)
 
 
@@ -141,16 +182,14 @@ def upstash_save(righe: Iterable[Dict[str, Any]], *, post=None) -> Dict[str, Any
     non produce nessuna scrittura (idempotenza, la stessa garanzia della fusione
     con ``dedup_key``).
     """
-    attuale = _upstash_cmd(["HGETALL", hash_key()], post=post) or {}
-    if not isinstance(attuale, dict):
-        attuale = {}
+    attuale = hash_da_risposta(_upstash_cmd(["HGETALL", hash_key()], post=post))
     coppie: List[str] = []
     scritte = saltate = 0
     risposta: Any = None
     for riga in righe:
         campo = field_of(riga)
         valore = json.dumps(riga, ensure_ascii=False, sort_keys=True, default=str)
-        if attuale.get(campo) == valore:
+        if campo in attuale and attuale[campo] == valore:
             saltate += 1
             continue
         coppie.extend([campo, valore])

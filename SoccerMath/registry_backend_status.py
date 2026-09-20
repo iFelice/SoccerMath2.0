@@ -60,8 +60,7 @@ def chiavi_upstash(quante: int = 10) -> Dict[str, Any]:
     altrove (chiave diversa) o non e' arrivata affatto. Sola lettura."""
     try:
         dimensione = rs.upstash_raw(["DBSIZE"]).get("result")
-        testo = str(rs.upstash_raw(["KEYS", "*"]).get("result") or "")
-        chiavi = [k.strip() for k in testo.split("\n") if k.strip()][:quante]
+        chiavi = sorted(rs.chiavi_da_risposta(rs.upstash_raw(["KEYS", "*"]).get("result")))[:quante]
         return {"dbsize": dimensione, "chiavi": chiavi, "errore": None}
     except Exception as e:
         return {"dbsize": None, "chiavi": [], "errore": f"{type(e).__name__}: {e}"}
