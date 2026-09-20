@@ -634,19 +634,14 @@ def strict_load_registry() -> Tuple[List[Dict[str, Any]], str]:
     vuota o vecchia. Qui il GET remoto deve rispondere 200 e avere la forma
     attesa, altrimenti si alza ``ReplayError``.
     """
-    import requests
-    from config import JSONBIN_API_KEY, JSONBIN_BIN_ID, PREDICTIONS_FILE
-    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
-        r = requests.get(f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}/latest",
-                         headers={"X-Master-Key": JSONBIN_API_KEY}, timeout=20)
-        if r.status_code != 200:
-            raise ReplayError(f"registro remoto non leggibile: HTTP {r.status_code}")
-        rec = r.json().get("record", {})
-        if isinstance(rec, dict) and isinstance(rec.get("data"), list):
-            return rec["data"], "jsonbin"
-        if isinstance(rec, list):
-            return rec, "jsonbin"
-        raise ReplayError("registro remoto in forma inattesa")
+    from config import PREDICTIONS_FILE
+    from registry_store import RegistryStoreError, load_rows
+    try:
+        righe, fonte = load_rows(strict=True)
+    except RegistryStoreError as e:
+        raise ReplayError(f"registro remoto non leggibile: {e}") from e
+    if fonte != "nessuno" and righe is not None:
+        return righe, fonte
     if os.path.exists(PREDICTIONS_FILE):
         with open(PREDICTIONS_FILE, encoding="utf-8") as f:
             data = json.load(f)
@@ -723,9 +718,12 @@ def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) ->
     restano intatte.
     """
     import app
-    from config import JSONBIN_API_KEY, JSONBIN_BIN_ID
+    import registry_store
     existing, fonte = strict_load_registry()
-    remoto_configurato = bool(JSONBIN_API_KEY and JSONBIN_BIN_ID)
+    # Il backend remoto e' "configurato" se e' quello attivo: con JSONBin servono
+    # chiave e bin, con Upstash URL e token. In entrambi i casi un registro
+    # remoto VUOTO fa rifiutare la scrittura (mai scrivere sopra il nulla).
+    remoto_configurato = fonte in (registry_store.BACKEND_JSONBIN, registry_store.BACKEND_UPSTASH)
     if remoto_configurato and not existing:
         raise ReplayError("registro remoto configurato ma VUOTO: mi rifiuto di scrivere sopra")
     merged, azioni = merge_entries(existing, entries)

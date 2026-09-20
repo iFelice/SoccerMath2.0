@@ -156,7 +156,19 @@ class TestRegistroUI(unittest.TestCase):
         self.assertFalse(t["vecchio_message_incondizionato"])
 
     def test_save_predictions_legge_la_risposta(self):
+        """La scrittura remota: controllo della risposta e esito che torna.
+
+        Dal passaggio a `registry_store` il PUT vive nello strato unico, quindi
+        la guardia guarda la' e pretende anche la delega da `save_predictions`:
+        se qualcuno rimette un PUT dentro l'app, o scrive senza guardare la
+        risposta, i controlli sotto falliscono lo stesso.
+        """
         jb = inspect_app()["jsonbin_write"]
+        self.assertEqual("registry_store.jsonbin_save", jb["put_dove"],
+                         "il PUT non e' piu' dove questa guardia lo cerca")
+        self.assertTrue(jb["delega_a_registry_store"],
+                        "save_predictions non passa piu' da registry_store: due "
+                        "percorsi di scrittura del Registro possono divergere")
         self.assertTrue(jb["put_present"])
         self.assertTrue(jb["status_code_checked"])
         self.assertTrue(jb["ritorna_esito"])

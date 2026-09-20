@@ -177,6 +177,8 @@ jobs:
           python -m pytest -q --tb=short \
             SoccerMath/test_replay_legacy_no_leakage.py \
             SoccerMath/test_registry_coverage.py \
+            SoccerMath/test_registry_store.py \
+            SoccerMath/test_registry_backend_status.py \
             SoccerMath/test_legacy_elo_engine.py \
             SoccerMath/test_model_variant_registry.py \
             SoccerMath/test_topmix_dual_tables.py
@@ -219,6 +221,31 @@ jobs:
             --to "${DAY_TO:-$(date -u +%F)}" \
             --json "$REPLAY_OUT/coverage.json" --allow-mismatch \
             2>&1 | tee "$REPLAY_OUT/coverage.txt"
+
+      # Stato dei due backend del Registro (JSONBin / Upstash): quante righe,
+      # quanti kB, quali differenze per chiave di campo. SOLA LETTURA: serve a
+      # verificare i secret e a misurare la migrazione senza toccare nulla.
+      - name: Stato dei due backend del Registro (sola lettura)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
+        run: |
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_backend_status.py --json "$REPLAY_OUT/stato_backend.json" \
+            2>&1 | tee "$REPLAY_OUT/stato_backend.txt"
+          rc=$?
+          set -e
+          grep -v '^\s*$' "$REPLAY_OUT/stato_backend.txt" | head -n 12 | while IFS= read -r line; do
+            echo "::warning title=registro::${line:0:900}"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=registro::stato backend uscito con $rc (un backend non risponde: vedi le righe sopra)"
+          fi
 
       # Il replay ricostruisce a kickoff - 1 s; le righe del Registro sono state
       # scritte quando l'utente ha premuto il bottone. Questo campione toglie il

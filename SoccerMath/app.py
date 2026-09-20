@@ -206,15 +206,18 @@ st.markdown("""
 
 # --- REGISTRO PREDIZIONI ---
 def load_predictions():
-    # Fonte remota primaria se configurata; in fallback il file locale.
-    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
-        try:
-            r = requests.get(f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}/latest", headers={"X-Master-Key": JSONBIN_API_KEY}, timeout=5)
-            if r.status_code == 200:
-                rec = r.json().get("record", {})
-                if isinstance(rec, dict) and "data" in rec: return rec["data"]
-                elif isinstance(rec, list): return rec
-        except: pass
+    # Fonte remota primaria: il backend attivo (JSONBin come sempre, oppure
+    # Upstash Redis se REGISTRY_BACKEND=upstash). In fallback il file locale,
+    # SOLO se il backend non e' configurato o non risponde: un hash remoto
+    # vuoto E' una risposta valida (registro vuoto), non un motivo per leggere
+    # una copia locale vecchia.
+    try:
+        from registry_store import load_rows
+        righe, fonte = load_rows(strict=False)
+        if fonte != "nessuno" and righe is not None:
+            return righe
+    except Exception as e:
+        logging.warning(f"Registro remoto non leggibile: {e}")
     if os.path.exists(PREDICTIONS_FILE):
         try:
             with open(PREDICTIONS_FILE, "r", encoding="utf-8") as f:
@@ -251,34 +254,26 @@ def save_predictions(preds):
         logging.warning(f"Scrittura registro locale fallita: {e}")
         esito["remoto"] = "saltato"
         return esito
-    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
-        esito["byte_scritti"] = len(json.dumps({"data": preds}, ensure_ascii=False).encode("utf-8"))
-        try:
-            r_put = requests.put(
-                f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}",
-                json={"data": preds},
-                headers={"X-Master-Key": JSONBIN_API_KEY, "Content-Type": "application/json"},
-                timeout=10,
-            )
-            if getattr(r_put, "status_code", None) == 200:
-                esito["remoto"] = "ok"
-            else:
-                esito["remoto"] = "errore"
-                esito["remoto_dettaglio"] = (
-                    f"HTTP {getattr(r_put, 'status_code', '?')}: "
-                    f"{str(getattr(r_put, 'text', '') or '')[:300]}"
-                )
-                logging.warning(
-                    f"PUT JSONBin respinto: {esito['remoto_dettaglio']} "
-                    f"({esito['byte_scritti']} byte; registro locale scritto, remoto NO)"
-                )
-        except Exception as e:
-            esito["remoto"] = "errore"
-            esito["remoto_dettaglio"] = f"{type(e).__name__}: {e}"[:300]
-            logging.warning(f"PUT JSONBin fallito: {esito['remoto_dettaglio']} "
-                            f"({esito['byte_scritti']} byte; registro locale scritto, remoto NO)")
-    else:
-        esito["remoto"] = "disattivato"
+    # Scrittura remota: backend attivo tramite lo strato unico. Con JSONBin e'
+    # il PUT del bin intero di sempre; con Upstash e' un HSET dei SOLI campi
+    # nuovi o cambiati, quindi non riscrive lo storico e non puo' cancellare le
+    # righe che un altro scrittore ha aggiunto nel frattempo.
+    try:
+        from registry_store import esito_scrittura, save_rows
+        remoto = esito_scrittura(save_rows(preds))
+    except Exception as e:
+        remoto = {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300],
+                  "backend": "n/d"}
+    esito["remoto"] = remoto.get("remoto", "errore")
+    esito["backend_registro"] = remoto.get("backend")
+    if "byte" in remoto:
+        esito["byte_scritti"] = remoto["byte"]
+    for chiave in ("remoto_dettaglio", "comandi", "righe_scritte", "righe_saltate", "righe_hash"):
+        if chiave in remoto:
+            esito[chiave] = remoto[chiave]
+    if esito["remoto"] not in ("ok", "disattivato"):
+        logging.warning(f"Scrittura remota rifiutata/fallita: {esito.get('remoto_dettaglio', esito['remoto'])} "
+                        f"(registro locale scritto, remoto NO)")
     return esito
 
 def _mercato_name_tokens(name):

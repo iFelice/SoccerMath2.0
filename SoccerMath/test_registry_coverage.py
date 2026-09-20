@@ -159,12 +159,25 @@ class TestMisuraDimensione(unittest.TestCase):
     fino al messaggio d'errore (non solo "errore")."""
 
     def test_save_predictions_dichiara_byte_e_dettaglio(self):
+        """Chi scrive deve restituire i byte e il motivo del rifiuto.
+
+        Il PUT del bin e' passato in `registry_store.jsonbin_save` (strato unico
+        dei due backend): qui si verifica che la risposta venga letta la', che
+        `save_predictions` deleghi e che quello che l'utente vede (`byte_scritti`,
+        `remoto_dettaglio`) arrivi fino a lui.
+        """
         import inspect
         import app
-        src = inspect.getsource(app.save_predictions)
-        self.assertIn("byte_scritti", src)
-        self.assertIn("remoto_dettaglio", src)
-        self.assertIn("r_put", src)
+        import registry_store as rs
+        src_app = inspect.getsource(app.save_predictions)
+        self.assertIn("byte_scritti", src_app)
+        self.assertIn("remoto_dettaglio", src_app)
+        self.assertIn("save_rows", src_app)
+        src_store = inspect.getsource(rs.jsonbin_save)
+        self.assertIn("r = scrivi(", src_store, "la risposta del PUT non e' letta")
+        self.assertIn("status_code", src_store)
+        self.assertIn("remoto_dettaglio", src_store)
+        self.assertIn("byte", src_store)
 
     def test_la_scrittura_del_replay_misura_il_payload(self):
         import inspect

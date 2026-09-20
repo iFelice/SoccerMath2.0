@@ -122,14 +122,24 @@ def _calls_function(fn: Optional[ast.AST], name: str) -> bool:
     return False
 
 
-def _assigns_call_to(fn: Optional[ast.AST], attr: str) -> bool:
-    """True se il risultato della chiamata ``.<attr>(...)`` viene assegnato."""
+def _assigns_call_to(fn: Optional[ast.AST], attr: "str | Tuple[str, ...]") -> bool:
+    """True se il risultato della chiamata ``.<attr>(...)`` viene assegnato.
+
+    ``attr`` puo' essere piu' di un nome: la scrittura remota si chiama
+    ``requests.put`` dentro ``registry_store`` e ``put`` nei test, e in entrambi
+    i casi la risposta deve finire in una variabile (altrimenti non c'e' nulla
+    da controllare).
+    """
     if fn is None:
         return False
+    attrs = (attr,) if isinstance(attr, str) else attr
     for node in ast.walk(fn):
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
             f = node.value.func
-            if isinstance(f, ast.Attribute) and f.attr == attr:
+            if isinstance(f, ast.Attribute) and f.attr in attrs:
+                return True
+            # `r = scrivi(...)`: scrittura passata come parametro (store unico).
+            if isinstance(f, ast.Name) and "scrivi" in attrs:
                 return True
     return False
 
@@ -321,7 +331,15 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             ) if f'"{f}"' not in src and f"'{f}'" not in src
         ]
 
-    # --- JSONBin PUT ---
+    # --- Scrittura del Registro (JSONBin) ---
+    # Dalla migrazione il PUT non sta piu' dentro `save_predictions`: la funzione
+    # dell'app DELEGA a `registry_store` (strato unico per i due backend) e il
+    # PUT vive in `registry_store.jsonbin_save`. Le guardie restano le stesse —
+    # niente PUT senza controllo di `status_code`, niente `except: pass` che
+    # ingoia il rifiuto, esito che torna al chiamante — ma vanno lette dove il
+    # codice sta adesso, piu' la delega che le tiene collegate.
+    store_path = os.path.join(os.path.dirname(path), "registry_store.py")
+    store_fn = _fn(_load(store_path), "jsonbin_save") if os.path.exists(store_path) else None
     jsonbin = {
         "put_present": False,
         "response_assigned": False,
@@ -330,19 +348,29 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         "bare_put_swallowed": False,
         "bare_excepts": 0,
         "ritorna_esito": False,
+        # Nuove chiavi: dove sta la scrittura e chi la chiama.
+        "put_dove": None,
+        "delega_a_registry_store": False,
     }
     if save_preds is not None:
         src = ast.unparse(save_preds)
+        jsonbin["delega_a_registry_store"] = (
+            "registry_store" in src and ("save_rows" in src or "esito_scrittura" in src)
+        )
+    dove = store_fn if store_fn is not None else save_preds
+    if dove is not None:
+        src = ast.unparse(dove)
+        jsonbin["put_dove"] = "registry_store.jsonbin_save" if store_fn is not None else "app.save_predictions"
         jsonbin["put_present"] = "requests.put" in src
         jsonbin["status_code_checked"] = "status_code" in src
-        jsonbin["except_pass"] = _put_is_bare_in_try_except_pass(save_preds)
+        jsonbin["except_pass"] = _put_is_bare_in_try_except_pass(dove)
         jsonbin["bare_put_swallowed"] = jsonbin["except_pass"]
-        jsonbin["response_assigned"] = _assigns_call_to(save_preds, "put")
-        jsonbin["bare_excepts"] = _bare_excepts(save_preds)
+        jsonbin["response_assigned"] = _assigns_call_to(dove, ("put", "scrivi"))
+        jsonbin["bare_excepts"] = _bare_excepts(dove)
         # L'esito della scrittura deve TORNA.RE al chiamante, altrimenti il
         # messaggio all'utente non puo' essere condizionato a nulla.
         jsonbin["ritorna_esito"] = bool(
-            [n for n in ast.walk(save_preds) if isinstance(n, ast.Return) and n.value is not None]
+            [n for n in ast.walk(dove) if isinstance(n, ast.Return) and n.value is not None]
         )
     facts["jsonbin_write"] = jsonbin
 
