@@ -68,6 +68,10 @@ on:
         description: "quali modelli scrivere: both (default), current, legacy"
         required: false
         default: "both"
+      verifica_campione:
+        description: "quante righe del Registro verificare per periodo (ricostruzione all'istante del salvataggio)"
+        required: false
+        default: "3"
 
 permissions:
   contents: read
@@ -91,6 +95,7 @@ jobs:
       FROM_INSTANT: ${{ github.event.inputs.from_instant || '' }}
       TO_INSTANT: ${{ github.event.inputs.to_instant || '' }}
       MODEL: ${{ github.event.inputs.model || 'both' }}
+      VERIFICA_CAMPIONE: ${{ github.event.inputs.verifica_campione || '3' }}
       COVERAGE_FROM: ${{ github.event.inputs.coverage_from || '2026-08-30' }}
 
     steps:
@@ -214,6 +219,26 @@ jobs:
             --to "${DAY_TO:-$(date -u +%F)}" \
             --json "$REPLAY_OUT/coverage.json" --allow-mismatch \
             2>&1 | tee "$REPLAY_OUT/coverage.txt"
+
+      # Il replay ricostruisce a kickoff - 1 s; le righe del Registro sono state
+      # scritte quando l'utente ha premuto il bottone. Questo campione toglie il
+      # dubbio: ricostruisce il click ALL'ISTANTE DEL SALVATAGGIO e confronta.
+      # Sola lettura, e se nessuna riga coincide esce 1 (metodo sbagliato).
+      - name: Il replay rifa' i click veri? (campione, sola lettura)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+        run: |
+          python audit/verifica_click_live.py \
+            --from "$COVERAGE_FROM" --to "${DAY_TO:-$(date -u +%F)}" \
+            --per-variante "${VERIFICA_CAMPIONE:-3}" \
+            --out "$REPLAY_OUT/verifica_click_live.md" \
+            2>&1 | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run" \
+            | tee "$REPLAY_OUT/verifica_click_live.txt"
+          grep -E "coincidono|nota:" "$REPLAY_OUT/verifica_click_live.txt" | head -n 6 | while IFS= read -r line; do
+            echo "::warning title=click-veri::${line:0:900}"
+          done
 
       # I log grezzi del job stanno su storage esterno (non sempre leggibile via
       # API): i numeri chiave e, in caso di errore, la coda del log vengono
