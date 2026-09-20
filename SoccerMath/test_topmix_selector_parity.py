@@ -27,6 +27,14 @@ Tre livelli, dal meno esigente al piu' completo:
 Se il confronto fallisce, lo spostamento NON era neutro: correggere
 ``seleziona_riga_top_mix`` (o rimettere il corpo inline), senza toccare soglie
 ne' pesi.
+
+Top Mix a due modelli (dopo PR#24): ``fetch_and_calc_top_mix`` ritorna
+``(top_current, top_legacy, missing)`` e NON tronca piu' a 10 righe. Le due
+differenze sono DICHIARATE qui e verificate cosi': la tabella ``current``,
+troncata alle prime 10, deve restare bit-identica al fixture PRE (stessa
+matematica, stesso ordine, stessi rank 1..10); la lista completa deve avere
+rank 1..N con N > 10 (il tetto e' davvero sparito); la tabella ``legacy`` e' un
+secondo giro dello STESSO selettore con l'Elo legacy iniettato dallo stub.
 """
 from __future__ import annotations
 
@@ -336,12 +344,27 @@ def _esegui(vecchio: bool, elemi):
     exec(_blocco(SRC, "select_next_matchday_matches"), ns)
     if vecchio:
         exec(FIX.TESTO_FUNZIONE, ns)
+        top, missing = ns["fetch_and_calc_top_mix"]()
+        completo = None
     else:
-        exec(_blocco(SRC, "seleziona_riga_top_mix"), ns)
-        exec(_blocco(SRC, "fetch_and_calc_top_mix"), ns)
-    top, missing = ns["fetch_and_calc_top_mix"]()
+        # Il percorso nuovo e' su piu' funzioni (due motori, nessun tetto): si
+        # esegue tutto il testo corrente. L'Elo legacy dello stub non solleva
+        # mai: un avviso "Elo legacy non disponibile" sarebbe un avviso NUOVO
+        # rispetto al fixture e farebbe fallire il confronto dei log.
+        ns["MODEL_VARIANT_CURRENT"] = "current"
+        ns["MODEL_VARIANT_LEGACY"] = "legacy"
+        ns["predict_elo_probs_legacy"] = _elo_legacy_stub(mondo)
+        for nome in ("seleziona_riga_top_mix", "_riga_top_mix", "calcola_righe_top_mix",
+                     "classifica_top_mix", "fetch_and_calc_top_mix"):
+            exec(_blocco(SRC, nome), ns)
+        top_current, top_legacy, missing = ns["fetch_and_calc_top_mix"]()
+        completo = {"top_current": top_current, "top_legacy": top_legacy, "missing": missing}
+        # Differenza DICHIARATA: il tetto [:10] non c'e' piu'. Per il confronto
+        # bit-per-bit col fixture PRE si guardano le prime 10 righe della
+        # tabella current (rank 1..10 identici per costruzione).
+        top = top_current[:10]
     return (json.dumps({"top": top, "missing": missing}), list(ns["logging"].warn),
-            mondo.get("timeouts", []))
+            mondo.get("timeouts", []), completo)
 
 
 def _poisson_stub(mondo):
@@ -357,6 +380,25 @@ def _elo_stub(mondo):
         if isinstance(spec, Exception):
             raise spec
         return spec
+    return stub
+
+
+def _elo_legacy_stub(mondo):
+    """Elo del secondo motore: deterministico, diverso dal primo, mai in errore.
+
+    Se ``mondo`` porta un ``elo_legacy`` per la partita lo usa; altrimenti
+    ribalta le probabilita' 1/2 del primo Elo (o le sostituisce con un Elo
+    neutro quando il primo e' assente/rotto). Cosi' la tabella legacy puo'
+    differire da quella current, ed e' proprio quello che il test verifica.
+    """
+    def stub(h, a, league):
+        mid = mondo["nomi"][_clean_name(h)]
+        if "elo_legacy" in mondo and mid in mondo["elo_legacy"]:
+            return mondo["elo_legacy"][mid]
+        spec = mondo["elo"][mid]
+        if isinstance(spec, dict) and {"1", "X", "2"} <= set(spec):
+            return {"1": spec["2"], "X": spec["X"], "2": spec["1"]}
+        return {"1": 0.40, "X": 0.27, "2": 0.33}
     return stub
 
 
@@ -401,7 +443,8 @@ class TestGuardieTesto(unittest.TestCase):
                   ("{h}", "{home}"), ("{a}", "{away}")]
 
     def _nuovo(self):
-        return _blocco(SRC, "seleziona_riga_top_mix") + _blocco(SRC, "fetch_and_calc_top_mix")
+        return (_blocco(SRC, "seleziona_riga_top_mix") + _blocco(SRC, "calcola_righe_top_mix")
+                + _blocco(SRC, "fetch_and_calc_top_mix"))
 
     def test_ogni_riga_di_selezione_replicata_o_dichiarata(self):
         nuovo = {r.strip() for r in self._nuovo().splitlines()}
@@ -420,9 +463,12 @@ class TestGuardieTesto(unittest.TestCase):
         for atteso in ("min_conf = 0.60", "min_conf = 0.55",
                        "abs(poisson_prob - elo_prob) < 0.25",
                        "confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob",
-                       "best_mkt = max(mercati, key=mercati.get)",
-                       "top_10 = sorted(all_preds, key=lambda x: x['prob'], reverse=True)[:10]"):
+                       "best_mkt = max(mercati, key=mercati.get)"):
             self.assertIn(atteso, nuovo, atteso)
+        # Ordinamento globale invariato, tetto [:10] DICHIARATAMENTE rimosso.
+        classifica = _corpo(_blocco(SRC, "classifica_top_mix"))
+        self.assertIn("sorted(righe, key=lambda x: x['prob'], reverse=True)", classifica)
+        self.assertNotIn("[:10]", classifica + nuovo)
 
     def test_il_corpo_puro_non_tocca_io(self):
         corpo = _corpo(_blocco(SRC, "seleziona_riga_top_mix"))
@@ -438,7 +484,9 @@ class TestGuardieTesto(unittest.TestCase):
         self.assertNotIn("seleziona_riga_top_mix_PRIMA", SRC)
 
     def test_orchestratore_assembla_leggendo_il_selettore(self):
-        fetch = _blocco(SRC, "fetch_and_calc_top_mix")
+        # L'assemblaggio della riga vive in _riga_top_mix (usata per entrambi i
+        # motori): ogni campo del selettore deve essere copiato da `riga`.
+        fetch = _blocco(SRC, "_riga_top_mix")
         for chiave in FIX.CHIAVI_RIGA:
             if chiave in CAMPI_MATCH:
                 continue      # campi del match: li aggiunge l'orchestratore
@@ -452,8 +500,8 @@ class TestParitaGriglia(unittest.TestCase):
     def setUpClass(cls):
         cls.elemi = _genera_griglia()
         _Requests.timeouts = []
-        cls.vecchio, cls.log_v, cls.to_v = _esegui(True, cls.elemi)
-        cls.nuovo, cls.log_n, cls.to_n = _esegui(False, cls.elemi)
+        cls.vecchio, cls.log_v, cls.to_v, _ = _esegui(True, cls.elemi)
+        cls.nuovo, cls.log_n, cls.to_n, cls.completo = _esegui(False, cls.elemi)
         cls.top_v = json.loads(cls.vecchio)["top"]
         cls.top_n = json.loads(cls.nuovo)["top"]
 
@@ -499,8 +547,8 @@ class TestParitaGriglia(unittest.TestCase):
             elemi.append(_partita(h, a, lega, i, 12,
                                   (base + timedelta(hours=i % 9)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                                   poisson, ELO_MANCANTI[i % len(ELO_MANCANTI)]))
-        vecchio, log_v, _ = _esegui(True, elemi)
-        nuovo, log_n, _ = _esegui(False, elemi)
+        vecchio, log_v, _, _ = _esegui(True, elemi)
+        nuovo, log_n, _, _ = _esegui(False, elemi)
         self.assertEqual(vecchio, nuovo)
         righe = json.loads(nuovo)["top"]
         self.assertEqual(10, len(righe), "griglia troppo povera: nessun confronto")
@@ -516,6 +564,43 @@ class TestParitaGriglia(unittest.TestCase):
         self.assertEqual(list(range(1, 11)), [r["rank"] for r in self.top_n])
         probs = [r["prob"] for r in self.top_n]
         self.assertEqual(probs, sorted(probs, reverse=True))
+
+    def test_tetto_rimosso_rank_continui_su_tutta_la_lista(self):
+        """Differenza dichiarata: nessun [:10]. La lista completa ha N > 10 righe,
+        rank 1..N, ordinata; le prime 10 sono esattamente il confronto PRE."""
+        for nome in ("top_current", "top_legacy"):
+            completo = self.completo[nome]
+            self.assertGreater(len(completo), 10, nome)
+            self.assertEqual(list(range(1, len(completo) + 1)), [r["rank"] for r in completo], nome)
+            probs = [r["prob"] for r in completo]
+            self.assertEqual(probs, sorted(probs, reverse=True), nome)
+        self.assertEqual(self.completo["top_current"][:10], self.top_n)
+
+    def test_tabella_legacy_stesso_selettore_elo_diverso(self):
+        """La seconda tabella e' lo stesso selettore con l'Elo legacy: stesse
+        chiavi riga, stesso Poisson per la stessa partita, e almeno una
+        partita in cui le due tabelle differiscono (l'Elo ribaltato dallo stub
+        cambia blend e veto sull'1X2), mentre sui Totali (Elo non letto) le
+        righe coincidono numero per numero."""
+        cur = {r["match_id"]: r for r in self.completo["top_current"]}
+        leg = {r["match_id"]: r for r in self.completo["top_legacy"]}
+        self.assertTrue(leg, "tabella legacy vuota: la griglia non copre il secondo motore")
+        self.assertEqual([list(r) for r in self.completo["top_legacy"][:1]],
+                         [list(r) for r in self.completo["top_current"][:1]])
+        comuni = set(cur) & set(leg)
+        self.assertTrue(comuni)
+        for mid in comuni:
+            self.assertEqual(cur[mid]["poisson"], leg[mid]["poisson"], mid)
+            if not cur[mid]["market"].startswith(("Vittoria", "Pareggio")):
+                self.assertEqual(cur[mid]["prob"], leg[mid]["prob"], mid)
+                self.assertEqual(cur[mid]["elo"], leg[mid]["elo"], mid)
+        # diversita' reale: partite presenti solo in una tabella, o 1X2 con
+        # confidence diversa
+        solo_una = (set(cur) ^ set(leg))
+        diverse_1x2 = [mid for mid in comuni
+                       if cur[mid]["market"].startswith(("Vittoria", "Pareggio"))
+                       and cur[mid]["prob"] != leg[mid]["prob"]]
+        self.assertTrue(solo_una or diverse_1x2, "le due tabelle sono identiche: l'Elo legacy non entra")
 
     def test_log_nessun_avviso_nuovo_e_solo_elo_in_meno(self):
         """Lo spostamento del `try` non introduce avvisi ne' ne perde di fetch.
@@ -544,8 +629,8 @@ class TestParitaCasiLimite(unittest.TestCase):
         utc = (datetime.now(timezone.utc).replace(microsecond=0)
                + timedelta(days=1, hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         e = _partita(home, away, "SerieA", 0, 12, utc, poisson, elo)
-        v, log_v, _ = _esegui(True, [e])
-        n, log_n, _ = _esegui(False, [e])
+        v, log_v, _, _ = _esegui(True, [e])
+        n, log_n, _, _ = _esegui(False, [e])
         return json.loads(v), json.loads(n), (log_v, log_n)
 
     def assert_parita(self, poisson, elo, **kw):
@@ -631,14 +716,14 @@ class TestParitaCasiLimite(unittest.TestCase):
         e = _partita("Casa", "Trasferta", "SerieA", 0, 12, utc, m, {"1": "0.70", "X": 0.10, "2": 0.10})
         with self.assertRaises(TypeError):
             _esegui(True, [e])
-        nuovo, _, _ = _esegui(False, [e])
+        nuovo, _, _, _ = _esegui(False, [e])
         n = json.loads(nuovo)
         self.assertEqual(1, len(n["top"]), n)
         self.assertFalse(n["top"][0]["elo_disponibile"])
         self.assertEqual(n["top"][0]["prob"], n["top"][0]["poisson"] / 100.0)
         # identica alla riga che lo STESSO input produce con Elo assente: la
         # tolleranza non apre una terza via, si appoggia a un percorso gia' testato
-        assente, _, _ = _esegui(False, [_partita("Casa", "Trasferta", "SerieA", 0, 12, utc, m, None)])
+        assente, _, _, _ = _esegui(False, [_partita("Casa", "Trasferta", "SerieA", 0, 12, utc, m, None)])
         self.assertEqual(n["top"], json.loads(assente)["top"])
 
 

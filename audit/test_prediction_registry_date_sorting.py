@@ -224,7 +224,10 @@ class TestUiColumnContract(unittest.TestCase):
         stringhe di formato applicate DOPO il sort ne' colonne helper."""
         registro_start = _APP_SOURCE.find('st.subheader("📒 Registro Predizioni & Tracking")')
         self.assertGreater(registro_start, 0, "sezione Registro non trovata in app.py")
-        block = _APP_SOURCE[registro_start:registro_start + 6000]
+        # Il tab Registro e' l'ultimo del file: si legge fino in fondo, non una
+        # finestra a caratteri fissi (era 6000 e il blocco e' cresciuto: la
+        # guardia falliva anche senza regressioni).
+        block = _APP_SOURCE[registro_start:]
         self.assertIn("build_registry_datetime_column", block,
                       "il Registro non usa la conversione datetime condivisa")
         self.assertIn('sort_values(by="data", ascending=False, na_position="last")', block,

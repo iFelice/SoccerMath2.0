@@ -213,28 +213,31 @@ class TestFetchAndCalcTopMix(unittest.TestCase):
         with mock.patch.object(app.requests, "get", side_effect=fake_get), \
              mock.patch.object(app, "get_league_engine", return_value=engine), \
              mock.patch.object(app, "predict_elo_probs", side_effect=fake_elo), \
+             mock.patch.object(app, "predict_elo_probs_legacy", side_effect=fake_elo), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()  # azzera la cache st.cache_data
-            top_10, missing = app.fetch_and_calc_top_mix()
+            top_current, top_legacy, missing = app.fetch_and_calc_top_mix()
 
-        # il Top Mix globale resta non vuoto, ordinato per probabilita' decrescente
-        self.assertGreaterEqual(len(top_10), 1)
-        self.assertLessEqual(len(top_10), 10)
-        probs = [p["prob"] for p in top_10]
-        self.assertEqual(probs, sorted(probs, reverse=True))
         self.assertEqual(missing, [])
+        # Due tabelle (attuale / legacy): entrambe non vuote, ordinate per
+        # probabilita' decrescente, senza tetto di righe (rank 1..N).
+        for nome, top_n in (("current", top_current), ("legacy", top_legacy)):
+            self.assertGreaterEqual(len(top_n), 1, nome)
+            probs = [p["prob"] for p in top_n]
+            self.assertEqual(probs, sorted(probs, reverse=True), nome)
+            self.assertEqual([p["rank"] for p in top_n], list(range(1, len(top_n) + 1)), nome)
 
-        # SOLO partite della prima giornata futura realmente giocabile
-        for p in top_10:
-            self.assertEqual(p["giornata"], 5)
-            self.assertIn(p["match_id"], NEXT_ROUND_IDS)
-            self.assertGreater(app._parse_utc_date(p["utcDate"]), now)
+            # SOLO partite della prima giornata futura realmente giocabile
+            for p in top_n:
+                self.assertEqual(p["giornata"], 5, nome)
+                self.assertIn(p["match_id"], NEXT_ROUND_IDS, nome)
+                self.assertGreater(app._parse_utc_date(p["utcDate"]), now)
 
-        # NESSUNA partita di giornate successive (es. ottobre) o passata puo'
-        # essere entrata nel Top Mix, nemmeno da lega diversa
-        ids = {p["match_id"] for p in top_10}
-        self.assertEqual(ids, ids & NEXT_ROUND_IDS)
-        self.assertFalse(ids & {3001, 3002, 3003, 2004, 1001, 1002, 9001, 9002})
+            # NESSUNA partita di giornate successive (es. ottobre) o passata puo'
+            # essere entrata nel Top Mix, nemmeno da lega diversa
+            ids = {p["match_id"] for p in top_n}
+            self.assertEqual(ids, ids & NEXT_ROUND_IDS)
+            self.assertFalse(ids & {3001, 3002, 3003, 2004, 1001, 1002, 9001, 9002})
 
 
 if __name__ == "__main__":

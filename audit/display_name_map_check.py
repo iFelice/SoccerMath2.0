@@ -265,7 +265,10 @@ def _top_mix_rows(fn, payloads):
         # get_league_engine e' cache_data e legge gli STESSI CSV nei due
         # giri: la cache (o il ricalcolo) produce gli stessi team_stats.
         # time.sleep azzerato: nessuna attesa reale fra le leghe.
-        righe, missing = fn()
+        out = fn()
+    # PRE (base git): (righe, missing); POST (Top Mix a due modelli):
+    # (top_current, top_legacy, missing). Si confronta la tabella current.
+    righe, missing = out[0], out[-1]
     return righe, missing
 
 

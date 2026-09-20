@@ -214,7 +214,11 @@ class TestSelettoreInvariato(unittest.TestCase):
         self.assertTrue(s["min_conf_ou_gg"])
         self.assertTrue(s["min_conf_1x2"])
         self.assertTrue(s["disagree"])
-        self.assertTrue(s["global_top10"])
+        # Il tetto di 10 righe e' stato tolto (Top Mix a due modelli): resta
+        # l'ordinamento globale per probabilita', sparisce il [:10].
+        self.assertTrue(s["ordinamento_globale"])
+        self.assertTrue(s["cap_10_assente"])
+        self.assertTrue(s["elo_legacy_chiamato"])
         self.assertFalse(s["has_over_15"])
         self.assertFalse(s["has_over_35"])
         self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_gate025_ens06_v1")
@@ -277,10 +281,10 @@ class TestSelettorePuro(unittest.TestCase):
                           [x["id"] for x in tracking_verdict(f2)["problems"]])
 
             # (b) corpo duplicato nel chiamante: due copie della selezione
+            ancora = "    team_stats, avg_h, avg_a, _ = engine\n"   # in calcola_righe_top_mix
             duplicato = src.replace(
-                "    all_preds, missing = [], []",
-                '    mercati = {"GG": 0.5}  # duplicato mutato\n'
-                "    all_preds, missing = [], []", 1)
+                ancora,
+                '    mercati = {"GG": 0.5}  # duplicato mutato\n' + ancora, 1)
             self.assertNotEqual(duplicato, src, "la mutazione (b) non e' stata applicata")
             f3 = ispeziona(duplicato)
             self.assertFalse(f3["top_mix_selector"]["selezione_in_un_solo_punto"],

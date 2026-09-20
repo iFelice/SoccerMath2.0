@@ -36,7 +36,8 @@ APP_PATH = os.path.join(_SOCCER, "app.py")
 RECON_PATH = os.path.join(_AUDIT_DIR, "reconstruct_topmix_match.py")
 
 
-APP_FUNZIONI_TOPMIX = ("fetch_and_calc_top_mix", "seleziona_riga_top_mix")
+APP_FUNZIONI_TOPMIX = ("fetch_and_calc_top_mix", "calcola_righe_top_mix", "classifica_top_mix",
+                       "seleziona_riga_top_mix")
 
 
 def _app_topmix_source() -> str:
@@ -102,7 +103,12 @@ class TestProductionConstants(unittest.TestCase):
         self.assertTrue("min_conf = 0.60" in src or "min_conf = 0.6" in src)
         self.assertIn("min_conf = 0.55", src)
         self.assertIn("abs(poisson_prob - elo_prob) < 0.25", src)
-        self.assertIn("[:10]", src)
+        # Il tetto [:10] e' stato tolto dal Top Mix a due modelli: resta
+        # l'ordinamento globale per probabilita' (classifica_top_mix). TOP_N
+        # del ricostruttore diagnostico e' solo la profondita' della sua
+        # tabella, non una soglia di produzione.
+        self.assertNotIn("[:10]", src)
+        self.assertIn("sorted(righe, key=lambda x: x['prob'], reverse=True)", src)
         self.assertEqual(POISSON_WEIGHT, 0.25)
         self.assertEqual(ELO_WEIGHT, 0.75)
         self.assertEqual(MIN_CONF_OU_GG, 0.60)
