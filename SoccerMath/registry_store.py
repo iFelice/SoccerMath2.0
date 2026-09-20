@@ -207,14 +207,35 @@ def upstash_save(righe: Iterable[Dict[str, Any]], *, post=None) -> Dict[str, Any
             "byte": sum(len(c.encode("utf-8")) for c in coppie)}
 
 
+def snapshot_key(giorno: str) -> str:
+    return f"{SNAPSHOT_PREFIX}{giorno}"
+
+
 def upstash_snapshot(giorno: str, righe: Iterable[Dict[str, Any]], *, post=None) -> Dict[str, Any]:
-    """Istantanea giornaliera (1 comando): punto di ripristino e termine di
-    confronto "prima/dopo" durante la migrazione. Non e' lo storico completo.
+    """Istantanea giornaliera (1 comando ``SET``): punto di ripristino, e termine
+    di confronto "prima/dopo". Non e' lo storico completo: e' UNA fotografia al
+    giorno, e la chiave del giorno viene riscritta se il comando viene rilanciato.
     """
-    chiave = f"{SNAPSHOT_PREFIX}{giorno}"
-    corpo = json.dumps(list(righe), ensure_ascii=False)
-    _upstash_cmd(["SET", chiave, corpo], post=post)
-    return {"chiave": chiave, "righe": len(corpo and json.loads(corpo) or []), "byte": len(corpo.encode("utf-8"))}
+    lista = list(righe)
+    chiave = snapshot_key(giorno)
+    corpo = json.dumps(lista, ensure_ascii=False)
+    risposta = _upstash_cmd(["SET", chiave, corpo], post=post)
+    return {"chiave": chiave, "righe": len(lista), "byte": len(corpo.encode("utf-8")),
+            "risposta": risposta}
+
+
+def upstash_snapshot_read(giorno: str, *, post=None) -> Optional[List[Dict[str, Any]]]:
+    """Rilegge l'istantanea di un giorno (1 comando ``GET``). ``None`` se assente."""
+    corpo = _upstash_cmd(["GET", snapshot_key(giorno)], post=post)
+    if corpo is None:
+        return None
+    try:
+        dati = json.loads(corpo)
+    except (TypeError, json.JSONDecodeError) as e:
+        raise RegistryStoreError(f"istantanea {giorno} illeggibile: {e}") from e
+    if not isinstance(dati, list):
+        raise RegistryStoreError(f"istantanea {giorno}: attesa una lista, trovato {type(dati).__name__}")
+    return dati
 
 
 # ---------------------------------------------------------------------------

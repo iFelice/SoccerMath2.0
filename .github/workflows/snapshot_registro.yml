@@ -1,0 +1,135 @@
+name: Istantanea giornaliera del Registro (fase E)
+
+# Una fotografia al giorno dell'hash Upstash, in una chiave per giorno
+# (sm:registro:snapshot:<AAAA-MM-GG>): 3 comandi (HGETALL + SET + GET di
+# verifica), su un tetto di 500.000 comandi al mese. Serve come punto di
+# ripristino e come termine di confronto "com'era ieri".
+#
+# La verifica e' dentro il comando: se l'istantanea non si rilegge o non
+# coincide riga per riga con il Registro, l'esecuzione e' ROSSA e lo dichiara.
+# Se il Registro non e' raggiungibile non si scrive niente e la degradazione
+# viene dichiarata (il bin JSONBin resta l'archivio, il file locale la copia
+# dell'app).
+#
+# Nota sul calendario: GitHub esegue le pianificazioni solo dal branch di
+# default, quindi il cron diventa attivo quando questo workflow arriva su main.
+# Fino ad allora si comanda col tag "istantanea-registro-*" (o a mano).
+
+on:
+  schedule:
+    - cron: '10 4 * * *'      # ogni giorno, 04:10 UTC
+  push:
+    tags:
+      - 'istantanea-registro-*'
+  workflow_dispatch:
+    inputs:
+      prova:
+        description: "Non scrivere: dire solo cosa farebbe"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: istantanea-registro
+  cancel-in-progress: false
+
+jobs:
+  istantanea:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SNAP_OUT: ${{ github.workspace }}/istantanea-out
+      PROVA: ${{ github.event.inputs.prova == 'true' && 'true' || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mancanti=()
+          for nome in UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — senza credenziali Upstash l'istantanea non si puo' fare: aggiungerle come segreti del repository."
+            exit 1
+          fi
+
+      - name: Test dell'istantanea (nessuna scrittura)
+        run: |
+          python -m pytest -q --tb=short \
+            SoccerMath/test_registry_snapshot.py \
+            SoccerMath/test_registry_store.py
+
+      - name: Istantanea + verifica
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
+        run: |
+          mkdir -p "$SNAP_OUT"
+          ARGS=(--json "$SNAP_OUT/istantanea.json")
+          if [ "$PROVA" = "true" ]; then ARGS+=(--prova); fi
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_snapshot.py "${ARGS[@]}" 2>&1 | tee "$SNAP_OUT/istantanea.txt"
+          rc=$?
+          set -e
+          grep -v '^\s*$' "$SNAP_OUT/istantanea.txt" | head -n 12 | while IFS= read -r line; do
+            echo "::warning title=istantanea::${line:0:900}"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=istantanea::uscita $rc — nessuna istantanea valida: il Registro resta sul bin JSONBin (archivio) e sul file locale; rifare quando il backend risponde"
+          fi
+          exit "$rc"
+
+      - name: Stato dei due backend (sola lettura)
+        if: always()
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_backend_status.py --json "$SNAP_OUT/stato.json" --mostra 3 \
+            2>&1 | tee "$SNAP_OUT/stato.txt"
+          rc=$?
+          set -e
+          grep -v '^\s*$' "$SNAP_OUT/stato.txt" | head -n 12 | while IFS= read -r line; do
+            echo "::warning title=registro::${line:0:900}"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=registro::stato backend uscito con $rc (un backend non risponde)"
+          fi
+
+      - name: Artifact (istantanea e stato)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: istantanea-registro-${{ github.run_id }}
+          path: ${{ env.SNAP_OUT }}
+          if-no-files-found: warn
