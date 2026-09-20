@@ -136,7 +136,7 @@ jobs:
             exit 1
           fi
           if [ "$MODE" = "write" ] && { [ -z "${{ secrets.JSONBIN_API_KEY }}" ] || [ -z "${{ secrets.JSONBIN_BIN_ID }}" ]; }; then
-            echo "::error::mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID nei secret del repo (Settings - Secrets and variables - Actions)."
+            echo "::error title=secret mancanti::mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID. I secret di Streamlit Cloud non sono visibili ai runner GitHub: aggiungerli (stessi nomi) in https://github.com/${{ github.repository }}/settings/secrets/actions, poi ripushare il tag replay-write-*."
             exit 1
           fi
 
