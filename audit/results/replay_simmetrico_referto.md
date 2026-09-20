@@ -89,17 +89,17 @@ due volte.
 
 | run | click | righe Attuale | righe Legacy | entrambi | solo Attuale | solo Legacy |
 |---|---|---|---|---|---|---|
-| intero periodo 30/08 → 20/09 | 101 | 75 | 66 | 66 | 9 | 0 |
 | simmetrico (tag `replay-check-sym-2026-09-20`) | 80 | 60 | 52 | 52 | 8 | 0 |
+| legacy (tag `replay-check-legacy-2026-09-20`) | 21 | 15 | 14 | 14 | 1 | 0 |
+| **somma delle due finestre** | 101 | **75** | **66** | **66** | **9** | **0** |
+| intero periodo in un solo run (push su branch) | 101 | 75 | 66 | 66 | 9 | 0 |
 
-Stesso schema delle due sorgenti (le differenze di qualche unità sono partite
-che l'archivio CSV non ha e l'API sì): **sempre 0 partite solo-legacy**, e il
-numero di partite solo-attuale è dello stesso ordine.
-
-La terza run CI (finestra legacy, tag `replay-check-legacy-2026-09-20`) è stata
-**avviata** ed è quella che chiude il conto con i numeri dell'API; la sua lettura
-è rimasta in sospeso per un problema di autenticazione su GitHub (token della
-sessione non più valido), non per un errore del run.
+La somma delle due finestre complementari dà **esattamente** i numeri del run
+unico sull'intero periodo — 60+15 = 75, 52+14 = 66, 8+1 = 9 — su dati API veri,
+non su una ricostruzione: la partizione a istante è esatta anche in CI.
+Stesso schema delle due sorgenti di fixture (le differenze di qualche unità sono
+partite che l'archivio CSV del repo non ha e l'API sì): **sempre 0 partite
+solo-legacy**, e 9 partite solo-attuale sull'intero periodo.
 
 ### 4.3 Le 9 partite coperte da un solo modello: misurate, non ipotizzate
 
