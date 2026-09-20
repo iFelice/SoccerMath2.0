@@ -154,11 +154,14 @@ jobs:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          # Passata da variabile d'ambiente, non interpolata nel corpo dello
+          # script: un input di dispatch non puo' diventare comando.
+          EXTRA: ${{ steps.finestra.outputs.extra }}
         run: |
           mkdir -p "$REPLAY_OUT"
           ARGS=(--fixtures api --ref "origin/main" --out "$REPLAY_OUT")
-          # shellcheck disable=SC2206  # $extra e' una lista di argomenti costruita sopra
-          ARGS+=(${{ steps.finestra.outputs.extra }})
+          read -r -a EXTRA_ARGS <<< "$EXTRA"
+          ARGS+=("${EXTRA_ARGS[@]}")
           if [ "$MODE" = "write" ]; then
             ARGS+=(--write)
           else
