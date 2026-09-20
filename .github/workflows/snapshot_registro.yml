@@ -87,7 +87,9 @@ jobs:
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
+          # Il Registro vivo e' l'hash Upstash: l'istantanea lo fotografa. Col
+          # tag "-jsonbin-" si puo' fotografare l'archivio JSONBin (per confronto).
+          REGISTRY_BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
         run: |
           mkdir -p "$SNAP_OUT"
           ARGS=(--json "$SNAP_OUT/istantanea.json")
