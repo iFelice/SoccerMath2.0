@@ -107,7 +107,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     cov["fonte"] = fonte
     cov["generato_il"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     testo = render_coverage(cov)
-    print(f"Registro ({fonte}): {len(righe)} righe totali · righe Top Mix nel periodo: "
+    kb = len(json.dumps({"data": righe}, ensure_ascii=False).encode("utf-8")) / 1024
+    print(f"Registro ({fonte}): {len(righe)} righe totali · {kb:.1f} kB (limite piano free JSONBin: 100 kB) · "
+          f"righe Top Mix nel periodo: "
           f"{sum(1 for _ in top_mix_rows(righe, args.day_from, args.day_to))}")
     print(testo)
     if args.json_out:

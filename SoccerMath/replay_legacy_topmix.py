@@ -733,11 +733,13 @@ def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) ->
                              "azioni": dict(azioni), "scritto": False, "remoto": "n/d"}
     if dry_run or not azioni["aggiunta"]:
         return esito
+    esito["byte_payload"] = len(json.dumps({"data": merged}, ensure_ascii=False).encode("utf-8"))
     r = app.save_predictions(merged)
     esito["scritto"] = bool(r.get("locale"))
     esito["remoto"] = r.get("remoto")
     if remoto_configurato and r.get("remoto") != "ok":
-        raise ReplayError(f"PUT remoto non riuscito: {r}")
+        raise ReplayError(f"PUT remoto non riuscito: {r} (payload {esito['byte_payload']} byte, "
+                          f"fusione {len(merged)} righe)")
     return esito
 
 

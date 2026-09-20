@@ -231,11 +231,14 @@ def save_predictions(preds):
     senza copia integrale. Il remoto viene aggiornato SOLO dopo che la scrittura
     locale e' riuscita.
 
-    Ritorna ``{"locale": bool, "remoto": "ok"|"disattivato"|"errore"|"saltato"}``:
-    il PUT non puo' piu' fallire in silenzio dentro un ``except: pass`` perche'
-    il toast "Top Mix salvati!" verrebbe letto come una conferma di un record
-    che non esiste (problema ``jsonbin_unchecked`` in
-    ``audit/results/topmix_registry_tracking.json``).
+    Ritorna ``{"locale": bool, "remoto": "ok"|"disattivato"|"errore"|"saltato"}``
+    piu' ``remoto_dettaglio`` (codice HTTP e messaggio del servizio, troncati) e
+    ``byte_scritti`` (dimensione del payload): il PUT non puo' piu' fallire in
+    silenzio dentro un ``except: pass`` perche' il toast "Top Mix salvati!"
+    verrebbe letto come una conferma di un record che non esiste (problema
+    ``jsonbin_unchecked`` in ``audit/results/topmix_registry_tracking.json``), e
+    quando fallisce serve sapere PERCHE' (es. il limite di 100 kB dei bin del
+    piano free JSONBin: "Free users cannot create a record over 100kb").
     """
     esito = {"locale": False, "remoto": "saltato"}
     try:
@@ -249,6 +252,7 @@ def save_predictions(preds):
         esito["remoto"] = "saltato"
         return esito
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
+        esito["byte_scritti"] = len(json.dumps({"data": preds}, ensure_ascii=False).encode("utf-8"))
         try:
             r_put = requests.put(
                 f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}",
@@ -260,13 +264,19 @@ def save_predictions(preds):
                 esito["remoto"] = "ok"
             else:
                 esito["remoto"] = "errore"
+                esito["remoto_dettaglio"] = (
+                    f"HTTP {getattr(r_put, 'status_code', '?')}: "
+                    f"{str(getattr(r_put, 'text', '') or '')[:300]}"
+                )
                 logging.warning(
-                    f"PUT JSONBin respinto: HTTP {getattr(r_put, 'status_code', '?')} "
-                    f"(registro locale scritto, remoto NO)"
+                    f"PUT JSONBin respinto: {esito['remoto_dettaglio']} "
+                    f"({esito['byte_scritti']} byte; registro locale scritto, remoto NO)"
                 )
         except Exception as e:
             esito["remoto"] = "errore"
-            logging.warning(f"PUT JSONBin fallito: {e} (registro locale scritto, remoto NO)")
+            esito["remoto_dettaglio"] = f"{type(e).__name__}: {e}"[:300]
+            logging.warning(f"PUT JSONBin fallito: {esito['remoto_dettaglio']} "
+                            f"({esito['byte_scritti']} byte; registro locale scritto, remoto NO)")
     else:
         esito["remoto"] = "disattivato"
     return esito

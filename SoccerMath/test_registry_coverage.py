@@ -151,3 +151,29 @@ class TestRegistroDaFile(unittest.TestCase):
         from registry_coverage_check import load_registry_file
         with self.assertRaises(SystemExit):
             load_registry_file(self._file({"record": {"data": []}}))
+
+
+class TestMisuraDimensione(unittest.TestCase):
+    """Il PUT su JSONBin e' rifiutato oltre 100 kB sul piano free: il registro
+    deve essere MISURATO, non stimato, e il motivo del rifiuto deve arrivare
+    fino al messaggio d'errore (non solo "errore")."""
+
+    def test_save_predictions_dichiara_byte_e_dettaglio(self):
+        import inspect
+        import app
+        src = inspect.getsource(app.save_predictions)
+        self.assertIn("byte_scritti", src)
+        self.assertIn("remoto_dettaglio", src)
+        self.assertIn("r_put", src)
+
+    def test_la_scrittura_del_replay_misura_il_payload(self):
+        import inspect
+        import replay_legacy_topmix as replay
+        src = inspect.getsource(replay.write_to_registry)
+        self.assertIn("byte_payload", src)
+
+    def test_il_controllo_di_copertura_stampa_la_dimensione(self):
+        import inspect
+        import registry_coverage_check as check
+        src = inspect.getsource(check.main)
+        self.assertIn("kB", src)

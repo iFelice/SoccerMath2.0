@@ -248,6 +248,12 @@ jobs:
         if: failure() && steps.salta.outputs.skip != 'true'
         run: |
           if [ -f "$REPLAY_OUT/replay.log" ]; then
+            # Prima le righe che spiegano il PERCHE' (PUT JSONBin, HTTP, eccezioni),
+            # poi la coda del log.
+            grep -nE 'JSONBin|PUT|HTTP [0-9]|Traceback|Error|errore' "$REPLAY_OUT/replay.log" \
+              | tail -n 12 | while IFS= read -r line; do
+              echo "::error title=perche::${line:0:900}"
+            done
             tail -n 60 "$REPLAY_OUT/replay.log" | grep -v '^\s*$' | tail -n 25 | while IFS= read -r line; do
               echo "::error title=replay::${line:0:900}"
             done
