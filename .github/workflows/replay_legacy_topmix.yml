@@ -227,6 +227,7 @@ jobs:
       - name: Il replay rifa' i click veri? (campione, sola lettura)
         if: always() && steps.salta.outputs.skip != 'true'
         env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
         run: |
@@ -238,7 +239,7 @@ jobs:
           set +e
           python audit/verifica_click_live.py \
             --from "$COVERAGE_FROM" --to "${DAY_TO:-$(date -u +%F)}" \
-            --per-variante "${VERIFICA_CAMPIONE:-3}" \
+            --per-variante "${VERIFICA_CAMPIONE:-3}" --fixtures api \
             --out "$REPLAY_OUT/verifica_click_live.md" \
             2>&1 | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run" \
             | tee "$REPLAY_OUT/verifica_click_live.txt"

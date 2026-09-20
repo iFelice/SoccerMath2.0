@@ -85,10 +85,29 @@ class TestEsecuzioneEndToEnd(unittest.TestCase):
         self.addCleanup(os.unlink, out.name)
         try:
             rc = v.main(["--from", "2026-08-30", "--to", "2026-09-20", "--per-variante", "0",
-                         "--out", out.name])
+                         "--fixtures", "csv", "--out", out.name])
         finally:
             check.load_registry_readonly = originale
         self.assertEqual(0, rc)
         testo = open(out.name, encoding="utf-8").read()
         self.assertIn("campione verificato: 0", testo)
         self.assertIn("coincidono", testo)
+
+    def test_senza_campione_non_serve_la_sorgente_fixture(self):
+        """Con zero righe da verificare non si deve nemmeno provare a scaricare
+        le fixture (e senza chiave API non si deve rompere)."""
+        import tempfile
+        import registry_coverage_check as check
+        import verifica_click_live as v
+
+        originale = check.load_registry_readonly
+        check.load_registry_readonly = lambda: ([], "vuoto")
+        out = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
+        out.close()
+        self.addCleanup(os.unlink, out.name)
+        try:
+            rc = v.main(["--from", "2026-08-30", "--to", "2026-09-20", "--per-variante", "2",
+                         "--fixtures", "api", "--out", out.name])
+        finally:
+            check.load_registry_readonly = originale
+        self.assertEqual(0, rc)

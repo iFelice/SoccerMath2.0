@@ -86,7 +86,9 @@ def verifica_riga(riga: Dict[str, Any], fixtures: Dict[str, List[Any]], *,
                    if str(f.match_id) == str(riga.get("match_id"))), None)
     if istante is None or target is None:
         return {"riga": riga, "esito": "non ricostruibile",
-                "motivo": "senza salvato_il" if istante is None else "partita fuori dalle fixture"}
+                "motivo": ("senza salvato_il" if istante is None
+                           else f"match_id {riga.get('match_id')} assente fra le fixture: "
+                                f"gli id del Registro sono quelli dell'API, non i sintetici dei CSV")}
     variante = variante_da_confrontare(riga)
     click = replay.simulate_click(istante, fixtures, targets=[target], leagues=[lega],
                                  snapshot_cache=snapshot_cache)
@@ -114,6 +116,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                     default=None)
     ap.add_argument("--per-variante", type=int, default=3,
                     help="quante righe verificare per periodo (pre e post PR#24)")
+    ap.add_argument("--fixtures", choices=("api", "csv"), default="api",
+                    help="sorgente delle fixture: api = football-data.org (stessi match_id del Registro, "
+                         "default), csv = offline (gli id sintetici dei CSV NON coincidono con quelli scritti "
+                         "dall'app: serve solo per le prove in locale)")
     ap.add_argument("--snapshot-cache", default=None, metavar="DIR")
     ap.add_argument("--out", default=None, metavar="FILE")
     args = ap.parse_args(argv)
@@ -134,7 +140,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         campione.extend(scelte)
 
     leghe = sorted({r.get("campionato") for r in campione if r.get("campionato")})
-    fixtures = replay.fixtures_from_csv_and_archive(leghe)
+    fixtures: Dict[str, List[Any]] = {}
+    if campione and args.fixtures == "api":
+        from config import FOOTBALL_DATA_API_KEY
+        fixtures = replay.fixtures_from_api(FOOTBALL_DATA_API_KEY, leghe)
+    elif campione:
+        fixtures = replay.fixtures_from_csv_and_archive(leghe)
     risultati = [verifica_riga(r, fixtures, snapshot_cache=args.snapshot_cache) for r in campione]
 
     n_ok = sum(1 for x in risultati if x["esito"] == "coincide")
@@ -158,12 +169,20 @@ def main(argv: Optional[List[str]] = None) -> int:
             L.append(f"- nota: {r.get('home')} - {r.get('away')} — {x['note']}")
     testo = "\n".join(L) + "\n"
     print(testo)
+    non_ric = sum(1 for x in risultati if x["esito"] == "non ricostruibile")
+    if risultati and non_ric == len(risultati):
+        print(f"[verifica] NESSUNA riga ricostruibile: {risultati[0].get('motivo')}", file=sys.stderr)
+        if args.out:
+            os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+            with open(args.out, "w", encoding="utf-8") as f:
+                f.write(testo)
+        return 1
     if args.out:
         os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
         with open(args.out, "w", encoding="utf-8") as f:
             f.write(testo)
         print(f"[verifica] referto: {args.out}")
-    if risultati and n_ok == 0:
+    if risultati and n_ok == 0 and non_ric < len(risultati):
         print("[verifica] NESSUNA coincidenza: il metodo di ricostruzione non riproduce i click veri.",
               file=sys.stderr)
         return 1
