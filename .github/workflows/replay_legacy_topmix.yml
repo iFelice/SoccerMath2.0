@@ -16,6 +16,11 @@ on:
   push:
     branches:
       - 'arena/**'
+    # Scrittura nel Registro: mai da un push di branch (il default resta
+    # dry-run). Solo un tag esplicito "replay-write-*" chiede --write, cosi'
+    # l'intenzione e' dichiarata nel ref e tracciabile a posteriori.
+    tags:
+      - 'replay-write-*'
     paths:
       - '.github/workflows/replay_legacy_topmix.yml'
       - 'SoccerMath/replay_legacy_topmix.py'
@@ -57,7 +62,7 @@ jobs:
       STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
       REPLAY_OUT: ${{ github.workspace }}/replay-out
       # Da push non ci sono input: dry-run, finestra di default (merge PR#24 -> oggi).
-      MODE: ${{ github.event.inputs.mode || 'dry-run' }}
+      MODE: ${{ startsWith(github.ref, 'refs/tags/replay-write-') && 'write' || github.event.inputs.mode || 'dry-run' }}
       DAY_FROM: ${{ github.event.inputs.day_from || '2026-08-30' }}
       DAY_TO: ${{ github.event.inputs.day_to || '' }}
 
@@ -141,7 +146,7 @@ jobs:
             head -n 6 "$REPLAY_OUT/replay_legacy_topmix.md" | grep -v '^\s*$' | while IFS= read -r line; do
               echo "::warning title=replay::${line:0:900}"
             done
-            for r in "righe Attuale" "righe Legacy" "Copertura:" "partite con ENTRAMBI" "solo modello" "coincidono"; do
+            for r in "righe Attuale" "righe Legacy" "Copertura:" "partite con ENTRAMBI" "solo modello" "coincidono" "Registro:"; do
               grep -h "$r" "$REPLAY_OUT/replay_legacy_topmix.md" | head -n 4 | while IFS= read -r line; do
                 echo "::warning title=copertura::${line:0:900}"
               done

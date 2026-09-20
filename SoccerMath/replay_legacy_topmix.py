@@ -649,6 +649,18 @@ def merge_entries(existing: List[Dict[str, Any]], entries: List[Dict[str, Any]])
     return merged, azioni
 
 
+def scrittura_fallita(esito: Dict[str, Any]) -> bool:
+    """True se con ``--write`` il Registro NON e' stato scritto e non e' vero
+    che non ci fosse nulla da aggiungere.
+
+    Un errore silenzioso qui farebbe credere scritto un Registro che non lo e'
+    (fusione mai avvenuta, PUT remoto fallito, Registro remoto vuoto).
+    """
+    if esito.get("scritto"):
+        return False
+    return esito.get("azioni", {}).get("aggiunta") != 0
+
+
 def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) -> Dict[str, Any]:
     """Fusione + (se non dry-run) scrittura con ``app.save_predictions``.
 
@@ -1028,7 +1040,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"[replay] referto: {md}\n[replay] json: {js}")
         if not report.scrivibile:
             return 1
-        if args.write and not report.registro.get("scritto") and report.registro.get("azioni", {}).get("aggiunta"):
+        if args.write and scrittura_fallita(report.registro):
+            print(f"[replay] SCRITTURA NON RIUSCITA: {report.registro}", file=sys.stderr)
             return 1
         return 0
     finally:

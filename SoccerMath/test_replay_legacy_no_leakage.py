@@ -610,3 +610,26 @@ class TestReportEndToEnd(_Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEsitoScrittura(unittest.TestCase):
+    """Con --write un errore silenzioso farebbe credere scritto un Registro che
+    non lo e': l'unico esito accettabile senza scrittura e' "nulla da
+    aggiungere"."""
+
+    def test_scritto_ok(self):
+        self.assertFalse(replay.scrittura_fallita({"scritto": True, "azioni": {"aggiunta": 5}}))
+
+    def test_nulla_da_aggiungere_non_e_errore(self):
+        self.assertFalse(replay.scrittura_fallita(
+            {"scritto": False, "azioni": {"aggiunta": 0, "gia_presente": 9}}))
+
+    def test_righe_volute_e_non_scritte_e_errore(self):
+        self.assertTrue(replay.scrittura_fallita({"scritto": False, "azioni": {"aggiunta": 3}}))
+
+    def test_fusione_mai_avvenuta_e_errore(self):
+        self.assertTrue(replay.scrittura_fallita(
+            {"scritto": False, "errore": "registro remoto configurato ma VUOTO: mi rifiuto di scrivere sopra"}))
+
+    def test_registro_non_interrogato_e_errore(self):
+        self.assertTrue(replay.scrittura_fallita({"scritto": False, "motivo": "leak check fallito"}))
