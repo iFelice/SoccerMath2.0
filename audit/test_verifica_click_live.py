@@ -58,3 +58,37 @@ class TestVarianteDaConfrontare(unittest.TestCase):
         self.assertEqual(MODEL_VARIANT_CURRENT, v.variante_da_confrontare(riga))
         riga_legacy = dict(riga, model_variant=MODEL_VARIANT_LEGACY)
         self.assertEqual(MODEL_VARIANT_LEGACY, v.variante_da_confrontare(riga_legacy))
+
+
+class TestEsecuzioneEndToEnd(unittest.TestCase):
+    """Un bug vero: il filtro del periodo usava una funzione inesistente e la
+    verifica moriva senza stampare nulla, con la CI verde (pipe senza pipefail).
+    Qui si esegue ``main`` su un registro finto: il percorso che filtra le righe
+    deve restare vivo."""
+
+    def test_main_su_registro_finto_senza_click(self):
+        import json
+        import tempfile
+        from datetime import date
+        import registry_coverage_check as check
+        import verifica_click_live as v
+
+        righe = [
+            {"match_id": 1, "home": "A", "away": "B", "campionato": "Serie A", "origin": "top_mix",
+             "kickoff_utc": "2026-09-10T18:00:00Z", "salvato_il": "10/09/2026 20:00",
+             "mercato_standard": "1", "prob_sicuro": 60.0, "esito": "⏳"},
+        ]
+        originale = check.load_registry_readonly
+        check.load_registry_readonly = lambda: (righe, "finto")
+        out = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
+        out.close()
+        self.addCleanup(os.unlink, out.name)
+        try:
+            rc = v.main(["--from", "2026-08-30", "--to", "2026-09-20", "--per-variante", "0",
+                         "--out", out.name])
+        finally:
+            check.load_registry_readonly = originale
+        self.assertEqual(0, rc)
+        testo = open(out.name, encoding="utf-8").read()
+        self.assertIn("campione verificato: 0", testo)
+        self.assertIn("coincidono", testo)

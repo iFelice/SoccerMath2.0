@@ -230,13 +230,17 @@ jobs:
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
         run: |
+          # pipefail: senza, un errore dello script finiva inghiottito dalla
+          # pipe e il passo risultava verde (e' successo davvero).
+          set -o pipefail
           python audit/verifica_click_live.py \
             --from "$COVERAGE_FROM" --to "${DAY_TO:-$(date -u +%F)}" \
             --per-variante "${VERIFICA_CAMPIONE:-3}" \
             --out "$REPLAY_OUT/verifica_click_live.md" \
             2>&1 | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run" \
             | tee "$REPLAY_OUT/verifica_click_live.txt"
-          grep -E "coincidono|nota:" "$REPLAY_OUT/verifica_click_live.txt" | head -n 6 | while IFS= read -r line; do
+          echo "--- esito della verifica (sempre visibile) ---"
+          tail -n 14 "$REPLAY_OUT/verifica_click_live.txt" | while IFS= read -r line; do
             echo "::warning title=click-veri::${line:0:900}"
           done
 

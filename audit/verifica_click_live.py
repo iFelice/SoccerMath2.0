@@ -45,9 +45,8 @@ from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_LEGACY,
     MODEL_VARIANT_LABELS,
     model_variant_of,
-    origin_of,
-    ORIGIN_TOP_MIX,
 )
+from registry_coverage import top_mix_rows  # noqa: E402
 
 ITALY = None  # riempito in main() da app.ITALY_TZ
 
@@ -123,8 +122,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     ITALY = app.ITALY_TZ
 
     righe, fonte = check.load_registry_readonly()
-    top = [r for r in righe if origin_of(r) == ORIGIN_TOP_MIX]
-    periodo = [r for r in top if check._nel_periodo(r, args.day_from, args.day_to)]
+    # ``top_mix_rows`` e' l'unico filtro "Top Mix nel periodo" del progetto: qui
+    # si usa quello, cosi' periodo e copertura non possono divergere.
+    top = top_mix_rows(righe, args.day_from, args.day_to)
+    periodo = top
     pre = [r for r in periodo if replay._prima_di_pr24(r)]
     post = [r for r in periodo if not replay._prima_di_pr24(r)]
     campione: List[Dict[str, Any]] = []
