@@ -216,13 +216,116 @@ Due conseguenze da tenere presenti:
 | rischio nuovo | nessuno (stesso servizio) | coerenza "eventually consistent" (~secondi) e nessun confronto-e-scambia atomico: con **un solo scrittore alla volta** (click o CI) il rischio pratico e' basso, ma va dichiarato |
 | costi | 0 (piano free) | 0 (1.000 scritture/giorno sono ~100 volte il nostro uso) |
 
-Consiglio, in una riga: **se si vuole restare su JSONBin, la strada A e' quella
-descritta sopra; se si accetta un servizio nuovo, la B fa meno codice e toglie il
-tetto (25 MiB)**, al prezzo di un vincolo di coerenza da dichiarare. npoint.io
-non e' una terza opzione.
+Consiglio, in una riga: **se si accetta un servizio nuovo, la scelta migliore e'
+Upstash Redis via REST (§9)**, che toglie il tetto E il difetto di fondo (la
+riscrittura totale) con meno codice; Cloudflare KV resta la seconda scelta; se si
+vuole restare su JSONBin serve il frazionamento (§1-7). npoint.io non e' una
+terza opzione.
 
 ## 8.4 Cosa non cambia in nessuna delle due
 
 Contenuto delle righe, soglie (0,55 1X2 / 0,60 Totali), veto, `dedup_key`,
 nessuna sovrascrittura, i due comandi del replay e i loro tag. Cambia solo **dove**
 finiscono le righe.
+
+---
+
+# 9. Upstash Redis via REST: si', e per il nostro caso e' la scelta migliore
+
+Domanda posta: **Upstash Redis via REST API puo' risolvere il problema?**
+**Si'**, e non solo il tetto: toglie il **difetto di fondo**. E' la soluzione che
+consiglio fra quelle gratuite.
+
+## 9.1 I numeri ufficiali (Upstash, piano free)
+
+| voce | valore | fonte |
+|---|---|---|
+| dati | 256 MB | `upstash.com/docs/redis/overall/pricing` |
+| comandi | **500.000 al mese** | idem (alcune liste di terze parti citano ancora 10.000/giorno: da confermare in console, in ogni caso siamo lontanissimi) |
+| banda | 10 GB/mese | idem |
+| dimensione massima per richiesta | 10 MB | idem |
+| dimensione massima per record | 100 MB | idem |
+| database gratuiti | 1 | idem |
+| carta di credito | non richiesta | idem |
+| pausa per inattivita' | **nessuna documentata** | confronto: Supabase free si mette in pausa dopo 7 giorni |
+| interfaccia | **REST** (POST con token Bearer) + Redis classico | `upstash.com/docs/redis/features/restapi` |
+| atomicita' | `/pipeline` (non atomico) e **`/multi-exec` (transazione atomica)** | idem |
+
+Il REST e' esattamente il nostro stile di integrazione attuale: `requests` + una
+chiave. Non serve un Worker (Cloudflare KV si'), non serve un runtime nuovo.
+
+## 9.2 Perche' risolve il problema *alla radice*, non solo il tetto
+
+Il difetto non era "100 kB": era che il Registro e' **un unico documento riscritto
+per intero** a ogni salvataggio. Con Redis:
+
+* i dati stanno in un **hash**, una riga = un campo (~700 B), con
+  ``field = dedup_key`` e ``value = riga JSON``;
+* la scrittura e' ``HSET chiave campo valore``: **tocca solo le righe nuove**.
+  Due scrittori diversi (app e CI) che aggiungono righe diverse **non possono
+  sovrascriversi**: e' il difetto che oggi fa fallire un click dell'app per colpa
+  di righe scritte giorni prima;
+* lettura = ``HGETALL`` (1 comando), con la cache 30' gia' presente nell'app;
+* ``/multi-exec`` da' la transazione atomica dove serve.
+
+Numeri del nostro caso (misurati, non stimati):
+
+| operazione | comandi | note |
+|---|---|---|
+| lettura della stagione | 1 ``HGETALL`` | ~1,5 MB a fine stagione, cache 30' |
+| un click Top Mix dell'app | 1 lettura + 1-2 ``HSET`` | |
+| **replay simmetrico intero** (80 click, 112 righe) | ~160 | misura del run reale |
+| **entrambi i replay** | ~200 | contro 500.000/mese = **0,04%** |
+| spazio occupato | 2.100 righe x ~700 B = **~1,5 MB** | su 256 MB = **0,6%** |
+| banda | 1,5 MB per lettura piena | 10 GB/mese ~ 6.600 letture piene |
+
+Quindi: nessun frazionamento, **nessun manifest**, nessuna unione con dedup fra
+shard, nessuna guardia di capacita'. E' *meno* codice della strada A (§1-7).
+
+## 9.3 Cosa va dichiarato (costi e rischi onesti)
+
+1. **Servizio nuovo e nuovo segreto**: URL REST + token. Il token e' una
+   credenziale ad accesso pieno: va nei secret di Streamlit e di GitHub, mai nel
+   repo (rotazione se esposto).
+2. **Nessuno storico**: come JSONBin, Redis non conserva versioni. Rimedio
+   proposto: **una chiave di istantanea al giorno** (``SET sm:backup:<data>``,
+   1 comando/giorno) che da' un punto di ripristino e, durante la migrazione, il
+   termine di confronto "prima/dopo".
+3. **Piano free**: 1 database (basta), 500.000 comandi/mese; superata la soglia i
+   comandi vengono rifiutati. Il nostro consumo e' ~0,04%.
+4. **Modello dati**: le righe diventano campi di un hash. Il codice di lettura e
+   scrittura cambia (stessi punti della strada A), ma la logica di partizione
+   sparisce.
+
+## 9.4 Confronto finale, per il nostro profilo
+
+| | scrittura | tetto pratico | runtime | coerenza | codice nuovo | verdetto |
+|---|---|---|---|---|---|---|
+| **Upstash Redis** | per riga (``HSET``) | 256 MB, 500k comandi/mese | REST | forte (transazioni) | minimo | **scelto** |
+| Cloudflare KV | per chiave (riscrive la stagione) | 25 MiB, 1k scritture/giorno | Worker o REST | eventuale | medio | seconda scelta |
+| JSONBin frazionato (§1-7) | per shard | 100 kB per shard | REST | forte | alto (manifest+dedup) | se si resta su JSONBin |
+| GitHub Contents API | per file (commit) | 100 MB | REST | forte, **versionato** | medio | ottimo per il replay, la app non ha un token GitHub |
+| Supabase / D1 | per riga | 500 MB / 5 GB | REST | forte | alto | ottimo a lungo termine, piu' lavoro; Supabase free va in pausa |
+| npoint.io | **assente** | — | — | — | — | scartato (§8.1) |
+
+## 9.5 Migrazione con Upstash (stesse fasi, meno lavoro)
+
+| fase | cosa succede | verifica |
+|---|---|---|
+| **A** | ``registry_store.py`` con due backend (``jsonbin`` come oggi, ``upstash`` nuovo) e flag di scelta + test | suite verde, comportamento invariato con flag off |
+| **B** | in CI, **sola lettura**: legge il bin JSONBin e l'hash, confronta riga per riga (chiavi e contenuto) e produce il referto | zero differenze inattese, nessuna scrittura |
+| **C** | copia del Registro nell'hash (1 ``HSET``), confronto di uguaglianza, lettura commutata (flag on); il bin JSONBin resta **archivio** dichiarato | test di uguaglianza + copertura invariata |
+| **D** | scrittura commutata a ``HSET``; i due tag del replay completano le finestre (2 finestre = ~160 comandi) | copertura per modello sul Registro unito, conteggi di fusione |
+| **E** | istantanea giornaliera + degrado dichiarato se Upstash non risponde (si legge l'istantanea/archivio e lo si scrive nel referto) | prova di lettura in degrado |
+
+## 9.6 Cosa serve da te (2 minuti)
+
+1. Creare un database Redis **free** su Upstash (una regione vicina, es. eu-west).
+2. Copiare **REST URL** e **REST TOKEN** dalla pagina del database.
+3. Incollarli come:
+   * Streamlit: ``UPSTASH_REDIS_REST_URL``, ``UPSTASH_REDIS_REST_TOKEN`` nei secrets;
+   * GitHub: gli stessi due nomi in *Settings → Secrets and variables → Actions*.
+4. Dirmelo: parto dalla fase A e, prima di scrivere qualunque cosa, ti mostro il
+   confronto della fase B (sola lettura).
+
+Il bin JSONBin **non viene toccato**: resta archivio e rete di sicurezza.
