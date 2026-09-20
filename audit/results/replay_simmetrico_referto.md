@@ -160,16 +160,85 @@ replay: la misura è pronta per dirlo.
   `replay-write-sym-<data>` e `replay-write-legacy-<data>`. Da un push di
   branch il workflow resta **sempre** dry-run.
 
-> **Blocco attuale (non aggirabile da qui).** Il passo `mode=write` esce subito
-> con: `mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID.` I due secret **non** sono configurati: senza, la CI non può né scrivere
-> né leggere il Registro live (il controllo di copertura legge 0 righe e lo
-> dichiara: `Registro (nessun registro)`). Nessuna riga è stata scritta finora.
-> Per sbloccare: aggiungere i due secret in *Settings → Secrets and variables →
-> Actions*, poi ripushare i due tag di scrittura.
+### Il PUT remoto si ferma sul tetto del piano free JSONBin (misurato)
+
+I secret sono configurati (la **lettura** remota infatti funziona: `fonte:
+jsonbin`, 108 righe). La **scrittura** arriva fino al PUT e viene **respinta dal
+servizio**, con la risposta letta verbatim dal corpo HTTP:
+
+```
+HTTP 403: {"message":"Free users cannot update a record over 100kb.
+           Upgrade to Pro plan http://api.jsonbin.io/pricing to update records upto 1mb"}
+payload 140353 byte, fusione 206 righe
+```
+
+Aritmetica del limite (numeri misurati, non stimati):
+
+| voce | valore |
+|---|---|
+| payload respinto (registro live 108 righe + 98 righe del replay simmetrico) | **140.353 byte** |
+| costo medio per riga (140.353 / 206) | ~681 byte |
+| registro live attuale (108 righe x 681) | **~74 kB** |
+| tetto del piano free | **100 kB** |
+| spazio residuo prima che si blocchino anche i salvataggi dell'app | **~26 kB, ~38 righe** |
+
+Conseguenze, in ordine di importanza:
+
+1. **Il replay non entra**: la finestra simmetrica da sola vuole ~98 righe nuove,
+   la finestra legacy altre ~29. Anche solo la prima porta il registro a ~140 kB,
+   oltre il tetto: il servizio rifiuta l'aggiornamento intero (non e' un rifiuto
+   parziale).
+2. **Riguarda anche la produzione, non solo il replay**: il registro e' una
+   singola "record" JSONBin, quindi *ogni* salvataggio dell'app riscrive tutto.
+   A ~74 kB su 100 kB, fra una quarantina di righe (due giornate circa) **anche i
+   salvataggi del click vero dell'app** verrebbero respinti con lo stesso 403, e
+   resterebbero solo in locale.
+3. Il comportamento e' gia' quello giusto: nessun verde bugiardo. `--write` esce
+   **1** e il referto dice `PUT remoto non riuscito`, con byte e risposta del
+   servizio (`remoto_dettaglio`, `byte_scritti`, `byte_payload`).
+
+Cosa serve per chiudere il requisito 3 (scrittura), in ordine di costo:
+
+* **(a) passare JSONBin a un piano a pagamento** (1 MB per record): nessuna
+  modifica di codice, i due tag di scrittura completano entrambe le finestre;
+* **(b) ripartire lo storage** (un bin per stagione o per variante, con lettura
+  che li unisce): resta il piano free, ma e' una modifica al percorso di
+  lettura/scrittura dell'app, non solo del replay;
+* (c) scrivere solo le righe che entrano nel tetto: possibile, ma lascia i
+  campioni incompleti **e** porta il registro a ridosso del limite, quindi non
+  risolve il problema 2. Sconsigliato.
+
+Nessuna riga e' stata scritta finora: nessun effetto collaterale da annullare.
+
+## 5bis. Il replay rifa' i click veri? (verifica diretta)
+
+La sezione «Fedelta'» confronta le righe del Registro con quelle ricostruite, ma
+il confronto e' severo **per costruzione**: le righe del Registro sono state
+scritte quando l'utente ha premuto il bottone (dati di allora, "prossima
+giornata" di allora), il replay ricostruisce a **kickoff - 1 s**. Se i due
+istanti cadono in giorni diversi, il dato e' diverso e i numeri **devono**
+differire.
+
+Per togliere il dubbio, `audit/verifica_click_live.py` ricostruisce il click
+**all'istante del salvataggio** (`salvato_il`, in ora italiana) e confronta:
+prima di PR#24 col modello legacy (era quello live), dopo con la variante
+dichiarata. Se nessuna riga coincide, il comando **esce 1**: vuol dire che il
+metodo non riproduce la realta', non che i numeri sono diversi.
+
+* controllo positivo in locale: righe salvate allo stesso istante della
+  ricostruzione -> **3/3 coincidono** (lo strumento misura davvero);
+* campione sul Registro vero: esito letto dal run CI del tag
+  `replay-check-sym-2026-09-20`.
+
+Nota di metodo: una prima versione di questa verifica e' morta in CI su una
+funzione inesistente (`check._nel_periodo`, che sta in `registry_coverage`)
+lasciando il passo **verde**: la pipe senza `pipefail` inghiottiva l'errore. Ora
+il passo ha `set -o pipefail`, stampa sempre le ultime righe, e un test
+end-to-end su registro finto copre quel percorso.
 
 ## 6. Verifiche eseguite
 
-* **Suite completa**: `818 passed, 1006 subtests passed` (`SoccerMath/` +
+* **Suite completa**: `829 passed, 1006 subtests passed` (`SoccerMath/` +
   `audit/`, con `test_theme_toggle.py` a parte: `🎉 TUTTI I TEST PASSATI`).
   Nessun test saltato, nessun sottoinsieme.
 * Nuovi test in questa consegna: finestre complementari a istante (4),
@@ -183,8 +252,10 @@ replay: la misura è pronta per dirlo.
 
 ## 7. Cosa resta aperto
 
-1. **Secret JSONBin** → sbloccano scrittura e verifica di copertura sul Registro
-   live (punto §5 e requisito 4 «sul Registro»).
+1. **Tetto di 100 kB del piano free JSONBin** → e' l'unica cosa che separa i due
+   comandi dalla scrittura (punto §5) e riguarda anche la produzione: a ~74 kB su
+   100 kB, i salvataggi dell'app si fermeranno fra ~38 righe. I secret ora
+   funzionano (lettura remota OK): il blocco e' di capienza, non di credenziali.
 2. Le **9** partite solo-attuale: dichiarate, spiegate, non forzate (§4.3).
    È l'unico punto che richiede una decisione: l'uguaglianza dei campioni
    esiste solo cambiando le regole del selettore, non il replay.
