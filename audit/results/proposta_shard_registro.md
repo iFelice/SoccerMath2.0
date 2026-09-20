@@ -150,3 +150,79 @@ idempotente al giro dopo (stessa proprieta' di `upsert_prediction_entry`).
 3. **Archivio storico**: il bin attuale resta un archivio dichiarato in sola
    lettura (consigliato), o vuoi che i suoi dati vengano spostati del tutto nei
    nuovi shard e il bin vecchio svuotato?
+
+---
+
+# 8. Alternative al frazionamento: quali servizi risolvono davvero (verificate)
+
+Domanda posta: **npoint.io** puo' superare il problema del bin?
+
+## 8.1 npoint.io: no, e per tre motivi indipendenti
+
+1. **E' un archivio a senso unico, per progetto.** Dalla pagina ufficiale:
+   *"n:point is a one-way JSON store: edit online, fetch via GET requests over
+   API. Editing data over the API via POST requests is in private beta. Even
+   once released, n:point is not meant to be a full backend for your app."*
+   Il nostro Registro deve essere **scritto dall'app** a ogni click Top Mix (e
+   dalla CI per il replay): senza scrittura via API non puo' fare da Registro.
+2. **La scrittura via API e' riservata.** Nel codice del progetto gli
+   aggiornamenti programmatici richiedono autenticazione **e** ``is_premium``; il
+   wrapper Node piu' diffuso apre con: *"npoint.io is not giving out API keys to
+   new users anymore. So if you don't own a legacy account then you cannot use
+   this wrapper."* Per un account nuovo, di fatto, non c'e' scrittura.
+3. **La lettura e' in cache CDN per 1 ora** (dalla documentazione del progetto:
+   *1-hour Cloudflare cache on API responses*). Il nostro flusso e'
+   leggi -> aggiungi -> scrivi: una lettura stantia = righe perse al salvataggio.
+   Sarebbe un difetto **peggiore** del tetto di dimensione, perche' silenzioso.
+
+In piu': limiti 100 richieste/min per IP e 600/min per bin, nessun limite di
+dimensione documentato, nessun SLA, posizionamento esplicito "non per la
+produzione".
+
+**Verdetto**: npoint.io risolverebbe il problema di dimensione sostituendolo con
+un problema di scrittura. Non e' utilizzabile come Registro.
+
+## 8.2 Cosa servirebbe per NON frazionare: un tetto per record piu' alto
+
+| servizio | tetto per record | scrittura via API | piano gratuito | verdetto per noi |
+|---|---|---|---|---|
+| **JSONBin** (oggi) | 100 kB free; Pro: **1 MB** secondo l'errore dell'API, **10 MB** secondo la tabella di prezzo (da verificare prima di pagare) | PUT | 10.000 richieste | serve il frazionamento: una stagione e' ~1,4-1,9 MB |
+| **npoint.io** | non documentato | **no** (POST in private beta, premium/legacy) | rate limit | **scartato** (§8.1) |
+| **Cloudflare KV** | **25 MiB per valore** | PUT via REST (senza Worker) | 1 GB, 100k letture/giorno, **1.000 scritture/giorno**, 1 scrittura/s per chiave | **elimina il frazionamento**: una chiave per stagione (~1,5 MB) sta largamente |
+| **GitHub Contents API** | 100 MB per file | PUT (crea un commit) | 5.000 richieste/ora | gratis e **versionato** (ogni modifica del Registro e' un diff); ma mette i dati in commit sul repo |
+| **Supabase** | Postgres, scrittura **per riga** | REST | 500 MB DB, 2 progetti | il modello giusto (niente riscrittura totale), ma i progetti free **vanno in pausa dopo 7 giorni di inattivita'** |
+| **Cloudflare D1** | SQL, righe | REST/SQL | 5 GB, 5M letture righe/giorno | il piu' solido a lungo termine, il piu' lavoro da fare |
+
+Due conseguenze da tenere presenti:
+
+* **Anche jsonbin Pro non basta per una stagione intera** (1 MB per record
+  secondo l'errore dell'API): pagare il piano Pro non eliminerebbe il
+  frazionamento, lo rimanderebbe soltanto. Solo KV (25 MiB) o un database a
+  righe lo eliminano davvero.
+* **Chi risolve alla radice e' un archivio a righe**: il difetto di fondo non e'
+  il tetto, e' che il Registro e' **un'unica record riscritta per intero** a ogni
+  salvataggio (per questo un click dell'app puo' fallire per colpa di righe
+  scritte giorni prima). KV con una chiave per stagione riduce il problema a
+  "riscrivi una stagione", che con 25 MiB non e' piu' un vincolo pratico.
+
+## 8.3 Le due strade, con il lavoro che comportano
+
+| | **A. Frazionare su JSONBin** (proposta §1-7) | **B. Passare a Cloudflare KV** |
+|---|---|---|
+| servizio nuovo | no | account Cloudflare + namespace + API token |
+| codice nuovo | chiave di shard, manifest, unione con dedup, guardia di capacita' | client REST KV (GET/PUT), una chiave per stagione: **meno** logica del frazionamento |
+| codice da toccare | `prediction_registry`/`app` (lettura e scrittura) | gli stessi punti |
+| migrazione | copia per shard, archivio intatto | copia della stagione in una chiave, bin JSONBin come archivio |
+| rischio nuovo | nessuno (stesso servizio) | coerenza "eventually consistent" (~secondi) e nessun confronto-e-scambia atomico: con **un solo scrittore alla volta** (click o CI) il rischio pratico e' basso, ma va dichiarato |
+| costi | 0 (piano free) | 0 (1.000 scritture/giorno sono ~100 volte il nostro uso) |
+
+Consiglio, in una riga: **se si vuole restare su JSONBin, la strada A e' quella
+descritta sopra; se si accetta un servizio nuovo, la B fa meno codice e toglie il
+tetto (25 MiB)**, al prezzo di un vincolo di coerenza da dichiarare. npoint.io
+non e' una terza opzione.
+
+## 8.4 Cosa non cambia in nessuna delle due
+
+Contenuto delle righe, soglie (0,55 1X2 / 0,60 Totali), veto, `dedup_key`,
+nessuna sovrascrittura, i due comandi del replay e i loro tag. Cambia solo **dove**
+finiscono le righe.
