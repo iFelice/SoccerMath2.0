@@ -2118,7 +2118,8 @@ with tab2:
                 args_reg, kwargs_reg = argomenti_registro_top_mix(p, model_variant=variante)
                 esiti_save.append(save_prediction_entry(*args_reg, **kwargs_reg))
         # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
-        # quando il PUT remoto era fallito dentro un `except: pass`.
+        # quando la scrittura remota (PUT su JSONBin, HSET su Upstash) era
+        # fallita dentro un `except: pass`.
         n_err_remoto = sum(1 for e in esiti_save if e.get("remoto") == "errore")
         n_nuove = sum(1 for e in esiti_save if e.get("azione") == "aggiunta")
         n_agg = sum(1 for e in esiti_save if e.get("azione") == "aggiornata")
@@ -2132,7 +2133,7 @@ with tab2:
                 dettaglio += f", {n_senza_id} senza match_id"
             if n_err_remoto:
                 st.warning(f"⚠️ {n_err_remoto}/{len(esiti_save)} righe salvate SOLO in locale: "
-                           f"PUT remoto fallito (vedi log). Registro: {dettaglio}.")
+                           f"scrittura remota fallita (vedi log). Registro: {dettaglio}.")
             else:
                 st.success(f"✅ Top Mix nel registro: {dettaglio}.")
 

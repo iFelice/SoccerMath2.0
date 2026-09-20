@@ -736,8 +736,8 @@ def write_to_registry(entries: List[Dict[str, Any]], *, dry_run: bool = True) ->
     esito["scritto"] = bool(r.get("locale"))
     esito["remoto"] = r.get("remoto")
     if remoto_configurato and r.get("remoto") != "ok":
-        raise ReplayError(f"PUT remoto non riuscito: {r} (payload {esito['byte_payload']} byte, "
-                          f"fusione {len(merged)} righe)")
+        raise ReplayError(f"scrittura remota non riuscita: {r} (payload equivalente "
+                          f"{esito['byte_payload']} byte, fusione {len(merged)} righe)")
     return esito
 
 

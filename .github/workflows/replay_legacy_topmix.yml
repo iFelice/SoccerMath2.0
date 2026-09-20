@@ -97,6 +97,11 @@ jobs:
       MODEL: ${{ github.event.inputs.model || 'both' }}
       VERIFICA_CAMPIONE: ${{ github.event.inputs.verifica_campione || '3' }}
       COVERAGE_FROM: ${{ github.event.inputs.coverage_from || '2026-08-30' }}
+      # Dove vive il Registro per QUESTA esecuzione. Il tag puo' dirlo
+      # esplicitamente ("replay-write-sym-upstash-*" / "-jsonbin-*"), altrimenti
+      # vale la variabile del repository e, in mancanza, il comportamento di
+      # sempre. Cosi' la commutazione e' dichiarata nel ref e tracciabile.
+      BACKEND: ${{ contains(github.ref, '-upstash-') && 'upstash' || (contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'jsonbin')) }}
 
     steps:
       # La finestra si decide qui, in un posto solo e leggibile: un tag
@@ -194,7 +199,7 @@ jobs:
           # commuta lettura e scrittura sull'hash Redis, senza toccare il codice.
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
           # Passata da variabile d'ambiente, non interpolata nel corpo dello
           # script: un input di dispatch non puo' diventare comando.
           EXTRA: ${{ steps.finestra.outputs.extra }}
@@ -226,7 +231,7 @@ jobs:
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
         run: |
           python SoccerMath/registry_coverage_check.py \
             --from "$COVERAGE_FROM" \
@@ -244,7 +249,7 @@ jobs:
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
         run: |
           set -o pipefail
           set +e
@@ -271,7 +276,7 @@ jobs:
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'jsonbin' }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
         run: |
           # pipefail: senza, un errore dello script finiva inghiottito dalla
           # pipe e il passo risultava verde (e' successo davvero).
