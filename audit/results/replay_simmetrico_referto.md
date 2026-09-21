@@ -139,6 +139,87 @@ da entrambi i modelli** (66 sui dati API), **9 solo dall'attuale**, **0 solo dal
 legacy**. Chi vuole l'uguaglianza deve cambiare le regole del selettore, non il
 replay: la misura è pronta per dirlo.
 
+### 4.4 Il Registro vero, dopo le scritture: la copertura dei due modelli (misurata, ripetibile)
+
+I numeri dei paragrafi precedenti dicono cosa il replay **scrive**; questa
+sezione dice cosa il Registro **contiene adesso**, lettura pura, e risponde una
+per una alle richieste della commessa. Lo strumento e'
+`SoccerMath/registry_modelli_check.py` (sola lettura: nessuna scrittura di
+registro, nessuna PUT/HSET): partiziona il Registro sulla **stessa** finestra
+ricostruibile (`REPLAY_START_INSTANT` = `2026-08-30T11:27:06Z`) e sullo **stesso**
+confine di PR#24 (`PR24_MERGE_INSTANT` = `2026-09-18T21:51:58Z`, half-open),
+**importati** dal codice del replay invece che ricopiati, e per ogni partita
+guarda se esiste la riga del modello attuale, quella del legacy, o entrambe.
+
+| sezione | righe in finestra | di cui del replay (variante esplicita) | di cui click veri dell'epoca (campo assente) | partite attuale | partite legacy | con entrambi | solo attuale | solo legacy |
+|---|---|---|---|---|---|---|---|---|
+| VECCHIO (prima di PR#24) | 138 | 98 | 40 | 70 | 52 | 52 | 18 | **0** |
+| NUOVO (da PR#24 in poi) | 33 | 27 | 6 | 17 | 16 | 16 | 1 | **0** |
+| **INTERO PERIODO** | **171** | **125** | **46** | **87** | **68** | **68** | **19** | **0** |
+
+Fonte: Registro vivo (hash Upstash `sm:registro`), lettura del
+21/09/2026 nel run `35570242579` (tag `verifica-modelli-upstash-2026-09-21`).
+Il workflow `verifica_modelli.yml` lo rifà a ogni push del tag e pubblica i
+numeri come **annotazioni** della run: si leggono senza scaricare artefatti.
+Le due colonne «del replay» e «click veri» servono a non confondere le specie:
+prima di PR#24 il campo `model_variant` non esisteva, e la convenzione legge le
+righe senza campo come `current` — ma quelle righe non le ha scritte il replay.
+
+**Il campione è simmetrico per costruzione, e i numeri lo dicono.** Ogni partita
+che il legacy copre ha **anche** la riga dell'attuale (`solo legacy = 0`, sia
+nella sezione vecchia sia in quella nuova): non c'e' una sola partita in cui il
+modello vecchio abbia scelto e il nuovo sia assente. E' esattamente la richiesta
+«per la stessa partita dove esistono righe legacy, le righe attuali devono
+esserci»: soddisfatta, e verificabile a comando.
+
+**Il gate e' onesto: rosso solo per l'attuale.** Il passo di CI esce **rosso**
+(errore, non warning) se manca una riga del modello **attuale** per una partita
+che il legacy copre: quella e' copertura incompleta di cio' che la commessa
+chiedeva di rigiocare, e si ripara rilanciando il replay (che aggiunge, non
+sovrascrive). Le righe legacy mancanti invece **si dichiarano** e la run resta
+verde: quelle righe non si scrivono, perche' il legacy li' non esprime alcuna
+scelta e inventarla falserebbe il campione. Sul Registro vero il gate dice:
+**righe ATTUALE mancanti 0 · righe LEGACY mancanti 19**.
+
+| esito del gate | valore sul Registro vero |
+|---|---|
+| righe ATTUALE mancanti (rosso) | **0** |
+| righe LEGACY mancanti (verde, dichiarate) | **19** |
+| esito run | **success** |
+
+**Le 19 partite solo-attuale: causa misurata, non ipotizzata.** Lo stesso
+strumento di diagnosi (`audit/diagnose_scarti_model_variant.py`, ora con
+`--fixtures api` perche' gli id sintetici dei CSV non sono quelli veri del
+Registro) rigioca **ognuna** delle 19 con un click vero e legge il motivo dal
+selettore: `NON DIAGNOSTICABILI: 0 su 19` — nessuna riga e' rimasta senza
+spiegazione. Riepilogo della run: **sotto soglia 16 · veto 3**. Le soglie sono
+quelle di produzione, invariate (0,55 1X2 / 0,60 Totali): i casi di confine
+stanno **appena** sotto e sono dichiarati tali — Alavés–Osasuna 0,600 (Totali)
+e Under 2.5 a 0,598, Brighton–Leeds Over 2.5 0,546, fino al minimo 0,520.
+Nessuna riga sotto soglia e' stata scritta: e' la regola della commessa, ed e'
+la ragione per cui i due campioni non hanno la stessa lunghezza.
+
+**Perche' i numeri non sono quelli dei dry-run (§4.1–4.2).** I dry-run misuravano
+i due comandi alla data di quei run; la finestra legacy arriva a **oggi**, quindi
+ogni giornata di campionato conclusa aggiunge partite a entrambi i modelli (era
+21 click, poi 23...). Non e' instabilita' del replay: e' il calendario. La
+verifica qui sopra e' una fotografia datata e si puo' rifare identica.
+
+**Le due specie di riga, contate.** Delle 19 partite solo-attuale: **9** sono
+coperte da una riga del **replay** (variante esplicita), **11** da un **click
+vero dell'epoca** (campo assente); una partita (Ipswich–Liverpool) ha entrambe.
+Non sono quindi 19 righe scritte dal replay: sono 19 partite, con la riga che
+l'attuale ha davvero — e la distinzione e' scritta nel referto e nel JSON
+(`riga_del_replay` / `riga_storica` per ogni voce), non lasciata all'ambiguita'
+della convenzione.
+
+**Dichiarazione esplicita, di nuovo.** L'uguaglianza «stesso campione, stessa
+lunghezza per i due modelli» resta **non soddisfatta** sui dati veri: 68 partite
+giocate da entrambi, 19 solo dall'attuale, 0 solo dal legacy. Le vie per farla
+tornare (abbassare le soglie, scrivere le righe sotto soglia, etichettare le
+partite) restano **scartate**: violano la consegna e falsano il campione. Il
+conto e' pronto, ripetibile, e non nasconde niente.
+
 ## 5. Scrittura nel Registro
 
 * Cosa entra: per ogni partita della finestra, **una** riga per modello
@@ -160,7 +241,17 @@ replay: la misura è pronta per dirlo.
   `replay-write-sym-<data>` e `replay-write-legacy-<data>`. Da un push di
   branch il workflow resta **sempre** dry-run.
 
-### Il PUT remoto si ferma sul tetto del piano free JSONBin (misurato)
+### Il PUT remoto si ferma sul tetto del piano free JSONBin (misurato) — e come e' stato superato
+
+> **Esito.** Il muro descritto qui sotto e' stato superato **senza pagare**:
+> il Registro vive ora su **Upstash** (REST, un hash, una riga = un campo, una
+> `HSET` per riga), con uno strato di accesso unico (`registry_store.py`) e la
+> scelta del backend per configurazione (`REGISTRY_BACKEND`); JSONBin resta
+> intatto come **archivio dichiarato**, non si tocca piu'. Referto dedicato:
+> `audit/results/migrazione_registro_upstash.md` (fasi A–E, verifica in sola
+> lettura prima di ogni scrittura, idempotenza, fallback di sharding se mai
+> servisse). Il testo che segue resta come **misura** del muro, non come stato
+> attuale.
 
 I secret sono configurati (la **lettura** remota infatti funziona: `fonte:
 jsonbin`, 108 righe). La **scrittura** arriva fino al PUT e viene **respinta dal
@@ -264,15 +355,23 @@ end-to-end su registro finto copre quel percorso.
 
 ## 6. Verifiche eseguite
 
-* **Suite completa**: `829 passed, 1006 subtests passed` (`SoccerMath/` +
+* **Suite completa**: `907 passed, 1006 subtests passed` (`SoccerMath/` +
   `audit/`, con `test_theme_toggle.py` a parte: `🎉 TUTTI I TEST PASSATI`).
   Nessun test saltato, nessun sottoinsieme.
 * Nuovi test in questa consegna: finestre complementari a istante (4),
   fedeltà per variante (4), esito della scrittura (5), registro da file (3),
   ritentativi del fetch (4), più le classi del doppio modello già esistenti.
+  Alla verifica dei due modelli si aggiungono: pareggio/mismatch, confine a
+  istante, righe storiche senza variante, referto, codici di uscita, JSON,
+  distinzione fra riga del replay e click vero, partita con entrambe le specie
+  (13 test), e la diagnosi delle partite scoperte con la sorgente fixture vera.
 * **CI su dati veri** (`gh run watch`): run dry-run verde sull'intero periodo e
   sul solo periodo simmetrico; i numeri sopra arrivano dalle **annotazioni** del
   run, leggibili senza scaricare artifact.
+* **Verifica dei due modelli sul Registro vero**: run `35570242579` (tag
+  `verifica-modelli-upstash-2026-09-21`), `success`, sola lettura — i numeri di
+  §4.4 sono le sue annotazioni (`[modelli]`, `[modelli-specie]`) e la causa
+  delle 19 partite sta in `[diagnosi-riepilogo]` e `[diagnosi-parziale]`.
 * **Fetch + diff**: i due comandi girano contro `origin/main` con la storia
   completa (gli snapshot vengono da git), e il referto dichiara il ref usato.
 
@@ -282,9 +381,10 @@ end-to-end su registro finto copre quel percorso.
    comandi dalla scrittura (punto §5) e riguarda anche la produzione: a ~74 kB su
    100 kB, i salvataggi dell'app si fermeranno fra ~38 righe. I secret ora
    funzionano (lettura remota OK): il blocco e' di capienza, non di credenziali.
-2. Le **9** partite solo-attuale: dichiarate, spiegate, non forzate (§4.3).
-   È l'unico punto che richiede una decisione: l'uguaglianza dei campioni
-   esiste solo cambiando le regole del selettore, non il replay.
+2. Le partite solo-attuale (**9** offline/API nei dry-run, **19** sul Registro
+   vivo al 21/09): dichiarate, spiegate, non forzate (§4.3 e §4.4). È l'unico
+   punto che richiede una decisione: l'uguaglianza dei campioni esiste solo
+   cambiando le regole del selettore, non il replay.
 3. 2 kickoff incerti (Levante-Ath Bilbao, Monaco-Lens) e 14 click con snapshot
    privo dell'archivio xG (arriva in git il 01/09): entrambe dichiarate nel
    referto, con il fallback che userebbe la produzione con quegli stessi dati.
@@ -300,3 +400,6 @@ end-to-end su registro finto copre quel percorso.
 | `audit/results/replay_sym_offline/diagnosi_scarti.md` | le 9 partite, motivo misurato |
 | `audit/diagnose_scarti_model_variant.py` | lo strumento che le misura |
 | `.github/workflows/replay_legacy_topmix.yml` | i due comandi (tag = comando), dry-run di default |
+| `SoccerMath/registry_modelli_check.py` + `SoccerMath/test_registry_modelli_check.py` | la verifica dei due modelli sul Registro (sola lettura), 13 test |
+| `.github/workflows/verifica_modelli.yml` | la verifica in CI (tag `verifica-modelli-*`): numeri e causa come annotazioni |
+| `audit/test_diagnose_scarti.py` | la diagnosi delle partite scoperte, con la sorgente fixture vera (`api`) |
