@@ -258,9 +258,13 @@ jobs:
             2>&1 | tee "$REPLAY_OUT/stato_backend.txt"
           rc=$?
           set -e
+          # `|| true`: questo giro serve a PUBBLICARE le righe del referto. Se la
+          # pipeline esce nonzero (per esempio un `grep` che non trova nulla, o
+          # `head` che chiude il tubo) la run non deve diventare rossa per
+          # un'annotazione mancante: il verdetto sta nell'uscita di rc, sotto.
           grep -v '^\s*$' "$REPLAY_OUT/stato_backend.txt" | head -n 12 | while IFS= read -r line; do
             echo "::warning title=registro::${line:0:900}"
-          done
+          done || true
           if [ "$rc" != "0" ]; then
             echo "::error title=registro::stato backend uscito con $rc (un backend non risponde: vedi le righe sopra)"
           fi

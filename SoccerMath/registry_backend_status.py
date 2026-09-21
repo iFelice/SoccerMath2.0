@@ -11,7 +11,11 @@ Casi d'uso:
   inattesa, si sa esattamente quante righe verranno copiate;
 * **dopo la copia** (fase C) e **dopo la commutazione** (fase D): i due insiemi
   devono risultare identici, e questo comando lo dice in una riga;
-* **in esercizio**: se qualcuno scrive da una parte sola, si vede subito.
+* **in esercizio**: se qualcuno scrive da una parte sola, si vede subito;
+* **igiene dell'hash**: i NOMI dei campi sono la chiave ricalcolata dal
+  contenuto (``field_of`` = ``dedup_key``). Se la convenzione di lettura
+  cambia, una riga scritta prima del cambio resta sotto il nome vecchio:
+  il comando conta campi, campi con nome vecchio e righe distinte.
 
 Non scrive MAI: nessun SET/HSET/PUT, nessun file di registro toccato. Esce 1
 solo se un backend non risponde o risponde male (non per una differenza: durante
@@ -66,6 +70,51 @@ def chiavi_upstash(quante: int = 10) -> Dict[str, Any]:
         return {"dbsize": None, "chiavi": [], "errore": f"{type(e).__name__}: {e}"}
 
 
+def campi_upstash(esempi: int = 3, *, post=None) -> Dict[str, Any]:
+    """HGETALL GREZZO: i NOMI dei campi contro la chiave ricalcolata dal contenuto.
+
+    Il campo dell'hash e' ``field_of(riga)`` = ``dedup_key`` della riga, quindi
+    dipende dalla convenzione con cui si legge la variante: se cambia (una riga
+    senza campo letta per DATA invece che col default), una riga scritta prima
+    del cambio resta sotto il nome VECCHIO. Il contenuto c'e' e si legge, ma il
+    campo non e' piu' quello che la riga ricalcola: due campi, una sola riga.
+
+    Qui si contano i campi totali, quelli allineati, quelli con nome vecchio,
+    le righe DISTINTE per chiave ricalcolata (se i campi doppi sono righe
+    doppie) e si mostrano un paio di esempi. Sola lettura: una ``HGETALL``.
+    """
+    try:
+        grezzo = rs.upstash_raw(["HGETALL", rs.hash_key()], post=post).get("result")
+        coppie = rs.hash_da_risposta(grezzo)
+    except Exception as e:                                  # pragma: no cover - rete
+        return {"errore": f"{type(e).__name__}: {e}"}
+    allineati = vecchi = illeggibili = 0
+    per_chiave: Dict[str, List[str]] = {}
+    esempi_vecchi: List[Dict[str, str]] = []
+    for campo, valore in coppie.items():
+        riga = valore if isinstance(valore, dict) else None
+        if riga is None:
+            try:
+                riga = json.loads(valore) if isinstance(valore, str) else None
+            except Exception:
+                riga = None
+        if not isinstance(riga, dict):
+            illeggibili += 1
+            continue
+        calcolato = rs.field_of(riga)
+        if calcolato == campo:
+            allineati += 1
+        else:
+            vecchi += 1
+            if len(esempi_vecchi) < max(0, esempi):
+                esempi_vecchi.append({"campo_scritto": campo, "campo_ricalcolato": calcolato})
+        per_chiave.setdefault(calcolato, []).append(campo)
+    doppie = sum(1 for campi in per_chiave.values() if len(campi) > 1)
+    return {"campi": len(coppie), "allineati": allineati, "nome_vecchio": vecchi,
+            "illeggibili": illeggibili, "righe_distinte": len(per_chiave),
+            "chiavi_doppie": doppie, "esempi": esempi_vecchi}
+
+
 def _riga_testo(r: Dict[str, Any]) -> str:
     return (f"{r.get('home')} - {r.get('away')} ({r.get('campionato')}, {r.get('data')}) "
             f"{r.get('mercato_standard')} {r.get('prob_sicuro')}% "
@@ -112,6 +161,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             L.append(f"- chiavi nel database (**{chiavi['dbsize']}**): "
                      + (", ".join(f"`{k}`" for k in chiavi["chiavi"]) or "nessuna"))
+        campi = campi_upstash(args.mostra)
+        esito["upstash"]["campi"] = campi
+        if campi.get("errore"):
+            L.append(f"- **campi dell'hash: non leggibili** — {campi['errore']}")
+        else:
+            L.append(f"- campi dell'hash: **{campi['campi']}** · allineati alla chiave ricalcolata "
+                     f"**{campi['allineati']}** · con nome vecchio **{campi['nome_vecchio']}** · "
+                     f"righe distinte **{campi['righe_distinte']}** · chiavi doppie "
+                     f"**{campi['chiavi_doppie']}**"
+                     + (f" · valori illeggibili {campi['illeggibili']}" if campi["illeggibili"] else ""))
+            for esempio in campi["esempi"]:
+                L.append(f"    · nome vecchio: `{esempio['campo_scritto']}` -> ricalcolato "
+                         f"`{esempio['campo_ricalcolato']}`")
 
     if righe_jb is not None and righe_us is not None:
         diff = rs.confronto(righe_jb, righe_us)

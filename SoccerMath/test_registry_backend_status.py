@@ -80,7 +80,8 @@ class TestStatoSolaLettura(unittest.TestCase):
         rc, testo = self._esegui_con_rete(post, [_riga()])
         self.assertEqual(0, rc)
         comandi = [str(c[0]).upper() for c in post.comandi]
-        self.assertEqual(["HGETALL", "DBSIZE", "KEYS"], comandi,
+        # Due HGETALL: le righe, e i NOMI dei campi (diagnosi). Mai una scrittura.
+        self.assertEqual(["HGETALL", "DBSIZE", "KEYS", "HGETALL"], comandi,
                          "lo stato del backend e' sola lettura: HGETALL, DBSIZE, KEYS")
         self.assertIn("i due Registri coincidono", testo)
 
@@ -90,7 +91,8 @@ class TestStatoSolaLettura(unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertIn("Upstash: **0 righe**", testo)
         self.assertIn("database nuovo", testo)
-        self.assertEqual(["HGETALL", "DBSIZE", "KEYS"], [str(c[0]).upper() for c in post.comandi])
+        self.assertEqual(["HGETALL", "DBSIZE", "KEYS", "HGETALL"],
+                         [str(c[0]).upper() for c in post.comandi])
         self.assertIn("chiavi nel database (**0**)", testo)
 
 
@@ -130,3 +132,54 @@ class TestUscita(unittest.TestCase):
         self.assertEqual(1, rc)
         self.assertIn("JSONBin: NON leggibile", testo)
         self.assertIn("Upstash: **1 righe**", testo)
+
+
+class TestCampiDellHash(unittest.TestCase):
+    """Il campo dell'hash e' la chiave ricalcolata: se la convenzione cambia, il
+    nome vecchio resta accanto a quello nuovo (una riga, due campi). La diagnosi
+    deve VEDERLO — e' l'effetto collaterale da misurare, non da nascondere."""
+
+    def _riga_senza_campo(self, match_id=5):
+        riga = _riga(match_id)
+        riga.pop("model_variant")
+        riga["salvato_il"] = "05/09/2026 18:18"      # prima del merge di PR#24
+        return riga
+
+    def test_nome_vecchio_e_riga_doppia_vengono_contati(self):
+        riga = self._riga_senza_campo()
+        nuovo = status.rs.field_of(riga)
+        vecchio = nuovo.rsplit("|", 1)[0] + "|current"
+        self.assertNotEqual(vecchio, nuovo, "il nome vecchio e quello ricalcolato devono differire")
+        post = _PostRegistrato({vecchio: json.dumps(riga), nuovo: json.dumps(riga)})
+        with mock.patch.dict(os.environ, {"REGISTRY_BACKEND": "upstash",
+                                          "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+                                          "UPSTASH_REDIS_REST_TOKEN": "tok"}), \
+             mock.patch("requests.post", post), \
+             mock.patch.object(status, "leggi_jsonbin", return_value=([riga], "ok")):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = status.main(["--mostra", "2"])
+        testo = out.getvalue()
+        self.assertEqual(0, rc)
+        self.assertIn("campi dell'hash: **2**", testo)
+        self.assertIn("allineati alla chiave ricalcolata **1**", testo)
+        self.assertIn("con nome vecchio **1**", testo)
+        self.assertIn("righe distinte **1**", testo)
+        self.assertIn("chiavi doppie **1**", testo)
+        self.assertIn(f"`{vecchio}` -> ricalcolato `{nuovo}`", testo)
+
+    def test_hash_allineato_non_segnala_nulla(self):
+        riga = _riga(1)
+        post = _PostRegistrato({status.rs.field_of(riga): json.dumps(riga)})
+        with mock.patch.dict(os.environ, {"REGISTRY_BACKEND": "upstash",
+                                          "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+                                          "UPSTASH_REDIS_REST_TOKEN": "tok"}), \
+             mock.patch("requests.post", post), \
+             mock.patch.object(status, "leggi_jsonbin", return_value=([riga], "ok")):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                status.main(["--mostra", "2"])
+        testo = out.getvalue()
+        self.assertIn("campi dell'hash: **1**", testo)
+        self.assertIn("con nome vecchio **0**", testo)
+        self.assertIn("chiavi doppie **0**", testo)
