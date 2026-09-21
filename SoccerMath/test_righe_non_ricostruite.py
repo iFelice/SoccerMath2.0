@@ -73,6 +73,22 @@ class TestConfronto(unittest.TestCase):
         self.assertEqual(2, len(righe), "la stagione 2025/2026 si esclude con --stagione")
         self.assertTrue(any("PERIODO|" in r for r in compatte))
 
+    def test_riga_senza_campo_stagione_non_fa_esplodere_il_referto(self):
+        """Caso trovato sul Registro VERO: il campo ``stagione`` puo' mancare.
+
+        Ordinare chiavi miste (testo / None) alzava TypeError e il referto non
+        usciva affatto: qui la riga senza stagione deve essere elencata come
+        'senza stagione', insieme alle altre.
+        """
+        senza_stagione = _riga(7)
+        senza_stagione.pop("stagione")
+        d = RN.confronta(self.RIGHE + [senza_stagione], self.PROPOSTE)
+        self.assertIn("senza stagione", d["non_ritrovate_per_stagione"])
+        compatte = RN.righe_compatti(d)          # nessuna eccezione
+        self.assertTrue([r for r in compatte if "id 7" in r])
+        testo = RN.righe_testo(d)                # nemmeno nel referto lungo
+        self.assertTrue(any("Casa7" in r for r in testo))
+
     def test_senza_referto_del_replay_non_si_inventa(self):
         # main() con un referto inesistente deve uscire 2, non ``0`` con un elenco vuoto.
         from unittest import mock as _mock

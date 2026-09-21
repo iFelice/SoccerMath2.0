@@ -99,7 +99,10 @@ def confronta(righe: List[Dict[str, Any]], proposte: List[Dict[str, Any]]) -> Di
             "match_id": r.get("match_id"),
             "home": r.get("home"), "away": r.get("away"),
             "data_partita": r.get("data"), "campionato": r.get("campionato"),
-            "stagione": r.get("stagione"),
+            # Sempre TESTO: nel Registro ci sono righe senza campo ``stagione``
+            # (valore assente) e ordinare chiavi miste testo/None fa esplodere il
+            # referto. E' successo sul Registro vero, non nei dati di prova.
+            "stagione": str(r.get("stagione") or "senza stagione"),
             "salvato_il": r.get("salvato_il"),
             "variante": model_variant_read(r),
             "periodo": periodo(r),

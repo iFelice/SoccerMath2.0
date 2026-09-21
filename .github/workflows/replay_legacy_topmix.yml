@@ -279,8 +279,8 @@ jobs:
             if [ "$i" -le 8 ]; then
               echo "::warning title=non-ritrovate-$i::$blocco"
             fi
-          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " \n " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/non_ritrovate.txt")
-          chunck=$(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " \n " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/non_ritrovate.txt" | wc -l)
+          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/non_ritrovate.txt")
+          chunck=$(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/non_ritrovate.txt" | wc -l)
           echo "blocchi di referto: $chunck"
           if [ "$rc" != "0" ]; then
             echo "::error title=non-ritrovate::strumento uscito con $rc: il referto (con l'errore) e' nei blocchi qui sopra"
