@@ -84,6 +84,8 @@ class TestPercorsoDiScrittura(unittest.TestCase):
 
         def _finto_raw(comando, *, post=None):
             self.comandi.append(comando)
+            if comando[0] == "GET":
+                return {"result": None}
             if comando[0] == "SET":
                 return {"result": "OK"}
             if comando[0] == "HDEL":
@@ -149,6 +151,22 @@ class TestPercorsoDiScrittura(unittest.TestCase):
         import json as _json
         salvati = _json.loads(set_campi[0][2])
         self.assertIn("3|analisi_rapida||current", salvati)
+
+    def test_chiave_istantanea_non_sovrascrive_quella_esistente(self):
+        # Il finto GET dice che `...-pre-pulizia` esiste gia': si passa a `-2`.
+        with mock.patch.object(RP, "_istantanea_esiste", side_effect=[True, False]):
+            self.assertEqual("2026-09-21-pre-pulizia-2",
+                             RP._chiave_istantanea_libera("2026-09-21", True))
+        with mock.patch.object(RP, "_istantanea_esiste", return_value=False):
+            self.assertEqual("2026-09-21-pre-pulizia",
+                             RP._chiave_istantanea_libera("2026-09-21", True))
+
+    def test_in_prova_la_chiave_non_si_calcola(self):
+        # Nessun GET in modalita' prova: la chiave proposta e' quella base.
+        with mock.patch.object(RP, "_istantanea_esiste") as esiste:
+            self.assertEqual("2026-09-21-pre-pulizia",
+                             RP._chiave_istantanea_libera("2026-09-21", False))
+        esiste.assert_not_called()
 
     def test_istantanea_prima_della_cancellazione(self):
         with mock.patch.object(rs, "upstash_snapshot") as snap:
@@ -232,6 +250,8 @@ class TestSenzaOrigine(unittest.TestCase):
 
         def _finto_raw(comando, *, post=None):
             self.comandi.append(comando)
+            if comando[0] == "GET":
+                return {"result": None}
             if comando[0] == "SET":
                 return {"result": "OK"}
             if comando[0] == "HDEL":

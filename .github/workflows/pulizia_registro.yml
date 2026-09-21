@@ -188,6 +188,10 @@ jobs:
 
       - name: Referto come artifact
         if: always()
+        # L'upload non decide l'esito dei dati: se la quota artifact di GitHub e'
+        # piena (403) la pulizia resta valida e verificata — il referto sta anche
+        # nelle annotazioni, l'istantanea sta su Upstash.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: pulizia-registro-${{ github.run_id }}

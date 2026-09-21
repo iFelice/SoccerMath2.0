@@ -93,6 +93,32 @@ def riga_compatta(campo: str, riga: Dict[str, Any]) -> str:
             f"letta: {origin_of(riga)} | {testo[:34]}")
 
 
+def _istantanea_esiste(chiave: str) -> bool:
+    """C'e' gia' qualcosa sotto questa chiave? (1 comando GET)"""
+    risposta = rs.upstash_raw(["GET", chiave])
+    return risposta.get("result") is not None
+
+
+def _chiave_istantanea_libera(giorno: str, scrivi: bool) -> str:
+    """``<giorno>-pre-pulizia``, con un suffisso se quella chiave esiste gia'.
+
+    Un'istantanea che sovrascrive un'altra istantanea non e' un punto di
+    ripristino: e' un punto di ripristino in meno. Con piu' pulizie nello stesso
+    giorno le chiavi diventano ``...-pre-pulizia``, ``...-pre-pulizia-2``, ``-3``…
+    (la lettura avviene solo quando si sta per scrivere).
+    """
+    base = f"{giorno}-pre-pulizia"
+    if not scrivi:
+        return base
+    candidata, n = base, 1
+    while _istantanea_esiste(candidata):
+        n += 1
+        candidata = f"{base}-{n}"
+        if n > 50:                      # pragma: no cover - rete anomala
+            raise SystemExit("::error title=pulizia::troppe istantanee con lo stesso nome")
+    return candidata
+
+
 def _giorno_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -305,7 +331,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     # 1) Istantanea PRIMA di toccare: e' il punto di ripristino.
-    giorno = args.giorno or f"{_giorno_utc()}-pre-pulizia"
+    #    La chiave NON si sovrascrive: due pulizie lo stesso giorno creerebbero
+    #    una seconda istantanea sopra la prima, perdendo il primo punto di
+    #    ripristino (e' successo: la seconda ha coperto quella della prima).
+    giorno = args.giorno or _giorno_utc()
+    giorno = _chiave_istantanea_libera(giorno, args.scrivi)
     righe = [riga for _campo, (_testo, riga) in campi.items()]
     # una riga per chiave logica, come nel Registro vero
     chiavi_viste = set()
