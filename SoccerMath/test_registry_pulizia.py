@@ -165,6 +165,22 @@ class TestRigaTecnica(unittest.TestCase):
         self.assertNotIn("NO (nome vecchio)", testo)
 
 
+class TestRigaCompatta(unittest.TestCase):
+    """Il referto corto deve restare corto: sta nelle annotazioni di CI."""
+
+    def test_corta_e_leggibile(self):
+        riga = _riga(558633, "analisi_rapida")
+        riga.pop("origin")
+        riga["pronostico_sicuro"] = "Vittoria Atalanta - 63% - analisi automatica Poisson"
+        testo = RP.riga_compatta("558633|analisi_rapida||legacy", riga)
+        self.assertLessEqual(len(testo), 170, "una riga = un campo, in un referto corto")
+        self.assertIn("id 558633", testo)
+        self.assertIn("Casa - Ospite", testo)
+        self.assertIn("scritta: assente", testo)
+        self.assertIn("letta: analisi_rapida", testo)
+        self.assertIn("Vittoria Atalanta", testo)
+
+
 class TestGuardie(unittest.TestCase):
     def test_backend_jsonbin_non_si_pulisce(self):
         with mock.patch.object(rs, "backend", return_value=rs.BACKEND_JSONBIN):

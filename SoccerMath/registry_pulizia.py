@@ -79,6 +79,20 @@ def riga_tecnica(campo: str, testo: str, riga: Dict[str, Any]) -> str:
             f"{dettaglio_riga(riga)}")
 
 
+def riga_compatta(campo: str, riga: Dict[str, Any]) -> str:
+    """Una riga di testo BREVE (fino a ~120 caratteri), per i referti che hanno
+    un tetto di caratteri: dice tutto quello che serve per riconoscere la riga.
+
+    Il formato e' pensato per essere letto a occhio nelle annotazioni di CI, dove
+    ogni messaggio viene troncato intorno ai 3600 caratteri: qui un campo = una
+    riga, cosi' 26 righe stanno in un messaggio solo.
+    """
+    testo = str(riga.get("pronostico_sicuro") or "").strip()
+    return (f"`{campo}` | id {riga.get('match_id')} | {riga.get('home')} - {riga.get('away')} | "
+            f"{riga.get('data') or 'data n/d'} | scritta: {str(riga.get('origin') or 'assente')[:12]} | "
+            f"letta: {origin_of(riga)} | {texto[:34]}")
+
+
 def _giorno_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -142,6 +156,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--rimosse", default=None, help="scrive qui il JSON delle righe rimosse")
     ap.add_argument("--dettaglio", action="store_true",
                     help="stampa per ogni campo il nome scritto, quello ricalcolato e le origini")
+    ap.add_argument("--compatto", action="store_true",
+                    help="righe brevi prefissate `COMPATTO|` (selezionate) e `NONATT|` "
+                         "(non attribuibili): pensate per i referti con un tetto di caratteri")
     ap.add_argument("--scrivi", action="store_true", help="esegue davvero la pulizia")
     ap.add_argument("--conferma", action="store_true",
                     help="seconda chiave: senza questa, --scrivi non scrive")
@@ -189,6 +206,13 @@ def main(argv: Optional[List[str]] = None) -> int:
               f"**{len(non_attribuibili)}**")
         for campo in non_attribuibili:
             print(f"  - `{campo}` · {dettaglio_riga(campi[campo][1])}")
+    if args.compatto:
+        print("")
+        print("### Elenco compatto")
+        for campo in da_cancellare:
+            print("COMPATTO| " + riga_compatta(campo, campi[campo][1]))
+        for campo in non_attribuibili:
+            print("NONATT| " + riga_compatta(campo, campi[campo][1]))
     if args.dettaglio:
         # Un blocco per OGNI campo selezionato: nome scritto, nome ricalcolato,
         # origine scritta e origine letta. E' il blocco che dice se cancellare

@@ -87,29 +87,33 @@ jobs:
         run: |
           python SoccerMath/registry_pulizia.py \
             --origini "${{ vars.PULIZIA_ORIGINI || 'analisi_rapida' }}" \
-            --dettaglio --rimosse "$OUT/prova_rimosse.json" 2>&1 | tee "$OUT/pulizia_prova.txt"
+            --dettaglio --compatto --rimosse "$OUT/prova_rimosse.json" 2>&1 | tee "$OUT/pulizia_prova.txt"
           python - "$OUT/pulizia_prova.txt" <<'PY'
           import sys
           testo = open(sys.argv[1], encoding="utf-8").read()
           righe = testo.splitlines()
           sel = [r.strip() for r in righe if r.strip().startswith("- `")]
-          tecniche = [r.strip() for r in righe if r.strip().startswith("RIGA|")]
+          compatte = [r.strip() for r in righe if r.strip().startswith("COMPATTO|")]
+          nonatt = [r.strip() for r in righe if r.strip().startswith("NONATT|")]
           # Annotazioni = l'unico canale leggibile da fuori (le artifact qui non
-          # si scaricano). Si raggruppa: max 10 annotazioni per step, quindi
-          # poche righe lunghe invece di una per campo.
+          # si scaricano). Tetto: 10 annotazioni per step e ~3600 caratteri per
+          # messaggio -> poche righe corte raggruppate, non una per campo.
           print(f"::warning title=pulizia-prova::campi selezionati: {len(sel)} "
                 f"(nessuna scrittura in questa modalita')")
-          for prefisso in ("- campi selezionati:", "- righe logiche", "- righe presenti sotto",
-                           "- righe NON attribuibili", "- campi nell", "- campi dopo"):
+          for prefisso in ("- campi nell", "- campi selezionati:", "- righe presenti sotto",
+                           "- righe NON attribuibili"):
               for r in righe:
                   if r.strip().startswith(prefisso):
-                      print(f"::warning title=pulizia-conteggi::{r.strip()[:900]}")
-          for i in range(0, max(len(tecniche), 1), 9):
-              gruppo = tecniche[i:i + 9]
+                      print(f"::warning title=pulizia-conteggi::{r.strip()[:600]}")
+          for i in range(0, max(len(compatte), 1), 20):
+              gruppo = compatte[i:i + 20]
               if not gruppo:
                   break
-              print("::warning title=pulizia-campi-{}-{}::{}".format(
-                  i // 9 + 1, i + len(gruppo), " || ".join(g[:800] for g in gruppo)))
+              print("::warning title=pulizia-righe-{}-{}::{}".format(
+                  i + 1, i + len(gruppo), " || ".join(g[:170] for g in gruppo)))
+          if nonatt:
+              print("::warning title=pulizia-non-attribuibili::" + " || ".join(
+                  g[:900] for g in nonatt))
           PY
 
       - name: Pulizia vera (solo con il tag pulizia-write-*)
