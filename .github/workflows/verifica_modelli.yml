@@ -284,6 +284,48 @@ jobs:
                 f"hanno una causa MISURATA dal selettore (sotto soglia o veto): la riga non va scritta")
           PY
 
+      # Le prove per riga: quando e' NATA la riga che copre la partita, che
+      # specie e', e il motivo misurato per il modello che manca. Una sola
+      # annotazione (il tetto per passo ne lascia poche): cosi' l'elenco si
+      # legge dalla run senza scaricare l'artefatto.
+      - name: "Elenco con le prove: partite senza la riga ATTUALE"
+        if: always()
+        run: |
+          python - "$OUT/modelli.json" "$OUT/diagnosi_scarti.json" <<'PY' || true
+          import json, os, sys
+
+          def carica(p):
+              try:
+                  with open(p, encoding="utf-8") as f:
+                      return json.load(f)
+              except Exception:
+                  return None
+
+          modelli, diagnosi = carica(sys.argv[1]), carica(sys.argv[2])
+          if not modelli:
+              sys.exit(0)
+          inc = modelli.get("incrocio_nascita_partita") or {}
+          cat = {}
+          for r in (diagnosi or {}).get("targets", []):
+              if r.get("variante_assente") == "current":
+                  cat[str(r.get("match_id"))] = r.get("categoria_assente")
+          for r in (diagnosi or {}).get("non_diagnosticabili", []):
+              if r.get("variante_assente") == "current":
+                  cat.setdefault(str(r.get("match_id")), "non misurata")
+          righe = [f"righe senza etichetta: nate prima del merge e partite prima "
+                   f"{inc.get('nate_prima_partita_prima')}, nate PRIMA del merge e partite DOPO "
+                   f"{inc.get('nate_prima_partita_dopo')} (lette legacy: il motore era quello), "
+                   f"nate dopo {inc.get('nate_dopo_partita_dopo')}"]
+          for m in modelli["intero"]["solo"]["legacy"]:
+              righe.append(f"{m['partita']} ({m['campionato']}, {m['data']}): riga legacy "
+                           f"{'del replay' if m.get('riga_del_replay') else 'di un click vero'} "
+                           f"nata {m.get('salvato_il') or '?'} "
+                           f"({'prima' if m.get('riga_nata_prima_della_fusione') else 'dopo'} il merge); "
+                           f"ATTUALE: {m['mercato']} {m['prob']}% mancante, causa "
+                           f"{cat.get(str(m.get('match_id')), 'non misurata')}")
+          print("::notice title=attuale-mancante::" + " · ".join(righe)[:6000])
+          PY
+
       - name: Artifact (referto della verifica)
         if: always()
         uses: actions/upload-artifact@v4

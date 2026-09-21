@@ -53,6 +53,8 @@ from registry_coverage import (  # noqa: E402
     MODEL_VARIANT_LABELS,
     MODEL_VARIANT_LEGACY,
     MODEL_VARIANT_SOURCE_UNKNOWN,
+    TWO_MODELS_MERGE_INSTANT,
+    entry_instant,
     match_key,
     model_variant_read,
     model_variant_read_source,
@@ -79,6 +81,14 @@ def confini() -> Dict[str, Any]:
 
 def _ha_variante_esplicita(riga: Dict[str, Any]) -> bool:
     return bool(str(riga.get("model_variant") or "").strip())
+
+
+def _nata_prima(riga: Dict[str, Any]) -> Optional[bool]:
+    """La riga e' nata prima del merge di PR#24? ``None`` se l'istante non si legge."""
+    dt, _ = entry_instant(riga)
+    if dt is None:
+        return None
+    return dt < TWO_MODELS_MERGE_INSTANT
 
 
 def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -119,7 +129,13 @@ def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
                     "riga_del_replay": any(_ha_variante_esplicita(x) for x in gruppo),
                     "riga_storica": any(not _ha_variante_esplicita(x) for x in gruppo),
                     "variante_esplicita": _ha_variante_esplicita(r),
-                    "variante_da": model_variant_read_source(r)}
+                    "variante_da": model_variant_read_source(r),
+                    # Quando e' NATA la riga: e' l'istante che decide la
+                    # variante quando il campo manca, quindi va dichiarato. Una
+                    # riga nata prima del merge per una partita giocata dopo e'
+                    # il caso che rende sbagliato leggerla come "attuale".
+                    "salvato_il": r.get("salvato_il"),
+                    "riga_nata_prima_della_fusione": _nata_prima(r)}
         return [_voce(k) for k in chiavi]
 
     senza = [r for r in righe if not _ha_variante_esplicita(r)]
@@ -159,9 +175,29 @@ def verifica(righe: List[Dict[str, Any]], *, oggi: Optional[date] = None) -> Dic
                    if (row_day(r) or c["inizio_giorno"]) >= c["inizio_giorno"]]
     prima = [r for r in nel_periodo if c["prima_di_pr24"](r)]
     dopo = [r for r in nel_periodo if not c["prima_di_pr24"](r)]
+    # Incrocio fra quando e' NATA la riga e quando si e' giocata la partita: e'
+    # l'incrocio che dice quante righe senza etichetta sono state lette male
+    # dalla convenzione a default fisso (nate prima del merge = del motore di
+    # allora, anche se la partita si e' giocata dopo).
+    senza = [r for r in nel_periodo if not _ha_variante_esplicita(r)]
+    incrocio = {"nate_prima_partita_prima": 0, "nate_prima_partita_dopo": 0,
+                "nate_dopo_partita_prima": 0, "nate_dopo_partita_dopo": 0, "istante_ignoto": 0}
+    for r in senza:
+        nata_prima = _nata_prima(r)
+        if nata_prima is None:
+            incrocio["istante_ignoto"] += 1
+        elif nata_prima and c["prima_di_pr24"](r):
+            incrocio["nate_prima_partita_prima"] += 1
+        elif nata_prima:
+            incrocio["nate_prima_partita_dopo"] += 1
+        elif c["prima_di_pr24"](r):
+            incrocio["nate_dopo_partita_prima"] += 1
+        else:
+            incrocio["nate_dopo_partita_dopo"] += 1
     return {
         "finestra": [c["inizio"].strftime("%Y-%m-%dT%H:%M:%SZ"), "adesso"],
         "confine_pr24": c["merge_pr24"].strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "incrocio_nascita_partita": incrocio,
         "vecchio": _conteggi(prima),
         "nuovo": _conteggi(dopo),
         "intero": _conteggi(nel_periodo),
@@ -188,6 +224,13 @@ def _righe_referto(esito: Dict[str, Any]) -> List[str]:
              f"**{se['dopo_la_fusione']} nate dopo** (lette `current`) · "
              f"**{se['istante_ignoto']} con istante illeggibile** (nessuna data: restano `current` per "
              f"convenzione e sono dichiarate) · fonti dell'istante: {se['fonti']}")
+    inc = esito.get("incrocio_nascita_partita") or {}
+    if inc:
+        L.append(f"- righe senza etichetta per EPOCA: nate prima del merge e partite prima "
+                 f"({inc['nate_prima_partita_prima']}) · **nate prima del merge e partite DOPO "
+                 f"({inc['nate_prima_partita_dopo']})** (lette legacy: e' il motore che le ha "
+                 f"prodotte, non la data della partita) · nate dopo e partite dopo "
+                 f"({inc['nate_dopo_partita_dopo']}) · istante illeggibile ({inc['istante_ignoto']})")
     if intero["pareggio"]:
         L.append("- **i due campioni COINCIDONO**: ogni partita del periodo ha entrambi i modelli")
     else:

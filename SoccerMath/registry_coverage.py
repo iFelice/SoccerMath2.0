@@ -30,6 +30,8 @@ from prediction_registry import (
     MODEL_VARIANT_LEGACY,
     MODEL_VARIANT_SOURCE_UNKNOWN,
     ORIGIN_TOP_MIX,
+    TWO_MODELS_MERGE_INSTANT,
+    entry_instant,
     model_variant_read,
     model_variant_read_source,
     origin_of,
