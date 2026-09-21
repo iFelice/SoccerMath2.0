@@ -97,11 +97,12 @@ jobs:
       MODEL: ${{ github.event.inputs.model || 'both' }}
       VERIFICA_CAMPIONE: ${{ github.event.inputs.verifica_campione || '3' }}
       COVERAGE_FROM: ${{ github.event.inputs.coverage_from || '2026-08-30' }}
-      # Dove vive il Registro per QUESTA esecuzione. Il tag puo' dirlo
-      # esplicitamente ("replay-write-sym-upstash-*" / "-jsonbin-*"), altrimenti
-      # vale la variabile del repository e, in mancanza, il comportamento di
-      # sempre. Cosi' la commutazione e' dichiarata nel ref e tracciabile.
-      BACKEND: ${{ contains(github.ref, '-upstash-') && 'upstash' || (contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'jsonbin')) }}
+      # Dove vive il Registro per QUESTA esecuzione: **l'hash Upstash**, che
+      # dopo la migrazione e' il Registro vivo (l'app ci scrive). JSONBin resta
+      # l'ARCHIVIO dichiarato e non va piu' scritto: per leggerlo apposta (un
+      # confronto storico) il tag lo dice con "-jsonbin-". La variabile del
+      # repository, se impostata, ha comunque la precedenza.
+      BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
 
     steps:
       # La finestra si decide qui, in un posto solo e leggibile: un tag
