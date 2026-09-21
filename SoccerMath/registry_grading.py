@@ -53,7 +53,7 @@ import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
@@ -332,7 +332,8 @@ def canon(riga: Dict[str, Any]) -> str:
 
 def nomi_stantii(campi_grezzi: Dict[str, Tuple[str, Dict[str, Any]]],
                  prima_per_chiave: Dict[str, Dict[str, Any]],
-                 dopo_per_chiave: Dict[str, Dict[str, Any]]) -> List[str]:
+                 dopo_per_chiave: Dict[str, Dict[str, Any]],
+                 chiavi_aggiornate: Optional[Iterable[str]] = None) -> List[str]:
     """Nomi di campo che portano la copia VECCHIA di una riga aggiornata.
 
     Il salvataggio scrive la riga sotto il nome canonico di OGGI (``field_of``,
@@ -345,11 +346,17 @@ def nomi_stantii(campi_grezzi: Dict[str, Tuple[str, Dict[str, Any]]],
     nemmeno.
     """
     da_togliere: List[str] = []
+    # Si guardano SOLO le righe che questa scrittura ha aggiornato: una coppia di
+    # nomi identici su una riga NON toccata e' preesistente, la lettura la tollera
+    # (stesso contenuto) e toccarla sarebbe una modifica fuori dalla richiesta.
+    aggiornate = set(chiavi_aggiornate) if chiavi_aggiornate is not None else None
     for nome, (testo, riga) in sorted(campi_grezzi.items()):
         chiave = rs.field_of(riga)
         atteso = dopo_per_chiave.get(chiave)
         prima = prima_per_chiave.get(chiave)
         if atteso is None or prima is None:
+            continue
+        if aggiornate is not None and chiave not in aggiornate:
             continue
         if nome == rs.field_of(atteso):
             continue                                  # e' il campo canonico di oggi
@@ -379,7 +386,9 @@ def ripara_nomi(*, istantanea: str, scrivi: bool = False, api_key: str = "",
         if chiave is None:
             continue
         dopo_per_chiave[chiave] = applica(prima_per_chiave[chiave], v["campi"])
-    stantii = nomi_stantii(campi_grezzi(), prima_per_chiave, dopo_per_chiave)
+    aggiornate = {k for k, r in dopo_per_chiave.items()
+                  if canon(r) != canon(prima_per_chiave.get(k) or {})}
+    stantii = nomi_stantii(campi_grezzi(), prima_per_chiave, dopo_per_chiave, aggiornate)
     fuori: Dict[str, Any] = {
         "istantanea": istantanea, "righe_istantanea": len(righe_snap),
         "da_gradare": len(p["da_gradare"]), "nomi_stantii": stantii, "scritto": False,
@@ -408,6 +417,68 @@ def ripara_nomi(*, istantanea: str, scrivi: bool = False, api_key: str = "",
     fuori["righe_attese"] = len(dopo_per_chiave)
     fuori["ok"] = (len(dopo) == len(dopo_per_chiave)
                    and not fuori.get("errori") and fuori["hdel"] == len(stantii))
+    return fuori
+
+
+def diagnosi_nomi(*, istantanea: Optional[str] = None, api_key: str = "",
+                  db_dir: Optional[str] = None, fonte: str = "archivio") -> Dict[str, Any]:
+    """Com'e' fatto l'hash, nome per nome: quante righe, quanti campi, quali doppi.
+
+    Sola lettura. Risponde con i numeri a due domande diverse:
+
+    * **coerenza**: la lettura del Registro funziona e le righe sono quelle attese
+      (confronto con l'istantanea scattata prima della scrittura, se c'e')?
+    * **struttura**: quali chiavi sono presenti sotto PIU' nomi di campo, e quei nomi
+      portano lo stesso contenuto (la lettura li tollera) o contenuto diverso (la
+      fermano)?
+    """
+    campi = campi_grezzi()
+    per_chiave: Dict[str, List[Tuple[str, str]]] = {}
+    for nome, (testo, riga) in campi.items():
+        per_chiave.setdefault(rs.field_of(riga), []).append((nome, testo))
+    doppi = {k: v for k, v in per_chiave.items() if len(v) > 1}
+    doppi_diversi = {k: v for k, v in doppi.items() if len({t for _n, t in v}) > 1}
+    fuori: Dict[str, Any] = {
+        "campi_grezzi": len(campi),
+        "righe_logiche": len(per_chiave),
+        "chiavi_con_piu_nomi": len(doppi),
+        "chiavi_con_contenuti_diversi": len(doppi_diversi),
+        "esempi_doppi": [{"chiave": k, "nomi": [n for n, _t in v]}
+                         for k, v in sorted(doppi.items())[:8]],
+        "esempi_doppi_diversi": [{"chiave": k, "nomi": [n for n, _t in v]}
+                                 for k, v in sorted(doppi_diversi.items())[:8]],
+    }
+    lettura_ok, errore, righe = True, "", []
+    try:
+        righe = rs.upstash_rows()
+    except Exception as e:                                            # pragma: no cover - rete
+        lettura_ok, errore = False, str(e)
+    fuori["lettura_ok"] = lettura_ok
+    fuori["righe_lette"] = len(righe) if lettura_ok else None
+    if errore:
+        fuori["lettura_errore"] = errore
+    if istantanea:
+        fuori["istantanea"] = istantanea
+        righe_snap = rs.upstash_snapshot_read(istantanea)
+        fuori["istantanea_leggibile"] = righe_snap is not None
+        if righe_snap is not None:
+            p = piano(righe_snap, api_key=api_key, db_dir=db_dir, fonte=fonte)
+            attese = {rs.field_of(r): r for r in righe_snap}
+            for voce in p["da_gradare"]:
+                chiave = next((k for k, r in attese.items()
+                               if str(r.get("match_id")) == str(voce["match_id"])), None)
+                if chiave is not None:
+                    attese[chiave] = applica(attese[chiave], voce["campi"])
+            lette = {rs.field_of(r): r for r in righe}
+            fuori["righe_attese"] = len(attese)
+            fuori["da_gradare_nell_istantanea"] = len(p["da_gradare"])
+            fuori["mancanti"] = len([k for k in attese if k not in lette])
+            fuori["in_piu"] = len([k for k in lette if k not in attese])
+            fuori["diverse"] = len([k for k in attese if k in lette
+                                    and canon(lette[k]) != canon(attese[k])])
+            fuori["coerente"] = (fuori["mancanti"] == 0 and fuori["in_piu"] == 0
+                                 and fuori["diverse"] == 0 and lettura_ok
+                                 and fuori["righe_attese"] == fuori["righe_lette"])
     return fuori
 
 
@@ -631,6 +702,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="JSON {match_id: \"golcasa-golospiti\"} per una prova senza rete")
     ap.add_argument("--giorno", default=None, help="giorno dell'istantanea (default: oggi UTC)")
     ap.add_argument("--compatto", action="store_true", help="righe brevi per le annotazioni")
+    ap.add_argument("--diagnosi-nomi", action="store_true",
+                    help="sola lettura: com'e' fatto l'hash (campi grezzi, chiavi con piu' nomi, "
+                         "contenuti diversi, coerenza con l'istantanea)")
     ap.add_argument("--ripara-nomi", action="store_true",
                     help="toglie i nomi di campo VECCHI lasciati da un aggiornamento del Registro "
                          "(usa l'istantanea scattata prima della scrittura come termine di confronto)")
@@ -639,6 +713,22 @@ def main(argv: Optional[List[str]] = None) -> int:
                          "``<oggi>-pre-grading``)")
     ap.add_argument("--json", dest="json_out", default=None, help="scrive il referto in JSON")
     args = ap.parse_args(argv)
+
+    if args.diagnosi_nomi:
+        from config import FOOTBALL_DATA_API_KEY
+        d = diagnosi_nomi(istantanea=args.istantanea or f"{args.giorno or _giorno_utc()}-pre-grading",
+                          api_key=FOOTBALL_DATA_API_KEY, fonte=args.fonte)
+        print("DIAGNOSI| " + " · ".join(f"{k}: {v}" for k, v in d.items()
+                                        if not isinstance(v, list)))
+        for esempio in d.get("esempi_doppi") or []:
+            print(f"DOPPIO| {esempio['chiave']} -> {', '.join(esempio['nomi'])}")
+        for esempio in d.get("esempi_doppi_diversi") or []:
+            print(f"DOPPIO-DIVERSO| {esempio['chiave']} -> {', '.join(esempio['nomi'])}")
+        if args.json_out:
+            os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
+            with open(args.json_out, "w", encoding="utf-8") as f:
+                json.dump(d, f, ensure_ascii=False, indent=2, default=str)
+        return 0 if d["lettura_ok"] and d.get("coerente", True) else 3
 
     if args.ripara_nomi:
         # La riparazione non passa da ``load_rows``: quando i nomi doppi ci sono,
@@ -727,7 +817,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     # subito, con lo stesso piano (istantanea = termine di confronto).
     prima_per_chiave = {rs.field_of(r): r for r in righe}
     dopo_per_chiave = {rs.field_of(r): r for r in nuove}
-    stantii = nomi_stantii(campi_grezzi(), prima_per_chiave, dopo_per_chiave)
+    aggiornate = {k for k, r in dopo_per_chiave.items()
+                  if canon(r) != canon(prima_per_chiave.get(k) or {})}
+    stantii = nomi_stantii(campi_grezzi(), prima_per_chiave, dopo_per_chiave, aggiornate)
     if stantii:
         risposta_hdel = rs.upstash_raw(["HDEL", rs.hash_key()] + stantii)
         print(f"- nomi di campo vecchi tolti: **{len(stantii)}** · `HDEL` result = "

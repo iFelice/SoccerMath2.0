@@ -392,6 +392,58 @@ class TestRiparazioneNomiVecchi(unittest.TestCase):
         self.assertEqual(["537186|top_mix||current"], r["nomi_stantii"])
         raw.assert_not_called()
 
+    def test_un_doppione_identico_su_una_riga_NON_toccata_non_si_tocca(self):
+        """Fuori dalla richiesta: la scrittura aggiorna 10 righe, non fa pulizia
+        generale dei nomi doppi preesistenti (che la lettura tollera)."""
+        aggiornata = RG.applica(_riga(537186), {"risultato_reale": "1-2", "esito": "❌"})
+        altra = _riga(999, home="Roma", away="Lazio")
+        grezzi = {"537186|top_mix||current": (RG.canon(_riga(537186)), _riga(537186)),
+                  "999|top_mix||current": (RG.canon(altra), altra)}
+        nomi = RG.nomi_stantii(grezzi, {"537186|top_mix||legacy": _riga(537186),
+                                       "999|top_mix||legacy": altra},
+                              {"537186|top_mix||legacy": aggiornata,
+                               "999|top_mix||legacy": altra},
+                              {"537186|top_mix||legacy"})
+        self.assertEqual(["537186|top_mix||current"], nomi)
+
+    def test_diagnosi_conta_i_doppi_e_i_contenuti_diversi(self):
+        a, b = _riga(1), _riga(2, home="Roma", away="Lazio")
+        grezzi = {"1|top_mix||legacy": (RG.canon(a), a),
+                  "1|top_mix||current": (RG.canon(a), a),          # doppione identico
+                  "2|top_mix||legacy": (RG.canon(b), b)}
+        with mock.patch.object(RG, "campi_grezzi", return_value=grezzi), \
+             mock.patch.object(rs, "upstash_rows", return_value=[a, b]):
+            d = RG.diagnosi_nomi()
+        self.assertEqual(3, d["campi_grezzi"])
+        self.assertEqual(2, d["righe_logiche"])
+        self.assertEqual(1, d["chiavi_con_piu_nomi"])
+        self.assertEqual(0, d["chiavi_con_contenuti_diversi"])
+        self.assertTrue(d["lettura_ok"])
+
+    def test_diagnosi_senza_istantanea_denuncia_i_contenuti_diversi(self):
+        a, b = _riga(1), dict(_riga(1), esito="❌")
+        grezzi = {"1|top_mix||legacy": (RG.canon(b), b),
+                  "1|top_mix||current": (RG.canon(a), a)}
+        with mock.patch.object(RG, "campi_grezzi", return_value=grezzi), \
+             mock.patch.object(rs, "upstash_rows", side_effect=rs.RegistryStoreError("doppione")):
+            d = RG.diagnosi_nomi()
+        self.assertFalse(d["lettura_ok"])
+        self.assertEqual(1, d["chiavi_con_contenuti_diversi"])
+
+    def test_diagnosi_confronta_con_l_istantanea(self):
+        prima = _riga(537186)
+        dopo = RG.applica(prima, {"risultato_reale": "1-2", "esito": "❌"})
+        with mock.patch.object(RG, "campi_grezzi",
+                               return_value={rs.field_of(dopo): (RG.canon(dopo), dopo)}), \
+             mock.patch.object(rs, "upstash_rows", return_value=[dopo]), \
+             mock.patch.object(rs, "upstash_snapshot_read", return_value=[prima]), \
+             mock.patch.object(RG, "piano", return_value={"selezionate": 1, "saltate": [], "voci": [],
+                 "da_gradare": [{"match_id": 537186,
+                                 "campi": {"risultato_reale": "1-2", "esito": "❌"}}]}):
+            d = RG.diagnosi_nomi(istantanea="2026-09-21-pre-grading")
+        self.assertTrue(d["coerente"], d)
+        self.assertEqual(0, d["diverse"])
+
     def test_istantanea_assente_ferma_tutto(self):
         with mock.patch.object(rs, "upstash_snapshot_read", return_value=None):
             r = RG.ripara_nomi(istantanea="2026-09-21-pre-grading", scrivi=True)

@@ -27,6 +27,7 @@ on:
       - 'grading-check-*'
       - 'grading-write-*'
       - 'grading-ripara-*'
+      - 'grading-diagnosi-*'
 
 permissions:
   contents: read
@@ -148,6 +149,35 @@ jobs:
       # e' il termine di confronto, e dopo la cancellazione il Registro si rilegge e
       # deve contenere esattamente le righe attese (le stesse dell'istantanea, con il
       # grading applicato).
+      # Sola lettura: com'e' fatto l'hash NOME PER NOME (quanti campi grezzi, quante
+      # righe logiche, quali chiavi vivono sotto piu' nomi, se i contenuti
+      # coincidono) e se le righe sono esattamente quelle dell'istantanea con il
+      # grading applicato. Serve a verificare una scrittura da fuori, senza
+      # scaricare artifact e senza log del job.
+      - name: "Diagnosi dei nomi di campo (solo con il tag grading-diagnosi-*)"
+        if: startsWith(github.ref, 'refs/tags/grading-diagnosi-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          set +e
+          python SoccerMath/registry_grading.py --diagnosi-nomi --fonte archivio \
+            --json "$OUT/diagnosi.json" 2>&1 | tee "$OUT/diagnosi.txt"
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "esito dello strumento: $rc"
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 5 ]; then
+              echo "::warning title=diagnosi-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""; i=0} {riga = riga (n ? " · " : "") $0; n++; i++; if (i >= 2) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/diagnosi.txt" | head -n 5)
+          if [ "$rc" != "0" ]; then
+            echo "::error title=diagnosi::uscita $rc: leggere i blocchi qui sopra"
+          fi
+
       - name: "Riparazione dei nomi di campo vecchi (solo con il tag grading-ripara-*)"
         if: startsWith(github.ref, 'refs/tags/grading-ripara-')
         env:
