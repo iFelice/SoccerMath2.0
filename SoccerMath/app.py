@@ -2167,18 +2167,7 @@ NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", MODEL_VARIANT_LEGACY: 
 # Colonne delle due tabelle del Registro, in un posto solo: cosi' le due
 # tabelle non possono divergere fra loro.
 REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_standard",
-                    "prob_sicuro", "risultato_reale", "esito", "origine", "modello"]
-
-# Spiegazione della colonna "Scheda del record": la colonna parla di come il
-# record e' stato SCRITTO (``model_version``), non di quale Elo ha prodotto i
-# numeri. La confusione fra i due assi faceva sembrare contraddittoria una riga
-# del motore legacy con l'etichetta della scheda attuale.
-SCHEDE_RECORD_HELP = (
-    f"{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}\n\n"
-    f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n"
-    f"{MODEL_LABEL_LEGACY}: riga scritta quando il campo `model_version` non esisteva "
-    "ancora (prima del 04/09/2026): resta visibile per audit."
-)
+                    "prob_sicuro", "risultato_reale", "esito", "origine"]
 
 
 def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420):
@@ -2187,6 +2176,14 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
     L'etichetta del modello sta nell'intestazione, come nel Top Mix: dentro la
     tabella la colonna della variante sarebbe la stessa parola ripetuta su ogni
     riga, quindi non si mostra. Nessun tetto di righe.
+
+    La colonna della SCHEDA del record (``model_version``) non c'e' piu': dice
+    con quale versione di pipeline la riga e' stata SCRITTA, non con quale motore
+    e' stata calcolata, e dentro una tabella intitolata a un motore sembrava un
+    secondo modello ("scheda post-fix" nella tabella Legacy, per esempio, dove le
+    righe del periodo ricostruito le ha scritte il codice attuale). Il dettaglio
+    resta dichiarato nella didascalia del blocco Legacy, e i dati hanno ancora il
+    campo: e' solo fuori dalla vista delle due tabelle.
 
     La conversione della data e' quella condivisa (``build_registry_datetime``)
     fatta a monte in tab5, e la colonna resta datetime64: l'ordinamento
@@ -2208,14 +2205,6 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
             "data": st.column_config.DatetimeColumn(
                 None,
                 format="DD/MM/YYYY HH:mm",
-            ),
-            # La colonna del vecchio "Modello" (pre-fix / attuale) resta, ma si
-            # chiama "Scheda del record": dentro una tabella intitolata a UN
-            # motore la parola "Modello" faceva pensare alla variante, mentre
-            # qui si parla di come il record e' stato scritto.
-            "modello": st.column_config.TextColumn(
-                "Scheda del record",
-                help=SCHEDE_RECORD_HELP,
             ),
         },
     )
@@ -2511,16 +2500,15 @@ with tab5:
         else:
             _mostra_affidabilita(all_records)
 
-        # La colonna "Scheda del record" parla della SCRITTURA del record, non
-        # del motore: qui si dice a parole, perche' e' l'unico posto in cui i
-        # due nomi si assomigliano ancora.
+        # La SCHEDA del record (con quale versione di pipeline la riga e' stata
+        # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
+        # non compare piu' come colonna: si dice a parole, una volta.
         st.caption(
-            "**Scheda del record**: "
+            "**Come sono state scritte le righe** (non e' il motore, che e' il titolo delle due tabelle): "
             f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
             f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
             f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
-            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento. "
-            "Il **motore** (i due modelli: Drago a 2 Teste / Legacy) e' l'intestazione delle due tabelle, non questa colonna."
+            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
         )
 
         # DUE tabelle, una per motore (come nel Top Mix): prima erano righe di

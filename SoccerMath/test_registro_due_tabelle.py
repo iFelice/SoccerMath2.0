@@ -10,9 +10,10 @@ Cosa viene provato (richieste utente):
   una riga letta "attuale" ha sempre la scheda attuale, quindi il blocco non
   puo' mescolare i due motori; la fetta "scheda vecchia" e' dichiarata come
   dettaglio dentro il blocco legacy e non e' un terzo modello;
-* la colonna del vecchio "Modello" si chiama "Scheda del record" e nessuna delle
-  sue etichette contiene la parola "Modello" (dentro una tabella intitolata a un
-  motore si leggeva come una contraddizione: erano due assi diversi);
+* la colonna della SCHEDA del record e' fuori dalle due tabelle (dice con quale
+  versione di pipeline la riga e' stata scritta, non con quale motore e' stata
+  calcolata: nella tabella Legacy si leggeva "scheda post-fix" su ogni riga, che
+  sembrava un secondo modello) e le sue etichette non usano la parola "Modello";
 * il caso vivo: una riga SENZA campo ``model_variant`` nata prima del merge di
   PR#24 (es. Sunderland-Fulham 30/08) finisce nella tabella LEGACY.
 """
@@ -211,12 +212,20 @@ class TestEtichetteScheda(unittest.TestCase):
             self.assertNotIn("Modello", etichetta,
                              "dentro la tabella di un motore 'Modello' si confonde col motore")
 
-    def test_colonna_e_didascalia_esplicite(self):
+    def test_la_scheda_del_record_non_e_una_colonna(self):
+        """La colonna "Scheda del record" e' uscita dalle due tabelle: dice con
+        quale versione di pipeline la riga e' stata SCRITTA, non con quale motore
+        e' stata calcolata, e dentro una tabella intitolata a un motore sembrava
+        un secondo modello (nella tabella Legacy si leggeva "scheda post-fix" su
+        ogni riga). Resta dichiarata a parole, una volta, e resta nei dati."""
         src = open(APP_PATH, encoding="utf-8").read()
-        self.assertIn('"Scheda del record"', src)
-        self.assertNotIn('"Versione record"', src)
-        self.assertIn("Il **motore** (i due modelli: Drago a 2 Teste / Legacy) e' l'intestazione "
-                      "delle due tabelle", src)
+        self.assertNotIn('"Scheda del record"', src)
+        self.assertIn("**Come sono state scritte le righe**", src)
+        self.assertIn('REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", '
+                      '"mercato_standard",\n                    "prob_sicuro", "risultato_reale", '
+                      '"esito", "origine"]', src)
+        colonne = src[src.index("REGISTRO_COLONNE ="):src.index("REGISTRO_COLONNE =") + 300]
+        self.assertNotIn('"modello"', colonne)
 
 
 class TestTabellaRegistroPerMotore(unittest.TestCase):
