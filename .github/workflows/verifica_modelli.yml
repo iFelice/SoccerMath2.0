@@ -172,9 +172,19 @@ jobs:
           # `|| true`: se la diagnosi non ha stampato NIENTE (crash immediato) il
           # grep vuoto non deve uccidere il passo prima di dire cosa e' successo
           # (e' successo davvero: errore inghiottito da una pipeline con set -e).
-          grep -E "^Riepilogo|assente ->|^NON DIAGNOSTICABILI|NON diagnosticabile" "$OUT/diagnosi.txt" \
-            | head -n 26 | while IFS= read -r line; do
+          # GitHub tiene al massimo 10 annotazioni per passo: le righe per
+          # partita si fermano a 8, e il RIEPILOGO va in UNA annotazione a parte
+          # (altrimenti la coda della diagnosi non sarebbe leggibile dal run:
+          # e' successo, con 19 partite e solo le prime 10 visibili).
+          grep -E "assente ->|NON diagnosticabile" "$OUT/diagnosi.txt" \
+            | head -n 8 | while IFS= read -r line; do
             echo "::warning title=diagnosi::${line:0:900}"
+          done || true
+          grep -m1 "^Riepilogo" "$OUT/diagnosi.txt" | while IFS= read -r line; do
+            echo "::warning title=diagnosi-riepilogo::${line:0:900}"
+          done || true
+          grep -m1 "^NON DIAGNOSTICABILI" "$OUT/diagnosi.txt" | while IFS= read -r line; do
+            echo "::warning title=diagnosi-parziale::${line:0:900}"
           done || true
           # La coda del log sempre: se qualcosa e' andato storto, il perche' e' li'.
           tail -n 6 "$OUT/diagnosi.txt" | while IFS= read -r line; do
