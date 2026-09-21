@@ -350,6 +350,40 @@ jobs:
           print("::notice title=attuale-mancante::" + " · ".join([testa] + dettaglio)[:12000])
           PY
 
+      - name: Composizione del Registro (sola lettura, dichiara le specie di riga)
+        if: always()
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
+        run: |
+          # Perche' la tabella del legacy ha piu' righe di quella dell'attuale:
+          # le righe si contano per origine, variante letta e stagione. Sola
+          # lettura (nessun PUT/HSET), e l'avviso se sta leggendo una copia.
+          python SoccerMath/registry_composizione.py --json "$OUT/composizione.json" \
+            2>&1 | tee "$OUT/composizione.txt" || true
+          python - "$OUT/composizione.json" <<'PY' || true
+          import json, sys
+          try:
+              d = json.load(open(sys.argv[1], encoding="utf-8"))
+          except Exception as e:
+              print(f"::warning title=composizione::json non leggibile: {e}")
+              sys.exit(0)
+          orig = " · ".join(f"{k}: {v}" for k, v in sorted(d["per_origine"].items(), key=lambda kv: -kv[1]))
+          var = " · ".join(f"{k}: {v}" for k, v in sorted(d["per_variante"].items()))
+          print(f"::warning title=composizione::fonte {d['fonte']} · righe {d['righe']} · variante letta -> {var}")
+          print(f"::warning title=composizione-origini::per origine -> {orig}")
+          print(f"::warning title=composizione-finestra::"
+                + " · ".join(f"{k}: {v}" for k, v in sorted(d["finestra"].items()))
+                + " · senza campo variante: " + str(d["senza_campo_variante"])
+                + " · per stagione: " + " / ".join(f"{k} {v}" for k, v in sorted(d["per_stagione"].items())))
+          righe = ["| origine | righe | attuale | legacy | senza model_version |", "|---|---|---|---|---|"]
+          for o, c in sorted(d["origine_per_variante"].items(), key=lambda kv: -sum(kv[1].values())):
+              righe.append(f"| {o} | {sum(c.values())} | {c.get('current', 0)} | {c.get('legacy', 0)} | "
+                           f"{d['scheda_vecchia_per_origine'].get(o, 0)} |")
+          print("::warning title=composizione-tabella::" + " | ".join(righe)[:4000])
+          PY
+
       - name: Artifact (referto della verifica)
         if: always()
         uses: actions/upload-artifact@v4
