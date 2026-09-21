@@ -254,21 +254,39 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           REGISTRY_BACKEND: ${{ env.BACKEND }}
         run: |
+          set -o pipefail
           python SoccerMath/righe_non_ricostruite.py \
             --replay-json "$REPLAY_OUT/replay_legacy_topmix.json" \
             --compatto --json "$REPLAY_OUT/non_ritrovate.json" \
             2>&1 | tee "$REPLAY_OUT/non_ritrovate.txt"
+          rc=${PIPESTATUS[0]}
+          # L'esito dello script va SEMPRE in un'annotazione: se qui non arriva in
+          # fondo (per esempio un errore di import), il log del job non e'
+          # leggibile da fuori e il motivo sparirebbe. La testata porta le prime
+          # righe del referto, che in caso di guasto contengono l'errore.
+          {
+            echo "esito script: $rc · righe nel referto: $(wc -l < "$REPLAY_OUT/non_ritrovate.txt" 2>/dev/null || echo 0)"
+            head -n 4 "$REPLAY_OUT/non_ritrovate.txt" 2>/dev/null
+          } | grep -v '^\s*$' | cut -c1-900 | paste -sd ' || ' - | cut -c1-3000 | while read -r riga; do
+            echo "::warning title=non-ritrovate-testata::$riga"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=non-ritrovate::script uscito con $rc: guarda l'annotazione non-ritrovate-testata"
+          fi
           # Il tetto delle annotazioni (~3600 caratteri, 10 per passo) impone
-          # poche righe lunghe: i conteggi in una, le partite in blocchi.
+          # poche righe lunghe: i conteggi in una, le partite a blocchi di 8.
           grep -h "^NONRITROVATE|" "$REPLAY_OUT/non_ritrovate.txt" | cut -c1-3000 | while read -r riga; do
             echo "::warning title=non-ritrovate::${riga#NONRITROVATE| }"
           done
           grep -h "^PERIODO|" "$REPLAY_OUT/non_ritrovate.txt" | cut -c1-300 | paste -sd ' || ' - | cut -c1-3000 | while read -r riga; do
             echo "::warning title=non-ritrovate-periodo::$riga"
           done
-          grep -h "^RIGA|" "$REPLAY_OUT/non_ritrovate.txt" | cut -c1-170 | paste -sd ' || ' - | cut -c1-3400 | fold -w 3400 | while read -r riga; do
-            echo "::warning title=non-ritrovate-elenco::$riga"
-          done
+          grep -h "^RIGA|" "$REPLAY_OUT/non_ritrovate.txt" | cut -c1-200 > "$REPLAY_OUT/non_ritrovate_righe.txt" || true
+          i=0
+          while read -r blocco; do
+            i=$((i + 1))
+            echo "::warning title=non-ritrovate-elenco-$i::$blocco"
+          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " || " : "") $0; n++; if (n == 8) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/non_ritrovate_righe.txt" | cut -c1-3400)
 
       # Stato dei due backend del Registro (JSONBin / Upstash): quante righe,
       # quanti kB, quali differenze per chiave di campo. SOLA LETTURA: serve a
