@@ -7,10 +7,15 @@ name: Pulizia del Registro (origine fuori dal confronto fra i due modelli)
 #
 # Due modalita', decise dal NOME DEL TAG (come per le scritture del replay):
 #   * `pulizia-dry-*`   -> PROVA: legge, elenca e verifica, non scrive nulla;
-#   * `pulizia-write-*` -> esegue: istantanea su `sm:registro:snapshot:<data>-pre-pulizia`
+#   * `pulizia-write-<campi>c-<righe>r-*` -> esegue: istantanea (righe logiche E
+#                          campi scritti) su `sm:registro:snapshot:<data>-pre-pulizia`
 #                          PRIMA, poi UN solo HDEL, poi rilettura e verifica.
 #
-# Il nome del tag e' il comando: nessun input manuale, nessuna scrittura per sbaglio.
+# Il nome del tag e' il comando E la serratura: il tag di scrittura deve
+# dichiarare quanti CAMPI e quante RIGHE LOGICHE si aspetta di togliere
+# (es. `pulizia-write-52c-26r-2026-09-21`). Se i numeri non combaciano con quelli
+# trovati, la scrittura non parte. Nessun input manuale, nessuna scrittura per
+# sbaglio, nessuna pulizia "quasi giusta".
 
 on:
   push:
@@ -126,9 +131,21 @@ jobs:
           ATTESI_RIGHE: ${{ vars.PULIZIA_ATTESI_RIGHE }}
         run: |
           set -o pipefail
-          extra=()
-          if [ -n "$ATTESI" ]; then extra+=(--attesi "$ATTESI"); fi
-          if [ -n "$ATTESI_RIGHE" ]; then extra+=(--attesi-righe "$ATTESI_RIGHE"); fi
+          # Le serrature arrivano dal NOME DEL TAG: il tag di scrittura dichiara
+          # da se' i conteggi attesi (52c-26r = 52 campi, 26 righe logiche).
+          attesi="${ATTESI:-}"; attesi_righe="${ATTESI_RIGHE:-}"
+          if [ -z "$attesi" ]; then
+            attesi=$(echo "$GITHUB_REF_NAME" | sed -n 's/.*[^0-9]\([0-9][0-9]*\)c[^0-9].*/\1/p')
+          fi
+          if [ -z "$attesi_righe" ]; then
+            attesi_righe=$(echo "$GITHUB_REF_NAME" | sed -n 's/.*[^0-9]\([0-9][0-9]*\)r[^0-9].*/\1/p')
+          fi
+          if [ -z "$attesi" ] || [ -z "$attesi_righe" ]; then
+            echo "::error title=serrature-mancanti::il tag di scrittura deve dichiarare i conteggi attesi (es. pulizia-write-52c-26r-2026-09-21): senza, non si scrive."
+            exit 3
+          fi
+          echo "serrature dal tag: campi=$attesi righe=$attesi_righe"
+          extra=(--attesi "$attesi" --attesi-righe "$attesi_righe")
           python SoccerMath/registry_pulizia.py \
             --origini "${{ vars.PULIZIA_ORIGINI || 'analisi_rapida' }}" \
             --scrivi --conferma "${extra[@]}" \
@@ -141,13 +158,6 @@ jobs:
                   print(f"::warning title=pulizia::{riga[:900]}")
           print("::notice title=pulizia-esito::" + ("OK" if "verificata" in testo else "DA GUARDARE"))
           PY
-          for chiave in PULIZIA_ATTESI PULIZIA_ATTESI_RIGHE; do
-            nome=$(echo "$chiave" | tr 'A-Z' 'a-z' | tr '_' '-')
-            valore="${!chiave}"
-            if [ -z "$valore" ]; then
-              echo "::warning title=serratura-mancante::la variabile $chiave (vars.$nome) non e' impostata: la scrittura parte senza il controllo sul numero atteso"
-            fi
-          done
           if ! grep -q "Pulizia eseguita e verificata" "$OUT/pulizia.txt"; then
             echo "::error title=pulizia::la verifica dopo la scrittura non e' passata (istantanea disponibile)"
             exit 4
