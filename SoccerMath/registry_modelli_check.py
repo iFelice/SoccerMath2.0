@@ -87,12 +87,20 @@ def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
     solo_l = sorted(insiemi[MODEL_VARIANT_LEGACY] - insiemi[MODEL_VARIANT_CURRENT], key=str)
 
     def _dettaglio(variante: str, chiavi: List[Tuple[Any, ...]]) -> List[Dict[str, Any]]:
-        return [{"partita": f"{per_variante[variante][k].get('home')} - {per_variante[variante][k].get('away')}",
-                 "data": per_variante[variante][k].get("data"),
-                 "campionato": per_variante[variante][k].get("campionato"),
-                 "mercato": per_variante[variante][k].get("mercato_standard"),
-                 "prob": per_variante[variante][k].get("prob_sicuro"),
-                 "match_id": per_variante[variante][k].get("match_id")} for k in chiavi]
+        def _voce(k: Tuple[Any, ...]) -> Dict[str, Any]:
+            r = per_variante[variante][k]
+            return {"partita": f"{r.get('home')} - {r.get('away')}",
+                    "data": r.get("data"),
+                    "campionato": r.get("campionato"),
+                    "mercato": r.get("mercato_standard"),
+                    "prob": r.get("prob_sicuro"),
+                    "match_id": r.get("match_id"),
+                    # Una riga senza campo variante e' un click VERO dell'epoca
+                    # (il campo non esisteva): la convenzione la legge come
+                    # "current", ma non e' una riga scritta dal replay. Chi legge
+                    # i conteggi deve poterlo distinguere.
+                    "variante_esplicita": _ha_variante_esplicita(r)}
+        return [_voce(k) for k in chiavi]
 
     return {
         "righe": len(righe),
@@ -150,7 +158,11 @@ def _righe_referto(esito: Dict[str, Any]) -> List[str]:
         voci = intero["solo"][variante]
         if voci:
             etichetta = MODEL_VARIANT_LABELS.get(variante, variante)
-            L.append(f"- partite coperte SOLO dal modello {etichetta} ({len(voci)}):")
+            esplicite = sum(1 for v in voci if v.get("variante_esplicita"))
+            L.append(f"- partite coperte SOLO dal modello {etichetta} ({len(voci)}): "
+                     f"{esplicite} righe del replay (variante esplicita), "
+                     f"{len(voci) - esplicite} click veri dell'epoca (campo variante assente, "
+                     f"letto come {etichetta} per convenzione)")
             for v in voci[:8]:
                 L.append(f"    · {v['partita']} ({v['campionato']}, {v['data']}) "
                          f"{v['mercato']} {v['prob']}%")

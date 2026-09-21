@@ -69,6 +69,17 @@ class TestConteggi(unittest.TestCase):
         self.assertTrue(esito["intero"]["pareggio"],
                         "la riga senza campo vale current: la partita ha entrambi i modelli")
 
+    def test_differenze_distinguono_replay_e_click_veri(self):
+        """Una riga senza variante e' un click vero dell'epoca, non una riga del
+        replay: i conteggi devono poterlo dire (l'utente lo chiede esplicitamente)."""
+        storica = _riga(1, variante=None)                       # click vero, campo assente
+        del_replay = _riga(2, variante=MODEL_VARIANT_CURRENT)   # scritta dal replay
+        esito = chk.verifica([storica, del_replay])
+        voci = esito["intero"]["solo"][MODEL_VARIANT_CURRENT]
+        self.assertEqual(2, len(voci))
+        self.assertEqual(1, sum(1 for v in voci if v["variante_esplicita"]))
+        self.assertEqual({1, 2}, {v["match_id"] for v in voci})
+
     def test_fuori_finestra_ignorate(self):
         vecchia = _riga(9, variante=MODEL_VARIANT_CURRENT, ko="2026-05-01T18:00:00Z")
         esito = chk.verifica([vecchia])
