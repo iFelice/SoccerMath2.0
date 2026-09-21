@@ -278,7 +278,9 @@ jobs:
                     f"({cat}): da chiarire prima di dichiarare il campione completo")
           if ignote:
               print(f"::error title=gate-attuale::{len(ignote)} partite su {len(mancanti)} senza riga "
-                    f"ATTUALE e senza causa misurata (sotto soglia/veto). La run NON e' verde.")
+                    f"ATTUALE e senza causa misurata (sotto soglia/veto). La run NON e' verde: la causa "
+                    f"e' nell'annotazione 'attuale-mancante' (chiave di dedup occupata da una riga "
+                    f"senza campo, che il percorso di scrittura legge come current).")
               sys.exit(1)
           print(f"::notice title=gate-attuale::tutte le {len(mancanti)} partite senza riga ATTUALE "
                 f"hanno una causa MISURATA dal selettore (sotto soglia o veto): la riga non va scritta")

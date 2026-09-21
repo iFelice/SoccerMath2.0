@@ -165,6 +165,12 @@ Le due colonne «del replay» e «click veri» servono a non confondere le speci
 prima di PR#24 il campo `model_variant` non esisteva, e la convenzione legge le
 righe senza campo come `current` — ma quelle righe non le ha scritte il replay.
 
+> **Correzione (21/09/2026).** I numeri di questa tabella — e la frase qui sotto —
+> erano calcolati con la convenzione sbagliata: «campo ``model_variant`` assente
+> = ``current``». Il §4.5 li rifà con la convenzione corretta (l'assenza si legge
+> **dalla data della riga**): il campione **non** e' simmetrico, mancano 20 righe
+> del modello attuale, e la run di verifica e' **rossa** finche' non si ripara.
+
 **Il campione è simmetrico per costruzione, e i numeri lo dicono.** Ogni partita
 che il legacy copre ha **anche** la riga dell'attuale (`solo legacy = 0`, sia
 nella sezione vecchia sia in quella nuova): non c'e' una sola partita in cui il
@@ -220,6 +226,90 @@ tornare (abbassare le soglie, scrivere le righe sotto soglia, etichettare le
 partite) restano **scartate**: violano la consegna e falsano il campione. Il
 conto e' pronto, ripetibile, e non nasconde niente.
 
+### 4.5 La convenzione corretta: le righe senza etichetta si leggono dalla DATA (numeri rifatti)
+
+**La correzione chiesta prima del merge.** Il campo ``model_variant`` manca in
+tutto cio' che e' stato scritto prima del merge di PR#24 (`626cd0b`,
+`2026-09-18T21:51:58Z`): la convenzione vecchia — «campo assente = ``current``» —
+era un default **fisso**, uguale per ogni epoca, ma prima di quel merge in
+produzione girava il motore che oggi chiamiamo ``legacy``. Una riga nata allora
+e' del motore di allora, non del modello attuale: si legge **dalla data**.
+
+Cosa e' cambiato (tutto in lettura; il percorso di scrittura non e' stato toccato):
+
+* `prediction_registry.TWO_MODELS_MERGE_INSTANT` = il confine, **una sola**
+  definizione (il replay ne tiene il nome storico `PR24_MERGE_INSTANT`);
+* `model_variant_read()`: campo esplicito se c'e'; altrimenti istante della riga
+  (`salvato_il`, poi `kickoff_utc`, poi la `data` italiana) contro il confine;
+  `model_variant_read_source()` dichiara **da dove** viene la decisione;
+  `model_variant_of()` resta la convenzione del percorso di **scrittura** e
+  dell'interfaccia (chiavi di dedup stabili, nessuna riga riscritta);
+* la verifica (`registry_modelli_check`), la copertura (`registry_coverage`) e la
+  diagnosi leggono con la nuova convenzione e contano le righe senza etichetta
+  **per epoca e per fonte**, invece di gonfiare il modello attuale.
+
+**Le 46 righe senza etichetta: quando sono nate** (finestra 30/08 → oggi,
+`salvato_il` per tutte e 46 — nessuna dedotta):
+
+| righe senza etichetta | quante | come si leggono |
+|---|---|---|
+| nate prima del merge, partita prima del merge | **40** | `legacy` |
+| nate prima del merge, **partita dopo** il merge | **6** | `legacy` (il motore era quello: risparmi salvati giorni prima) |
+| nate dopo il merge | **0** | — |
+| istante illeggibile | **0** | — |
+
+**Risposta secca alla domanda dell'utente: tutte e 46 prima, zero dopo.** Le
+righe che il referto precedente chiamava «click veri letti come attuale» erano 11:
+tutte quante **prima** del merge, quindi tutte da leggere `legacy` — e le 6 che
+riguardano partite giocate *dopo* il merge sono il caso peggiore della
+convenzione vecchia (la partita e' del 19-20/09, la riga e' stata scritta il
+15/09 dal motore vecchio: guardando la data della partita sembrerebbe «attuale»).
+
+**I numeri rifatti** (run `35573849016`, tag `verifica-modelli-upstash-2026-09-21`):
+
+| sezione | righe | attuale | legacy | entrambi | solo attuale | solo legacy |
+|---|---|---|---|---|---|---|
+| VECCHIO (prima di PR#24) | 138 | 46 | 63 | 39 | 7 | **24** |
+| NUOVO (da PR#24 in poi) | 33 | 11 | 16 | 10 | 1 | **6** |
+| **INTERO PERIODO** | **171** | **57** | **79** | **49** | **8** | **30** |
+
+Il modello attuale copre 57 partite, il legacy 79: **il campione non e'
+simmetrico**, e non lo era nemmeno prima — la convenzione vecchia lo nascondeva
+contando come «attuali» righe che il motore attuale non aveva mai prodotto.
+
+**Le 30 partite senza la riga attuale, e perche' manca.** La diagnosi le rigioca
+tutte (`NON DIAGNOSTICABILI: 0 su 38` fra i due insiemi):
+
+| causa misurata dal selettore per l'assenza dell'ATTUALE | partite |
+|---|---|
+| il motore attuale **non** esprime una scelta (sotto soglia / veto) | 10 |
+| il motore attuale **esprime** una scelta → la riga manca davvero | **20** |
+
+Per le 20 la verifica dice il meccanismo, riga per riga: **la chiave di dedup
+della riga attuale e' gia' occupata** da una riga senza campo, che il percorso di
+scrittura legge come `current` → il replay la salta (`gia_presente`) e la riga
+attuale non viene mai scritta. Misura: `20 su 30` con «chiave attuale OCCUPATA»
+nell'annotazione `attuale-mancante` del run — esattamente le 20 con causa
+`selezionata`. Esempi: Milan–Lecce (20/09, riga legacy del replay nata il 15/09),
+Inter–Udinese (14/09), Auxerre–Brest (20/09), Brighton–Arsenal (19/09),
+Celta–Málaga (13/09).
+
+**La run di verifica e' ROSSA, di proposito.** Il gate dell'ATTUALE non e' piu'
+un conteggio: la diagnosi scrive un JSON con il motivo **misurato** per ogni
+partita senza quella riga, e la run e' rossa solo se una causa resta non
+misurata. Le 20 partite sopra sono un guasto vero (righe scrivibili e non
+scritte), non un allarme: la run verde di prima era verde perche' leggeva male.
+
+**Come si ripara (serve una decisione, perche' comporta una scrittura).**
+Allineare la lettura della chiave nel percorso di scrittura alla convenzione
+corretta: sotto quella chiave la riga senza campo e' `legacy`, la chiave del
+`current` resta libera, e un rilancio del replay **aggiunge** le 20 righe attuali
+senza toccare nulla di esistente (il merge salta solo le chiavi davvero prese).
+In alternativa, dichiarare quelle 20 partite come "solo legacy" e rinunciare
+all'uguaglianza dei campioni: i numeri per farlo sono qui sopra. Le soglie non
+c'entrano: qui non si tratta di righe sotto soglia, ma di righe che il selettore
+ha scelto e che non sono state scritte.
+
 ## 5. Scrittura nel Registro
 
 * Cosa entra: per ogni partita della finestra, **una** riga per modello
@@ -252,6 +342,23 @@ conto e' pronto, ripetibile, e non nasconde niente.
 > lettura prima di ogni scrittura, idempotenza, fallback di sharding se mai
 > servisse). Il testo che segue resta come **misura** del muro, non come stato
 > attuale.
+
+**Il conto del trasloco, riga per riga (nessun dato perso, nessuna riga
+modificata).** E' la prova chiesta prima del merge, e sta in tre numeri:
+
+| momento | JSONBin (archivio) | hash Upstash (Registro vivo) | confronto |
+|---|---|---|---|
+| prima del trasloco | **108 righe** / 52,2 kB | 0 righe | — |
+| dopo la copia (fase C) | 108 righe | **108 righe** (un solo `HSET`) | identiche 108 · solo su JSONBin 0 · solo su Upstash 0 · **diverse 0** |
+| dopo le due finestre di replay (fase D) | 108 righe | **233 righe** = 108 + **98** (simmetrica) + **27** (legacy) | 0 sovrascritture, solo aggiunte |
+| istantanea giornaliera (fase E) | 108 righe | **233 righe** / 164243 B, riletta e confrontata | **fedele** (0/0/0) |
+
+`233 = 108 + 98 + 27` chiude esattamente: le 125 righe con variante esplicita
+viste nella finestra sono 98 + 27, e le 108 righe che c'erano prima sono tutte
+ancora li' (l'archivio JSONBin le conserva intatte e non e' piu' stato scritto).
+Il rilancio del replay a Registro completo non ha scritto nulla
+(`{"azioni": {"gia_presente": 112}, "scritto": false}`): l'idempotenza non e'
+dichiarata, e' misurata.
 
 I secret sono configurati (la **lettura** remota infatti funziona: `fonte:
 jsonbin`, 108 righe). La **scrittura** arriva fino al PUT e viene **respinta dal
@@ -355,7 +462,7 @@ end-to-end su registro finto copre quel percorso.
 
 ## 6. Verifiche eseguite
 
-* **Suite completa**: `907 passed, 1006 subtests passed` (`SoccerMath/` +
+* **Suite completa**: `916 passed, 1006 subtests passed` (`SoccerMath/` +
   `audit/`, con `test_theme_toggle.py` a parte: `🎉 TUTTI I TEST PASSATI`).
   Nessun test saltato, nessun sottoinsieme.
 * Nuovi test in questa consegna: finestre complementari a istante (4),
@@ -372,6 +479,13 @@ end-to-end su registro finto copre quel percorso.
   `verifica-modelli-upstash-2026-09-21`), `success`, sola lettura — i numeri di
   §4.4 sono le sue annotazioni (`[modelli]`, `[modelli-specie]`) e la causa
   delle 19 partite sta in `[diagnosi-riepilogo]` e `[diagnosi-parziale]`.
+* **Convenzione corretta**: run `35573849016` (stesso tag), sola lettura, **rossa**
+  per le 20 righe attuali mancanti del §4.5 — annotazioni `attuale-mancante`
+  (prove per riga: quando e' nata, che specie, chiave occupata), `modelli-dettaglio`
+  (le 46 righe senza etichetta divise per epoca) e `gate-attuale` (il verdetto).
+  Test nuovi: 13 sulla convenzione di lettura (confine half-open, `salvato_il` che
+  batte la data della partita, istante illeggibile dichiarato) e 2 sull'esito JSON
+  per il gate.
 * **Fetch + diff**: i due comandi girano contro `origin/main` con la storia
   completa (gli snapshot vengono da git), e il referto dichiara il ref usato.
 
@@ -381,11 +495,15 @@ end-to-end su registro finto copre quel percorso.
    comandi dalla scrittura (punto §5) e riguarda anche la produzione: a ~74 kB su
    100 kB, i salvataggi dell'app si fermeranno fra ~38 righe. I secret ora
    funzionano (lettura remota OK): il blocco e' di capienza, non di credenziali.
-2. Le partite solo-attuale (**9** offline/API nei dry-run, **19** sul Registro
-   vivo al 21/09): dichiarate, spiegate, non forzate (§4.3 e §4.4). È l'unico
-   punto che richiede una decisione: l'uguaglianza dei campioni esiste solo
-   cambiando le regole del selettore, non il replay.
-3. 2 kickoff incerti (Levante-Ath Bilbao, Monaco-Lens) e 14 click con snapshot
+2. **Le 20 partite senza la riga attuale del §4.5** — la riga esiste, il motore
+   l'ha scelta, il replay l'ha saltata perche' la chiave era occupata da una
+   riga senza campo: e' l'unico lavoro che richiede una scrittura (un rilancio
+   del replay dopo aver allineato la chiave di lettura). Finche' non si fa, la
+   run di verifica resta rossa e il campione non e' completo.
+3. Le partite coperte da un solo modello dove l'assenza e' **legittima**
+   (sotto soglia o veto, soglie invariate): 8 senza la riga legacy, 10 senza la
+   riga attuale. Dichiarate e misurate (§4.3, §4.5): non si scrivono.
+4. 2 kickoff incerti (Levante-Ath Bilbao, Monaco-Lens) e 14 click con snapshot
    privo dell'archivio xG (arriva in git il 01/09): entrambe dichiarate nel
    referto, con il fallback che userebbe la produzione con quegli stessi dati.
 
