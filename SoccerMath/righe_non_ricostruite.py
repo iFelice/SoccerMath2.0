@@ -57,7 +57,7 @@ def _istante(riga: Dict[str, Any]) -> Optional[datetime]:
     return entry_instant(riga)[0]
 
 
-def _kickoff(riga: Dict[str, Any]) -> Optional[datetime]:
+def kickoff_della_riga(riga: Dict[str, Any]) -> Optional[datetime]:
     """Data della partita (per il confronto con la finestra). ``None`` se non si legge."""
     from prediction_registry import parse_datetime, parse_kickoff, KICKOFF_UTC_FIELD
     ko = parse_kickoff(riga.get(KICKOFF_UTC_FIELD))
@@ -89,7 +89,7 @@ def periodo(riga: Dict[str, Any]) -> str:
     (``REPLAY_START_INSTANT``, 30/08/2026 11:27 UTC) e il merge di PR#24
     (``PR24_MERGE_INSTANT``, 04/09/2026 16:50 UTC).
     """
-    k = _kickoff(riga)
+    k = kickoff_della_riga(riga)
     n = _istante(riga)
     parte_partita = ("partita prima della finestra" if k is not None and k < REPLAY_START_INSTANT
                      else ("partita dentro la finestra" if k is not None else "partita non leggibile"))

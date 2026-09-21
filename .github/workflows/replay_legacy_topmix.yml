@@ -183,6 +183,8 @@ jobs:
           python -m pytest -q --tb=short \
             SoccerMath/test_replay_legacy_no_leakage.py \
             SoccerMath/test_registry_coverage.py \
+            SoccerMath/test_righe_non_ricostruite.py \
+            SoccerMath/test_confronto_modelli.py \
             SoccerMath/test_registry_store.py \
             SoccerMath/test_registry_backend_status.py \
             SoccerMath/test_legacy_elo_engine.py \
@@ -284,6 +286,46 @@ jobs:
           echo "blocchi di referto: $chunck"
           if [ "$rc" != "0" ]; then
             echo "::error title=non-ritrovate::strumento uscito con $rc: il referto (con l'errore) e' nei blocchi qui sopra"
+          fi
+
+      # La percentuale di successo dei due motori senza le righe di TRANSIZIONE
+      # (partita dentro la finestra ricostruibile che nessuno dei due motori
+      # definitivi rifa': codice intermedio, ne' vecchio ne' nuovo). Con la
+      # differenza, il suo intervallo di confidenza, il test esatto di Fisher, la
+      # potenza e le due controprove appaiate. SOLA LETTURA: legge il Registro e
+      # il referto del replay, non scrive nulla.
+      - name: Percentuale di successo dei due motori (sola lettura, senza le righe di transizione)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+        # Come il passo precedente: niente ``set -e`` sulla pipeline, il codice di
+        # uscita si legge da ``PIPESTATUS`` e il referto INTERO finisce in
+        # annotazioni. Un guasto dello strumento si vede, non lascia un passo
+        # verde e muto.
+        run: |
+          set +e
+          python SoccerMath/confronto_modelli.py \
+            --replay-json "$REPLAY_OUT/replay_legacy_topmix.json" \
+            --compatto --json "$REPLAY_OUT/confronto_modelli.json" \
+            2>&1 | tee "$REPLAY_OUT/confronto_modelli.txt"
+          rc=${PIPESTATUS[0]}
+          echo "esito dello strumento: $rc"
+          if [ ! -s "$REPLAY_OUT/confronto_modelli.txt" ]; then
+            echo "nessun output: lo strumento non e' partito" > "$REPLAY_OUT/confronto_modelli.txt"
+          fi
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=successo-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/confronto_modelli.txt")
+          if [ "$rc" != "0" ]; then
+            echo "::error title=successo::strumento uscito con $rc: il referto (con l'errore) e' nei blocchi qui sopra"
           fi
 
       # Stato dei due backend del Registro (JSONBin / Upstash): quante righe,
