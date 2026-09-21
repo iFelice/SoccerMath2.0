@@ -79,7 +79,48 @@ del piano al posto delle **righe** (`TypeError: 'int' object is not iterable`).
 | `replay-write-{sym,legacy}-upstash-*` | replay che scrive sul Registro vivo | sì (solo righe nuove) |
 | `replay-check-{sym,legacy}-*` | stessa finestra in sola lettura | no |
 
-## 7. Cosa resta a mano (una volta)
+## 7. Verifica finale (sola lettura, Registro migrato)
+
+Due run in sola lettura sulle finestre della commessa, con il Registro **sul
+backend nuovo** (`REGISTRY_BACKEND=upstash`, letto dal run):
+
+| run | click | righe Attuale | righe Legacy | leak check | Registro prima → dopo | scritture |
+|---|---|---|---|---|---|---|
+| `replay-check-sym-2026-09-20` (2026-09-21) | 80 | 60 | 52 | OK | 233 → 233 (`gia_presente`: 112) | **nessuna** |
+| `replay-check-legacy-2026-09-20` (2026-09-21) | 23 | 17 | 16 | OK | 233 → 233 (`gia_presente`: 33) | **nessuna** |
+
+Fedeltà (righe del Registro vs ricostruzione del replay): **109/192** sulla
+finestra simmetrica e **30/33** sulla legacy — la ricostruzione ritrova le righe
+scritte, che è la prova che il Registro migrato è leggibile e coerente.
+
+Il registro Top Mix nel periodo conta **171 righe** (138 prima di PR#24, 33 dopo),
+verificate a campione (6): i due modelli coincidono dove il motore è lo stesso,
+differiscono dove la riga è stata salvata **prima** della correzione `ae8784d`
+(04/09 15:25 locali) — quelle quattro righe un replay di oggi **non deve**
+riprodurle, e non le riproduce.
+
+Numeri che crescono col calendario: la finestra legacy arriva a *oggi*, quindi
+ogni giorno concluso aggiunge partite (21 → 23 click, +2 righe per modello tra il
+run del 20/09 e quello del 21/09). Non è instabilità: è la finestra che si allunga.
+
+## 8. Se qualcosa non torna (scala di diagnosi)
+
+1. `python SoccerMath/registry_backend_status.py` — righe e kB dei **due**
+   backend, `DBSIZE` e **chiavi presenti**: dice subito se si sta guardando la
+   chiave giusta (una chiave sbagliata mostra 0 righe e la chiave vera compare
+   nell'elenco);
+2. `migra-registro-diagnostica-*` — prova di andata e ritorno con **un** campo in
+   una chiave a parte, riletto e poi rimosso: distingue chiave sbagliata,
+   permessi (risposta con `error`) e valore non conservato;
+3. `istantanea-registro-*` — riscrive/rilegge l'istantanea del giorno e la
+   confronta col Registro: se non coincide, il Registro è in movimento o il
+   percorso di scrittura è rotto;
+4. in app: se il Registro appare **vuoto** mentre ci si aspetta 233 righe, il
+   punto 1 dice se è un problema di chiave/credenziali o se l'hash è davvero
+   vuoto. Un hash vuoto è una risposta valida e l'app mostrerà il Registro vuoto:
+   **non** ricade sul file locale (una copia vecchia al posto del vivo è peggio).
+
+## 9. Cosa resta a mano (una volta)
 
 - **Streamlit Cloud → Secrets**: `REGISTRY_BACKEND = "upstash"` ✅ fatto il
   2026-09-21. Servono anche `UPSTASH_REDIS_REST_URL` e
