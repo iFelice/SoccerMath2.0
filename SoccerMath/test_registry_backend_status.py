@@ -80,8 +80,8 @@ class TestStatoSolaLettura(unittest.TestCase):
         rc, testo = self._esegui_con_rete(post, [_riga()])
         self.assertEqual(0, rc)
         comandi = [str(c[0]).upper() for c in post.comandi]
-        # Due HGETALL: le righe, e i NOMI dei campi (diagnosi). Mai una scrittura.
-        self.assertEqual(["HGETALL", "DBSIZE", "KEYS", "HGETALL"], comandi,
+        # Due HGETALL: i NOMI dei campi (diagnosi) e le righe. Mai una scrittura.
+        self.assertEqual(["HGETALL", "HGETALL", "DBSIZE", "KEYS"], comandi,
                          "lo stato del backend e' sola lettura: HGETALL, DBSIZE, KEYS")
         self.assertIn("i due Registri coincidono", testo)
 
@@ -91,7 +91,7 @@ class TestStatoSolaLettura(unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertIn("Upstash: **0 righe**", testo)
         self.assertIn("database nuovo", testo)
-        self.assertEqual(["HGETALL", "DBSIZE", "KEYS", "HGETALL"],
+        self.assertEqual(["HGETALL", "HGETALL", "DBSIZE", "KEYS"],
                          [str(c[0]).upper() for c in post.comandi])
         self.assertIn("chiavi nel database (**0**)", testo)
 
@@ -220,13 +220,17 @@ class TestDoppioniDellHash(unittest.TestCase):
         self.assertIn("**0** chiavi con valori DIVERSI", testo)
         self.assertIn("righe senza campo variante **2**", testo)
 
-    def test_due_righe_diverse_sulla_stessa_chiave_vengono_mostrate(self):
+    def test_due_righe_diverse_sulla_stessa_chiave_fermano_e_vengono_mostrate(self):
+        """Due contenuti diversi sulla stessa chiave: la lettura NON sceglie in
+        silenzio (esce 1 e lo dice), ma la diagnosi deve comunque mostrare le due
+        righe: senza il nome dei campi non si saprebbe cosa guardare."""
         riga = _riga(7)                    # campo esplicito: chiave stabile
         chiave = status.rs.field_of(riga)
         altra = dict(riga, prob_sicuro=71.5, salvato_il="20/09/2026 15:04")
         rc, testo = self._esegui({chiave: json.dumps(riga),
                                   chiave + "_bis": json.dumps(altra)})
-        self.assertEqual(0, rc)
+        self.assertEqual(1, rc, "contenuti diversi sulla stessa chiave: non si sceglie, si esce 1")
+        self.assertIn("NON leggibile", testo)
         self.assertIn("**1** chiavi con valori DIVERSI", testo)
         self.assertIn("STESSA CHIAVE", testo)
         self.assertIn("71.5%", testo)
@@ -236,4 +240,5 @@ class TestDoppioniDellHash(unittest.TestCase):
         chiave = status.rs.field_of(riga)
         rc, testo = self._esegui({chiave: json.dumps(riga)})
         self.assertEqual(0, rc)
-        self.assertIn("variante letta (campo esplicito o DATA): `legacy` **1**", testo)
+        self.assertIn("variante letta sui CAMPI (campo esplicito o DATA): `legacy` **1**", testo)
+        self.assertIn("variante letta sulle RIGHE (una per chiave): `legacy` **1**", testo)

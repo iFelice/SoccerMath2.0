@@ -186,10 +186,45 @@ def _upstash_cmd(comando: List[Any], *, post=None) -> Any:
 
 
 def upstash_rows(*, post=None) -> List[Dict[str, Any]]:
-    """Tutte le righe dell'hash (1 comando: ``HGETALL``)."""
+    """Tutte le righe dell'hash (1 comando: ``HGETALL``), UNA per chiave logica.
+
+    Il campo dell'hash e' ``field_of(riga)`` = ``dedup_key``: quando la
+    convenzione di lettura della variante cambia (righe senza campo, lette per
+    DATA), il nome che la riga ricalcola adesso non e' piu' quello con cui era
+    stata scritta, e la riga resta due volte nell'hash (nome vecchio + nome
+    nuovo, stesso contenuto). Contarle due volte falsa ogni numero: qui si legge
+    una volta sola, tenendo il campo allineato alla chiave ricalcolata (quello
+    che userebbe la prossima scrittura).
+
+    Nessuna cancellazione: i campi vecchi restano dove sono. Se pero' due campi
+    portano la stessa chiave con contenuto DIVERSO, la scelta non e' innocua e
+    non si fa in silenzio: si alza ``RegistryStoreError`` (una delle due righe
+    non sarebbe raggiungibile per chiave).
+    """
     risultato = _upstash_cmd(["HGETALL", hash_key()], post=post)
     valori = hash_da_risposta(risultato)
-    righe = [r for r in (_row_from_value(v) for v in valori.values()) if r is not None]
+    per_chiave: Dict[str, Tuple[str, str, Dict[str, Any]]] = {}
+    for campo, valore in valori.items():
+        riga = _row_from_value(valore)
+        if riga is None:
+            continue
+        chiave = field_of(riga)
+        testo = json.dumps(riga, ensure_ascii=False, sort_keys=True, default=str)
+        precedente = per_chiave.get(chiave)
+        if precedente is not None:
+            _campo_prima, testo_prima, _riga_prima = precedente
+            if testo_prima != testo:
+                raise RegistryStoreError(
+                    f"Upstash: due campi con la stessa chiave ma contenuto diverso: "
+                    f"`{precedente[0]}` e `{campo}` (chiave `{chiave}`). La chiave non "
+                    f"distingue due righe: non si sceglie in silenzio, va guardato l'hash "
+                    f"(una delle due non e' raggiungibile per chiave).")
+            # stessa riga sotto due nomi: basta il campo allineato alla chiave.
+            if campo == chiave and precedente[0] != chiave:
+                per_chiave[chiave] = (campo, testo, riga)
+            continue
+        per_chiave[chiave] = (campo, testo, riga)
+    righe = [voce[2] for voce in per_chiave.values()]
     return _righe_ordinate(righe)
 
 

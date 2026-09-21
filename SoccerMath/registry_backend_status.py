@@ -77,8 +77,25 @@ def _firma_riga(riga: Dict[str, Any]) -> str:
             f"campo variante {riga.get('model_variant') or 'assente'} · salvata {riga.get('salvato_il')}")
 
 
+def variante_di(riga: Dict[str, Any]) -> str:
+    """Variante LETTA (campo esplicito, altrimenti la DATA): un nome solo nel referto."""
+    from prediction_registry import model_variant_read
+    return model_variant_read(riga)
+
+
+def _riga_dal_valore(valore: Any) -> Optional[Dict[str, Any]]:
+    """Riga dall'oggetto o dalla stringa JSON del campo; ``None`` se illeggibile."""
+    riga = valore if isinstance(valore, dict) else None
+    if riga is None:
+        try:
+            riga = json.loads(valore) if isinstance(valore, str) else None
+        except Exception:
+            riga = None
+    return riga if isinstance(riga, dict) else None
+
+
 def campi_upstash(esempi: int = 3, *, post=None) -> Dict[str, Any]:
-    """HGETALL GREZZO: i NOMI dei campi contro la chiave ricalcolata dal contenuto.
+    """HGETALL GREZZO: i NOMI dei campi, i doppioni e la variante letta.
 
     Il campo dell'hash e' ``field_of(riga)`` = ``dedup_key`` della riga, quindi
     dipende dalla convenzione con cui si legge la variante: se cambia (una riga
@@ -86,64 +103,86 @@ def campi_upstash(esempi: int = 3, *, post=None) -> Dict[str, Any]:
     del cambio resta sotto il nome VECCHIO. Il contenuto c'e' e si legge, ma il
     campo non e' piu' quello che la riga ricalcola: due campi, una sola riga.
 
-    Qui si contano i campi totali, quelli allineati, quelli con nome vecchio,
-    le righe DISTINTE per chiave ricalcolata (se i campi doppi sono righe
-    doppie) e si mostrano un paio di esempi. Sola lettura: una ``HGETALL``.
+    Qui si contano, senza scrivere niente:
+
+    * i campi totali, quelli allineati e quelli con nome vecchio;
+    * le righe LOGICHE (una per chiave ricalcolata) e i doppioni, SEPARATI in
+      "stesso contenuto" (solo disordine) e "contenuto diverso" (la chiave non
+      distingue due righe: da guardare, con esempi);
+    * quante righe non hanno il campo ``model_variant`` e che variante esprime
+      ciascuna, contate sui campi e sulle righe.
+
+    Sola lettura: una ``HGETALL``.
     """
     try:
         grezzo = rs.upstash_raw(["HGETALL", rs.hash_key()], post=post).get("result")
         coppie = rs.hash_da_risposta(grezzo)
     except Exception as e:                                  # pragma: no cover - rete
         return {"errore": f"{type(e).__name__}: {e}"}
-    from prediction_registry import model_variant_read
+
     allineati = vecchi = illeggibili = senza_campo = 0
     per_variante: Dict[str, int] = {}
     per_chiave: Dict[str, List[str]] = {}
-    valori_per_chiave: Dict[str, List[str]] = {}
+    firme_per_chiave: Dict[str, List[str]] = {}
     esempi_vecchi: List[Dict[str, str]] = []
+    logiche: Dict[str, Dict[str, Any]] = {}
+    nomi_per_chiave: Dict[str, List[str]] = {}
     for campo, valore in coppie.items():
-        riga = valore if isinstance(valore, dict) else None
+        riga = _riga_dal_valore(valore)
         if riga is None:
-            try:
-                riga = json.loads(valore) if isinstance(valore, str) else None
-            except Exception:
-                riga = None
-        if not isinstance(riga, dict):
             illeggibili += 1
             continue
-        calcolato = rs.field_of(riga)
-        if calcolato == campo:
+        chiave = rs.field_of(riga)
+        firma = json.dumps(riga, ensure_ascii=False, sort_keys=True, default=str)
+        if chiave == campo:
             allineati += 1
         else:
             vecchi += 1
             if len(esempi_vecchi) < max(0, esempi):
-                esempi_vecchi.append({"campo_scritto": campo, "campo_ricalcolato": calcolato})
+                esempi_vecchi.append({"campo_scritto": campo, "campo_ricalcolato": chiave})
         if not riga.get("model_variant"):
             senza_campo += 1
-        variante = model_variant_read(riga)
+        variante = variante_di(riga)
         per_variante[variante] = per_variante.get(variante, 0) + 1
-        per_chiave.setdefault(calcolato, []).append(campo)
-        valori_per_chiave.setdefault(calcolato, []).append(json.dumps(riga, sort_keys=True))
+        per_chiave.setdefault(chiave, []).append(campo)
+        firme_per_chiave.setdefault(chiave, []).append(firma)
+        nomi_per_chiave.setdefault(chiave, []).append(campo)
+        precedente = logiche.get(chiave)
+        if precedente is None or (campo == chiave and not precedente["allineato"]):
+            logiche[chiave] = {"riga": riga, "allineato": campo == chiave}
+
+    per_variante_logico: Dict[str, int] = {}
+    senza_campo_logico = 0
+    for voce in logiche.values():
+        variante = variante_di(voce["riga"])
+        per_variante_logico[variante] = per_variante_logico.get(variante, 0) + 1
+        if not voce["riga"].get("model_variant"):
+            senza_campo_logico += 1
+
     doppie_identiche = doppie_diverse = 0
     esempi_diversi: List[Dict[str, Any]] = []
     for chiave, campi in per_chiave.items():
         if len(campi) < 2:
             continue
-        valori = valori_per_chiave[chiave]
-        if len(set(valori)) == 1:
+        firme = firme_per_chiave[chiave]
+        if len(set(firme)) == 1:
             doppie_identiche += 1
             continue
         doppie_diverse += 1
         if len(esempi_diversi) < max(0, esempi):
-            voci = [json.loads(v) for v in sorted(set(valori))[:2]]
-            esempi_diversi.append({
-                "chiave": chiave, "campi": campi[:3],
-                "righe": [_firma_riga(v) for v in voci]})
+            voci = [json.loads(f) for f in sorted(set(firme))[:2]]
+            esempi_diversi.append({"chiave": chiave, "campi": campi[:3],
+                                   "righe": [_firma_riga(v) for v in voci]})
+
+    con_nome_vecchio_solo = sum(1 for chiave, campi in nomi_per_chiave.items()
+                                if len(campi) == 1 and campi[0] != chiave)
     return {"campi": len(coppie), "allineati": allineati, "nome_vecchio": vecchi,
-            "illeggibili": illeggibili, "righe_distinte": len(per_chiave),
+            "illeggibili": illeggibili, "righe_distinte": len(logiche),
             "chiavi_doppie": doppie_identiche + doppie_diverse,
             "doppie_identiche": doppie_identiche, "doppie_diverse": doppie_diverse,
             "senza_campo_variante": senza_campo, "per_variante": per_variante,
+            "per_variante_logico": per_variante_logico, "senza_campo_logico": senza_campo_logico,
+            "chiavi_con_nome_vecchio_solo": con_nome_vecchio_solo,
             "esempi": esempi_vecchi, "esempi_diversi": esempi_diversi}
 
 
@@ -173,6 +212,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "errore": None if errore_us == "ok" else errore_us},
     }
 
+    campi = campi_upstash(args.mostra)
+    esito["upstash"]["campi"] = campi
     L: List[str] = ["## Registro: stato dei due backend (sola lettura)", ""]
     L.append(f"- backend attivo: `{esito['backend_attivo']}` · chiave hash: `{esito['hash_key']}`")
     if righe_jb is None:
@@ -193,29 +234,30 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             L.append(f"- chiavi nel database (**{chiavi['dbsize']}**): "
                      + (", ".join(f"`{k}`" for k in chiavi["chiavi"]) or "nessuna"))
-        campi = campi_upstash(args.mostra)
-        esito["upstash"]["campi"] = campi
-        if campi.get("errore"):
-            L.append(f"- **campi dell'hash: non leggibili** — {campi['errore']}")
-        else:
-            L.append(f"- campi dell'hash: **{campi['campi']}** · allineati alla chiave ricalcolata "
-                     f"**{campi['allineati']}** · con nome vecchio **{campi['nome_vecchio']}** · "
-                     f"righe distinte **{campi['righe_distinte']}** · chiavi doppie "
-                     f"**{campi['chiavi_doppie']}**"
-                     + (f" · valori illeggibili {campi['illeggibili']}" if campi["illeggibili"] else ""))
-            L.append(f"- doppioni: **{campi['doppie_identiche']}** righe scritte due volte "
-                     f"(stesso contenuto) · **{campi['doppie_diverse']}** chiavi con valori DIVERSI "
-                     f"(da guardare: il campo non dice tutto) · righe senza campo variante "
-                     f"**{campi['senza_campo_variante']}**")
-            L.append("- variante letta (campo esplicito o DATA): "
-                     + ", ".join(f"`{v}` **{n}**" for v, n in sorted(campi["per_variante"].items())))
-            for esempio in campi["esempi"]:
-                L.append(f"    · nome vecchio: `{esempio['campo_scritto']}` -> ricalcolato "
-                         f"`{esempio['campo_ricalcolato']}`")
-            for esempio in campi["esempi_diversi"]:
-                L.append(f"    · STESSA CHIAVE (`{esempio['chiave']}`), campi {esempio['campi']}:")
-                for firma in esempio["righe"]:
-                    L.append(f"        - {firma}")
+    if campi.get("errore"):
+        L.append(f"- **campi dell'hash: non leggibili** — {campi['errore']}")
+    else:
+        L.append(f"- campi dell'hash: **{campi['campi']}** · allineati alla chiave ricalcolata "
+                 f"**{campi['allineati']}** · con nome vecchio **{campi['nome_vecchio']}** · "
+                 f"righe distinte **{campi['righe_distinte']}** · chiavi doppie "
+                 f"**{campi['chiavi_doppie']}**"
+                 + (f" · valori illeggibili {campi['illeggibili']}" if campi["illeggibili"] else ""))
+        L.append(f"- doppioni: **{campi['doppie_identiche']}** righe scritte due volte "
+                 f"(stesso contenuto) · **{campi['doppie_diverse']}** chiavi con valori DIVERSI "
+                 f"(da guardare: il campo non dice tutto) · righe senza campo variante "
+                 f"**{campi['senza_campo_variante']}**")
+        L.append("- variante letta sui CAMPI (campo esplicito o DATA): "
+                 + ", ".join(f"`{v}` **{n}**" for v, n in sorted(campi["per_variante"].items())))
+        L.append("- variante letta sulle RIGHE (una per chiave): "
+                 + ", ".join(f"`{v}` **{n}**" for v, n in sorted(campi["per_variante_logico"].items()))
+                 + f" · senza campo variante **{campi['senza_campo_logico']}**")
+        for esempio in campi["esempi"]:
+            L.append(f"    · nome vecchio: `{esempio['campo_scritto']}` -> ricalcolato "
+                     f"`{esempio['campo_ricalcolato']}`")
+        for esempio in campi["esempi_diversi"]:
+            L.append(f"    · STESSA CHIAVE (`{esempio['chiave']}`), campi {esempio['campi']}:")
+            for firma in esempio["righe"]:
+                L.append(f"        - {firma}")
 
     if righe_jb is not None and righe_us is not None:
         diff = rs.confronto(righe_jb, righe_us)

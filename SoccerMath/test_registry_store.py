@@ -396,3 +396,56 @@ class TestImpostazioniDaConfig(unittest.TestCase):
         with mock.patch.dict(os.environ, {"REGISTRY_BACKEND": "jsonbin"}), \
              mock.patch.object(config, "REGISTRY_BACKEND", "upstash"):
             self.assertEqual("jsonbin", rs.backend())
+
+
+class TestCampiDoppiNellaLettura(unittest.TestCase):
+    """Dopo la correzione della lettura per data, l'hash puo' contenere la stessa
+    riga sotto il nome vecchio e sotto quello nuovo. La lettura deve dare UNA
+    riga (altrimenti i numeri si gonfiano) e non deve scegliere in silenzio
+    quando i contenuti sono diversi."""
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {"UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+                                               "UPSTASH_REDIS_REST_TOKEN": "tok"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _riga_senza_campo(self, match_id=5):
+        return {"match_id": match_id, "origin": "top_mix", "home": "Fulham", "away": "Crystal Palace",
+                "campionato": "Premier League", "data": "06/09/2026 16:00",
+                "mercato_standard": "UNDER_2.5", "prob_sicuro": 65.5,
+                "salvato_il": "05/09/2026 18:18"}
+
+    def _post(self, campi):
+        class _R:
+            status_code = 200
+            text = ""
+
+            def __init__(self, p):
+                self._p = p
+
+            def json(self):
+                return self._p
+
+        def post(url, json=None, headers=None, timeout=None):  # noqa: A002
+            return _R({"result": campi})
+        return post
+
+    def test_stessa_riga_sotto_due_nomi_si_legge_una_volta(self):
+        riga = self._riga_senza_campo()
+        nuovo = rs.field_of(riga)
+        vecchio = nuovo.rsplit("|", 1)[0] + "|current"
+        self.assertNotEqual(nuovo, vecchio)
+        lette = rs.upstash_rows(post=self._post({vecchio: json.dumps(riga),
+                                                 nuovo: json.dumps(riga)}))
+        self.assertEqual(1, len(lette), "la stessa riga non si conta due volte")
+        self.assertEqual(riga["match_id"], lette[0]["match_id"])
+
+    def test_contenuti_diversi_sulla_stessa_chiave_alzano(self):
+        riga = self._riga_senza_campo()
+        chiave = rs.field_of(riga)
+        altra = dict(riga, prob_sicuro=71.5)
+        with self.assertRaises(rs.RegistryStoreError) as ctx:
+            rs.upstash_rows(post=self._post({chiave: json.dumps(riga),
+                                             chiave + "_bis": json.dumps(altra)}))
+        self.assertIn("contenuto diverso", str(ctx.exception))
