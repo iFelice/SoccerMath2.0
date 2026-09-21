@@ -72,9 +72,38 @@ Lettura dei numeri:
    sotto un nome che non si usa piu'. Lasciarli non cambia nulla (la lettura li
    ignora); toglierli sarebbe una **cancellazione** e non si fa senza un tuo via
    libera. L'archivio JSONBin e lo snapshot sono intatti in ogni caso.
-4. Il punto aperto dichiarato, **non** risolto: il percorso di **scrittura**
-   (`dedup_key`) legge ancora la variante col default per gli id. Conseguenza:
-   se il replay rilanciasse la finestra vecchia, per una partita che ha gia' un
-   click vero potrebbe aggiungere una riga `legacy` del replay (chiavi diverse).
-   Non e' stato toccato di proposito: cambiare la scrittura non era chiesto e
-   avrebbe richiesto il tuo via libera.
+4. **Correzione di questa nota**: `dedup_key` (la chiave della fusione e il nome
+   del campo) legge la variante **per data**, non col default: e' proprio cosi'
+   che il replay ha potuto aggiungere le 20 righe. Il default fisso resta solo in
+   `model_variant_of`, cioe' sul **valore** del campo che l'app scrive per un
+   click nuovo (e sugli id). Una partita con una riga di un `selector_version`
+   diverso resta, per progetto, una riga distinta: non e' un difetto, e' la
+   regola di dedup dichiarata.
+
+## Esito finale (misurato, run del 2026-09-21)
+
+| run | comando | esito |
+|---|---|---|
+| `35583044605` | verifica dei due modelli (sola lettura) | **verde**: `Registro (upstash): 233 righe totali`, gate «tutte le 10 partite senza riga ATTUALE hanno una causa MISURATA» |
+| `35583046959` | check del replay (sola lettura) | **verde**: `righe_prima 233 → righe_dopo 233`, `azioni: {"gia_presente": 112}`, **`aggiunta 0`** |
+
+I conti tornano **esattamente**:
+
+```
+righe senza campo variante (logiche): 108  (tutte nate prima del merge: 46 nella
+                                            finestra ricostruibile + 62 prima)
+  di cui 20 "cedono" il campo alla riga attuale che il replay ha scritto
+        → la riga vecchia resta sotto il nome nuovo: 1 copia
+  di cui 88 riscritte sotto il nome nuovo col nome vecchio ancora presente: 2 copie
+campi totali = 233 righe + 88 doppioni = 321
+variante letta sui campi   : current 77 · legacy 244 (= 156 + 88)
+variante letta sulle righe : current 77 · legacy 156        (77 + 156 = 233)
+```
+
+Registro vivo: **233 righe · 160,4 kB** su Upstash (tetto 256 MB) · snapshot
+`sm:registro:snapshot:2026-09-20` (233 righe · 164243 B) · archivio JSONBin 108
+righe, **0 solo su JSONBin · 0 contenuto diverso**.
+
+Modello attuale: **57 → 77 partite coperte**; le partite senza la riga attuale
+passano da **30 a 10**, tutte e 10 con causa misurata (sotto soglia o veto) e
+**0 chiavi attuali occupate**.
