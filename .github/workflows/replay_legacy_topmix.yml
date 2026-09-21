@@ -240,6 +240,36 @@ jobs:
             --json "$REPLAY_OUT/coverage.json" --allow-mismatch \
             2>&1 | tee "$REPLAY_OUT/coverage.txt"
 
+      # Le righe del Registro che il replay di OGGI non ritrova, una per una:
+      # quante sono, di che periodo e di quale partita. E' la misura che separa
+      # "partita giocata prima della finestra ricostruibile" (il Drago a 2 Teste
+      # non ha i dati per pronosticarla) da qualunque altro motivo. SOLA LETTURA:
+      # legge il Registro e il referto del replay, non scrive nulla.
+      - name: Righe non ritrovate dal replay (sola lettura, elenco per data e partita)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+        run: |
+          python SoccerMath/righe_non_ricostruite.py \
+            --replay-json "$REPLAY_OUT/replay_legacy_topmix.json" \
+            --compatto --json "$REPLAY_OUT/non_ritrovate.json" \
+            2>&1 | tee "$REPLAY_OUT/non_ritrovate.txt"
+          # Il tetto delle annotazioni (~3600 caratteri, 10 per passo) impone
+          # poche righe lunghe: i conteggi in una, le partite in blocchi.
+          grep -h "^NONRITROVATE|" "$REPLAY_OUT/non_ritrovate.txt" | cut -c1-3000 | while read -r riga; do
+            echo "::warning title=non-ritrovate::${riga#NONRITROVATE| }"
+          done
+          grep -h "^PERIODO|" "$REPLAY_OUT/non_ritrovate.txt" | cut -c1-300 | paste -sd ' || ' - | cut -c1-3000 | while read -r riga; do
+            echo "::warning title=non-ritrovate-periodo::$riga"
+          done
+          grep -h "^RIGA|" "$REPLAY_OUT/non_ritrovate.txt" | cut -c1-170 | paste -sd ' || ' - | cut -c1-3400 | fold -w 3400 | while read -r riga; do
+            echo "::warning title=non-ritrovate-elenco::$riga"
+          done
+
       # Stato dei due backend del Registro (JSONBin / Upstash): quante righe,
       # quanti kB, quali differenze per chiave di campo. SOLA LETTURA: serve a
       # verificare i secret e a misurare la migrazione senza toccare nulla.
