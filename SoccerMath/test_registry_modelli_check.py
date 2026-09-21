@@ -77,8 +77,20 @@ class TestConteggi(unittest.TestCase):
         esito = chk.verifica([storica, del_replay])
         voci = esito["intero"]["solo"][MODEL_VARIANT_CURRENT]
         self.assertEqual(2, len(voci))
-        self.assertEqual(1, sum(1 for v in voci if v["variante_esplicita"]))
-        self.assertEqual({1, 2}, {v["match_id"] for v in voci})
+        per_id = {v["match_id"]: v for v in voci}
+        self.assertFalse(per_id[1]["riga_del_replay"])
+        self.assertTrue(per_id[1]["riga_storica"])
+        self.assertTrue(per_id[2]["riga_del_replay"])
+        self.assertFalse(per_id[2]["riga_storica"])
+
+    def test_partita_con_entrambe_le_specie_di_riga(self):
+        """Click vero E riga del replay sulla stessa partita: due righe, e la
+        voce deve dire che ci sono tutte e due (non solo la prima)."""
+        righe = [_riga(1, variante=None), _riga(1, variante=MODEL_VARIANT_CURRENT)]
+        esito = chk.verifica(righe)
+        voce = esito["intero"]["solo"][MODEL_VARIANT_CURRENT][0]
+        self.assertEqual(2, voce["righe"])
+        self.assertTrue(voce["riga_del_replay"] and voce["riga_storica"])
 
     def test_fuori_finestra_ignorate(self):
         vecchia = _riga(9, variante=MODEL_VARIANT_CURRENT, ko="2026-05-01T18:00:00Z")

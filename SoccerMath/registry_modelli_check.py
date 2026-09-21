@@ -79,8 +79,15 @@ def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Conteggi per variante su un insieme di righe Top Mix (una partita = una voce)."""
     per_variante: Dict[str, Dict[Tuple[Any, ...], Dict[str, Any]]] = {
         MODEL_VARIANT_CURRENT: {}, MODEL_VARIANT_LEGACY: {}}
+    # Tutte le righe di ogni partita, per variante: una partita puo' averne piu'
+    # d'una (un click vero dell'epoca senza campo + una riga del replay).
+    righe_per_partita: Dict[str, Dict[Tuple[Any, ...], List[Dict[str, Any]]]] = {
+        MODEL_VARIANT_CURRENT: {}, MODEL_VARIANT_LEGACY: {}}
     for r in righe:
-        per_variante[model_variant_of(r)].setdefault(match_key(r), r)
+        variante = model_variant_of(r)
+        chiave = match_key(r)
+        per_variante[variante].setdefault(chiave, r)
+        righe_per_partita[variante].setdefault(chiave, []).append(r)
     insiemi = {v: set(per_variante[v]) for v in per_variante}
     comuni = insiemi[MODEL_VARIANT_CURRENT] & insiemi[MODEL_VARIANT_LEGACY]
     solo_c = sorted(insiemi[MODEL_VARIANT_CURRENT] - insiemi[MODEL_VARIANT_LEGACY], key=str)
@@ -89,16 +96,21 @@ def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
     def _dettaglio(variante: str, chiavi: List[Tuple[Any, ...]]) -> List[Dict[str, Any]]:
         def _voce(k: Tuple[Any, ...]) -> Dict[str, Any]:
             r = per_variante[variante][k]
+            gruppo = righe_per_partita[variante][k]
+            # Due specie di righe per la stessa partita, e non si escludono:
+            # quelle scritte dal REPLAY (campo variante esplicito) e i click
+            # VERI dell'epoca, senza campo perche' non esisteva (la convenzione
+            # li legge come "current", ma prima di PR#24 il motore live era
+            # quello vecchio). Chi legge i conteggi deve poterle distinguere.
             return {"partita": f"{r.get('home')} - {r.get('away')}",
                     "data": r.get("data"),
                     "campionato": r.get("campionato"),
                     "mercato": r.get("mercato_standard"),
                     "prob": r.get("prob_sicuro"),
                     "match_id": r.get("match_id"),
-                    # Una riga senza campo variante e' un click VERO dell'epoca
-                    # (il campo non esisteva): la convenzione la legge come
-                    # "current", ma non e' una riga scritta dal replay. Chi legge
-                    # i conteggi deve poterlo distinguere.
+                    "righe": len(gruppo),
+                    "riga_del_replay": any(_ha_variante_esplicita(x) for x in gruppo),
+                    "riga_storica": any(not _ha_variante_esplicita(x) for x in gruppo),
                     "variante_esplicita": _ha_variante_esplicita(r)}
         return [_voce(k) for k in chiavi]
 
@@ -158,11 +170,12 @@ def _righe_referto(esito: Dict[str, Any]) -> List[str]:
         voci = intero["solo"][variante]
         if voci:
             etichetta = MODEL_VARIANT_LABELS.get(variante, variante)
-            esplicite = sum(1 for v in voci if v.get("variante_esplicita"))
+            replay = sum(1 for v in voci if v.get("riga_del_replay"))
+            storiche = sum(1 for v in voci if v.get("riga_storica"))
             L.append(f"- partite coperte SOLO dal modello {etichetta} ({len(voci)}): "
-                     f"{esplicite} righe del replay (variante esplicita), "
-                     f"{len(voci) - esplicite} click veri dell'epoca (campo variante assente, "
-                     f"letto come {etichetta} per convenzione)")
+                     f"con una riga del REPLAY {replay}, con un CLICK VERO dell'epoca "
+                     f"{storiche} (campo variante assente; le due condizioni possono "
+                     f"valere per la stessa partita)")
             for v in voci[:8]:
                 L.append(f"    · {v['partita']} ({v['campionato']}, {v['data']}) "
                          f"{v['mercato']} {v['prob']}%")
