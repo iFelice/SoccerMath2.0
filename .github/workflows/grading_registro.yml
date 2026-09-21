@@ -26,6 +26,7 @@ on:
     tags:
       - 'grading-check-*'
       - 'grading-write-*'
+      - 'grading-ripara-*'
 
 permissions:
   contents: read
@@ -136,6 +137,43 @@ jobs:
             echo "::notice title=grading-esito::OK (istantanea + verifica riga per riga)"
           else
             echo "::error title=grading-esito::la verifica dopo la scrittura NON e' passata (l'istantanea e' al sicuro: vedi le righe sopra)"
+          fi
+          exit "$rc"
+
+      # Il salvataggio scrive la riga sotto il nome canonico di OGGI; se la stessa
+      # riga viveva sotto un nome di campo di una convenzione precedente, quel campo
+      # resta con il contenuto di prima e due campi con la stessa chiave e contenuto
+      # DIVERSO fermano la lettura del Registro (guardia dello store). Questo passo
+      # toglie quei campi, e SOLO quelli: l'istantanea scattata prima della scrittura
+      # e' il termine di confronto, e dopo la cancellazione il Registro si rilegge e
+      # deve contenere esattamente le righe attese (le stesse dell'istantanea, con il
+      # grading applicato).
+      - name: "Riparazione dei nomi di campo vecchi (solo con il tag grading-ripara-*)"
+        if: startsWith(github.ref, 'refs/tags/grading-ripara-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          ISTANTANEA: ${{ vars.GRADING_ISTANTANEA }}
+        run: |
+          set +e
+          istantanea="${ISTANTANEA:-$(date -u +%F)-pre-grading}"
+          echo "istantanea di confronto: $istantanea"
+          python SoccerMath/registry_grading.py --ripara-nomi --scrivi --conferma \
+            --fonte archivio --istantanea "$istantanea" --json "$OUT/riparazione.json" \
+            2>&1 | tee "$OUT/riparazione.txt"
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "esito dello strumento: $rc"
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=riparazione-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""; i=0} {riga = riga (n ? " · " : "") $0; n++; i++; if (i >= 3) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/riparazione.txt" | head -n 3)
+          if [ "$rc" != "0" ]; then
+            echo "::error title=riparazione::strumento uscito con $rc: vedi i blocchi qui sopra (l'istantanea e' al sicuro su Upstash)"
           fi
           exit "$rc"
 

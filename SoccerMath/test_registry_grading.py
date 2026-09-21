@@ -323,6 +323,97 @@ class TestVerificaScrittura(unittest.TestCase):
         self.assertFalse(v["ok"])
 
 
+class TestRiparazioneNomiVecchi(unittest.TestCase):
+    """Un aggiornamento sotto un nome di campo VECCHIO lascia un doppione da togliere.
+
+    Il salvataggio scrive la riga sotto il nome canonico di oggi; la copia sotto il
+    nome di una convenzione precedente resta con il contenuto di prima, e due campi
+    con la stessa chiave e contenuto diverso FERMANO la lettura del Registro. Qui si
+    prova che si toglie SOLO quel campo: non il canonico, non i campi di altre righe.
+    """
+
+    def _coppia(self):
+        prima = _riga(537186)
+        dopo = RG.applica(prima, {"risultato_reale": "1-2", "esito": "❌"})
+        return prima, dopo
+
+    def test_toglie_il_nome_vecchio_e_risparmia_il_canonico(self):
+        prima, dopo = self._coppia()
+        grezzi = {"537186|top_mix||current": (RG.canon(prima), prima),
+                  "537186|top_mix||legacy": (RG.canon(dopo), dopo)}
+        nomi = RG.nomi_stantii(grezzi, {"537186|top_mix||legacy": prima},
+                              {"537186|top_mix||legacy": dopo})
+        self.assertEqual(["537186|top_mix||current"], nomi)
+
+    def test_un_doppione_IDENTICO_non_si_tocca(self):
+        """Se i due campi hanno lo stesso contenuto la lettura non si rompe: non e'
+        compito di questa riparazione ripulirli."""
+        prima, dopo = self._coppia()
+        grezzi = {"537186|top_mix||current": (RG.canon(dopo), dopo),
+                  "537186|top_mix||legacy": (RG.canon(dopo), dopo)}
+        self.assertEqual([], RG.nomi_stantii(grezzi, {"537186|top_mix||legacy": prima},
+                                            {"537186|top_mix||legacy": dopo}))
+
+    def test_le_righe_di_altre_chiavi_non_si_toccano(self):
+        prima, dopo = self._coppia()
+        altra = _riga(999, home="Roma", away="Lazio")
+        grezzi = {"537186|top_mix||current": (RG.canon(prima), prima),
+                  "999|top_mix||legacy": (RG.canon(altra), altra)}
+        nomi = RG.nomi_stantii(grezzi, {"537186|top_mix||legacy": prima, "999|top_mix||legacy": altra},
+                              {"537186|top_mix||legacy": dopo, "999|top_mix||legacy": altra})
+        self.assertEqual(["537186|top_mix||current"], nomi)
+
+    def test_riparazione_verificata_dopo_la_scrittura(self):
+        prima, dopo = self._coppia()
+        with mock.patch.object(rs, "upstash_snapshot_read", return_value=[prima]), \
+             mock.patch.object(RG, "campi_grezzi",
+                               return_value={"537186|top_mix||current": (RG.canon(prima), prima)}), \
+             mock.patch.object(RG, "piano", return_value={"selezionate": 1, "saltate": [], "voci": [],
+                 "da_gradare": [{"match_id": 537186,
+                                 "campi": {"risultato_reale": "1-2", "esito": "❌"}}]}), \
+             mock.patch.object(rs, "upstash_raw", return_value={"result": 1}) as raw, \
+             mock.patch.object(rs, "upstash_rows", return_value=[dopo]):
+            r = RG.ripara_nomi(istantanea="2026-09-21-pre-grading", scrivi=True)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(["537186|top_mix||current"], r["nomi_stantii"])
+        self.assertTrue(raw.call_args[0][0][0] == "HDEL")
+
+    def test_riparazione_in_prova_non_scrive(self):
+        prima, _dopo = self._coppia()
+        with mock.patch.object(rs, "upstash_snapshot_read", return_value=[prima]), \
+             mock.patch.object(RG, "campi_grezzi",
+                               return_value={"537186|top_mix||current": (RG.canon(prima), prima)}), \
+             mock.patch.object(RG, "piano", return_value={"selezionate": 1, "saltate": [], "voci": [],
+                 "da_gradare": [{"match_id": 537186,
+                                 "campi": {"risultato_reale": "1-2", "esito": "❌"}}]}), \
+             mock.patch.object(rs, "upstash_raw") as raw:
+            r = RG.ripara_nomi(istantanea="2026-09-21-pre-grading", scrivi=False)
+        self.assertFalse(r["scritto"])
+        self.assertEqual(["537186|top_mix||current"], r["nomi_stantii"])
+        raw.assert_not_called()
+
+    def test_istantanea_assente_ferma_tutto(self):
+        with mock.patch.object(rs, "upstash_snapshot_read", return_value=None):
+            r = RG.ripara_nomi(istantanea="2026-09-21-pre-grading", scrivi=True)
+        self.assertFalse(r["ok"])
+        self.assertIn("non leggibile", r["motivo"])
+
+    def test_la_riparazione_denuncia_una_riga_diversa_dall_atteso(self):
+        prima, dopo = self._coppia()
+        sbagliata = dict(dopo, prob_sicuro=12.0)
+        with mock.patch.object(rs, "upstash_snapshot_read", return_value=[prima]), \
+             mock.patch.object(RG, "campi_grezzi",
+                               return_value={"537186|top_mix||current": (RG.canon(prima), prima)}), \
+             mock.patch.object(RG, "piano", return_value={"selezionate": 1, "saltate": [], "voci": [],
+                 "da_gradare": [{"match_id": 537186,
+                                 "campi": {"risultato_reale": "1-2", "esito": "❌"}}]}), \
+             mock.patch.object(rs, "upstash_raw", return_value={"result": 1}), \
+             mock.patch.object(rs, "upstash_rows", return_value=[sbagliata]):
+            r = RG.ripara_nomi(istantanea="2026-09-21-pre-grading", scrivi=True)
+        self.assertFalse(r["ok"])
+        self.assertTrue(any("contenuto diverso" in e for e in r["errori"]))
+
+
 class TestIngressiEProtezioni(unittest.TestCase):
     """Registro illeggibile, serrature, idempotenza: nessuna scrittura per sbaglio."""
 

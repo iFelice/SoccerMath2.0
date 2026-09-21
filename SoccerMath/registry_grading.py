@@ -73,6 +73,7 @@ from prediction_registry import (  # noqa: E402
     parse_datetime,
     parse_kickoff,
 )
+from registry_pulizia import campi_grezzi  # noqa: E402
 from season_calendar import season_label, season_start_year_of  # noqa: E402
 
 UTC = timezone.utc
@@ -324,6 +325,92 @@ def applica(riga: Dict[str, Any], campi: Dict[str, Any]) -> Dict[str, Any]:
     return nuova
 
 
+def canon(riga: Dict[str, Any]) -> str:
+    """Testo canonico di una riga (lo STESSO che scrive ``registry_store``)."""
+    return json.dumps(riga, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def nomi_stantii(campi_grezzi: Dict[str, Tuple[str, Dict[str, Any]]],
+                 prima_per_chiave: Dict[str, Dict[str, Any]],
+                 dopo_per_chiave: Dict[str, Dict[str, Any]]) -> List[str]:
+    """Nomi di campo che portano la copia VECCHIA di una riga aggiornata.
+
+    Il salvataggio scrive la riga sotto il nome canonico di OGGI (``field_of``,
+    cioe' la chiave di dedup ricalcolata). Se la stessa riga viveva anche sotto un
+    nome di campo di una convenzione precedente, quel campo resta li' e porta il
+    contenuto di prima: due campi con la stessa chiave e contenuto DIVERSO fermano
+    la lettura del Registro (e' la guardia dello store, e serve: la chiave non
+    distingue piu' due righe). Quei nomi si tolgono — e SOLO quelli: un campo il
+    cui contenuto e' gia' quello atteso non si tocca, un campo di un'altra riga
+    nemmeno.
+    """
+    da_togliere: List[str] = []
+    for nome, (testo, riga) in sorted(campi_grezzi.items()):
+        chiave = rs.field_of(riga)
+        atteso = dopo_per_chiave.get(chiave)
+        prima = prima_per_chiave.get(chiave)
+        if atteso is None or prima is None:
+            continue
+        if nome == rs.field_of(atteso):
+            continue                                  # e' il campo canonico di oggi
+        if canon(riga) == canon(prima):
+            da_togliere.append(nome)                  # copia vecchia sotto nome vecchio
+    return da_togliere
+
+
+def ripara_nomi(*, istantanea: str, scrivi: bool = False, api_key: str = "",
+                db_dir: Optional[str] = None, fonte: str = "archivio") -> Dict[str, Any]:
+    """Toglie i nomi di campo vecchi lasciati da un aggiornamento del Registro.
+
+    L'istantanea scattata PRIMA della scrittura e' il termine di confronto: le
+    righe attese sono quelle dell'istantanea con il grading applicato (stesso
+    piano, stessa fonte). Si cancellano SOLO i campi che portano il contenuto
+    precedente di una riga aggiornata: nient'altro.
+    """
+    righe_snap = rs.upstash_snapshot_read(istantanea)
+    if righe_snap is None:
+        return {"ok": False, "motivo": f"istantanea `{istantanea}` non leggibile: riparazione non possibile"}
+    p = piano(righe_snap, api_key=api_key, db_dir=db_dir, fonte=fonte)
+    prima_per_chiave = {rs.field_of(r): r for r in righe_snap}
+    dopo_per_chiave = {rs.field_of(r): r for r in righe_snap}
+    for v in p["da_gradare"]:
+        chiave = next((k for k, r in prima_per_chiave.items()
+                       if str(r.get("match_id")) == str(v["match_id"])), None)
+        if chiave is None:
+            continue
+        dopo_per_chiave[chiave] = applica(prima_per_chiave[chiave], v["campi"])
+    stantii = nomi_stantii(campi_grezzi(), prima_per_chiave, dopo_per_chiave)
+    fuori: Dict[str, Any] = {
+        "istantanea": istantanea, "righe_istantanea": len(righe_snap),
+        "da_gradare": len(p["da_gradare"]), "nomi_stantii": stantii, "scritto": False,
+    }
+    if not stantii:
+        fuori["nota"] = "nessun nome di campo vecchio da togliere"
+        return fuori
+    if not scrivi:
+        fuori["nota"] = "PROVA: nessuna scrittura"
+        return fuori
+    risposta = rs.upstash_raw(["HDEL", rs.hash_key()] + stantii)
+    fuori["hdel"] = risposta.get("result")
+    fuori["scritto"] = True
+    dopo = rs.upstash_rows()                      # qui la lettura DEVE tornare a funzionare
+    attesi = {k: canon(v) for k, v in dopo_per_chiave.items()}
+    per_chiave_dopo = {rs.field_of(r): r for r in dopo}
+    for k, r in per_chiave_dopo.items():
+        if k not in attesi:
+            fuori.setdefault("errori", []).append(f"riga {k}: nell'hash ma non nell'istantanea")
+        elif canon(r) != attesi[k]:
+            fuori.setdefault("errori", []).append(f"riga {k}: contenuto diverso dall'atteso")
+    for k in attesi:
+        if k not in per_chiave_dopo:
+            fuori.setdefault("errori", []).append(f"riga {k}: sparita dall'hash")
+    fuori["righe_dopo"] = len(dopo)
+    fuori["righe_attese"] = len(dopo_per_chiave)
+    fuori["ok"] = (len(dopo) == len(dopo_per_chiave)
+                   and not fuori.get("errori") and fuori["hdel"] == len(stantii))
+    return fuori
+
+
 def chiave_istantanea_libera(giorno: str, scrivi: bool, *, suffisso: str = "pre-grading") -> str:
     """``<giorno>-pre-grading``, con un suffisso se quella chiave esiste gia'.
 
@@ -544,8 +631,38 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="JSON {match_id: \"golcasa-golospiti\"} per una prova senza rete")
     ap.add_argument("--giorno", default=None, help="giorno dell'istantanea (default: oggi UTC)")
     ap.add_argument("--compatto", action="store_true", help="righe brevi per le annotazioni")
+    ap.add_argument("--ripara-nomi", action="store_true",
+                    help="toglie i nomi di campo VECCHI lasciati da un aggiornamento del Registro "
+                         "(usa l'istantanea scattata prima della scrittura come termine di confronto)")
+    ap.add_argument("--istantanea", default=None,
+                    help="giorno dell'istantanea da usare per la riparazione (default: "
+                         "``<oggi>-pre-grading``)")
     ap.add_argument("--json", dest="json_out", default=None, help="scrive il referto in JSON")
     args = ap.parse_args(argv)
+
+    if args.ripara_nomi:
+        # La riparazione non passa da ``load_rows``: quando i nomi doppi ci sono,
+        # la lettura del Registro e' proprio quella che si rompe.
+        from config import FOOTBALL_DATA_API_KEY
+        giorno = args.istantanea or f"{args.giorno or _giorno_utc()}-pre-grading"
+        r = ripara_nomi(istantanea=giorno, scrivi=args.scrivi and args.conferma,
+                        api_key=FOOTBALL_DATA_API_KEY, fonte=args.fonte)
+        testo = " · ".join(f"{k}: {v}" for k, v in r.items() if k != "nomi_stantii")
+        righe_out = [f"RIPARAZIONE| {testo}"]
+        for nome in r.get("nomi_stantii") or []:
+            righe_out.append(f"NOME-VECCHIO| {nome}")
+        print("\n".join(righe_out))
+        if args.json_out:
+            os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
+            with open(args.json_out, "w", encoding="utf-8") as f:
+                json.dump(r, f, ensure_ascii=False, indent=2, default=str)
+        if not r.get("scritto") and args.scrivi and r.get("nomi_stantii"):
+            print("::error title=grading::--scrivi senza --conferma: nessuna riparazione")
+            return 3
+        if not r.get("ok", True):
+            print("::error title=grading::riparazione NON verificata: vedi il referto")
+            return 4
+        return 0
 
     righe, fonte_registro = rs.load_rows(strict=True)
     if righe is None:
@@ -602,6 +719,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     esito_scrittura = rs.save_rows(nuove)
     print(f"- scrittura: `{json.dumps(esito_scrittura, ensure_ascii=False, default=str)}` "
           f"(righe ricostruite: {cambiate})")
+
+    # 2b) Nomi di campo VECCHI delle righe aggiornate: se una riga viveva sotto la
+    # convenzione di prima, il salvataggio scrive il nome canonico di oggi e il
+    # campo vecchio resta con il contenuto di prima. Due campi con la stessa
+    # chiave e contenuto diverso FERMANO la lettura del Registro: si tolgono qui,
+    # subito, con lo stesso piano (istantanea = termine di confronto).
+    prima_per_chiave = {rs.field_of(r): r for r in righe}
+    dopo_per_chiave = {rs.field_of(r): r for r in nuove}
+    stantii = nomi_stantii(campi_grezzi(), prima_per_chiave, dopo_per_chiave)
+    if stantii:
+        risposta_hdel = rs.upstash_raw(["HDEL", rs.hash_key()] + stantii)
+        print(f"- nomi di campo vecchi tolti: **{len(stantii)}** · `HDEL` result = "
+              f"**{risposta_hdel.get('result')}** ({', '.join('`' + s + '`' for s in stantii[:4])}"
+              f"{' …' if len(stantii) > 4 else ''})")
 
     # 3) Rilettura e verifica indipendente.
     dopo = rs.upstash_rows()
