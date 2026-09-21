@@ -183,3 +183,57 @@ class TestCampiDellHash(unittest.TestCase):
         self.assertIn("campi dell'hash: **1**", testo)
         self.assertIn("con nome vecchio **0**", testo)
         self.assertIn("chiavi doppie **0**", testo)
+
+
+class TestDoppioniDellHash(unittest.TestCase):
+    """Due campi, stessa chiave: o e' la stessa riga scritta due volte (nome
+    vecchio + nome nuovo) o sono due righe diverse che la chiave non distingue.
+    Le due cose vanno contate SEPARATE: la prima e' solo disordine, la seconda
+    puo' nascondere una riga non piu' raggiungibile."""
+
+    def _riga_senza_campo(self, match_id=5):
+        riga = _riga(match_id)
+        riga.pop("model_variant")
+        riga["salvato_il"] = "05/09/2026 18:18"
+        return riga
+
+    def _esegui(self, hash_campi):
+        post = _PostRegistrato(hash_campi)
+        righe = [json.loads(v) for v in hash_campi.values()]
+        with mock.patch.dict(os.environ, {"REGISTRY_BACKEND": "upstash",
+                                          "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+                                          "UPSTASH_REDIS_REST_TOKEN": "tok"}), \
+             mock.patch("requests.post", post), \
+             mock.patch.object(status, "leggi_jsonbin", return_value=(righe, "ok")):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = status.main(["--mostra", "3"])
+        return rc, out.getvalue()
+
+    def test_doppione_identico_non_e_un_conflitto(self):
+        riga = self._riga_senza_campo()
+        nuovo = status.rs.field_of(riga)
+        vecchio = nuovo.rsplit("|", 1)[0] + "|current"
+        rc, testo = self._esegui({vecchio: json.dumps(riga), nuovo: json.dumps(riga)})
+        self.assertEqual(0, rc)
+        self.assertIn("doppioni: **1** righe scritte due volte", testo)
+        self.assertIn("**0** chiavi con valori DIVERSI", testo)
+        self.assertIn("righe senza campo variante **2**", testo)
+
+    def test_due_righe_diverse_sulla_stessa_chiave_vengono_mostrate(self):
+        riga = _riga(7)                    # campo esplicito: chiave stabile
+        chiave = status.rs.field_of(riga)
+        altra = dict(riga, prob_sicuro=71.5, salvato_il="20/09/2026 15:04")
+        rc, testo = self._esegui({chiave: json.dumps(riga),
+                                  chiave + "_bis": json.dumps(altra)})
+        self.assertEqual(0, rc)
+        self.assertIn("**1** chiavi con valori DIVERSI", testo)
+        self.assertIn("STESSA CHIAVE", testo)
+        self.assertIn("71.5%", testo)
+
+    def test_variante_letta_per_data_e_contata(self):
+        riga = self._riga_senza_campo()
+        chiave = status.rs.field_of(riga)
+        rc, testo = self._esegui({chiave: json.dumps(riga)})
+        self.assertEqual(0, rc)
+        self.assertIn("variante letta (campo esplicito o DATA): `legacy` **1**", testo)

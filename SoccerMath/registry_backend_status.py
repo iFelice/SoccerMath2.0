@@ -70,6 +70,13 @@ def chiavi_upstash(quante: int = 10) -> Dict[str, Any]:
         return {"dbsize": None, "chiavi": [], "errore": f"{type(e).__name__}: {e}"}
 
 
+def _firma_riga(riga: Dict[str, Any]) -> str:
+    """Riga in una riga di testo: quel tanto che basta a riconoscere un doppione."""
+    return (f"{riga.get('home')} - {riga.get('away')} ({riga.get('data')}) "
+            f"{riga.get('mercato_standard')} {riga.get('prob_sicuro')}% · "
+            f"campo variante {riga.get('model_variant') or 'assente'} · salvata {riga.get('salvato_il')}")
+
+
 def campi_upstash(esempi: int = 3, *, post=None) -> Dict[str, Any]:
     """HGETALL GREZZO: i NOMI dei campi contro la chiave ricalcolata dal contenuto.
 
@@ -88,8 +95,11 @@ def campi_upstash(esempi: int = 3, *, post=None) -> Dict[str, Any]:
         coppie = rs.hash_da_risposta(grezzo)
     except Exception as e:                                  # pragma: no cover - rete
         return {"errore": f"{type(e).__name__}: {e}"}
-    allineati = vecchi = illeggibili = 0
+    from prediction_registry import model_variant_read
+    allineati = vecchi = illeggibili = senza_campo = 0
+    per_variante: Dict[str, int] = {}
     per_chiave: Dict[str, List[str]] = {}
+    valori_per_chiave: Dict[str, List[str]] = {}
     esempi_vecchi: List[Dict[str, str]] = []
     for campo, valore in coppie.items():
         riga = valore if isinstance(valore, dict) else None
@@ -108,11 +118,33 @@ def campi_upstash(esempi: int = 3, *, post=None) -> Dict[str, Any]:
             vecchi += 1
             if len(esempi_vecchi) < max(0, esempi):
                 esempi_vecchi.append({"campo_scritto": campo, "campo_ricalcolato": calcolato})
+        if not riga.get("model_variant"):
+            senza_campo += 1
+        variante = model_variant_read(riga)
+        per_variante[variante] = per_variante.get(variante, 0) + 1
         per_chiave.setdefault(calcolato, []).append(campo)
-    doppie = sum(1 for campi in per_chiave.values() if len(campi) > 1)
+        valori_per_chiave.setdefault(calcolato, []).append(json.dumps(riga, sort_keys=True))
+    doppie_identiche = doppie_diverse = 0
+    esempi_diversi: List[Dict[str, Any]] = []
+    for chiave, campi in per_chiave.items():
+        if len(campi) < 2:
+            continue
+        valori = valori_per_chiave[chiave]
+        if len(set(valori)) == 1:
+            doppie_identiche += 1
+            continue
+        doppie_diverse += 1
+        if len(esempi_diversi) < max(0, esempi):
+            voci = [json.loads(v) for v in sorted(set(valori))[:2]]
+            esempi_diversi.append({
+                "chiave": chiave, "campi": campi[:3],
+                "righe": [_firma_riga(v) for v in voci]})
     return {"campi": len(coppie), "allineati": allineati, "nome_vecchio": vecchi,
             "illeggibili": illeggibili, "righe_distinte": len(per_chiave),
-            "chiavi_doppie": doppie, "esempi": esempi_vecchi}
+            "chiavi_doppie": doppie_identiche + doppie_diverse,
+            "doppie_identiche": doppie_identiche, "doppie_diverse": doppie_diverse,
+            "senza_campo_variante": senza_campo, "per_variante": per_variante,
+            "esempi": esempi_vecchi, "esempi_diversi": esempi_diversi}
 
 
 def _riga_testo(r: Dict[str, Any]) -> str:
@@ -171,9 +203,19 @@ def main(argv: Optional[List[str]] = None) -> int:
                      f"righe distinte **{campi['righe_distinte']}** · chiavi doppie "
                      f"**{campi['chiavi_doppie']}**"
                      + (f" · valori illeggibili {campi['illeggibili']}" if campi["illeggibili"] else ""))
+            L.append(f"- doppioni: **{campi['doppie_identiche']}** righe scritte due volte "
+                     f"(stesso contenuto) · **{campi['doppie_diverse']}** chiavi con valori DIVERSI "
+                     f"(da guardare: il campo non dice tutto) · righe senza campo variante "
+                     f"**{campi['senza_campo_variante']}**")
+            L.append("- variante letta (campo esplicito o DATA): "
+                     + ", ".join(f"`{v}` **{n}**" for v, n in sorted(campi["per_variante"].items())))
             for esempio in campi["esempi"]:
                 L.append(f"    · nome vecchio: `{esempio['campo_scritto']}` -> ricalcolato "
                          f"`{esempio['campo_ricalcolato']}`")
+            for esempio in campi["esempi_diversi"]:
+                L.append(f"    · STESSA CHIAVE (`{esempio['chiave']}`), campi {esempio['campi']}:")
+                for firma in esempio["righe"]:
+                    L.append(f"        - {firma}")
 
     if righe_jb is not None and righe_us is not None:
         diff = rs.confronto(righe_jb, righe_us)
