@@ -359,6 +359,38 @@ class TestImpostazioniDaConfig(unittest.TestCase):
             self.assertEqual(("https://db.upstash.io", "tok"), rs._upstash_config())
             self.assertEqual("sm:prova", rs.hash_key())
 
+    def test_backend_letto_dai_secret_di_streamlit(self):
+        """Il giro completo: secret di Streamlit -> config -> strato del Registro.
+
+        E' quello che serve in produzione: in Streamlit Cloud `REGISTRY_BACKEND`
+        e le credenziali di Upstash stanno nei secrets, non in ``os.environ``. Il
+        test ricarica ``config`` come fa l'app all'avvio, con i secrets finti al
+        posto di quelli veri, e pretende che lo strato veda Upstash senza una
+        sola variabile d'ambiente.
+        """
+        import importlib
+        import streamlit as st
+        import config
+        secrets = {"REGISTRY_BACKEND": "upstash",
+                   "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+                   "UPSTASH_REDIS_REST_TOKEN": "tok",
+                   "REGISTRY_HASH_KEY": "sm:registro"}
+        prima = (config.REGISTRY_BACKEND, config.UPSTASH_REDIS_REST_URL,
+                 config.UPSTASH_REDIS_REST_TOKEN)
+        try:
+            with mock.patch.dict(os.environ, {}, clear=True), \
+                 mock.patch.object(st, "secrets", secrets, create=True):
+                importlib.reload(config)
+                self.assertEqual("upstash", config.REGISTRY_BACKEND)
+                self.assertEqual("https://db.upstash.io", config.UPSTASH_REDIS_REST_URL)
+                self.assertEqual("upstash", rs.backend(), "lo strato non vede il backend dei secret")
+                self.assertEqual(("https://db.upstash.io", "tok"), rs._upstash_config())
+        finally:
+            importlib.reload(config)
+        self.assertEqual(prima, (config.REGISTRY_BACKEND, config.UPSTASH_REDIS_REST_URL,
+                                 config.UPSTASH_REDIS_REST_TOKEN),
+                         "il ricaricamento deve rimettere la configurazione di prima")
+
     def test_ambiente_ha_la_precedenza_sul_config(self):
         import config
         with mock.patch.dict(os.environ, {"REGISTRY_BACKEND": "jsonbin"}), \
