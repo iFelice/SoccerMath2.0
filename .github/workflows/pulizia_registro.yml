@@ -146,6 +146,10 @@ jobs:
           fi
           echo "serrature dal tag: campi=$attesi righe=$attesi_righe"
           extra=(--attesi "$attesi" --attesi-righe "$attesi_righe")
+          # Tag `...-senza-origine-...`: la pulizia prende le righe con origine
+          # non leggibile (la classe "senza riferimento"), mai per effetto
+          # collaterale di un'altra selezione.
+          if [[ "$GITHUB_REF_NAME" == *senza-origine* ]]; then extra+=(--senza-origine); fi
           python SoccerMath/registry_pulizia.py \
             --origini "${{ vars.PULIZIA_ORIGINI || 'analisi_rapida' }}" \
             --scrivi --conferma "${extra[@]}" \

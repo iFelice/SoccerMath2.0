@@ -2157,6 +2157,13 @@ def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
         st.markdown(f"<div class='top-mix-row'><div><b>#{p.get('rank') or i + 1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
 
 
+# Nomi dei due modelli come li chiama il progetto (solo UI/etichette).
+# Il motore attuale a due teste e' il "Drago a 2 Teste"; il vecchio, pre-fix
+# PR#24, e' il "Legacy". I nomi TECNICI (``current``/``legacy``) e le etichette
+# delle SCHEDE del record restano quelli dei referti: qui si cambia come si
+# chiamano i due motori in pagina, non cosa contengono i dati.
+NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", MODEL_VARIANT_LEGACY: "Legacy"}
+
 # Colonne delle due tabelle del Registro, in un posto solo: cosi' le due
 # tabelle non possono divergere fra loro.
 REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_standard",
@@ -2231,9 +2238,9 @@ with tab2:
             st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
         if missing: st.warning(f"⚠️ Mancanti: {', '.join(missing)}")
         tabelle = (
-            (MODEL_VARIANT_CURRENT, top_current, "🟢 MODELLO ATTUALE",
+            (MODEL_VARIANT_CURRENT, top_current, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
              "Elo attuale (models/elo_engine.py, post-fix PR#24)", "top-mix-current"),
-            (MODEL_VARIANT_LEGACY, top_legacy, "🟠 MODELLO LEGACY",
+            (MODEL_VARIANT_LEGACY, top_legacy, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
              "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo)", "top-mix-legacy"),
         )
         esiti_save = []
@@ -2466,11 +2473,13 @@ with tab5:
         schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
         _mostra_blocco_modello(
-            attuale_records, "🟢 Modello attuale",
-            "Righe della tabella 🟢 MODELLO ATTUALE: Elo post-fix PR#24, soglie 0,55 1X2 / 0,60 Totali.")
+            attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+            f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
+            "Elo post-fix PR#24, soglie 0,55 1X2 / 0,60 Totali.")
         _mostra_blocco_modello(
-            legacy_records, "🟠 Modello legacy (Elo pre-fix PR#24)",
-            "Righe della tabella 🟠 MODELLO LEGACY: Elo pre-fix con boost xG retroattivo, stesse soglie.")
+            legacy_records, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]} (Elo pre-fix PR#24)",
+            f"Righe della tabella 🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}: "
+            "Elo pre-fix con boost xG retroattivo, stesse soglie.")
         # Il dettaglio delle schede NON e' un modello: e' la sotto-fetta del
         # blocco legacy scritta prima del versionamento dei record.
         if schede_vecchie:
@@ -2498,7 +2507,7 @@ with tab5:
         # stesse dei due blocchi e delle due tabelle (calcolate una volta sola).
         if len(parti_variante) > 1:
             for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
-                _mostra_affidabilita(parti_variante[v], etichetta=MODEL_VARIANT_LABELS.get(v, v))
+                _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
         else:
             _mostra_affidabilita(all_records)
 
@@ -2511,7 +2520,7 @@ with tab5:
             f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
             f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
             f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento. "
-            "Il **motore** (Elo attuale / legacy) e' l'intestazione delle due tabelle, non questa colonna."
+            "Il **motore** (i due modelli: Drago a 2 Teste / Legacy) e' l'intestazione delle due tabelle, non questa colonna."
         )
 
         # DUE tabelle, una per motore (come nel Top Mix): prima erano righe di
@@ -2519,11 +2528,11 @@ with tab5:
         # "Modello", e per leggere un solo motore bisognava filtrare. Le due
         # maschere sono le stesse dei blocchi qui sopra.
         _mostra_registro_modello(
-            df_display[maschera_attuale], "🟢 MODELLO ATTUALE",
+            df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
             "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglie 0,55 1X2 / 0,60 Totali",
             "top-mix-current")
         _mostra_registro_modello(
-            df_display[maschera_legacy], "🟠 MODELLO LEGACY",
+            df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
             "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
             "top-mix-legacy")
         # Una riga con una variante fuori dalle due non sparisce dal Registro:

@@ -180,6 +180,102 @@ class TestRigaTecnica(unittest.TestCase):
         self.assertNotIn("NO (nome vecchio)", testo)
 
 
+class TestCampiEspliciti(unittest.TestCase):
+    """Una riga non attribuibile a nessuna origine: si cancella solo se la si
+    indica a mano, e il Top Mix resta comunque intoccabile."""
+
+    def setUp(self):
+        self.riga_ignota = _riga(558625, "")
+        self.riga_ignota.pop("origin")
+        self.campi = {
+            "558625|unknown||current": ("t", self.riga_ignota),
+            "558625|unknown||legacy": ("t", dict(self.riga_ignota)),
+            "1|top_mix||current": ("t", _riga(1, "top_mix")),
+        }
+
+    def test_seleziona_solo_i_campi_indicati(self):
+        da_cancellare, problemi = RP.seleziona_campi_espliciti(
+            self.campi, ["558625|unknown||current", "558625|unknown||legacy"])
+        self.assertEqual([], problemi)
+        self.assertEqual(["558625|unknown||current", "558625|unknown||legacy"], da_cancellare)
+
+    def test_campo_inesistente_ferma_tutto(self):
+        da_cancellare, problemi = RP.seleziona_campi_espliciti(self.campi, ["non|esiste"])
+        self.assertEqual([], da_cancellare)
+        self.assertTrue(problemi)
+
+    def test_campo_top_mix_non_si_cancella_nemmeno_a_mano(self):
+        da_cancellare, problemi = RP.seleziona_campi_espliciti(self.campi, ["1|top_mix||current"])
+        self.assertEqual([], da_cancellare)
+        self.assertIn("Top Mix", problemi[0])
+
+    def test_la_selezione_per_origine_non_pesca_mai_gli_unknown(self):
+        da_cancellare, problemi, non_attribuibili = RP.seleziona(self.campi, ("analisi_rapida",))
+        self.assertEqual([], da_cancellare)
+        self.assertEqual([], problemi)
+        self.assertEqual(["558625|unknown||current", "558625|unknown||legacy"], non_attribuibili)
+
+
+class TestSenzaOrigine(unittest.TestCase):
+    """La classe 'senza riferimento' si toglie solo con il flag E i conteggi."""
+
+    def setUp(self):
+        ignota = _riga(558625, "")
+        ignota.pop("origin")
+        self.campi = {
+            "558625|unknown||current": ("t", ignota),
+            "558625|unknown||legacy": ("t", dict(ignota)),
+            "1|top_mix||current": ("t", _riga(1, "top_mix")),
+            "3|analisi_rapida||legacy": ("t", _riga(3, "analisi_rapida")),
+        }
+        self.comandi = []
+
+        def _finto_raw(comando, *, post=None):
+            self.comandi.append(comando)
+            if comando[0] == "SET":
+                return {"result": "OK"}
+            if comando[0] == "HDEL":
+                for campo in comando[2:]:
+                    self.campi.pop(campo, None)
+                return {"result": len(comando) - 2}
+            raise AssertionError(comando[0])
+
+        self.patches = [
+            mock.patch.object(RP, "campi_grezzi", side_effect=lambda **kw: dict(self.campi)),
+            mock.patch.object(rs, "upstash_rows", return_value=[r for _t, r in self.campi.values()]),
+            mock.patch.object(rs, "backend", return_value=rs.BACKEND_UPSTASH),
+            mock.patch.object(rs, "upstash_snapshot",
+                              return_value={"chiave": "sm:registro:snapshot:x-pre-pulizia",
+                                            "righe": 4, "byte": 10}),
+            mock.patch.object(rs, "upstash_raw", side_effect=_finto_raw),
+        ]
+        for p in self.patches:
+            p.start()
+        self.addCleanup(lambda: [p.stop() for p in self.patches])
+
+    def test_senza_il_flag_le_righe_senza_origine_non_si_toccano(self):
+        RP.main(["--origini", "analisi_rapida", "--scrivi", "--conferma"])
+        for comando in self.comandi:
+            if comando[0] == "HDEL":
+                self.assertNotIn("558625|unknown||current", comando[2:])
+
+    def test_flag_senza_attesi_non_scrive(self):
+        self.assertEqual(3, RP.main(["--senza-origine", "--scrivi", "--conferma"]))
+        self.assertEqual([], [c for c in self.comandi if c[0] == "HDEL"])
+
+    def test_flag_con_attesi_giusti_cancella_solo_quelle(self):
+        rc = RP.main(["--senza-origine", "--scrivi", "--conferma",
+                      "--attesi", "2", "--attesi-righe", "1"])
+        self.assertEqual(0, rc)
+        hdel = [c for c in self.comandi if c[0] == "HDEL"]
+        self.assertEqual(1, len(hdel))
+        self.assertEqual(["558625|unknown||current", "558625|unknown||legacy"], hdel[0][2:])
+
+    def test_attesi_sbagliato_non_scrive(self):
+        self.assertEqual(3, RP.main(["--senza-origine", "--scrivi", "--conferma", "--attesi", "26"]))
+        self.assertEqual([], [c for c in self.comandi if c[0] == "HDEL"])
+
+
 class TestRigaCompatta(unittest.TestCase):
     """Il referto corto deve restare corto: sta nelle annotazioni di CI."""
 

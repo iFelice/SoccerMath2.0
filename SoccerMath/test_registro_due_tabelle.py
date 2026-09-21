@@ -97,9 +97,16 @@ class TestGuardieTab5(unittest.TestCase):
         cls.tab5 = cls.src[cls.src.index("with tab5:"):]
 
     def test_due_tabelle_etichettate_attuale_sopra_legacy_sotto(self):
-        self.assertIn("MODELLO ATTUALE", self.tab5)
-        self.assertIn("MODELLO LEGACY", self.tab5)
-        self.assertLess(self.tab5.index("MODELLO ATTUALE"), self.tab5.index("MODELLO LEGACY"))
+        # I nomi dei due modelli in pagina: "Drago a 2 Teste" (attuale) sopra,
+        # "Legacy" sotto. Stanno in ``NOMI_MODELLI``, un posto solo.
+        self.assertIn('NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", '
+                      'MODEL_VARIANT_LEGACY: "Legacy"}', self.src)
+        self.assertIn('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"', self.tab5)
+        self.assertIn('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"', self.tab5)
+        self.assertLess(self.tab5.index('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"'),
+                        self.tab5.index('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"'))
+        self.assertNotIn("MODELLO ATTUALE", self.tab5)
+        self.assertNotIn("MODELLO LEGACY", self.tab5)
         self.assertEqual(2, self.tab5.count("_mostra_registro_modello("),
                          "una chiamata per motore: due tabelle, non una mista")
         # L'ordine si legge sulle DUE CHIAMATE (prima l'attuale, poi il legacy):
@@ -165,7 +172,7 @@ class TestBlocchiAllineatiAlleTabelle(unittest.TestCase):
         colonne = [mock.MagicMock() for _ in range(4)]
         finto.columns.return_value = colonne
         with mock.patch.object(app, "st", finto):
-            app._mostra_blocco_modello(righe, "🟢 Modello attuale", "sotto")
+            app._mostra_blocco_modello(righe, "🟢 Drago a 2 Teste", "sotto")
         intestazione = finto.markdown.call_args[0][0]
         self.assertIn("— 2 righe", intestazione)
         etichette = [c.metric.call_args[0][0] for c in colonne]
@@ -208,7 +215,8 @@ class TestEtichetteScheda(unittest.TestCase):
         src = open(APP_PATH, encoding="utf-8").read()
         self.assertIn('"Scheda del record"', src)
         self.assertNotIn('"Versione record"', src)
-        self.assertIn("Il **motore** (Elo attuale / legacy) e' l'intestazione delle due tabelle", src)
+        self.assertIn("Il **motore** (i due modelli: Drago a 2 Teste / Legacy) e' l'intestazione "
+                      "delle due tabelle", src)
 
 
 class TestTabellaRegistroPerMotore(unittest.TestCase):

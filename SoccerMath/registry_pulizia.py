@@ -139,8 +139,32 @@ def seleziona(campi: Dict[str, Tuple[str, Dict[str, Any]]],
             da_cancellare.append(campo)
             continue
         if origine in ("", "unknown"):
-            non_attribuibili.append(campo)
+            non_attribuibili.append(campo)   # dichiarate, MAI selezionate da sole
     return da_cancellare, problemi, non_attribuibili
+
+
+def seleziona_campi_espliciti(campi: Dict[str, Tuple[str, Dict[str, Any]]],
+                              nomi: List[str]) -> Tuple[List[str], List[str]]:
+    """Campi indicati a mano, con la stessa guardia: il Top Mix non si tocca mai.
+
+    Serve per una riga che non si sa attribuire a nessuna origine (``unknown``):
+    li' la selezione per origine non puo' funzionare per definizione, e la scelta
+    va fatta a mano, guardando il nome del campo. Il permesso di cancellare non
+    diventa pero' generale: se uno dei campi indicati porta una riga Top Mix, non
+    si scrive nulla.
+    """
+    da_cancellare: List[str] = []
+    problemi: List[str] = []
+    for nome in nomi:
+        if nome not in campi:
+            problemi.append(f"`{nome}`: campo non presente nell'hash")
+            continue
+        origine = str(origin_of(campi[nome][1]) or "").strip().lower()
+        if origine == "top_mix":
+            problemi.append(f"`{nome}`: porta una riga Top Mix, che non si tocca mai")
+            continue
+        da_cancellare.append(nome)
+    return da_cancellare, problemi
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -154,6 +178,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="numero di RIGHE LOGICHE attese fra i campi selezionati: "
                          "se non combacia lo strumento si ferma")
     ap.add_argument("--rimosse", default=None, help="scrive qui il JSON delle righe rimosse")
+    ap.add_argument("--senza-origine", dest="senza_origine", action="store_true",
+                    help="toglie le righe con origine NON leggibile (classe 'senza "
+                         "riferimento'): scelta esplicita, mai effetto collaterale")
+    ap.add_argument("--campi", default="",
+                    help="nomi di CAMPO da cancellare, indicati a mano (separati da virgola): "
+                         "per una riga che non si sa attribuire a nessuna origine")
     ap.add_argument("--dettaglio", action="store_true",
                     help="stampa per ogni campo il nome scritto, quello ricalcolato e le origini")
     ap.add_argument("--compatto", action="store_true",
@@ -166,8 +196,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = ap.parse_args(argv)
 
     origini = tuple(o.strip().lower() for o in args.origini.split(",") if o.strip())
-    if not origini:
-        print("::error title=pulizia::nessuna origine indicata")
+    if not origini and not args.campi.strip() and not args.senza_origine:
+        print("::error title=pulizia::ne' origini ne' campi indicati")
         return 2
     if rs.backend() != rs.BACKEND_UPSTASH:
         print(f"::error title=pulizia::backend attivo `{rs.backend()}`: questa pulizia si fa solo su Upstash")
@@ -176,11 +206,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     campi = campi_grezzi()
     totale_prima = len(campi)
     righe_prima = len(rs.upstash_rows())
-    da_cancellare, problemi, non_attribuibili = seleziona(campi, origini)
+    nomi_espliciti = [c.strip() for c in args.campi.split(",") if c.strip()]
+    if nomi_espliciti:
+        da_cancellare, problemi = seleziona_campi_espliciti(campi, nomi_espliciti)
+        _da, _p, non_attribuibili = seleziona(campi, origini)
+    elif args.senza_origine:
+        # Le righe "senza riferimento": origine non leggibile (campo assente e
+        # testo che non entra in nessuna euristica). Non si toccano per sbaglio:
+        # servono il flag E i conteggi attesi.
+        _da, problemi, non_attribuibili = seleziona(campi, origini)
+        da_cancellare = list(non_attribuibili)
+    else:
+        da_cancellare, problemi, non_attribuibili = seleziona(campi, origini)
     if problemi:
         print("::error title=pulizia::problemi trovati, nessuna scrittura:")
         for p in problemi:
             print(f"  - {p}")
+        return 3
+    if args.senza_origine and args.attesi is None and args.scrivi:
+        print("::error title=pulizia::--senza-origine con --scrivi richiede --attesi "
+              "(le righe senza origine si tolgono solo sapendo quante sono)")
         return 3
     if args.attesi is not None and len(da_cancellare) != args.attesi:
         print(f"::error title=pulizia::attese {args.attesi} righe, trovate {len(da_cancellare)}: "
@@ -195,7 +240,12 @@ def main(argv: Optional[List[str]] = None) -> int:
               f"trovate {len(chiavi_logiche_selezione)}: niente scrittura")
         return 3
 
-    print(f"## Pulizia del Registro — origini {', '.join(f'`{o}`' for o in origini)}")
+    if nomi_espliciti:
+        print(f"## Pulizia del Registro — **campi indicati a mano** ({len(nomi_espliciti)})")
+    elif args.senza_origine:
+        print("## Pulizia del Registro — **righe senza origine leggibile** (senza riferimento)")
+    else:
+        print(f"## Pulizia del Registro — origini {', '.join(f'`{o}`' for o in origini)}")
     print(f"- campi nell'hash prima: **{totale_prima}** · righe (una per chiave): **{righe_prima}**")
     print(f"- campi selezionati: **{len(da_cancellare)}** · righe logiche: **{len(chiavi_logiche_selezione)}**")
     for campo in da_cancellare:
@@ -285,16 +335,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 3) Rilettura e verifica.
     campi_dopo = campi_grezzi()
     righe_dopo = len(rs.upstash_rows())
-    chiavi_altre_prima = {c for c, (_t, r) in campi.items() if str(origin_of(r) or "").lower() not in origini}
-    chiavi_altre_dopo = set(campi_dopo) - set(da_cancellare)
-    rimaste = [c for c, (_t, r) in campi_dopo.items() if str(origin_of(r) or "").strip().lower() in origini]
-    rimaste_righe = len({rs.field_of(r) for c, (_t, r) in campi_dopo.items()
-                         if str(origin_of(r) or "").strip().lower() in origini})
+    # Verifica indipendente dal CRITERIO di selezione (origine, senza-origine,
+    # campi a mano): i campi selezionati non ci sono piu', e tutti gli altri
+    # sono rimasti ESATTAMENTE quelli di prima, uno per uno.
+    rimasti = sorted(set(da_cancellare) & set(campi_dopo))
+    altre_prima = set(campi) - set(da_cancellare)
+    altre_dopo = set(campi_dopo)
+    rimaste_righe = len({rs.field_of(campi_dopo[c][1]) for c in rimasti})
     print(f"- campi dopo: **{len(campi_dopo)}** · righe dopo: **{righe_dopo}** "
           f"(prima {totale_prima} / {righe_prima})")
-    print(f"- campi dell'origine rimasti: **{len(rimaste)}** · righe logiche rimaste: **{rimaste_righe}**")
-    print(f"- campi delle ALTRE origini: prima {len(chiavi_altre_prima)} · dopo {len(chiavi_altre_dopo)} · "
-          f"{'IDENTICI' if chiavi_altre_prima == chiavi_altre_dopo else 'DIVERSI (guasto!)'}")
+    print(f"- campi selezionati rimasti: **{len(rimasti)}** · righe logiche rimaste: **{rimaste_righe}**")
+    print(f"- campi NON selezionati: prima {len(altre_prima)} · dopo {len(altre_dopo)} · "
+          f"{'IDENTICI' if altre_prima == altre_dopo else 'DIVERSI (guasto!)'}")
+    mancanti = sorted(altre_prima - altre_dopo)
+    if mancanti:
+        print(f"  - spariti senza essere stati selezionati: {', '.join('`' + m + '`' for m in mancanti[:10])}")
+    aggiunti = sorted(altre_dopo - altre_prima)
+    if aggiunti:
+        print(f"  - comparsi dal nulla: {', '.join('`' + a + '`' for a in aggiunti[:10])}")
 
     if args.rimosse:
         os.makedirs(os.path.dirname(os.path.abspath(args.rimosse)), exist_ok=True)
@@ -304,7 +362,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                       f, ensure_ascii=False, indent=2)
         print(f"- righe rimosse scritte in `{args.rimosse}`")
 
-    esito_ok = (not rimaste) and (chiavi_altre_prima == chiavi_altre_dopo) and \
+    esito_ok = (not rimasti) and (altre_prima == altre_dopo) and \
                (cancellati == len(da_cancellare))
     if not esito_ok:
         print("::error title=pulizia::verifica NON superata: guarda i numeri sopra "

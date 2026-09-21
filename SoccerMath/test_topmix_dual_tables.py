@@ -227,9 +227,10 @@ class TestGuardieTab2(unittest.TestCase):
         cls.tab2 = cls.src[i:j]
 
     def test_due_tabelle_etichettate_attuale_sopra_legacy_sotto(self):
-        self.assertIn("MODELLO ATTUALE", self.tab2)
-        self.assertIn("MODELLO LEGACY", self.tab2)
-        self.assertLess(self.tab2.index("MODELLO ATTUALE"), self.tab2.index("MODELLO LEGACY"))
+        self.assertIn('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"', self.tab2)
+        self.assertIn('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"', self.tab2)
+        self.assertLess(self.tab2.index('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"'),
+                        self.tab2.index('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"'))
         self.assertIn("(MODEL_VARIANT_CURRENT, top_current,", self.tab2)
         self.assertIn("(MODEL_VARIANT_LEGACY, top_legacy,", self.tab2)
         self.assertIn("_mostra_tabella_top_mix(righe_tab, titolo, sottotitolo, css)", self.tab2)
