@@ -87,8 +87,12 @@ from prediction_registry import (
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_LEGACY,
     MODEL_VARIANT_LABELS,
-    model_variant_of,
     model_variant_label,
+    model_variant_of,
+    # Lettura della variante per DATA quando il campo manca: e' quella che
+    # l'utente deve vedere (una riga nata prima del merge di PR#24 e' del
+    # motore di allora, cioe' legacy).
+    model_variant_read,
 )
 from models.legacy_elo import predict_elo_probs_legacy
 
@@ -2271,8 +2275,11 @@ with tab5:
         # colonna non e' vuota per il passato e la misura e' separabile.
         df_preds['origine'] = [tipo_for_origin(origin_of(p)) for p in preds]
         # Variante del modello (Top Mix a due motori): "Attuale" / "Legacy".
-        # Il campo manca nelle righe scritte prima e vale Attuale: la colonna
-        # non e' mai vuota e le due tabelle del Top Mix restano separabili.
+        # Il campo manca nelle righe scritte prima del due-motori: la' decide la
+        # DATA (una riga nata prima del merge di PR#24 e' del motore di allora,
+        # cioe' Legacy). La colonna non e' mai vuota e i due motori restano
+        # separabili, senza spacciare per "Attuale" cio' che l'attuale non ha
+        # mai prodotto.
         df_preds['variante'] = [model_variant_label(p) for p in preds]
 
         # FIX ordinamento Registro: 'data' e' persistito come stringa italiana
@@ -2336,9 +2343,11 @@ with tab5:
         s3.metric("❌ Perse", current_stats["losses"])
         s4.metric("⏳ Attesa", current_stats["pending"])
 
-        # Blocco gemello per il modello legacy: compare solo se nel registro ci
-        # sono righe della variante (prima del Top Mix a due motori non c'erano).
-        if any(model_variant_of(p) == MODEL_VARIANT_LEGACY for p in preds):
+        # Blocco gemello per il modello legacy: compare se nel registro ci sono
+        # righe di quel motore. Si legge con `model_variant_read`: una riga senza
+        # campo nata prima del merge di PR#24 e' del motore che girava allora
+        # (legacy), quindi compare qui e non nel blocco attuale.
+        if any(model_variant_read(p) == MODEL_VARIANT_LEGACY for p in preds):
             st.markdown("##### 🕰️ Modello legacy (Elo pre-fix PR#24)")
             l1, l2, l3, l4 = st.columns(4)
             l1.metric("Totale", legacy_stats["total"])

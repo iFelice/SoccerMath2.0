@@ -902,7 +902,8 @@ def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 
 def stats_current_model(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     """Metriche del MODELLO ATTUALE: ``model_version`` corrente, non escluse e
-    variante ``current`` (il campo assente vale ``current``). Le righe della
+    variante ``current`` (le righe senza campo si leggono per data: quelle nate
+    prima del merge di PR#24 sono del motore legacy e NON contano qui). Le righe della
     variante legacy hanno lo stesso ``model_version`` ma un altro motore Elo:
     contarle qui mescolerebbe i due modelli che il Top Mix vuole confrontare.
     Vedi ``stats_legacy_variant`` per il blocco gemello."""
@@ -912,16 +913,21 @@ def stats_current_model(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 
 def stats_legacy_variant(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     """Metriche del MODELLO LEGACY (Elo pre-PR#24): stessi filtri del blocco
-    attuale, ma solo righe con ``model_variant == legacy``."""
+    attuale, ma solo righe lette come ``legacy`` (campo esplicito, oppure campo
+    assente e riga nata prima del merge di PR#24)."""
     return compute_stats([e for e in entries if is_current_model(e) and not is_excluded_from_stats(e)
                           and is_legacy_variant(e)])
 
 
 def split_by_variant(entries: Iterable[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """Partiziona i record per variante (``current`` / ``legacy`` / altro)."""
+    """Partiziona i record per variante (``current`` / ``legacy`` / altro).
+
+    Usa la lettura per data: le righe senza campo nate prima del merge di PR#24
+    finiscono nel blocco ``legacy``, che e' il motore che le ha prodotte.
+    """
     out: Dict[str, List[Dict[str, Any]]] = {}
     for e in entries:
-        out.setdefault(model_variant_of(e), []).append(e)
+        out.setdefault(model_variant_read(e), []).append(e)
     return out
 
 
@@ -1004,9 +1010,12 @@ def selector_version_of(entry: Any) -> str:
 def model_variant_of(entry: Any) -> str:
     """Variante del modello di una riga; il campo assente vale ``current``.
 
-    Tutti i record scritti prima del Top Mix a due motori non hanno il campo:
-    erano calcolati con l'unico modello allora in produzione, che oggi si
-    chiama ``current``. Un valore sconosciuto viene riportato com'e' (in
+    **E' la convenzione del percorso di scrittura e degli id**, non quella di
+    lettura: serve a non far cambiare chiavi e id delle righe gia' scritte. Per
+    LEGGERE (mostrare, contare, classificare) si usa ``model_variant_read``, che
+    quando il campo manca decide con la DATA: una riga nata prima del merge di
+    PR#24 e' del motore che girava allora, cioe' ``legacy``. Un valore
+    sconosciuto viene riportato com'e' (in
     minuscolo), cosi' non si confonde con nessuna delle due varianti note.
     """
     if not is_dict(entry):
@@ -1016,11 +1025,14 @@ def model_variant_of(entry: Any) -> str:
 
 
 def is_legacy_variant(entry: Any) -> bool:
-    return model_variant_of(entry) == MODEL_VARIANT_LEGACY
+    """La riga e' del motore legacy? Si legge per DATA quando il campo manca:
+    una riga nata prima del merge di PR#24 e' del motore che girava allora."""
+    return model_variant_read(entry) == MODEL_VARIANT_LEGACY
 
 
 def model_variant_label(entry: Any) -> str:
-    v = model_variant_of(entry)
+    """Etichetta mostrata all'utente: anche qui vale la lettura per data."""
+    v = model_variant_read(entry)
     return MODEL_VARIANT_LABELS.get(v, v)
 
 
@@ -1034,13 +1046,20 @@ def dedup_key(entry: Any) -> Tuple[Any, str, str, str]:
     Rapida aveva salvato per prima (problema ``dedup_match_id``, blocking, in
     results/topmix_registry_tracking.json). La variante entra nella chiave
     perche' la riga legacy di una partita NON deve mai sostituire la riga
-    current gia' scritta: il campo assente vale ``current`` (record storici).
+    current gia' scritta.
+
+    La variante si legge con ``model_variant_read`` (per data quando il campo
+    manca): con la convenzione vecchia - campo assente = ``current`` - una riga
+    scritta PRIMA del merge di PR#24 occupava il posto della riga del modello
+    attuale e il replay la saltava come ``gia_presente``: 20 partite erano
+    rimaste senza la riga del modello attuale pur essendo una scelta che il
+    motore attuale esprime (misurato il 21/09/2026, referto par. 4.5).
     """
     if not is_dict(entry):
         return (None, ORIGIN_UNKNOWN, "", MODEL_VARIANT_CURRENT)
     mid = entry.get("match_id")
     return (None if mid is None else str(mid), origin_of(entry), selector_version_of(entry),
-            model_variant_of(entry))
+            model_variant_read(entry))
 
 
 def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],

@@ -150,7 +150,14 @@ class TestClassification(unittest.TestCase):
 
 class TestStats(unittest.TestCase):
     def test_current_stats_exclude_pre_fix(self):
+        # POST_CURRENT_2026 e' del 05/09/2026, cioe' PRIMA del merge di PR#24:
+        # sotto il motore di allora, quindi non conta nel blocco del modello
+        # attuale (prima contava: il campo variante mancante valeva "current").
         stats = stats_current_model([PRE_2026, POST_CURRENT_2026])
+        self.assertEqual(stats["total"], 0)
+        # Una riga del modello attuale (dopo il merge) invece conta.
+        attuale = dict(POST_CURRENT_2026, salvato_il="19/09/2026 12:00")
+        stats = stats_current_model([PRE_2026, attuale])
         self.assertEqual(stats["total"], 1)
         self.assertEqual(stats["wins"], 1)
         self.assertEqual(stats["win_rate"], 100.0)

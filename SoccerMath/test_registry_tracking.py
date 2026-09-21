@@ -93,13 +93,29 @@ class TestUpsert(unittest.TestCase):
         self.assertEqual(len(R.upsert_prediction_entry(preds, _entry(origin=R.ORIGIN_TOP_MIX))[0]), 2)
 
     def test_ricalcolo_aggiorna_e_non_duplica(self):
-        preds = [_entry(prob=66.0, salvato_il="01/09/2026 10:00")]
-        out, azione = R.upsert_prediction_entry(preds, _entry(prob=71.0))
+        # Stesso motore (due salvataggi DOPO il merge di PR#24): il ricalcolo
+        # aggiorna la riga, non ne aggiunge una seconda.
+        preds = [_entry(prob=66.0, salvato_il="19/09/2026 10:00")]
+        out, azione = R.upsert_prediction_entry(preds, _entry(prob=71.0, salvato_il="19/09/2026 11:00"))
         self.assertEqual(azione, "aggiornata")
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["prob_sicuro"], 71.0)
         # la prima scrittura resta leggibile: un ricalcolo non cancella la storia
-        self.assertEqual(out[0]["salvato_il_originario"], "01/09/2026 10:00")
+        self.assertEqual(out[0]["salvato_il_originario"], "19/09/2026 10:00")
+
+    def test_ricalcolo_su_una_riga_pre_merge_aggiunge_il_modello_attuale(self):
+        """La riga scritta prima del merge e' del motore VECCHIO: il ricalcolo
+        di oggi e' del modello attuale, quindi si AGGIUNGE (senza toccare la
+        riga storica). E' lo stesso meccanismo che permette al replay di
+        scrivere le righe attuali mancanti: prima la chiave era occupata e
+        l'aggiunta veniva saltata."""
+        vecchia = _entry(prob=66.0, salvato_il="01/09/2026 10:00")
+        preds = [vecchia]
+        out, azione = R.upsert_prediction_entry(preds, _entry(prob=71.0, salvato_il="21/09/2026 10:00"))
+        self.assertEqual(azione, "aggiunta")
+        self.assertEqual(len(out), 2)
+        self.assertEqual(out[0], vecchia, "la riga storica non si tocca")
+        self.assertEqual(out[1]["prob_sicuro"], 71.0)
 
     def test_record_giudicato_non_si_tocca_mai(self):
         preds = [_entry(esito="✅", prob=66.0)]

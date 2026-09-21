@@ -31,7 +31,10 @@ def _riga(mid=501, variant=None, esito="⏳", prob=64.0, **extra):
         "giornata": 5, "data": "19/09/2026 18:00", "pronostico_sicuro": "Vittoria Casa - Top Mix",
         "mercato_standard": "1", "top3": [], "prob_sicuro": prob, "risultati_attesi": "",
         "risultato_reale": None, "esito": esito, "tipo": "Top Mix", "stagione": "2026/2027",
-        "salvato_il": "18/09/2026 10:00", "origin": R.ORIGIN_TOP_MIX,
+        # Salvataggio DOPO il merge di PR#24: una riga senza campo scritta
+        # dopo e' del modello attuale. (Le righe nate prima si leggono legacy:
+        # c'e' un test apposta che lo pina.)
+        "salvato_il": "19/09/2026 09:00", "origin": R.ORIGIN_TOP_MIX,
         "selector_version": R.SELECTOR_VERSION_CURRENT, "rank": 1,
         "kickoff_utc": "2026-09-19T18:00:00Z", "data_snapshot_sha": "abc123abc123",
         "calculation_id": "x", "poisson": 60.0, "elo": 66.0, "elo_disponibile": True,
@@ -114,7 +117,13 @@ class TestChiaveDedupEUpsert(unittest.TestCase):
         b = R.dedup_key(_riga(variant="legacy"))
         c = R.dedup_key(_riga(variant="current"))
         self.assertNotEqual(a, b)
-        self.assertEqual(a, c, "current esplicito e campo assente sono la stessa riga")
+        self.assertEqual(a, c, "current esplicito e campo assente (dopo il merge) sono la stessa riga")
+        # La correzione: una riga senza campo nata PRIMA del merge e' del
+        # motore di allora, quindi la sua chiave e' quella del legacy — non
+        # occupa piu' il posto della riga del modello attuale.
+        prima = R.dedup_key(_riga(salvato_il="10/09/2026 10:00"))
+        self.assertEqual(prima, b, "riga pre-merge senza campo: chiave legacy")
+        self.assertNotEqual(prima, a, "e NON occupa la chiave del modello attuale")
         self.assertEqual(len(a), 4)
 
     def test_legacy_non_sovrascrive_la_current_in_attesa(self):
@@ -141,13 +150,41 @@ class TestChiaveDedupEUpsert(unittest.TestCase):
         self.assertEqual(len(out), 2)
         self.assertEqual(out[0], prima[0])
         self.assertEqual(out[1]["prob_sicuro"], 59.5)
-        self.assertEqual(out[1]["salvato_il_originario"], "18/09/2026 10:00")
+        self.assertEqual(out[1]["salvato_il_originario"], "19/09/2026 09:00")
 
     def test_legacy_giudicata_non_si_tocca(self):
         esistenti = [_riga(variant="legacy", esito=R.ESITO_PERSO, prob=58.0)]
         out, azione = R.upsert_prediction_entry(esistenti, _riga(variant="legacy", prob=70.0))
         self.assertEqual(azione, "gia_graduata")
         self.assertEqual(out[0]["prob_sicuro"], 58.0)
+
+
+class TestEtichettaEStatistichePerData(unittest.TestCase):
+    """Cio' che l'utente vede: un pronostico vecchio e' "Legacy", non "Attuale".
+
+    E' la correzione chiesta prima del merge: l'etichetta e i due blocchi di
+    statistiche devono leggere la DATA quando il campo variante manca.
+    """
+
+    def test_etichetta_di_una_riga_pre_merge(self):
+        vecchia = _riga(salvato_il="10/09/2026 10:00")
+        self.assertEqual("Legacy", R.model_variant_label(vecchia))
+        self.assertTrue(R.is_legacy_variant(vecchia))
+        self.assertEqual({R.MODEL_VARIANT_LEGACY: 1}, {k: len(v) for k, v in
+                                                         R.split_by_variant([vecchia]).items()})
+
+    def test_etichetta_di_una_riga_dopo_il_merge(self):
+        nuova = _riga(salvato_il="19/09/2026 10:00")
+        self.assertEqual("Attuale", R.model_variant_label(nuova))
+        self.assertFalse(R.is_legacy_variant(nuova))
+
+    def test_i_due_blocchi_di_statistiche_con_una_riga_vecchia(self):
+        vecchia = _riga(salvato_il="10/09/2026 10:00", esito=R.ESITO_VINTO)
+        nuova = _riga(salvato_il="19/09/2026 10:00", esito=R.ESITO_PERSO)
+        self.assertEqual(1, R.stats_current_model([vecchia, nuova])["total"])
+        self.assertEqual(1, R.stats_current_model([vecchia, nuova])["losses"])
+        self.assertEqual(1, R.stats_legacy_variant([vecchia, nuova])["total"])
+        self.assertEqual(1, R.stats_legacy_variant([vecchia, nuova])["wins"])
 
 
 class TestCalculationId(unittest.TestCase):
