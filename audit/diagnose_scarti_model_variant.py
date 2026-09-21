@@ -172,8 +172,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     leghe = sorted({r["campionato"] for _, r in tutte})
     fixtures = replay.fixtures_from_csv_and_archive(leghe)
     dettagli = []
-    for variante, r in sorted(tutte, key=lambda x: (x[1]["kickoff_utc"] or "", x[1]["partita"])):
-        d = diagnosi_partita(r, fixtures, snapshot_cache=args.snapshot_cache)
+    non_diagnosticabili: List[Tuple[Dict[str, Any], str]] = []
+    for variante, r in sorted(tutte, key=lambda x: (x[1].get("kickoff_utc") or "", x[1]["partita"])):
+        # Una riga che non si riesce a rigiocare (kickoff assente, partita non
+        # nelle fixture, controprova fallita) NON deve fermare la diagnosi delle
+        # altre: viene dichiarata a parte, con il motivo. Il silenzio no.
+        try:
+            d = diagnosi_partita(r, fixtures, snapshot_cache=args.snapshot_cache)
+        except (SystemExit, Exception) as e:  # SystemExit: gli errori "parlanti" del modulo
+            motivo = str(getattr(e, "code", None) or e)
+            non_diagnosticabili.append((r, motivo))
+            print(f"{r['partita']} ({r['campionato']}): NON diagnosticabile -> {motivo}")
+            continue
         d["variante_presente"] = variante
         d["variante_assente"] = MODEL_VARIANT_LEGACY if variante == MODEL_VARIANT_CURRENT else MODEL_VARIANT_CURRENT
         dettagli.append(d)
@@ -205,6 +215,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         motivi[m] = motivi.get(m, 0) + 1
     L.append("Riepilogo: " + " · ".join(f"{k}: {v}" for k, v in sorted(motivi.items())) + ".")
     L.append("")
+    if non_diagnosticabili:
+        L.append(f"### Non diagnosticabili: {len(non_diagnosticabili)} su {len(tutte)}")
+        L.append("")
+        L.append("| partita | campione | motivo |")
+        L.append("|---|---|---|")
+        for r, motivo in non_diagnosticabili:
+            L.append(f"| {r['partita']} | {r['campionato']} | {motivo[:300]} |")
+        L.append("")
+        L.append("Queste righe non sono state rigiocate: il motivo della loro copertura a un solo")
+        L.append("modello resta NON misurato e va trattato come tale (non come un'assenza spiegata).")
+        L.append("")
     L.append("Conseguenza: nessuna riga viene inventata per far coincidere i campioni. Le soglie")
     L.append("(0,55 1X2 / 0,60 Totali) e il veto restano quelli di produzione, e per il modello")
     L.append("assente il Registro non ha nulla da scrivere perche' quel modello, su quella partita,")
@@ -215,7 +236,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         with open(args.out, "w", encoding="utf-8") as f:
             f.write(testo)
         print(f"[diagnosi] referto: {args.out}")
-    return 0
+    print(f"NON DIAGNOSTICABILI: {len(non_diagnosticabili)} su {len(tutte)}")
+    # 3 = diagnosi fatta ma con righe dichiarate non misurate (il chiamante
+    # decide se e' un guasto o una dichiarazione: la causa resta parziale).
+    return 3 if non_diagnosticabili else 0
 
 
 if __name__ == "__main__":

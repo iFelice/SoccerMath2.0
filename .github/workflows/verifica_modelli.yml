@@ -164,11 +164,18 @@ jobs:
             --out "$OUT/diagnosi_scarti.md" 2>&1 | tee "$OUT/diagnosi.txt"
           rc=$?
           set -e
-          grep -E "^Riepilogo|assente ->" "$OUT/diagnosi.txt" | head -n 22 | while IFS= read -r line; do
+          grep -E "^Riepilogo|assente ->|^NON DIAGNOSTICABILI|NON diagnosticabile" "$OUT/diagnosi.txt" \
+            | head -n 26 | while IFS= read -r line; do
             echo "::warning title=diagnosi::${line:0:900}"
           done
-          if [ "$rc" != "0" ]; then
+          # rc 3 = diagnosi fatta ma con righe NON diagnosticabili: dichiarato,
+          # non un guasto (non tutte le righe storiche si lasciano rigiocare).
+          # Ogni altro codice diverso da 0 e' un errore vero.
+          if [ "$rc" = "3" ]; then
+            echo "::warning title=diagnosi::la causa e' misurata solo in parte: vedi le righe NON diagnosticabili"
+          elif [ "$rc" != "0" ]; then
             echo "::error title=diagnosi::uscita $rc (la causa delle partite senza modello non e' stata misurata)"
+            exit "$rc"
           fi
 
       - name: Artifact (referto della verifica)
