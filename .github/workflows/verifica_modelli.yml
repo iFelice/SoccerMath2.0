@@ -285,14 +285,18 @@ jobs:
           PY
 
       # Le prove per riga: quando e' NATA la riga che copre la partita, che
-      # specie e', e il motivo misurato per il modello che manca. Una sola
-      # annotazione (il tetto per passo ne lascia poche): cosi' l'elenco si
-      # legge dalla run senza scaricare l'artefatto.
+      # specie e', e perche' la riga del modello che manca non c'e'. Il caso da
+      # misurare: la chiave di dedup della riga mancante puo' essere OCCUPATA da
+      # una riga senza campo variante (che il percorso di scrittura legge come
+      # ``current``), e allora il replay salta l'aggiunta ("gia_presente").
       - name: "Elenco con le prove: partite senza la riga ATTUALE"
         if: always()
         run: |
-          python - "$OUT/modelli.json" "$OUT/diagnosi_scarti.json" <<'PY' || true
+          python - "$OUT/modelli.json" "$OUT/diagnosi_scarti.json" "$OUT/registro_vivo.json" <<'PY' || true
           import json, os, sys
+          sys.path.insert(0, "SoccerMath")
+          from prediction_registry import (ORIGIN_TOP_MIX, SELECTOR_VERSION_CURRENT, dedup_key,
+                                           model_variant_of)
 
           def carica(p):
               try:
@@ -301,29 +305,40 @@ jobs:
               except Exception:
                   return None
 
-          modelli, diagnosi = carica(sys.argv[1]), carica(sys.argv[2])
+          modelli, diagnosi, registro = carica(sys.argv[1]), carica(sys.argv[2]), carica(sys.argv[3])
           if not modelli:
               sys.exit(0)
-          inc = modelli.get("incrocio_nascita_partita") or {}
-          cat = {}
+          righe_registro = (registro or {}).get("data") or []
+          # Le chiavi che il percorso di SCRITTURA considera gia' prese: e' la
+          # convenzione con cui il replay decide se aggiungere o saltare.
+          chiavi = {dedup_key(r) for r in righe_registro if isinstance(r, dict)}
+          cat, occupate = {}, 0
           for r in (diagnosi or {}).get("targets", []):
               if r.get("variante_assente") == "current":
                   cat[str(r.get("match_id"))] = r.get("categoria_assente")
           for r in (diagnosi or {}).get("non_diagnosticabili", []):
               if r.get("variante_assente") == "current":
                   cat.setdefault(str(r.get("match_id")), "non misurata")
-          righe = [f"righe senza etichetta: nate prima del merge e partite prima "
+          inc = modelli.get("incrocio_nascita_partita") or {}
+          dettaglio, mancanti = [], modelli["intero"]["solo"]["legacy"]
+          for m in mancanti:
+              chiave = (str(m.get("match_id")), ORIGIN_TOP_MIX, SELECTOR_VERSION_CURRENT, "current")
+              presa = chiave in chiavi
+              occupate += 1 if presa else 0
+              dettaglio.append(f"{m['partita']} ({m['campionato']}, {m['data']}): legacy "
+                               f"{'del replay' if m.get('riga_del_replay') else 'di un click vero'} "
+                               f"nata {m.get('salvato_il') or '?'} "
+                               f"({'prima' if m.get('riga_nata_prima_della_fusione') else 'dopo'} il merge), "
+                               f"chiave attuale {'OCCUPATA' if presa else 'libera'}; causa "
+                               f"{cat.get(str(m.get('match_id')), 'non misurata')}")
+          testa = (f"righe senza etichetta: nate prima del merge e partite prima "
                    f"{inc.get('nate_prima_partita_prima')}, nate PRIMA del merge e partite DOPO "
                    f"{inc.get('nate_prima_partita_dopo')} (lette legacy: il motore era quello), "
-                   f"nate dopo {inc.get('nate_dopo_partita_dopo')}"]
-          for m in modelli["intero"]["solo"]["legacy"]:
-              righe.append(f"{m['partita']} ({m['campionato']}, {m['data']}): riga legacy "
-                           f"{'del replay' if m.get('riga_del_replay') else 'di un click vero'} "
-                           f"nata {m.get('salvato_il') or '?'} "
-                           f"({'prima' if m.get('riga_nata_prima_della_fusione') else 'dopo'} il merge); "
-                           f"ATTUALE: {m['mercato']} {m['prob']}% mancante, causa "
-                           f"{cat.get(str(m.get('match_id')), 'non misurata')}")
-          print("::notice title=attuale-mancante::" + " · ".join(righe)[:6000])
+                   f"nate dopo il merge {inc.get('nate_dopo_partita_dopo')} · "
+                   f"partite senza la riga ATTUALE: {len(mancanti)}, di cui con la chiave del modello "
+                   f"attuale GIA' OCCUPATA da una riga senza campo: {occupate} "
+                   f"(il replay le salta: 'gia_presente')")
+          print("::notice title=attuale-mancante::" + " · ".join([testa] + dettaglio)[:12000])
           PY
 
       - name: Artifact (referto della verifica)
