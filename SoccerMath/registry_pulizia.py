@@ -268,6 +268,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         righe_logiche.append(riga)
     snap = rs.upstash_snapshot(giorno, righe_logiche)
     print(f"\n- istantanea creata: `{snap['chiave']}` · {snap['righe']} righe · {snap['byte']} byte")
+    # Seconda istantanea, ESATTA: non le righe logiche ma i campi come sono
+    # scritti nell'hash (nome -> testo), compresi i nomi vecchi. Serve al
+    # ripristino byte per byte di cio' che si sta per cancellare.
+    chiave_campi = f"{snap['chiave']}-campi"
+    corpo_campi = json.dumps({c: v[0] for c, v in campi.items()}, ensure_ascii=False, sort_keys=True)
+    risposta_campi = rs.upstash_raw(["SET", chiave_campi, corpo_campi])
+    print(f"- istantanea ESATTA dei campi: `{chiave_campi}` · **{len(campi)}** campi · "
+          f"{len(corpo_campi.encode('utf-8'))} byte · risposta `{risposta_campi.get('result')}`")
 
     # 2) HDEL in UN SOLO comando (niente mezze pulizie).
     risposta = rs.upstash_raw(["HDEL", rs.hash_key()] + da_cancellare)

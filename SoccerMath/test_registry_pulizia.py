@@ -84,6 +84,8 @@ class TestPercorsoDiScrittura(unittest.TestCase):
 
         def _finto_raw(comando, *, post=None):
             self.comandi.append(comando)
+            if comando[0] == "SET":
+                return {"result": "OK"}
             if comando[0] == "HDEL":
                 # il finto hash si aggiorna come quello vero: i campi spariscono
                 for campo in comando[2:]:
@@ -127,13 +129,26 @@ class TestPercorsoDiScrittura(unittest.TestCase):
     def test_un_solo_hdel_con_i_campi_giusti(self):
         rc = RP.main(["--origini", "analisi_rapida", "--scrivi", "--conferma", "--attesi", "2"])
         self.assertEqual(0, rc)
-        self.assertEqual(1, len(self.comandi), "un solo comando: niente mezze pulizie")
-        comando = self.comandi[0]
+        hdel = [c for c in self.comandi if c[0] == "HDEL"]
+        self.assertEqual(1, len(hdel), "un solo HDEL: niente mezze pulizie")
+        comando = hdel[0]
         self.assertEqual("HDEL", comando[0])
         self.assertEqual(rs.hash_key(), comando[1])
         self.assertEqual(["3|analisi_rapida||current", "4|analisi_rapida||current"],
                          comando[2:])
         self.assertNotIn("1|top_mix||current", comando[2:])
+
+    def test_istantanea_esatta_dei_campi_prima_della_cancellazione(self):
+        """Oltre all'istantanea delle righe logiche serve quella dei CAMPI scritti:
+        e' l'unica che permette di rimettere anche i nomi vecchi."""
+        RP.main(["--origini", "analisi_rapida", "--scrivi", "--conferma"])
+        hdel_idx = [i for i, c in enumerate(self.comandi) if c[0] == "HDEL"][0]
+        set_campi = [c for c in self.comandi[:hdel_idx] if c[0] == "SET"]
+        self.assertEqual(1, len(set_campi), "una sola istantanea esatta, prima dell'HDEL")
+        self.assertTrue(str(set_campi[0][1]).endswith("-pre-pulizia-campi"))
+        import json as _json
+        salvati = _json.loads(set_campi[0][2])
+        self.assertIn("3|analisi_rapida||current", salvati)
 
     def test_istantanea_prima_della_cancellazione(self):
         with mock.patch.object(rs, "upstash_snapshot") as snap:
