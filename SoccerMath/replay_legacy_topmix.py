@@ -93,6 +93,7 @@ from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_FIELD,
     MODEL_VARIANT_LEGACY,
     ORIGIN_TOP_MIX,
+    TWO_MODELS_MERGE_INSTANT,
     dedup_key,
     esito_mercato,
     model_variant_of,
@@ -106,7 +107,10 @@ UTC = timezone.utc
 # attuale e' quello live (e il Registro ha righe attuali). Le due finestre
 # [REPLAY_START_INSTANT, PR24_MERGE_INSTANT) e [PR24_MERGE_INSTANT, adesso)
 # partizionano la storia ricostruibile: nessuna partita sta in entrambe.
-PR24_MERGE_INSTANT = datetime(2026, 9, 18, 21, 51, 58, tzinfo=timezone.utc)
+# Il confine fra i due modelli in PRODUZIONE (e fra le due finestre delle
+# commesse) sta in un posto solo: ``prediction_registry``, che e' anche quello
+# che legge il Registro. Qui se ne tiene il nome storico usato dalle commesse.
+PR24_MERGE_INSTANT = TWO_MODELS_MERGE_INSTANT
 PR24_MERGE_DAY = PR24_MERGE_INSTANT.date()
 SEASON_FIRST_DAY = date(2026, 8, 15)        # prima partita della stagione 2026/27 (dall'archivio)
 # Primo istante da cui il replay e' ONESTO, misurato sul repo (non stimato):

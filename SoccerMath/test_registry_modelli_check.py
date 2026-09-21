@@ -28,10 +28,16 @@ import registry_modelli_check as chk  # noqa: E402
 from prediction_registry import MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY  # noqa: E402
 
 
-def _riga(mid, *, variante=None, ko="2026-09-10T18:00:00Z", mercato="1", prob=70.0):
+def _riga(mid, *, variante=None, ko="2026-09-10T18:00:00Z", mercato="1", prob=70.0,
+          data=None, salvato_il=None):
+    """Una riga del Registro. ``ko`` di default e' PRIMA del merge di PR#24:
+    una riga senza campo scritta allora appartiene al motore che girava allora
+    (il legacy), e la convenzione di lettura deve dirlo."""
     r = {"match_id": mid, "origin": "top_mix", "home": f"H{mid}", "away": f"A{mid}",
-         "campionato": "Serie A", "data": "10/09/2026 20:00", "kickoff_utc": ko,
+         "campionato": "Serie A", "data": data or "10/09/2026 20:00", "kickoff_utc": ko,
          "mercato_standard": mercato, "prob_sicuro": prob, "esito": "✅"}
+    if salvato_il is not None:
+        r["salvato_il"] = salvato_il
     if variante is not None:
         r["model_variant"] = variante
     return r
@@ -61,34 +67,77 @@ class TestConteggi(unittest.TestCase):
         self.assertEqual(1, esito["vecchio"]["righe"])
         self.assertEqual(1, esito["nuovo"]["righe"])
 
-    def test_righe_storiche_senza_variante_contate_a_parte(self):
-        righe = [_riga(1, variante=None), _riga(1, variante=MODEL_VARIANT_LEGACY)]
+    def test_riga_senza_etichetta_si_legge_dalla_data(self):
+        """La correzione chiesta: una riga senza campo nata PRIMA del merge di
+        PR#24 e' del motore che girava allora, cioe' ``legacy`` — non ``current``
+        per definizione. Qui la riga senza campo finisce nello stesso insieme
+        della riga legacy esplicita: e' la stessa partita, stesso modello."""
+        righe = [_riga(1, variante=None), _riga(2, variante=MODEL_VARIANT_LEGACY)]
         esito = chk.verifica(righe)
         self.assertEqual(1, esito["intero"]["righe_senza_variante"])
         self.assertEqual(1, esito["intero"]["righe_con_variante_esplicita"])
-        self.assertTrue(esito["intero"]["pareggio"],
-                        "la riga senza campo vale current: la partita ha entrambi i modelli")
+        self.assertEqual(0, esito["intero"]["partite"][MODEL_VARIANT_CURRENT],
+                         "nessuna riga di questa epoca e' del modello attuale")
+        self.assertEqual(2, esito["intero"]["partite"][MODEL_VARIANT_LEGACY])
+        se = esito["intero"]["senza_etichetta"]
+        self.assertEqual(1, se["prima_della_fusione"])
+        self.assertEqual(0, se["dopo_la_fusione"])
+        self.assertEqual(0, se["istante_ignoto"])
+        self.assertEqual({"kickoff_utc": 1}, se["fonti"])
+
+    def test_riga_senza_etichetta_dopo_la_fusione_e_attuale(self):
+        dopo = _riga(1, variante=None, ko="2026-09-19T18:00:00Z")
+        esito = chk.verifica([dopo])
+        self.assertEqual(1, esito["intero"]["partite"][MODEL_VARIANT_CURRENT])
+        se = esito["intero"]["senza_etichetta"]
+        self.assertEqual(0, se["prima_della_fusione"])
+        self.assertEqual(1, se["dopo_la_fusione"])
+
+    def test_salvato_il_vince_sulla_data_della_partita(self):
+        """L'istante che conta e' quando la riga e' nata: ``salvato_il`` batte la
+        data della partita (una partita del 10/09 salvata il 19/09 e' del motore
+        nuovo, anche se il campo variante non c'e')."""
+        r = _riga(1, variante=None, data="10/09/2026 20:00", salvato_il="19/09/2026 09:00")
+        esito = chk.verifica([r])
+        self.assertEqual(1, esito["intero"]["partite"][MODEL_VARIANT_CURRENT])
+        self.assertEqual({"salvato_il": 1}, esito["intero"]["senza_etichetta"]["fonti"])
+
+    def test_riga_senza_kickoff_si_legge_dalla_data_italiana(self):
+        """Le righe storiche non hanno ``kickoff_utc``: l'istante (e quindi la
+        variante) si legge dalla ``data`` italiana, e la fonte va dichiarata."""
+        r = _riga(1, variante=None, ko=None, data="10/09/2026 20:00")
+        esito = chk.verifica([r])
+        self.assertEqual(1, esito["intero"]["partite"][MODEL_VARIANT_LEGACY])
+        se = esito["intero"]["senza_etichetta"]
+        self.assertEqual(1, se["prima_della_fusione"])
+        self.assertEqual({"data_partita": 1}, se["fonti"])
+        self.assertEqual(0, se["istante_ignoto"])
 
     def test_differenze_distinguono_replay_e_click_veri(self):
         """Una riga senza variante e' un click vero dell'epoca, non una riga del
-        replay: i conteggi devono poterlo dire (l'utente lo chiede esplicitamente)."""
-        storica = _riga(1, variante=None)                       # click vero, campo assente
-        del_replay = _riga(2, variante=MODEL_VARIANT_CURRENT)   # scritta dal replay
-        esito = chk.verifica([storica, del_replay])
-        voci = esito["intero"]["solo"][MODEL_VARIANT_CURRENT]
-        self.assertEqual(2, len(voci))
-        per_id = {v["match_id"]: v for v in voci}
-        self.assertFalse(per_id[1]["riga_del_replay"])
-        self.assertTrue(per_id[1]["riga_storica"])
+        replay: i conteggi devono poterlo dire, e dire anche da dove viene la
+        variante (campo esplicito o istante)."""
+        storica = _riga(1, variante=None)                        # click vero, prima del merge
+        del_replay = _riga(2, variante=MODEL_VARIANT_CURRENT)    # scritta dal replay
+        dopo = _riga(3, variante=None, ko="2026-09-19T18:00:00Z")  # click vero, dopo il merge
+        esito = chk.verifica([storica, del_replay, dopo])
+        per_id = {v["match_id"]: v for v in esito["intero"]["solo"][MODEL_VARIANT_CURRENT]}
+        self.assertEqual({2, 3}, set(per_id))
+        self.assertFalse(per_id[3]["riga_del_replay"])
+        self.assertTrue(per_id[3]["riga_storica"])
+        self.assertEqual("kickoff_utc", per_id[3]["variante_da"])
         self.assertTrue(per_id[2]["riga_del_replay"])
-        self.assertFalse(per_id[2]["riga_storica"])
+        self.assertEqual("esplicita", per_id[2]["variante_da"])
+        per_id_legacy = {v["match_id"]: v for v in esito["intero"]["solo"][MODEL_VARIANT_LEGACY]}
+        self.assertEqual({1}, set(per_id_legacy))
+        self.assertEqual("kickoff_utc", per_id_legacy[1]["variante_da"])
 
     def test_partita_con_entrambe_le_specie_di_riga(self):
-        """Click vero E riga del replay sulla stessa partita: due righe, e la
-        voce deve dire che ci sono tutte e due (non solo la prima)."""
-        righe = [_riga(1, variante=None), _riga(1, variante=MODEL_VARIANT_CURRENT)]
+        """Click vero E riga del replay sulla stessa partita e stessa variante:
+        due righe, e la voce deve dire che ci sono tutte e due."""
+        righe = [_riga(1, variante=None), _riga(1, variante=MODEL_VARIANT_LEGACY)]
         esito = chk.verifica(righe)
-        voce = esito["intero"]["solo"][MODEL_VARIANT_CURRENT][0]
+        voce = esito["intero"]["solo"][MODEL_VARIANT_LEGACY][0]
         self.assertEqual(2, voce["righe"])
         self.assertTrue(voce["riga_del_replay"] and voce["riga_storica"])
 
@@ -117,7 +166,7 @@ class TestRefertoEUscta(unittest.TestCase):
         rc, testo = self._esegui(righe)
         self.assertEqual(chk.ESITO_DISPARI, rc)
         self.assertIn("NON coincidono", testo)
-        self.assertIn("attuale copre 1 partite in piu'", testo)
+        self.assertIn("senza la riga del modello LEGACY", testo)
         self.assertIn("non si scrivono", testo, "le righe legacy mancanti non si inventano")
 
     def test_allow_mismatch_esce_0(self):
@@ -129,7 +178,10 @@ class TestRefertoEUscta(unittest.TestCase):
         righe = [_riga(1, variante=MODEL_VARIANT_LEGACY)]
         rc, testo = self._esegui(righe, ["--allow-mismatch"])
         self.assertEqual(chk.ESITO_PAREGGIO, rc)
-        self.assertIn("da scrivere: **1**", testo)
+        self.assertIn("senza la riga del modello ATTUALE", testo)
+        self.assertIn("**1**", testo)
+        self.assertIn("la diagnosi ne spiega ognuna", testo,
+                      "una riga attuale mancante non spiegata deve poter rendere rossa la run")
 
     def test_registro_illeggibile_esce_2(self):
         def esplode():

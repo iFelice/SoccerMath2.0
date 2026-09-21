@@ -71,7 +71,9 @@ jobs:
         run: |
           python -m pytest -q --tb=short \
             SoccerMath/test_registry_modelli_check.py \
-            SoccerMath/test_registry_backend_status.py
+            SoccerMath/test_model_variant_registry.py \
+            SoccerMath/test_registry_backend_status.py \
+            audit/test_diagnose_scarti.py
 
       - name: Verifica (sola lettura)
         id: verifica
@@ -97,6 +99,18 @@ jobs:
               echo "::warning title=modelli::${line:0:900}"
             done
           done
+
+          # Quante righe SENZA campo variante sono nate prima del merge di
+          # PR#24 (lette legacy: allora girava quel motore) e quante dopo.
+          python - "$OUT/modelli.json" <<'PY' || true
+          import json, sys
+          d = json.load(open(sys.argv[1], encoding="utf-8"))["intero"]["senza_etichetta"]
+          print("::warning title=modelli-senza-etichetta::"
+                f"{d['prima_della_fusione']} righe nate PRIMA del merge di PR#24 (lette legacy) · "
+                f"{d['dopo_la_fusione']} nate dopo (lette current) · "
+                f"{d['istante_ignoto']} con istante illeggibile (restano current, dichiarate) · "
+                f"fonti: {d['fonti']}")
+          PY
 
           # Le partite coperte da UN SOLO modello, con la specie di riga che le
           # copre: riga del REPLAY (campo variante esplicito) o click VERO
@@ -137,10 +151,10 @@ jobs:
           mancano_attuale = len(d["intero"]["solo"]["legacy"])
           mancano_legacy = len(d["intero"]["solo"]["current"])
           print(f"::warning title=modelli::righe ATTUALE mancanti: {mancano_attuale} · righe LEGACY mancanti: {mancano_legacy}")
-          if mancano_attuale:
-              print(f"::error title=modelli::mancano {mancano_attuale} righe del modello ATTUALE: "
-                    "rilanciare il replay (aggiunge, non sovrascrive) per completarle")
-              sys.exit(1)
+          # Il verdetto NON si da' qui: manca una riga attuale, ma se il motore
+          # attuale non esprimeva una scelta (sotto soglia o veto) la riga non
+          # va scritta. Lo misura la diagnosi, e il passo "gate" decide su
+          # quella misura: qui si dichiara il numero, non lo si giudica.
           if mancano_legacy:
               print(f"::warning title=modelli::i due campioni NON coincidono: {mancano_legacy} partite "
                     "senza scelta del modello legacy (sotto soglia o veto). Righe non scritte per scelta: "
@@ -193,7 +207,8 @@ jobs:
             --fixtures api \
             --dump "$OUT/registro_vivo.json" --coverage "$OUT/coverage.json" \
             --snapshot-cache "$RUNNER_TEMP/sm_snap_cache" \
-            --out "$OUT/diagnosi_scarti.md" 2>&1 | tee "$OUT/diagnosi.txt"
+            --out "$OUT/diagnosi_scarti.md" --json "$OUT/diagnosi_scarti.json" \
+            2>&1 | tee "$OUT/diagnosi.txt"
           rc=$?
           set -e
           # `|| true`: se la diagnosi non ha stampato NIENTE (crash immediato) il
@@ -226,6 +241,61 @@ jobs:
             echo "::error title=diagnosi::uscita $rc (la causa delle partite senza modello non e' stata misurata)"
             exit "$rc"
           fi
+
+      # Il gate dell'ATTUALE: una riga attuale mancante e' un guasto SOLO se il
+      # motore attuale esprimeva una scelta. La diagnosi l'ha appena misurato
+      # partita per partita: "sotto soglia" o "veto" = assenza spiegata (la riga
+      # non va scritta: sarebbe un campione falsato); qualunque altro motivo, o
+      # l'assenza della misura, = guasto, e la run diventa ROSSA.
+      - name: "Gate: ogni riga ATTUALE mancante ha una causa misurata?"
+        if: always()
+        run: |
+          python - "$OUT/modelli.json" "$OUT/diagnosi_scarti.json" <<'PY'
+          import json, os, sys
+
+          def carica(percorso):
+              try:
+                  with open(percorso, encoding="utf-8") as f:
+                      return json.load(f)
+              except Exception as e:
+                  print(f"::warning title=gate-attuale::non leggibile {os.path.basename(percorso)}: {e}")
+                  return None
+
+          modelli = carica(sys.argv[1])
+          diagnosi = carica(sys.argv[2])
+          if modelli is None:
+              print("::error title=gate-attuale::senza il conteggio dei due modelli non c'e' verdetto")
+              sys.exit(1)
+          mancanti = modelli["intero"]["solo"]["legacy"]          # partite senza la riga ATTUALE
+          if not mancanti:
+              print("::notice title=gate-attuale::nessuna partita senza la riga del modello ATTUALE")
+              sys.exit(0)
+
+          spiegate = {}
+          if diagnosi:
+              for r in diagnosi.get("targets", []):
+                  if r.get("variante_assente") == "current":
+                      spiegate[str(r.get("match_id"))] = r.get("categoria_assente")
+              for r in diagnosi.get("non_diagnosticabili", []):
+                  if r.get("variante_assente") == "current":
+                      spiegate.setdefault(str(r.get("match_id")), "non misurata")
+          ok = ("sotto soglia", "veto")
+          ignote = []
+          for m in mancanti:
+              cat = spiegate.get(str(m.get("match_id")))
+              if cat not in ok:
+                  ignote.append((m, cat or "non misurata"))
+          for m, cat in ignote[:8]:
+              print(f"::error title=gate-attuale::{m['partita']} ({m['campionato']}, {m['data']}): "
+                    f"{m['mercato']} {m['prob']}% senza riga attuale e con causa NON misurata "
+                    f"({cat}): da chiarire prima di dichiarare il campione completo")
+          if ignote:
+              print(f"::error title=gate-attuale::{len(ignote)} partite su {len(mancanti)} senza riga "
+                    f"ATTUALE e senza causa misurata (sotto soglia/veto). La run NON e' verde.")
+              sys.exit(1)
+          print(f"::notice title=gate-attuale::tutte le {len(mancanti)} partite senza riga ATTUALE "
+                f"hanno una causa MISURATA dal selettore (sotto soglia o veto): la riga non va scritta")
+          PY
 
       - name: Artifact (referto della verifica)
         if: always()

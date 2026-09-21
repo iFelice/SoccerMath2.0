@@ -171,6 +171,89 @@ MODEL_VARIANT_LABELS = {
     MODEL_VARIANT_LEGACY: "Legacy",
 }
 
+# Da QUANDO il motore Elo di oggi e' in produzione: il merge di PR#24
+# (``626cd0b``, 2026-09-18T21:51:58Z). Prima di quell'istante in produzione
+# girava il motore che oggi si chiama ``legacy`` (``models/elo_engine_legacy.py``
+# e' il blob pre-PR#24, byte per byte). Quindi il campo mancante NON puo' valere
+# "current" per tutte le epoche: vale quello che girava quando la riga e' nata,
+# e l'istante della riga lo dice. E' lo stesso confine usato dalle due commesse
+# di replay (``replay_legacy_topmix.PR24_MERGE_INSTANT``, half-open: una riga
+# nata esattamente a quell'istante e' del modello nuovo).
+TWO_MODELS_MERGE_INSTANT = datetime(2026, 9, 18, 21, 51, 58, tzinfo=timezone.utc)
+
+# Da dove viene la variante di una riga letta: serve a dirlo, non a nasconderlo.
+MODEL_VARIANT_SOURCE_EXPLICIT = "esplicita"
+MODEL_VARIANT_SOURCE_SAVED = "salvato_il"
+MODEL_VARIANT_SOURCE_KICKOFF = "kickoff_utc"
+MODEL_VARIANT_SOURCE_MATCH_DATE = "data_partita"
+MODEL_VARIANT_SOURCE_UNKNOWN = "istante_ignoto"
+
+
+def entry_instant(entry: Any) -> Tuple[Optional[datetime], str]:
+    """Istante in cui la riga e' nata, con la fonte che l'ha deciso.
+
+    ``salvato_il`` e' il momento del salvataggio, cioe' quando il motore ha
+    girato: e' la fonte privilegiata, la stessa di ``entry_generation_time``.
+    Se manca si ripiega sull'istante della partita (``kickoff_utc``, altrimenti
+    la ``data`` italiana): la partita si gioca DOPO il click che l'ha prevista,
+    quindi e' un'approssimazione, e la fonte lo dichiara.
+    """
+    if not is_dict(entry):
+        return None, MODEL_VARIANT_SOURCE_UNKNOWN
+    dt = parse_datetime(entry.get(SALVATO_IL_FIELD))
+    if dt is not None:
+        return dt, MODEL_VARIANT_SOURCE_SAVED
+    ko = entry.get(KICKOFF_UTC_FIELD)
+    if ko is not None and str(ko).strip():
+        dt = parse_datetime(str(ko).strip().replace("Z", "+00:00"))
+        if dt is not None:
+            return dt, MODEL_VARIANT_SOURCE_KICKOFF
+    dt = parse_datetime(entry.get(DATA_FIELD))
+    if dt is not None:
+        return dt, MODEL_VARIANT_SOURCE_MATCH_DATE
+    return None, MODEL_VARIANT_SOURCE_UNKNOWN
+
+
+def model_variant_read(entry: Any, *, boundary: Optional[datetime] = None) -> str:
+    """Variante di una riga LETTA: il campo esplicito vince, l'assenza decide per data.
+
+    Differenza (voluta) da ``model_variant_of``, che resta la convenzione del
+    percorso di SCRITTURA e dell'interfaccia: li' il campo mancante vale
+    ``current`` perche' e' cosi' che sono state scritte le righe e la chiave di
+    dedup non deve cambiare sotto i piedi. In LETTURA quella convenzione e'
+    sbagliata per tutto cio' che e' nato prima del merge di PR#24: allora in
+    produzione girava il motore vecchio, quindi quelle righe sono del modello
+    ``legacy`` per definizione.
+
+    * campo esplicito presente  -> quello (qualunque sia la data);
+    * campo assente, istante noto -> ``legacy`` se l'istante precede
+      ``TWO_MODELS_MERGE_INSTANT``, ``current`` altrimenti;
+    * campo assente, istante ignoto -> ``current``, ma
+      ``model_variant_read_source`` lo dichiara (``istante_ignoto``) e chi
+      legge deve poterlo contare invece di far finta di saperlo.
+    """
+    if not is_dict(entry):
+        return MODEL_VARIANT_CURRENT
+    v = str(entry.get(MODEL_VARIANT_FIELD) or "").strip().lower()
+    if v:
+        return v
+    dt, _ = entry_instant(entry)
+    if dt is None:
+        return MODEL_VARIANT_CURRENT
+    return (MODEL_VARIANT_LEGACY if dt < (boundary or TWO_MODELS_MERGE_INSTANT)
+            else MODEL_VARIANT_CURRENT)
+
+
+def model_variant_read_source(entry: Any) -> str:
+    """Da dove viene la variante letta (campo o istante), per poterlo dichiarare."""
+    if not is_dict(entry):
+        return MODEL_VARIANT_SOURCE_UNKNOWN
+    if str(entry.get(MODEL_VARIANT_FIELD) or "").strip():
+        return MODEL_VARIANT_SOURCE_EXPLICIT
+    _, fonte = entry_instant(entry)
+    return fonte
+
+
 # ---------------------------------------------------------------------------
 # Gate shadow (audit/margini_migliorabili_topmix.md §11quater, piano §9 punto 4)
 # ---------------------------------------------------------------------------

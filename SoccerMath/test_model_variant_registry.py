@@ -62,6 +62,45 @@ class TestSemanticaCampo(unittest.TestCase):
         self.assertEqual(R.model_variant_label(_riga(variant="legacy")), "Legacy")
         self.assertEqual(R.model_variant_label(_riga(variant="boh")), "boh")
 
+    def test_lettura_per_data_prima_e_dopo_la_fusione(self):
+        """Correzione chiesta: il campo mancante non vale "current" per ogni
+        epoca. Una riga nata PRIMA del merge di PR#24 e' del motore che girava
+        allora (legacy); una nata dopo e' del motore nuovo (current)."""
+        prima = _riga(salvato_il="10/09/2026 10:00")
+        dopo = _riga(salvato_il="19/09/2026 10:00")
+        self.assertEqual(R.MODEL_VARIANT_LEGACY, R.model_variant_read(prima))
+        self.assertEqual(R.MODEL_VARIANT_CURRENT, R.model_variant_read(dopo))
+        self.assertEqual(R.MODEL_VARIANT_SOURCE_SAVED, R.model_variant_read_source(prima))
+        # il percorso di scrittura NON cambia: la chiave di dedup resta stabile
+        self.assertEqual(R.MODEL_VARIANT_CURRENT, R.model_variant_of(prima))
+
+    def test_confine_della_fusione_half_open(self):
+        """Un istante esattamente sul confine e' del modello nuovo: la stessa
+        convenzione half-open usata dalle due commesse di replay."""
+        # senza istante di salvataggio decide l'istante della partita
+        self.assertEqual(R.MODEL_VARIANT_LEGACY,
+                         R.model_variant_read(_riga(salvato_il=None, kickoff_utc="2026-09-18T21:51:57Z")))
+        self.assertEqual(R.MODEL_VARIANT_CURRENT,
+                         R.model_variant_read(_riga(salvato_il=None, kickoff_utc="2026-09-18T21:51:58Z")))
+        # il confine e' lo stesso delle due commesse di replay
+        import replay_legacy_topmix as replay
+        self.assertEqual(replay.PR24_MERGE_INSTANT, R.TWO_MODELS_MERGE_INSTANT)
+
+    def test_campo_esplicito_vince_sulla_data(self):
+        esplicita = _riga(variant=R.MODEL_VARIANT_CURRENT, salvato_il="10/09/2026 10:00")
+        self.assertEqual(R.MODEL_VARIANT_CURRENT, R.model_variant_read(esplicita))
+        self.assertEqual(R.MODEL_VARIANT_SOURCE_EXPLICIT, R.model_variant_read_source(esplicita))
+
+    def test_istante_illeggibile_resta_current_ma_dichiarato(self):
+        """Senza nessuna data non si inventa l'epoca: resta ``current`` per
+        convenzione, ma la fonte dice che l'istante e' ignoto, cosi' chi legge
+        lo puo' contare invece di scambiarlo per una riga del modello nuovo."""
+        senza_date = _riga()
+        for campo in (R.SALVATO_IL_FIELD, R.KICKOFF_UTC_FIELD, R.DATA_FIELD):
+            senza_date.pop(campo, None)
+        self.assertEqual(R.MODEL_VARIANT_CURRENT, R.model_variant_read(senza_date))
+        self.assertEqual(R.MODEL_VARIANT_SOURCE_UNKNOWN, R.model_variant_read_source(senza_date))
+
     def test_non_confonde_model_version(self):
         # model_version "legacy" (era pre-shrinkage) NON e' la variante legacy.
         vecchia = _riga(**{R.MODEL_VERSION_FIELD: R.MODEL_VERSION_LEGACY})

@@ -177,6 +177,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                          "SINTETICI; le righe del Registro vivo hanno gli id dell'API, quindi "
                          "per misurarle serve 'api'")
     ap.add_argument("--out", default=None, metavar="FILE", help="referto markdown")
+    ap.add_argument("--json", dest="json_out", default=None, metavar="FILE",
+                    help="esito in JSON (per il gate: quale modello manca e con quale motivo "
+                         "MISURATO). Senza questo file un'assenza non e' spiegata.")
     args = ap.parse_args(argv)
 
     with open(args.coverage, encoding="utf-8") as f:
@@ -199,7 +202,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         fixtures = replay.fixtures_from_csv_and_archive(leghe)
     dettagli = []
-    non_diagnosticabili: List[Tuple[Dict[str, Any], str]] = []
+    non_diagnosticabili: List[Dict[str, Any]] = []
     for variante, r in sorted(tutte, key=lambda x: (x[1].get("kickoff_utc") or "", x[1]["partita"])):
         # Una riga che non si riesce a rigiocare (kickoff assente, partita non
         # nelle fixture, controprova fallita) NON deve fermare la diagnosi delle
@@ -208,7 +211,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             d = diagnosi_partita(r, fixtures, snapshot_cache=args.snapshot_cache)
         except (SystemExit, Exception) as e:  # SystemExit: gli errori "parlanti" del modulo
             motivo = str(getattr(e, "code", None) or e)
-            non_diagnosticabili.append((r, motivo))
+            non_diagnosticabili.append({
+                "partita": r["partita"], "match_id": r.get("match_id"), "campionato": r.get("campionato"),
+                # Anche qui si sa QUALE modello manca: l'assenza resta non
+                # spiegata, ma il gate deve poterla attribuire alla variante.
+                "variante_assente": MODEL_VARIANT_LEGACY if variante == MODEL_VARIANT_CURRENT
+                                    else MODEL_VARIANT_CURRENT,
+                "motivo": motivo})
             print(f"{r['partita']} ({r['campionato']}): NON diagnosticabile -> {motivo}")
             continue
         d["variante_presente"] = variante
@@ -252,8 +261,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         L.append("")
         L.append("| partita | campione | motivo |")
         L.append("|---|---|---|")
-        for r, motivo in non_diagnosticabili:
-            L.append(f"| {r['partita']} | {r['campionato']} | {motivo[:300]} |")
+        for voce in non_diagnosticabili:
+            L.append(f"| {voce['partita']} | {voce['campionato']} | {voce['motivo'][:300]} |")
         L.append("")
         L.append("Queste righe non sono state rigiocate: il motivo della loro copertura a un solo")
         L.append("modello resta NON misurato e va trattato come tale (non come un'assenza spiegata).")
@@ -268,6 +277,33 @@ def main(argv: Optional[List[str]] = None) -> int:
         with open(args.out, "w", encoding="utf-8") as f:
             f.write(testo)
         print(f"[diagnosi] referto: {args.out}")
+
+    # Esito leggibile da una macchina: per ogni partita a un solo modello, quale
+    # modello manca e con quale motivo MISURATO. Il gate di CI decide su questo,
+    # non su un conteggio: un'assenza senza motivo misurato non e' spiegata.
+    if args.json_out:
+        def _categoria(motivo: str) -> str:
+            return motivo.split(" (")[0].strip()
+
+        esito_json = {
+            "fixtures": args.fixtures,
+            "soglie": {"1X2": 0.55, "totali": 0.60},
+            "targets": [{
+                "match_id": d.get("match_id"), "partita": d["partita"], "campionato": d["campionato"],
+                "kickoff": d["kickoff"], "kickoff_dedotto": bool(d.get("kickoff_dedotto")),
+                "variante_presente": d["variante_presente"], "variante_assente": d["variante_assente"],
+                "motivo_assente": d["esiti"][d["variante_assente"]]["motivo"],
+                "categoria_assente": _categoria(d["esiti"][d["variante_assente"]]["motivo"]),
+                "conf_assente": d["esiti"][d["variante_assente"]]["confidence"],
+                "motivo_presente": d["esiti"][d["variante_presente"]]["motivo"],
+            } for d in dettagli],
+            "non_diagnosticabili": non_diagnosticabili,
+            "riepilogo": motivi,
+        }
+        os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
+        with open(args.json_out, "w", encoding="utf-8") as f:
+            json.dump(esito_json, f, ensure_ascii=False, indent=2, sort_keys=True)
+        print(f"[diagnosi] esito per il gate: {args.json_out}")
     print(f"NON DIAGNOSTICABILI: {len(non_diagnosticabili)} su {len(tutte)}")
     # 3 = diagnosi fatta ma con righe dichiarate non misurate (il chiamante
     # decide se e' un guasto o una dichiarazione: la causa resta parziale).

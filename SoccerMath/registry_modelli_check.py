@@ -15,8 +15,12 @@ la stessa finestra dichiarata ricostruibile (`REPLAY_START_INSTANT`).
 Dichiara anche tre cose che un conteggio secco nasconderebbe:
 
 * quante righe hanno il campo variante **esplicito** (scritte dal replay) e
-  quante non ce l'hanno (record storici: il campo non esisteva, il motore di
-  allora era quello vecchio ma `model_variant_of` li legge come ``current``);
+  quante non ce l'hanno (record storici: il campo non esisteva). Quelle senza
+  campo si leggono **con la data** (``model_variant_read``): una riga nata
+  prima del merge di PR#24 e' del motore che girava allora, cioe' il ``legacy``;
+  una nata dopo e' del ``current``. Il conteggio e' diviso fra le due epoche e
+  dichiara la fonte dell'istante (``salvato_il``, ``kickoff_utc``, ``data``);
+  un istante ignoto resta ``current`` ma viene contato a parte;
 * quante partite ha ciascun modello **in più** dell'altro, con mercato e
   probabilita' del selettore che le ha scelte;
 * se mancano righe del modello ATTUALE per partite che hanno solo il legacy:
@@ -48,8 +52,10 @@ from registry_coverage import (  # noqa: E402
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_LABELS,
     MODEL_VARIANT_LEGACY,
+    MODEL_VARIANT_SOURCE_UNKNOWN,
     match_key,
-    model_variant_of,
+    model_variant_read,
+    model_variant_read_source,
     row_day,
     top_mix_rows,
 )
@@ -84,7 +90,7 @@ def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
     righe_per_partita: Dict[str, Dict[Tuple[Any, ...], List[Dict[str, Any]]]] = {
         MODEL_VARIANT_CURRENT: {}, MODEL_VARIANT_LEGACY: {}}
     for r in righe:
-        variante = model_variant_of(r)
+        variante = model_variant_read(r)
         chiave = match_key(r)
         per_variante[variante].setdefault(chiave, r)
         righe_per_partita[variante].setdefault(chiave, []).append(r)
@@ -99,9 +105,10 @@ def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
             gruppo = righe_per_partita[variante][k]
             # Due specie di righe per la stessa partita, e non si escludono:
             # quelle scritte dal REPLAY (campo variante esplicito) e i click
-            # VERI dell'epoca, senza campo perche' non esisteva (la convenzione
-            # li legge come "current", ma prima di PR#24 il motore live era
-            # quello vecchio). Chi legge i conteggi deve poterle distinguere.
+            # VERI dell'epoca, senza campo perche' non esisteva. La variante di
+            # quei click e' decisa dall'ISTANTE (prima del merge di PR#24 -> il
+            # motore di allora, cioe' legacy); qui si dichiara anche da dove
+            # viene la decisione, cosi' nessuna riga sembra quello che non e'.
             return {"partita": f"{r.get('home')} - {r.get('away')}",
                     "data": r.get("data"),
                     "campionato": r.get("campionato"),
@@ -111,15 +118,32 @@ def _conteggi(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
                     "righe": len(gruppo),
                     "riga_del_replay": any(_ha_variante_esplicita(x) for x in gruppo),
                     "riga_storica": any(not _ha_variante_esplicita(x) for x in gruppo),
-                    "variante_esplicita": _ha_variante_esplicita(r)}
+                    "variante_esplicita": _ha_variante_esplicita(r),
+                    "variante_da": model_variant_read_source(r)}
         return [_voce(k) for k in chiavi]
 
+    senza = [r for r in righe if not _ha_variante_esplicita(r)]
+    fonti: Dict[str, int] = {}
+    for r in senza:
+        fonte = model_variant_read_source(r)
+        fonti[fonte] = fonti.get(fonte, 0) + 1
     return {
         "righe": len(righe),
         "righe_con_variante_esplicita": sum(1 for r in righe if _ha_variante_esplicita(r)),
-        "righe_senza_variante": sum(1 for r in righe if not _ha_variante_esplicita(r)),
+        "righe_senza_variante": len(senza),
+        # Le righe senza campo: quante nate prima del merge di PR#24 (lette
+        # legacy) e quante dopo (lette current), con la fonte dell'istante.
+        "senza_etichetta": {
+            "prima_della_fusione": sum(1 for r in senza if model_variant_read(r) == MODEL_VARIANT_LEGACY),
+            # Un istante che non si riesce a leggere non e' "dopo la fusione":
+            # e' un'incognita, e si conta a parte invece di gonfiare il current.
+            "dopo_la_fusione": sum(1 for r in senza if fonti.get(model_variant_read_source(r))
+                                   and model_variant_read(r) == MODEL_VARIANT_CURRENT),
+            "istante_ignoto": fonti.get(MODEL_VARIANT_SOURCE_UNKNOWN, 0),
+            "fonti": fonti,
+        },
         "partite": {v: len(insiemi[v]) for v in insiemi},
-        "righe_totali": {v: sum(1 for r in righe if model_variant_of(r) == v) for v in insiemi},
+        "righe_totali": {v: sum(1 for r in righe if model_variant_read(r) == v) for v in insiemi},
         "comuni": len(comuni),
         "solo": {MODEL_VARIANT_CURRENT: _dettaglio(MODEL_VARIANT_CURRENT, solo_c),
                  MODEL_VARIANT_LEGACY: _dettaglio(MODEL_VARIANT_LEGACY, solo_l)},
@@ -158,14 +182,24 @@ def _righe_referto(esito: Dict[str, Any]) -> List[str]:
                  f"solo attuale **{len(c['solo'][MODEL_VARIANT_CURRENT])}**, "
                  f"solo legacy **{len(c['solo'][MODEL_VARIANT_LEGACY])}**")
     intero = esito["intero"]
-    mancanti_attuale = intero["solo"][MODEL_VARIANT_LEGACY]
+    se = intero["senza_etichetta"]
+    L.append(f"- righe SENZA etichetta ({intero['righe_senza_variante']}): **{se['prima_della_fusione']} nate "
+             f"prima del merge di PR#24** (lette `legacy`: allora in produzione girava quel motore) · "
+             f"**{se['dopo_la_fusione']} nate dopo** (lette `current`) · "
+             f"**{se['istante_ignoto']} con istante illeggibile** (nessuna data: restano `current` per "
+             f"convenzione e sono dichiarate) · fonti dell'istante: {se['fonti']}")
     if intero["pareggio"]:
         L.append("- **i due campioni COINCIDONO**: ogni partita del periodo ha entrambi i modelli")
     else:
-        delta = intero["partite"][MODEL_VARIANT_CURRENT] - intero["partite"][MODEL_VARIANT_LEGACY]
-        L.append(f"- **i due campioni NON coincidono**: il modello attuale copre {delta} partite in piu'. "
-                 f"Le partite mancanti sono quelle in cui il LEGACY non esprime una scelta (sotto le "
-                 f"soglie del selettore 0,55 1X2 / 0,60 Totali, o scartate dal veto di disaccordo)")
+        n_c = intero["partite"][MODEL_VARIANT_CURRENT]
+        n_l = intero["partite"][MODEL_VARIANT_LEGACY]
+        solo_c = len(intero["solo"][MODEL_VARIANT_CURRENT])
+        solo_l = len(intero["solo"][MODEL_VARIANT_LEGACY])
+        L.append(f"- **i due campioni NON coincidono**: il modello attuale copre {n_c} partite, il legacy "
+                 f"{n_l}; {solo_c + solo_l} partite le copre UN SOLO modello "
+                 f"({solo_c} solo attuale, {solo_l} solo legacy). Dove manca l'ATTUALE la causa va "
+                 f"MISURATA (diagnosi: sotto soglia, veto o buco del replay); dove manca il LEGACY vale "
+                 f"lo stesso: sotto le soglie del selettore 0,55 1X2 / 0,60 Totali o scartata dal veto")
     for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
         voci = intero["solo"][variante]
         if voci:
@@ -177,17 +211,27 @@ def _righe_referto(esito: Dict[str, Any]) -> List[str]:
                      f"{storiche} (campo variante assente; le due condizioni possono "
                      f"valere per la stessa partita)")
             for v in voci[:8]:
+                da = v.get("variante_da")
                 L.append(f"    · {v['partita']} ({v['campionato']}, {v['data']}) "
-                         f"{v['mercato']} {v['prob']}%")
+                         f"{v['mercato']} {v['prob']}% · variante da: {da}")
             if len(voci) > 8:
                 L.append(f"    · … e altre {len(voci) - 8}")
-    come = ("nessuna: tutte le partite coperte dal legacy hanno anche l'attuale" if not mancanti_attuale
-            else "si scrivono rilanciando il replay: aggiunge, non sovrascrive")
-    L.append(f"- righe del modello ATTUALE da scrivere: **{len(mancanti_attuale)}** ({come})")
-    L.append("- le righe mancanti del modello LEGACY non si scrivono: sarebbero righe sotto soglia o "
-             "scartate dal veto, cioe' un campione falsato (vietato dalla commessa)" if
-             intero["solo"][MODEL_VARIANT_CURRENT] else
-             "- nessuna partita in cui il legacy manca: nulla da dichiarare")
+    # Il modello ATTUALE manca dove il Registro ha solo il legacy: quelle righe
+    # il replay le puo' scrivere (aggiunge, non sovrascrive), ma solo se il
+    # motore attuale esprime una scelta: la causa va MISURATA dalla diagnosi,
+    # non dedotta qui. Il contrario (manca il LEGACY) non si scrive mai.
+    mancanti_attuale = intero["solo"][MODEL_VARIANT_LEGACY]
+    mancanti_legacy = intero["solo"][MODEL_VARIANT_CURRENT]
+    L.append(f"- partite senza la riga del modello ATTUALE (il Registro ha solo il legacy): "
+             f"**{len(mancanti_attuale)}** — se il motore attuale esprime una scelta si scrivono "
+             f"rilanciando il replay (aggiunge, non sovrascrive); se non la esprime (sotto soglia o "
+             f"veto) la riga NON va scritta: la diagnosi lo misura partita per partita")
+    L.append(f"- partite senza la riga del modello LEGACY (il Registro ha solo l'attuale): "
+             f"**{len(mancanti_legacy)}** — non si scrivono a tavolino: sarebbero righe sotto soglia o "
+             f"scartate dal veto, cioe' un campione falsato (vietato dalla commessa)")
+    L.append(f"- gate: le partite senza la riga ATTUALE sono {len(mancanti_attuale)}; la run resta "
+             f"VERDE solo se la diagnosi ne spiega ognuna (sotto soglia o veto). Un solo motivo non "
+             f"attribuito le rende ROSSE.")
     return L
 
 

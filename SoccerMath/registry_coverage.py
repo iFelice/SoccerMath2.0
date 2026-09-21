@@ -28,8 +28,10 @@ from prediction_registry import (
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_LABELS,
     MODEL_VARIANT_LEGACY,
+    MODEL_VARIANT_SOURCE_UNKNOWN,
     ORIGIN_TOP_MIX,
-    model_variant_of,
+    model_variant_read,
+    model_variant_read_source,
     origin_of,
 )
 
@@ -102,8 +104,12 @@ def coverage_by_variant(rows: Iterable[Dict[str, Any]], day_from: Optional[date]
     per il referto e per il JSON.
     """
     per_variante: Dict[str, Dict[Tuple[Any, ...], Dict[str, Any]]] = {v: {} for v in VARIANTI}
+    # La variante si LEGGE con la data quando il campo manca (una riga nata
+    # prima del merge di PR#24 e' del motore di allora, cioe' il legacy): e'
+    # ``model_variant_read``, non ``model_variant_of``, che resta la convenzione
+    # del percorso di scrittura.
     for r in top_mix_rows(rows, day_from, day_to):
-        per_variante[model_variant_of(r)].setdefault(match_key(r), r)
+        per_variante[model_variant_read(r)].setdefault(match_key(r), r)
 
     insiemi = {v: set(per_variante[v]) for v in VARIANTI}
     comuni = insiemi[MODEL_VARIANT_CURRENT] & insiemi[MODEL_VARIANT_LEGACY]
@@ -119,6 +125,9 @@ def coverage_by_variant(rows: Iterable[Dict[str, Any]], day_from: Optional[date]
             "prob": r.get("prob_sicuro"),
             "esito": r.get("esito"),
             "match_id": r.get("match_id"),
+            # Da dove viene la variante (campo esplicito o istante della riga):
+            # senza questo, una riga senza campo sembra una riga del replay.
+            "variante_da": model_variant_read_source(r),
         }
 
     solo_c = sorted(insiemi[MODEL_VARIANT_CURRENT] - insiemi[MODEL_VARIANT_LEGACY], key=str)
@@ -130,7 +139,7 @@ def coverage_by_variant(rows: Iterable[Dict[str, Any]], day_from: Optional[date]
         "solo": {MODEL_VARIANT_CURRENT: [_riga(MODEL_VARIANT_CURRENT, k) for k in solo_c],
                  MODEL_VARIANT_LEGACY: [_riga(MODEL_VARIANT_LEGACY, k) for k in solo_l]},
         "righe_totali": {v: sum(1 for r in top_mix_rows(rows, day_from, day_to)
-                                if model_variant_of(r) == v) for v in VARIANTI},
+                                if model_variant_read(r) == v) for v in VARIANTI},
         "pareggio": len(solo_c) == 0 and len(solo_l) == 0,
     }
 
