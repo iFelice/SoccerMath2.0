@@ -31,13 +31,15 @@ concurrency:
 jobs:
   verifica:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     env:
       OUT: ${{ github.workspace }}/modelli-out
 
     steps:
-      - name: Checkout
+      - name: "Checkout (storia completa: la diagnosi ricostruisce gli snapshot da git)"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -122,6 +124,51 @@ jobs:
           if [ "$rc" != "0" ]; then
             echo "::error title=modelli::lo strumento e' uscito con $rc (2 = Registro non leggibile)"
             exit "$rc"
+          fi
+
+      # La copia fusa del Registro serve alla diagnosi: la si scrive QUI, in
+      # locale nel runner, leggendo il Registro (nessuna scrittura remota).
+      - name: Copia locale del Registro per la diagnosi (sola lettura)
+        if: always()
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
+        run: |
+          python - "$OUT/registro_vivo.json" <<'PY'
+          import json, sys
+          sys.path.insert(0, "SoccerMath")
+          from registry_coverage_check import load_registry_readonly
+          righe, fonte = load_registry_readonly()
+          with open(sys.argv[1], "w", encoding="utf-8") as f:
+              json.dump({"data": righe}, f, ensure_ascii=False, indent=2)
+          print(f"copia locale del Registro ({fonte}): {len(righe)} righe -> {sys.argv[1]}")
+          PY
+          python SoccerMath/registry_coverage_check.py --allow-mismatch \
+            --json "$OUT/coverage.json" 2>&1 | tee "$OUT/coverage.txt" | head -n 12
+
+      # Perche' manca la riga del modello assente: un click VERO per partita e
+      # gli ingressi del selettore intercettati mentre gira. Misura, non stima.
+      - name: Perche' manca il modello assente (misurato, sola lettura)
+        if: always()
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          set -o pipefail
+          set +e
+          python audit/diagnose_scarti_model_variant.py \
+            --dump "$OUT/registro_vivo.json" --coverage "$OUT/coverage.json" \
+            --snapshot-cache "$RUNNER_TEMP/sm_snap_cache" \
+            --out "$OUT/diagnosi_scarti.md" 2>&1 | tee "$OUT/diagnosi.txt"
+          rc=$?
+          set -e
+          grep -E "^Riepilogo|assente ->" "$OUT/diagnosi.txt" | head -n 22 | while IFS= read -r line; do
+            echo "::warning title=diagnosi::${line:0:900}"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=diagnosi::uscita $rc (la causa delle partite senza modello non e' stata misurata)"
           fi
 
       - name: Artifact (referto della verifica)
