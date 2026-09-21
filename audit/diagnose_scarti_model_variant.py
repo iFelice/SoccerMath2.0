@@ -213,7 +213,6 @@ def main(argv: Optional[List[str]] = None) -> int:
             continue
         d["variante_presente"] = variante
         d["variante_assente"] = MODEL_VARIANT_LEGACY if variante == MODEL_VARIANT_CURRENT else MODEL_VARIANT_CURRENT
-        d["kickoff_dedotto"] = dedotto
         dettagli.append(d)
         assente = d["esiti"][d["variante_assente"]]
         print(f"{d['partita']} ({d['campionato']}, {d['kickoff']}): "
