@@ -259,13 +259,20 @@ def save_predictions(preds):
     # nuovi o cambiati, quindi non riscrive lo storico e non puo' cancellare le
     # righe che un altro scrittore ha aggiunto nel frattempo.
     try:
+        from registry_store import backend as backend_attivo
         from registry_store import esito_scrittura, save_rows
         remoto = esito_scrittura(save_rows(preds))
     except Exception as e:
-        remoto = {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300],
-                  "backend": "n/d"}
+        # Se la scrittura non e' nemmeno partita (credenziali mancanti, rete
+        # giu'), dire QUALE backend e' rimasto senza risposta: "n/d" non aiuta
+        # chi legge il messaggio o il log.
+        try:
+            remoto = {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300],
+                      "backend": backend_attivo()}
+        except Exception:
+            remoto = {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300]}
     esito["remoto"] = remoto.get("remoto", "errore")
-    esito["backend_registro"] = remoto.get("backend")
+    esito["backend_registro"] = remoto.get("backend", "n/d")
     if "byte" in remoto:
         esito["byte_scritti"] = remoto["byte"]
     for chiave in ("remoto_dettaglio", "comandi", "righe_scritte", "righe_saltate", "righe_hash"):

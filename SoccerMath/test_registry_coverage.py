@@ -11,10 +11,12 @@ from __future__ import annotations
 import json
 import os
 import sys
+import shutil
 import tempfile
 import unittest
 from unittest import mock
 from datetime import date
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
@@ -186,6 +188,79 @@ class TestLetturaDalBackendAttivo(unittest.TestCase):
             righe, fonte = load_registry_readonly()
         self.assertTrue(fonte.startswith("file locale"), fonte)
         self.assertEqual([1], [r["match_id"] for r in righe])
+
+
+class TestDegradoDellApp(unittest.TestCase):
+    """Con il Registro su Upstash, se il backend non risponde l'app NON deve
+    rompersi: legge la copia locale e lo dichiara. E' il percorso che l'utente
+    incontra se Upstash e' giu' o se i secret sono sbagliati.
+
+    Nota di igiene, imparata sbagliando: ``app`` importa ``PREDICTIONS_FILE`` e
+    ``DATABASE_DIR`` nel PROPRIO namespace, quindi correggere
+    ``config.PREDICTIONS_FILE`` non basta — la prima versione di questi test ha
+    scritto davvero nella copia locale del Registro. Qui si corregge il nome
+    giusto e c'e' una guardia che fallisce se il file locale vero cambia.
+    """
+
+    def setUp(self):
+        import app
+        from config import PREDICTIONS_FILE
+        self.app = app
+        self.file_vero = Path(PREDICTIONS_FILE)
+        self.prima = self.file_vero.read_bytes() if self.file_vero.exists() else None
+
+    def tearDown(self):
+        ora = self.file_vero.read_bytes() if self.file_vero.exists() else None
+        self.assertEqual(self.prima, ora,
+                         f"il test ha modificato la copia locale vera ({self.file_vero}): "
+                         "i patch devono mirare a app.PREDICTIONS_FILE, non a config")
+
+    def _file_locale(self, righe, nome="registro"):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        percorso = Path(d) / f"{nome}.json"
+        percorso.write_text(json.dumps({"data": righe}), encoding="utf-8")
+        return percorso
+
+    def test_credenziali_assenti_ricade_sul_file_locale(self):
+        import config
+        percorso = self._file_locale([{"match_id": 42, "data": "10/09/2026 20:00"}])
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "",
+               "UPSTASH_REDIS_REST_TOKEN": ""}
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(config, "UPSTASH_REDIS_REST_URL", ""), \
+             mock.patch.object(config, "UPSTASH_REDIS_REST_TOKEN", ""), \
+             mock.patch.object(self.app, "PREDICTIONS_FILE", str(percorso)):
+            righe = self.app.load_predictions()
+        self.assertEqual([{"match_id": 42, "data": "10/09/2026 20:00"}], righe,
+                         "l'app deve leggere la copia locale, non esplodere")
+
+    def test_backend_giu_ricade_sul_file_locale(self):
+        import requests
+        percorso = self._file_locale([{"match_id": 7, "data": "10/09/2026 20:00"}])
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(self.app, "PREDICTIONS_FILE", str(percorso)), \
+             mock.patch.object(requests, "post", side_effect=RuntimeError("rete giu'")):
+            righe = self.app.load_predictions()
+        self.assertEqual([{"match_id": 7, "data": "10/09/2026 20:00"}], righe)
+
+    def test_salvataggio_riporta_l_errore_senza_mentire(self):
+        """Il messaggio non deve dire "salvati" se l'hash non ha risposto."""
+        import requests
+        percorso = self._file_locale([])
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(self.app, "PREDICTIONS_FILE", str(percorso)), \
+             mock.patch.object(self.app, "DATABASE_DIR", str(percorso.parent)), \
+             mock.patch.object(requests, "post", side_effect=RuntimeError("rete giu'")):
+            esito = self.app.save_predictions([{"match_id": 1, "data": "10/09/2026 20:00"}])
+        self.assertTrue(esito["locale"], "la copia locale si scrive comunque")
+        self.assertEqual("errore", esito["remoto"])
+        self.assertIn("upstash", str(esito.get("backend_registro")))
+        self.assertIn("rete giu'", str(esito.get("remoto_dettaglio")))
 
 
 class TestRegistroDaFile(unittest.TestCase):
