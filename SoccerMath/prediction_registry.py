@@ -98,19 +98,26 @@ CUTOFF_COMMIT_TIME = datetime(2026, 9, 4, 15, 40, 10, tzinfo=timezone.utc)
 CUTOFF_MERGE_TIME = datetime(2026, 9, 4, 16, 50, 17, tzinfo=timezone.utc)
 
 # Etichette UI.
-MODEL_LABEL_CURRENT = "✓ Modello attuale"
-MODEL_LABEL_PRE_FIX = "⚠️ Pre-fix"
-MODEL_LABEL_LEGACY = "Legacy"
-MODEL_LABEL_AMBIGUOUS = "⚠️ Ambiguo"
+# Etichette della SCHEDA del record (``model_version`` = con quale versione di
+# pipeline la riga e' stata scritta). NON sono il motore Elo: quello e'
+# ``model_variant`` e decide in quale delle due tabelle del Registro sta la
+# riga. Prima si chiamavano "✓ Modello attuale" / "Legacy" e dentro la tabella
+# del MOTORE legacy la scritta "Modello attuale" sembrava una contraddizione:
+# erano due cose diverse (scheda contro motore) con due nomi quasi uguali.
+MODEL_LABEL_CURRENT = "✓ scheda post-fix"
+MODEL_LABEL_PRE_FIX = "⚠️ scheda pre-fix"
+MODEL_LABEL_LEGACY = "senza versione"
+MODEL_LABEL_AMBIGUOUS = "⚠️ scheda ambigua"
 MODEL_LABEL_UNKNOWN = "N/D"
 
 PRE_FIX_TOOLTIP = (
-    "Predizione generata prima del fix di regolarizzazione dei piccoli campioni. "
-    "Conservata per audit e non inclusa nelle statistiche del modello attuale."
+    "Record scritto prima del fix di regolarizzazione dei piccoli campioni. "
+    "Conservato per audit e non incluso nelle statistiche del modello attuale."
 )
 CURRENT_MODEL_TOOLTIP = (
-    f"Predizione generata con il motore corrente ({MODEL_VERSION_CURRENT}). "
-    "Inclusa nelle statistiche del modello attuale."
+    f"Record scritto dal versionamento in produzione ({MODEL_VERSION_CURRENT}). "
+    "E' la SCHEDA del record, non il motore Elo: il motore decide in quale delle "
+    "due tabelle sta la riga (Attuale / Legacy)."
 )
 
 
@@ -214,6 +221,25 @@ def entry_instant(entry: Any) -> Tuple[Optional[datetime], str]:
     return None, MODEL_VARIANT_SOURCE_UNKNOWN
 
 
+def _testo_campo_variante(value: Any) -> str:
+    """Il campo variante come testo, con i valori ASSENTI trattati per quello che sono.
+
+    Un record letto dal registro JSON non ha la chiave; un DataFrame di pandas
+    la crea con ``NaN``. ``str(nan)`` e' ``"nan"``: senza questo filtro una riga
+    senza campo veniva letta come una terza variante chiamata ``nan`` e spariva
+    dal blocco legacy (bug visto in UI il 21/09/2026). ``None``, ``NaN``,
+    ``pd.NA`` e stringhe vuote valgono tutti "campo assente".
+    """
+    if value is None:
+        return ""
+    if isinstance(value, float) and value != value:      # NaN di pandas/numpy
+        return ""
+    if value is not value:                               # pd.NA e simili
+        return ""
+    testo = str(value).strip()
+    return "" if testo.lower() in {"nan", "none", "nat", "na", "<na>", "<nat>"} else testo
+
+
 def model_variant_read(entry: Any, *, boundary: Optional[datetime] = None) -> str:
     """Variante di una riga LETTA: il campo esplicito vince, l'assenza decide per data.
 
@@ -234,7 +260,7 @@ def model_variant_read(entry: Any, *, boundary: Optional[datetime] = None) -> st
     """
     if not is_dict(entry):
         return MODEL_VARIANT_CURRENT
-    v = str(entry.get(MODEL_VARIANT_FIELD) or "").strip().lower()
+    v = _testo_campo_variante(entry.get(MODEL_VARIANT_FIELD)).lower()
     if v:
         return v
     dt, _ = entry_instant(entry)
@@ -248,7 +274,7 @@ def model_variant_read_source(entry: Any) -> str:
     """Da dove viene la variante letta (campo o istante), per poterlo dichiarare."""
     if not is_dict(entry):
         return MODEL_VARIANT_SOURCE_UNKNOWN
-    if str(entry.get(MODEL_VARIANT_FIELD) or "").strip():
+    if _testo_campo_variante(entry.get(MODEL_VARIANT_FIELD)):
         return MODEL_VARIANT_SOURCE_EXPLICIT
     _, fonte = entry_instant(entry)
     return fonte
@@ -1020,7 +1046,7 @@ def model_variant_of(entry: Any) -> str:
     """
     if not is_dict(entry):
         return MODEL_VARIANT_CURRENT
-    v = str(entry.get(MODEL_VARIANT_FIELD) or "").strip().lower()
+    v = _testo_campo_variante(entry.get(MODEL_VARIANT_FIELD)).lower()
     return v or MODEL_VARIANT_CURRENT
 
 

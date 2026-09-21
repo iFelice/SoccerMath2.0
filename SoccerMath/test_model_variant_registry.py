@@ -55,6 +55,24 @@ class TestSemanticaCampo(unittest.TestCase):
         self.assertEqual(R.model_variant_of(_riga(variant="")), R.MODEL_VARIANT_CURRENT)
         self.assertFalse(R.is_legacy_variant(_riga()))
 
+    def test_valori_assenti_di_pandas_non_diventano_una_variante(self):
+        """Bug visto in UI il 21/09/2026: su un DataFrame di pandas il campo
+        assente diventa ``NaN`` e ``str(nan)`` e' ``"nan"``, cioe' una terza
+        variante fantasma che faceva sparire la riga dal blocco legacy."""
+        nan = float("nan")
+        # NaN = campo assente: decide la DATA, come per una riga senza chiave.
+        prima = _riga(variant=nan, salvato_il="10/09/2026 12:00")
+        dopo = _riga(variant=nan)                      # salvato il 19/09 (post-merge)
+        self.assertEqual(R.model_variant_read(prima), R.MODEL_VARIANT_LEGACY)
+        self.assertEqual(R.model_variant_read(dopo), R.MODEL_VARIANT_CURRENT)
+        self.assertEqual(R.MODEL_VARIANT_SOURCE_SAVED, R.model_variant_read_source(prima),
+                         "la fonte e' l'istante di salvataggio: il campo NaN non e' un valore esplicito")
+        self.assertEqual(R.model_variant_of(_riga(variant=nan)), R.MODEL_VARIANT_CURRENT)
+        # Stessa cosa per le altre forme di "assente" e per la stringa "nan".
+        for valore in (None, "", "  ", "nan", "NaN", "NA"):
+            self.assertEqual(R.model_variant_read(_riga(variant=valore, salvato_il="10/09/2026 12:00")),
+                             R.MODEL_VARIANT_LEGACY, f"valore {valore!r} trattato come assente")
+
     def test_legacy_esplicita(self):
         self.assertEqual(R.model_variant_of(_riga(variant="legacy")), R.MODEL_VARIANT_LEGACY)
         self.assertEqual(R.model_variant_of(_riga(variant=" LEGACY ")), R.MODEL_VARIANT_LEGACY)

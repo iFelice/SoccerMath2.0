@@ -46,15 +46,13 @@ from prediction_registry import (
     MODEL_VERSION_CURRENT,
     MODEL_VERSION_FIELD,
     MODEL_LABEL_CURRENT,
+    MODEL_LABEL_LEGACY,
     MODEL_LABEL_PRE_FIX,
     PRE_FIX_TOOLTIP,
     CURRENT_MODEL_TOOLTIP,
     new_prediction_metadata,
     model_label,
-    stats_current_model,
-    stats_legacy_variant,
-    split_by_variant,
-    stats_historical,
+    is_current_model,
     stats_all,
     backup_prediction_file,
     build_registry_datetime_column,
@@ -2082,6 +2080,25 @@ with tab1:
         else:
             st.info("👋 Premi SINCRONIZZA per caricare le partite del campionato selezionato.")
 
+def _mostra_blocco_modello(records, titolo, sottotitolo):
+    """Blocco statistiche di UN motore: le STESSE righe della sua tabella.
+
+    Un solo modo di contare, quello della tabella: la variante letta (campo
+    esplicito, oppure DATA quando il campo manca) sceglie sia il blocco sia la
+    tabella, quindi i due numeri non possono divergere.
+    """
+    s = stats_all(records)
+    st.markdown(f"##### {titolo} — {s['total']} righe")
+    st.caption(sottotitolo)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Totale", s["total"])
+    c2.metric("✅ Vinte", s["wins"],
+              delta=f"{s['win_rate']:.1f}%" if s["decided"] else None,
+              help="Percentuale calcolata solo sulle partite decise (esclude quelle in attesa).")
+    c3.metric("❌ Perse", s["losses"])
+    c4.metric("⏳ Attesa", s["pending"])
+
+
 def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
     """Una delle due tabelle del Top Mix: intestazione esplicita + tutte le righe."""
     st.markdown(f"<div class='top-mix-model {css_class}'><b>{titolo}</b><br><small>{sottotitolo}</small></div>",
@@ -2101,6 +2118,17 @@ def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
 # tabelle non possono divergere fra loro.
 REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_standard",
                     "prob_sicuro", "risultato_reale", "esito", "origine", "modello"]
+
+# Spiegazione della colonna "Scheda del record": la colonna parla di come il
+# record e' stato SCRITTO (``model_version``), non di quale Elo ha prodotto i
+# numeri. La confusione fra i due assi faceva sembrare contraddittoria una riga
+# del motore legacy con l'etichetta della scheda attuale.
+SCHEDE_RECORD_HELP = (
+    f"{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}\n\n"
+    f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n"
+    f"{MODEL_LABEL_LEGACY}: riga scritta quando il campo `model_version` non esisteva "
+    "ancora (prima del 04/09/2026): resta visibile per audit."
+)
 
 
 def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420):
@@ -2131,12 +2159,13 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
                 None,
                 format="DD/MM/YYYY HH:mm",
             ),
-            # La colonna del vecchio "Modello" (pre-fix / attuale) resta, ma non
-            # si chiama piu' "Modello": dentro una tabella intitolata a UN motore
-            # quel nome faceva pensare alla variante. E' la versione del RECORD.
+            # La colonna del vecchio "Modello" (pre-fix / attuale) resta, ma si
+            # chiama "Scheda del record": dentro una tabella intitolata a UN
+            # motore la parola "Modello" faceva pensare alla variante, mentre
+            # qui si parla di come il record e' stato scritto.
             "modello": st.column_config.TextColumn(
-                "Versione record",
-                help=f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}",
+                "Scheda del record",
+                help=SCHEDE_RECORD_HELP,
             ),
         },
     )
@@ -2368,50 +2397,50 @@ with tab5:
         # Nessun filtro sulla variante: le due tabelle piu' sotto sono gia' una
         # per motore, e nessuna riga viene nascosta da un filtro in piu'.
 
-        filtered_records = df_preds.to_dict("records")
-        current_stats = stats_current_model(filtered_records)
-        legacy_stats = stats_legacy_variant(filtered_records)
-        historical_stats = stats_historical(filtered_records)
-        all_stats = stats_all(filtered_records)
+        # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
+        df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
+        # UNA sola lettura della variante per tutta la pagina: blocchi, tabelle e
+        # affidabilita' partono dalla stessa colonna `variante_codice`, calcolata
+        # sulle righe del Registro (dove il campo manca davvero). Passare da un
+        # DataFrame di pandas invece crea la colonna con NaN, e `str(nan)` e'
+        # "nan": le righe senza campo sparivano dal blocco legacy (bug corretto
+        # anche dentro `model_variant_read`, ma qui non si passa piu' di li').
+        maschera_attuale = df_display["variante_codice"] == MODEL_VARIANT_CURRENT
+        maschera_legacy = df_display["variante_codice"] == MODEL_VARIANT_LEGACY
+        # DUE blocchi, uno per motore, con le STESSE righe delle due tabelle piu'
+        # sotto. La fetta "scheda vecchia" del Registro non e' un terzo modello:
+        # sono righe della tabella Legacy, quindi contano nel blocco Legacy e
+        # sono dichiarate come dettaglio.
+        attuale_records = df_display[maschera_attuale].to_dict("records")
+        legacy_records = df_display[maschera_legacy].to_dict("records")
+        parti_variante = {MODEL_VARIANT_CURRENT: attuale_records, MODEL_VARIANT_LEGACY: legacy_records}
+        resto_records = df_display[~(maschera_attuale | maschera_legacy)].to_dict("records")
+        if resto_records:
+            # Variante non riconosciuta: non si nasconde (vedi la terza tabella).
+            parti_variante["altro"] = resto_records
+        all_records = df_display.to_dict("records")
+        all_stats = stats_all(all_records)
+        schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
-        st.caption(
-            "Statistiche separate: il win rate del **modello attuale** usa SOLO le predizioni "
-            f"`{MODEL_VERSION_CURRENT}` della variante Attuale; il **modello legacy** (Elo pre-fix "
-            "PR#24, seconda tabella del Top Mix) ha il suo blocco; le predizioni pre-fix e i record "
-            "legacy/ambiguo restano visibili per audit ma sono esclusi dalle metriche attuali."
-        )
-
-        st.markdown("##### 📊 Modello attuale")
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Totale", current_stats["total"])
-        s2.metric("✅ Vinte", current_stats["wins"],
-                  delta=f"{current_stats['win_rate']:.1f}%" if current_stats["decided"] else None,
-                  help="Percentuale calcolata solo sulle partite decise del modello attuale (esclude quelle in attesa).")
-        s3.metric("❌ Perse", current_stats["losses"])
-        s4.metric("⏳ Attesa", current_stats["pending"])
-
-        # Blocco gemello per il modello legacy: compare se nel registro ci sono
-        # righe di quel motore. Si legge con `model_variant_read`: una riga senza
-        # campo nata prima del merge di PR#24 e' del motore che girava allora
-        # (legacy), quindi compare qui e non nel blocco attuale.
-        if any(model_variant_read(p) == MODEL_VARIANT_LEGACY for p in preds):
-            st.markdown("##### 🕰️ Modello legacy (Elo pre-fix PR#24)")
-            l1, l2, l3, l4 = st.columns(4)
-            l1.metric("Totale", legacy_stats["total"])
-            l2.metric("✅ Vinte", legacy_stats["wins"],
-                      delta=f"{legacy_stats['win_rate']:.1f}%" if legacy_stats["decided"] else None,
-                      help="Percentuale calcolata solo sulle partite decise del modello legacy (seconda tabella del Top Mix).")
-            l3.metric("❌ Perse", legacy_stats["losses"])
-            l4.metric("⏳ Attesa", legacy_stats["pending"])
-
-        st.markdown("##### 📜 Storico / pre-fix (audit)")
-        h1, h2, h3, h4 = st.columns(4)
-        h1.metric("Totale", historical_stats["total"])
-        h2.metric("✅ Vinte", historical_stats["wins"],
-                  delta=f"{historical_stats['win_rate']:.1f}%" if historical_stats["decided"] else None,
-                  help="Win rate storico/audit separato, calcolato solo sulle partite decise non incluse nel modello attuale.")
-        h3.metric("❌ Perse", historical_stats["losses"])
-        h4.metric("⏳ Attesa", historical_stats["pending"])
+        _mostra_blocco_modello(
+            attuale_records, "🟢 Modello attuale",
+            "Righe della tabella 🟢 MODELLO ATTUALE: Elo post-fix PR#24, soglie 0,55 1X2 / 0,60 Totali.")
+        _mostra_blocco_modello(
+            legacy_records, "🟠 Modello legacy (Elo pre-fix PR#24)",
+            "Righe della tabella 🟠 MODELLO LEGACY: Elo pre-fix con boost xG retroattivo, stesse soglie.")
+        # Il dettaglio delle schede NON e' un modello: e' la sotto-fetta del
+        # blocco legacy scritta prima del versionamento dei record.
+        if schede_vecchie:
+            st.caption(
+                f"📜 Di cui **{len(schede_vecchie)}** con la **scheda vecchia** (record scritto "
+                "prima del versionamento, senza `model_version`): sono nella tabella Legacy e "
+                "contano qui, ma restano fuori dalle metriche del modello attuale.")
+        if any(r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD) for r in attuale_records):
+            st.caption(
+                f"ℹ️ {sum(1 for r in attuale_records if r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD))} "
+                "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
+                "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
+            )
 
         st.caption(
             f"Totale registro (audit complessivo): Totale {all_stats['total']}, "
@@ -2422,26 +2451,30 @@ with tab5:
         # --- AFFIDABILITA' (Brier), non solo win rate ---
         # `prob_sicuro` era gia' persistito: expose the calibration for free.
         # Con due modelli nel registro la calibrazione si legge PER VARIANTE:
-        # mescolarle produrrebbe un Brier di nessuno dei due.
-        parti_variante = split_by_variant(filtered_records)
+        # mescolarle produrrebbe un Brier di nessuno dei due. Le parti sono le
+        # stesse dei due blocchi e delle due tabelle (calcolate una volta sola).
         if len(parti_variante) > 1:
             for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
                 _mostra_affidabilita(parti_variante[v], etichetta=MODEL_VARIANT_LABELS.get(v, v))
         else:
-            _mostra_affidabilita(filtered_records)
+            _mostra_affidabilita(all_records)
 
-        # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
-        df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
+        # La colonna "Scheda del record" parla della SCRITTURA del record, non
+        # del motore: qui si dice a parole, perche' e' l'unico posto in cui i
+        # due nomi si assomigliano ancora.
         st.caption(
-            f"{MODEL_LABEL_PRE_FIX} = {PRE_FIX_TOOLTIP} · "
-            f"{MODEL_LABEL_CURRENT} = {CURRENT_MODEL_TOOLTIP}"
+            "**Scheda del record**: "
+            f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
+            f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
+            f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
+            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento. "
+            "Il **motore** (Elo attuale / legacy) e' l'intestazione delle due tabelle, non questa colonna."
         )
 
         # DUE tabelle, una per motore (come nel Top Mix): prima erano righe di
         # entrambi i modelli mescolate in un'unica tabella con una colonna
-        # "Modello", e per leggere un solo motore bisognava filtrare.
-        maschera_attuale = df_display["variante_codice"] == MODEL_VARIANT_CURRENT
-        maschera_legacy = df_display["variante_codice"] == MODEL_VARIANT_LEGACY
+        # "Modello", e per leggere un solo motore bisognava filtrare. Le due
+        # maschere sono le stesse dei blocchi qui sopra.
         _mostra_registro_modello(
             df_display[maschera_attuale], "🟢 MODELLO ATTUALE",
             "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglie 0,55 1X2 / 0,60 Totali",

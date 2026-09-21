@@ -1,21 +1,20 @@
-"""Registro a due tabelle: una per motore (Attuale sopra, Legacy sotto).
+"""Registro a due tabelle: una per motore, con blocchi e etichette coerenti.
 
-Cosa viene provato (richiesta utente: "due tabelle, una per ogni modello in
-modo da essere tabelle piu' pulite" — una tabella sola che mescola i due motori
-non va bene):
+Cosa viene provato (richieste utente):
 
-* guardie sul sorgente del tab5: due chiamate a ``_mostra_registro_modello``,
-  la prima per ``MODEL_VARIANT_CURRENT`` e la seconda per
-  ``MODEL_VARIANT_LEGACY``; il vecchio filtro "Modello" non c'e' piu' (le
-  tabelle sono gia' una per motore) e non c'e' nessun tetto di righe;
-* ``_mostra_registro_modello`` disegna SOLO le righe che riceve, ordinate per
-  data decrescente, senza la colonna della variante (dentro una tabella di un
-  solo motore sarebbe la stessa parola ripetuta su ogni riga);
-* le due maschere partizionano il registro: nessuna riga sparisce, e quelle
-  con variante non riconosciuta finiscono in una tabella a parte;
+* "due tabelle, una per ogni modello in modo da essere tabelle piu' pulite":
+  guardie sul tab5 (due chiamate a ``_mostra_registro_modello``, il filtro
+  "Modello" rimosso, nessun tetto di righe) e sulla funzione di tabella (un
+  motore per tabella, ordine per data, nessuna colonna variante);
+* i due blocchi statistici in cima sono gli STESSI insiemi delle due tabelle:
+  una riga letta "attuale" ha sempre la scheda attuale, quindi il blocco non
+  puo' mescolare i due motori; la fetta "scheda vecchia" e' dichiarata come
+  dettaglio dentro il blocco legacy e non e' un terzo modello;
+* la colonna del vecchio "Modello" si chiama "Scheda del record" e nessuna delle
+  sue etichette contiene la parola "Modello" (dentro una tabella intitolata a un
+  motore si leggeva come una contraddizione: erano due assi diversi);
 * il caso vivo: una riga SENZA campo ``model_variant`` nata prima del merge di
-  PR#24 (es. Sunderland-Fulham 30/08) finisce nella tabella LEGACY, non in
-  quella attuale.
+  PR#24 (es. Sunderland-Fulham 30/08) finisce nella tabella LEGACY.
 """
 from __future__ import annotations
 
@@ -35,6 +34,9 @@ logging.getLogger("streamlit").setLevel(logging.ERROR)
 
 import app  # noqa: E402
 from prediction_registry import (  # noqa: E402
+    MODEL_LABEL_CURRENT,
+    MODEL_LABEL_LEGACY,
+    MODEL_LABEL_PRE_FIX,
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_FIELD,
     MODEL_VARIANT_LEGACY,
@@ -42,6 +44,17 @@ from prediction_registry import (  # noqa: E402
 )
 
 APP_PATH = os.path.join(HERE, "app.py")
+
+# Righe di prova: due nate prima del merge senza campo variante (lette legacy),
+# una per motore con il campo esplicito.
+RIGHE = [
+    {"home": "Sunderland", "away": "Fulham", "quando": "30/08/2026 15:00"},
+    {"home": "Everton", "away": "Wolves", "quando": "05/09/2026 16:00"},
+    {"home": "Inter", "away": "Roma", "quando": "19/09/2026 20:45",
+     "variante": MODEL_VARIANT_CURRENT},
+    {"home": "Napoli", "away": "Lazio", "quando": "20/09/2026 18:00",
+     "variante": MODEL_VARIANT_LEGACY},
+]
 
 
 def _riga(home, away, quando, *, variante=None, campionato="Premier League", mercato="UNDER_2.5"):
@@ -57,7 +70,7 @@ def _riga(home, away, quando, *, variante=None, campionato="Premier League", mer
         "risultato_reale": "-",
         "esito": "⏳",
         "origine": "Top Mix",
-        "modello": "⚠️ Pre-fix",
+        "modello": MODEL_LABEL_PRE_FIX,
     }
     if variante is not None:
         r[MODEL_VARIANT_FIELD] = variante
@@ -69,6 +82,10 @@ def _df(righe):
     df = pd.DataFrame(righe).fillna({"esito": "⏳", "risultato_reale": "-"})
     df["data"] = pd.to_datetime(df["data"], format="%d/%m/%Y %H:%M", errors="coerce")
     return df
+
+
+def _righe_fixture():
+    return [_riga(**r) for r in RIGHE]
 
 
 class TestGuardieTab5(unittest.TestCase):
@@ -107,18 +124,98 @@ class TestGuardieTab5(unittest.TestCase):
         self.assertNotIn("[:10]", self.tab5)
 
 
+class TestBlocchiAllineatiAlleTabelle(unittest.TestCase):
+    """Due blocchi, uno per motore: stesse righe delle due tabelle.
+
+    Il terzo riquadro ("Storico / pre-fix") non e' un modello: e' la sotto-fetta
+    del blocco legacy scritta prima del versionamento dei record, e ora e'
+    dichiarata come riga di dettaglio.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.src = open(APP_PATH, encoding="utf-8").read()
+        cls.tab5 = cls.src[cls.src.index("with tab5:"):]
+
+    def test_due_blocchi_e_nessun_terzo_modello(self):
+        self.assertEqual(2, self.tab5.count("_mostra_blocco_modello("),
+                         "due blocchi: uno per motore, come le tabelle")
+        self.assertNotIn("##### 📊 Modello attuale", self.tab5)
+        self.assertNotIn("##### 📜 Storico / pre-fix (audit)", self.tab5)
+        self.assertNotIn("historical_stats", self.tab5)
+
+    def test_blocchi_presi_dalle_stesse_maschere_delle_tabelle(self):
+        # Blocchi, tabelle e affidabilita' partono dalle stesse due maschere
+        # sulla stessa colonna: nessun secondo modo di contare.
+        self.assertIn('maschera_attuale = df_display["variante_codice"] == MODEL_VARIANT_CURRENT', self.tab5)
+        self.assertIn('maschera_legacy = df_display["variante_codice"] == MODEL_VARIANT_LEGACY', self.tab5)
+        self.assertIn('attuale_records = df_display[maschera_attuale].to_dict("records")', self.tab5)
+        self.assertIn('legacy_records = df_display[maschera_legacy].to_dict("records")', self.tab5)
+        self.assertNotIn("split_by_variant", self.tab5,
+                         "le parti si prendono dalle maschere: su un DataFrame la variante assente diventa NaN")
+
+    def test_dettaglio_scheda_vecchia_dichiarato_non_nascosto(self):
+        self.assertIn("schede_vecchie = [r for r in legacy_records if not is_current_model(r)]", self.tab5)
+        self.assertIn("con la **scheda vecchia**", self.tab5)
+
+    def test_blocco_mostra_i_quattro_numeri_delle_sue_righe(self):
+        righe = [_riga("Inter", "Roma", "19/09/2026 20:45", variante=MODEL_VARIANT_CURRENT),
+                 _riga("Napoli", "Lazio", "20/09/2026 18:00", variante=MODEL_VARIANT_CURRENT)]
+        finto = mock.MagicMock()
+        colonne = [mock.MagicMock() for _ in range(4)]
+        finto.columns.return_value = colonne
+        with mock.patch.object(app, "st", finto):
+            app._mostra_blocco_modello(righe, "🟢 Modello attuale", "sotto")
+        intestazione = finto.markdown.call_args[0][0]
+        self.assertIn("— 2 righe", intestazione)
+        etichette = [c.metric.call_args[0][0] for c in colonne]
+        self.assertEqual(["Totale", "✅ Vinte", "❌ Perse", "⏳ Attesa"], etichette)
+        self.assertEqual(2, colonne[0].metric.call_args[0][1])
+
+    def test_blocchi_e_tabelle_contano_le_stesse_righe(self):
+        df = _df(_righe_fixture())
+        maschera_attuale = df["variante_codice"] == MODEL_VARIANT_CURRENT
+        maschera_legacy = df["variante_codice"] == MODEL_VARIANT_LEGACY
+        # Le stesse espressioni del tab5, sulle stesse righe.
+        attuale_records = df[maschera_attuale].to_dict("records")
+        legacy_records = df[maschera_legacy].to_dict("records")
+        self.assertEqual(int(maschera_attuale.sum()), len(attuale_records))
+        self.assertEqual(int(maschera_legacy.sum()), len(legacy_records))
+        self.assertEqual(len(df), len(attuale_records) + len(legacy_records))
+        self.assertEqual(["Inter"], [r["home"] for r in attuale_records])
+        self.assertIn("Sunderland", [r["home"] for r in legacy_records],
+                      "la riga senza campo nata prima del merge e' nel blocco legacy, non in un terzo gruppo")
+
+    def test_variante_assente_non_diventa_nan(self):
+        """Il bug visto in UI il 21/09/2026: su un DataFrame la variante assente
+        diventa NaN e `str(nan)` e' "nan" (una terza variante fantasma)."""
+        df = _df(_righe_fixture())
+        record = df.to_dict("records")
+        self.assertNotIn("nan", {model_variant_read(r) for r in record})
+        self.assertNotIn("nan", set(df["variante_codice"]))
+        self.assertEqual({"current", "legacy"}, set(df["variante_codice"]))
+
+
+class TestEtichetteScheda(unittest.TestCase):
+    """La colonna parla della SCHEDA del record, non del motore Elo."""
+
+    def test_nessuna_etichetta_contiene_la_parola_modello(self):
+        for etichetta in (MODEL_LABEL_CURRENT, MODEL_LABEL_PRE_FIX, MODEL_LABEL_LEGACY):
+            self.assertNotIn("Modello", etichetta,
+                             "dentro la tabella di un motore 'Modello' si confonde col motore")
+
+    def test_colonna_e_didascalia_esplicite(self):
+        src = open(APP_PATH, encoding="utf-8").read()
+        self.assertIn('"Scheda del record"', src)
+        self.assertNotIn('"Versione record"', src)
+        self.assertIn("Il **motore** (Elo attuale / legacy) e' l'intestazione delle due tabelle", src)
+
+
 class TestTabellaRegistroPerMotore(unittest.TestCase):
     """La funzione di tabella mostra un motore solo, ordinato, senza tetto."""
 
-    RIGHE = [
-        _riga("Sunderland", "Fulham", "30/08/2026 15:00"),                      # senza campo -> legacy
-        _riga("Everton", "Wolves", "05/09/2026 16:00"),                          # senza campo -> legacy
-        _riga("Inter", "Roma", "19/09/2026 20:45", variante=MODEL_VARIANT_CURRENT),
-        _riga("Napoli", "Lazio", "20/09/2026 18:00", variante=MODEL_VARIANT_LEGACY),
-    ]
-
     def _mostra(self, variante, df=None):
-        df = _df(self.RIGHE) if df is None else df
+        df = _df(_righe_fixture()) if df is None else df
         with mock.patch.object(app, "st", mock.MagicMock()) as finto:
             app._mostra_registro_modello(
                 df[df["variante_codice"] == variante], f"TITOLO {variante}", "sotto", "css")
@@ -166,7 +263,7 @@ class TestTabellaRegistroPerMotore(unittest.TestCase):
         self.assertTrue(finto.info.called)
 
     def test_maschere_partizionano_il_registro(self):
-        df = _df(self.RIGHE)
+        df = _df(_righe_fixture())
         attuale = df["variante_codice"] == MODEL_VARIANT_CURRENT
         legacy = df["variante_codice"] == MODEL_VARIANT_LEGACY
         self.assertFalse((attuale & legacy).any(), "nessuna riga in due tabelle")
