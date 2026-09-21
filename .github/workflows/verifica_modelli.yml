@@ -1,0 +1,133 @@
+name: Verifica i due modelli nel Registro (sola lettura)
+
+# Risponde, sul Registro vero (hash Upstash), alla domanda della commessa:
+# "per ogni partita dell'intero periodo ricostruibile il Registro ha sia la
+# scelta del modello ATTUALE sia quella del LEGACY? stesso campione?"
+#
+# Sola lettura: nessun PUT/HSET, nessuna scrittura di registro. Il comando sta
+# nel nome del tag ("verifica-modelli-*"), come per le altre commesse.
+#
+# Esito del passo:
+#   * se manca una riga del modello ATTUALE per una partita che ha il legacy,
+#     la run e' ROSSA: e' una copertura incompleta della parte che la commessa
+#     chiedeva di rigiocare (si ripara rilanciando il replay, che aggiunge);
+#   * se manca il LEGACY (sotto soglia o veto per quel modello) la run resta
+#     verde ma lo dichiara: quelle righe non si scrivono (sarebbe un campione
+#     falsato: vietato dalla commessa).
+
+on:
+  push:
+    tags:
+      - 'verifica-modelli-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verifica-modelli
+  cancel-in-progress: false
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OUT: ${{ github.workspace }}/modelli-out
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mancanti=()
+          for nome in JSONBIN_API_KEY JSONBIN_BIN_ID UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — la verifica legge il Registro vivo: servono entrambi i backend."
+            exit 1
+          fi
+
+      - name: Test dello strumento (nessuna lettura di rete)
+        run: |
+          python -m pytest -q --tb=short \
+            SoccerMath/test_registry_modelli_check.py \
+            SoccerMath/test_registry_backend_status.py
+
+      - name: Verifica (sola lettura)
+        id: verifica
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
+        run: |
+          mkdir -p "$OUT"
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_modelli_check.py --json "$OUT/modelli.json" --allow-mismatch \
+            2>&1 | tee "$OUT/modelli.txt"
+          rc=$?
+          set -e
+
+          # Annotazioni compatte: le righe che contano, non tutto il referto.
+          for pattern in 'finestra ricostruibile' 'VECCHIO (prima di PR#24)' 'NUOVO (da PR#24 in poi)' \
+                         'INTERO PERIODO' 'i due campioni' 'righe del modello ATTUALE da scrivere'; do
+            grep -m 1 -- "$pattern" "$OUT/modelli.txt" | while IFS= read -r line; do
+              echo "::warning title=modelli::${line:0:900}"
+            done
+          done
+
+          # Gate: le righe del modello ATTUALE che mancano sono un guasto vero
+          # (la commessa chiedeva proprio quelle). Le righe legacy mancanti no.
+          python - "$OUT/modelli.json" <<'PY' || exit 3
+          import json, sys
+          try:
+              d = json.load(open(sys.argv[1], encoding="utf-8"))
+          except Exception as e:
+              print(f"::error title=modelli::json non leggibile: {e}")
+              sys.exit(1)
+          mancano_attuale = len(d["intero"]["solo"]["legacy"])
+          mancano_legacy = len(d["intero"]["solo"]["current"])
+          print(f"::warning title=modelli::righe ATTUALE mancanti: {mancano_attuale} · righe LEGACY mancanti: {mancano_legacy}")
+          if mancano_attuale:
+              print(f"::error title=modelli::mancano {mancano_attuale} righe del modello ATTUALE: "
+                    "rilanciare il replay (aggiunge, non sovrascrive) per completarle")
+              sys.exit(1)
+          if mancano_legacy:
+              print(f"::warning title=modelli::i due campioni NON coincidono: {mancano_legacy} partite "
+                    "senza scelta del modello legacy (sotto soglia o veto). Righe non scritte per scelta: "
+                    "sarebbero un campione falsato.")
+          else:
+              print("::notice title=modelli::i due campioni COINCIDONO su tutto il periodo")
+          PY
+          if [ "$rc" != "0" ]; then
+            echo "::error title=modelli::lo strumento e' uscito con $rc (2 = Registro non leggibile)"
+            exit "$rc"
+          fi
+
+      - name: Artifact (referto della verifica)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verifica-modelli-${{ github.run_id }}
+          path: ${{ env.OUT }}
+          if-no-files-found: warn
