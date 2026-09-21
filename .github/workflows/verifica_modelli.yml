@@ -360,7 +360,7 @@ jobs:
           # Perche' la tabella del legacy ha piu' righe di quella dell'attuale:
           # le righe si contano per origine, variante letta e stagione. Sola
           # lettura (nessun PUT/HSET), e l'avviso se sta leggendo una copia.
-          python SoccerMath/registry_composizione.py --json "$OUT/composizione.json" \
+          python SoccerMath/registry_composizione.py --compatto --json "$OUT/composizione.json" \
             2>&1 | tee "$OUT/composizione.txt" || true
           python - "$OUT/composizione.json" <<'PY' || true
           import json, sys
@@ -382,6 +382,26 @@ jobs:
               righe.append(f"| {o} | {sum(c.values())} | {c.get('current', 0)} | {c.get('legacy', 0)} | "
                            f"{d['scheda_vecchia_per_origine'].get(o, 0)} |")
           print("::warning title=composizione-tabella::" + " | ".join(righe)[:4000])
+          # Cosa conterra' ciascuna delle DUE tabelle (solo Top Mix) e se le righe
+          # sono vere previsioni (nate prima del fischio, nessun risultato noto).
+          ct = d.get("contenuto_tabelle") or {}
+          tot = ct.get("totale_per_motore", {})
+          print("::warning title=contenuto-tabelle::Drago a 2 Teste: "
+                + str(tot.get("current", 0)) + " righe ("
+                + " · ".join(f"{s} {n}" for s, n in sorted((ct.get("per_motore") or {}).get("current", {}).items(), reverse=True))
+                + ") · Legacy: " + str(tot.get("legacy", 0)) + " righe ("
+                + " · ".join(f"{s} {n}" for s, n in sorted((ct.get("per_motore") or {}).get("legacy", {}).items(), reverse=True))
+                + ") · fuori dalle due tabelle: "
+                + (", ".join(f"{k} {v}" for k, v in sorted((ct.get("fuori_dalle_tabelle") or {}).items())) or "niente"))
+          pu = d.get("puntualita") or {}
+          print("::warning title=puntualita::" + " || ".join(
+              f"[{o}] prima del fischio: {c.get('nate prima del fischio', 0)} · DOPO: "
+              f"{c.get('nate DOPO il fischio', 0)} · non verificabili: "
+              f"{c.get('fischio o nascita non leggibili', 0)}"
+              for o, c in sorted((pu.get("per_origine") or {}).items()))[:3500])
+          rit = [f"[{o}] {v}" for o, voci in sorted((pu.get("in_ritardo") or {}).items()) for v in voci]
+          if rit:
+              print("::warning title=righe-in-ritardo::" + " || ".join(x[:200] for x in rit)[:3500])
           PY
 
       - name: Artifact (referto della verifica)
