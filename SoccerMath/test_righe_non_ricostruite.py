@@ -73,6 +73,17 @@ class TestConfronto(unittest.TestCase):
         self.assertEqual(2, len(righe), "la stagione 2025/2026 si esclude con --stagione")
         self.assertTrue(any("PERIODO|" in r for r in compatte))
 
+    def test_stagione_ricavata_dalla_data_quando_il_campo_manca(self):
+        """Le righe senza campo ``stagione`` sono di due periodi diversi (maggio =
+        stagione precedente, agosto = stagione in corso): il campo mancante si
+        ricava dalla DATA, altrimenti finirebbero tutte in un mucchio solo."""
+        maggio = _riga(8, data="23/05/2026 21:00", salvato="23/05/2026 08:19")
+        maggio.pop("stagione")
+        agosto = _riga(9, data="29/08/2026 18:30", salvato="24/08/2026 18:05")
+        agosto.pop("stagione")
+        d = RN.confronta([maggio, agosto], [])
+        self.assertEqual({"2025/2026": 1, "2026/2027": 1}, d["non_ritrovate_per_stagione"])
+
     def test_riga_senza_campo_stagione_non_fa_esplodere_il_referto(self):
         """Caso trovato sul Registro VERO: il campo ``stagione`` puo' mancare.
 
@@ -83,7 +94,8 @@ class TestConfronto(unittest.TestCase):
         senza_stagione = _riga(7)
         senza_stagione.pop("stagione")
         d = RN.confronta(self.RIGHE + [senza_stagione], self.PROPOSTE)
-        self.assertIn("senza stagione", d["non_ritrovate_per_stagione"])
+        self.assertIn("2026/2027", d["non_ritrovate_per_stagione"],
+                      "senza campo stagione la si ricava dalla data (agosto 2026)")
         compatte = RN.righe_compatti(d)          # nessuna eccezione
         self.assertTrue([r for r in compatte if "id 7" in r])
         testo = RN.righe_testo(d)                # nemmeno nel referto lungo

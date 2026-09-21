@@ -48,6 +48,7 @@ from prediction_registry import (  # noqa: E402
 )
 from registry_coverage_check import load_registry_readonly  # noqa: E402
 from replay_legacy_topmix import PR24_MERGE_INSTANT, REPLAY_START_INSTANT  # noqa: E402
+from season_calendar import season_label, season_start_year_of  # noqa: E402
 
 VARIANTI = (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY)
 
@@ -63,6 +64,22 @@ def _kickoff(riga: Dict[str, Any]) -> Optional[datetime]:
     if ko is not None:
         return ko
     return parse_datetime(riga.get("data"))
+
+
+def _stagione(riga: Dict[str, Any]) -> str:
+    """Stagione della riga: il campo se c'e', altrimenti dalla data (mai vuota).
+
+    Stesso calendario del resto del progetto (``season_calendar``). Una riga senza
+    ne' campo ne' data leggibile finisce in ``Sconosciuta`` e lo dichiara: non si
+    inventa una stagione, ma nemmeno si perde la riga dal conto.
+    """
+    campo = str(riga.get("stagione") or "").strip()
+    if campo:
+        return campo
+    istante, _fonte = entry_instant(riga)
+    if istante is None:
+        return "Sconosciuta"
+    return season_label(season_start_year_of(istante.date()))
 
 
 def periodo(riga: Dict[str, Any]) -> str:
@@ -99,10 +116,13 @@ def confronta(righe: List[Dict[str, Any]], proposte: List[Dict[str, Any]]) -> Di
             "match_id": r.get("match_id"),
             "home": r.get("home"), "away": r.get("away"),
             "data_partita": r.get("data"), "campionato": r.get("campionato"),
-            # Sempre TESTO: nel Registro ci sono righe senza campo ``stagione``
-            # (valore assente) e ordinare chiavi miste testo/None fa esplodere il
-            # referto. E' successo sul Registro vero, non nei dati di prova.
-            "stagione": str(r.get("stagione") or "senza stagione"),
+            # Sempre TESTO e sempre una stagione vera: nel Registro ci sono righe
+            # senza campo ``stagione`` (valore assente) e ordinare chiavi miste
+            # testo/None fa esplodere il referto (successo sul Registro vero). Il
+            # campo mancante si ricava dalla DATA, con lo stesso calendario del
+            # resto del progetto (``season_calendar``), cosi' i numeri di questo
+            # referto e quelli della composizione parlano la stessa lingua.
+            "stagione": _stagione(r),
             "salvato_il": r.get("salvato_il"),
             "variante": model_variant_read(r),
             "periodo": periodo(r),
