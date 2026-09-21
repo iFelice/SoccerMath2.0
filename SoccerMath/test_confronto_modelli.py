@@ -219,6 +219,51 @@ class TestControproveAppaiate(unittest.TestCase):
         self.assertEqual(1.0, r["mcnemar_p"])
 
 
+class TestDiagnosiDelCampione(unittest.TestCase):
+    """Due cose che cambiano la lettura dei numeri: coppie senza informazione e righe non gradate."""
+
+    def test_coppie_identiche_contate_a_parte(self):
+        """Due righe con la stessa scelta E la stessa probabilita' sono un solo
+        pronostico scritto due volte: contarle come coppia d'accordo farebbe
+        sembrare il confronto piu' ricco di quello che e'."""
+        drago = [_riga(1, esito="✅", variante="current", mercato="1", prob=64.0)]
+        legacy = [_riga(1, esito="✅", mercato="1", prob=64.0)]
+        r = CM.coppie_registro(drago, legacy)
+        self.assertEqual(1, r["coppie_identiche"])
+        self.assertEqual(0, r["coppie_stessa_scelta_probabilita_diversa"])
+
+    def test_stessa_scelta_con_probabilita_diversa_non_e_identica(self):
+        drago = [_riga(1, esito="✅", variante="current", mercato="1", prob=72.2)]
+        legacy = [_riga(1, esito="✅", mercato="1", prob=64.5)]
+        r = CM.coppie_registro(drago, legacy)
+        self.assertEqual(0, r["coppie_identiche"])
+        self.assertEqual(1, r["coppie_stessa_scelta_probabilita_diversa"])
+        self.assertEqual(1, r["stessi_mercati"])
+
+    def test_gemelli_mancanti_dichiarati(self):
+        drago = [_riga(1, esito="✅", variante="current"), _riga(2, esito="❌", variante="current")]
+        legacy = [_riga(1, esito="✅"), _riga(3, esito="✅")]
+        r = CM.coppie_registro(drago, legacy)
+        self.assertEqual(1, r["partite_con_entrambi"])
+        self.assertEqual(1, r["drago_senza_gemello"])
+        self.assertEqual(1, r["legacy_senza_gemello"])
+
+    def test_le_righe_gia_giocate_senza_esito_sono_elencate(self):
+        vecchia = _riga(1, esito="⏳", salvato="23/05/2026 07:18", data="20/05/2026 18:00",
+                        stagione="2025/2026")
+        futura = _riga(2, esito="⏳", salvato="20/09/2026 12:00", data="21/09/2026 18:00")
+        elenco = CM.righe_senza_esito_gia_giocate(
+            [vecchia, futura], adesso=CM.datetime(2026, 9, 21, 20, 0, tzinfo=CM.UTC))
+        self.assertEqual([1], [x["match_id"] for x in elenco])
+
+    def test_una_partita_appena_giocata_non_e_un_buco(self):
+        """Il margine di 48 ore evita di chiamare 'buco' una partita di ieri sera."""
+        ieri = _riga(1, esito="⏳", salvato="20/09/2026 18:00", data="20/09/2026 18:00")
+        elenco = CM.righe_senza_esito_gia_giocate(
+            [ieri], adesso=CM.datetime(2026, 9, 21, 20, 0, tzinfo=CM.UTC))
+        self.assertEqual([], elenco)
+
+
 class TestRefertoEIngressi(unittest.TestCase):
     """Il referto esce, e senza Registro non si inventa niente."""
 

@@ -47,6 +47,7 @@ if HERE not in sys.path:
 
 from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_CURRENT,
+    MODEL_VARIANT_LABELS,
     MODEL_VARIANT_LEGACY,
     dedup_key,
     entry_instant,
@@ -326,10 +327,22 @@ def _confronto_appaiato(coppie: Sequence[Tuple[Dict[str, Any], Dict[str, Any]]],
     vinte = {MODEL_VARIANT_CURRENT: 0, MODEL_VARIANT_LEGACY: 0}
     decise = {MODEL_VARIANT_CURRENT: 0, MODEL_VARIANT_LEGACY: 0}
     stessi = diversi = 0
+    identiche = probabilita_diversa = 0
     distanze: List[float] = []
     for cur, leg in coppie:
-        if str(cur.get("mercato_standard") or "") == str(leg.get("mercato_standard") or ""):
+        mercato_uguale = (str(cur.get("mercato_standard") or "")
+                          == str(leg.get("mercato_standard") or ""))
+        if mercato_uguale:
             stessi += 1
+            p1, p2 = prob_of_entry(cur), prob_of_entry(leg)
+            # Due righe identiche non dicono NIENTE sul confronto: se la scelta e'
+            # la stessa e anche la probabilita' dichiarata, e' un solo pronostico
+            # scritto due volte. Va contato, altrimenti una coppia senza
+            # informazione sembra una conferma.
+            if p1 is not None and p2 is not None and abs(p1 - p2) <= 1e-9:
+                identiche += 1
+            else:
+                probabilita_diversa += 1
         else:
             diversi += 1
         if con_distanza:
@@ -358,6 +371,8 @@ def _confronto_appaiato(coppie: Sequence[Tuple[Dict[str, Any], Dict[str, Any]]],
         "mcnemar_p": mcnemar_esatto(b, c),
         "decise": decise, "vinte": vinte,
         "stessi_mercati": stessi, "mercati_diversi": diversi,
+        "coppie_identiche": identiche,
+        "coppie_stessa_scelta_probabilita_diversa": probabilita_diversa,
         "dist_giorni_mediana": (statistics.median(distanze) if distanze else None),
     }
 
@@ -391,6 +406,10 @@ def coppie_registro(gruppo_drago: Sequence[Dict[str, Any]],
     d = _confronto_appaiato(coppie, con_distanza=True)
     d["partite_con_entrambi"] = len(coppie)
     d["partite_con_righe"] = len(per_id)
+    d["drago_senza_gemello"] = sum(1 for v in per_id.values()
+                                   if MODEL_VARIANT_CURRENT in v and MODEL_VARIANT_LEGACY not in v)
+    d["legacy_senza_gemello"] = sum(1 for v in per_id.values()
+                                    if MODEL_VARIANT_LEGACY in v and MODEL_VARIANT_CURRENT not in v)
     return d
 
 
@@ -507,6 +526,34 @@ def _attesa(d: Dict[str, Any]) -> Optional[str]:
     return "; ".join(parti) if parti else None
 
 
+def righe_senza_esito_gia_giocate(righe: Sequence[Dict[str, Any]],
+                                   adesso: Optional[datetime] = None,
+                                   margine_ore: int = 48) -> List[Dict[str, Any]]:
+    """Righe in attesa la cui partita e' GIA' stata giocata da almeno due giorni.
+
+    Non e' un pareggio: e' un pezzo di campione che manca. Se il Registro non
+    gradisce quelle righe, il denominatore resta piu' piccolo e la percentuale
+    di successo poggia su meno partite di quante ce ne sono in tabella.
+    """
+    adesso = adesso or datetime.now(UTC)
+    fuori: List[Dict[str, Any]] = []
+    for r in righe or []:
+        if outcome_of_entry(r) is not None:
+            continue
+        ko = kickoff_della_riga(r)
+        if ko is None or ko > adesso - timedelta(hours=margine_ore):
+            continue
+        fuori.append({
+            "data": r.get("data"), "home": r.get("home"), "away": r.get("away"),
+            "campionato": r.get("campionato"), "mercato": r.get("mercato_standard"),
+            "salvato_il": r.get("salvato_il"), "variante": model_variant_read(r),
+            "stagione": stagione_della_riga(r), "match_id": r.get("match_id"),
+            "giornata": r.get("giornata"),
+        })
+    fuori.sort(key=lambda x: (str(x.get("data") or ""), str(x.get("home") or "")))
+    return fuori
+
+
 def costruisci(righe: Sequence[Dict[str, Any]], proposte: Sequence[Dict[str, Any]],
                fonte: str = "") -> Dict[str, Any]:
     d = classifica(righe, proposte)
@@ -526,6 +573,8 @@ def costruisci(righe: Sequence[Dict[str, Any]], proposte: Sequence[Dict[str, Any
     d["confronti_robustezza"] = {
         chiave: confronto_due_motori(d["statistiche"]["drago"], d["statistiche"][chiave])
         for chiave in ("legacy_solo_stagione", "legacy_riprodotto")}
+    d["senza_esito_gia_giocate"] = righe_senza_esito_gia_giocate(
+        g["drago"] + g["legacy_pulito"] + g["transizione"])
     d["coppie_registro"] = coppie_registro(g["drago"], g["legacy_pulito"])
     d["coppie_registro_tutte"] = coppie_registro(g["drago"], g["legacy_pulito"] + g["transizione"])
     d["coppie_replay"] = coppie_replay(proposte)
@@ -561,7 +610,11 @@ def _riga_coppie(nome: str, r: Dict[str, Any], extra: str = "") -> str:
     return (f"COPPIE| {nome} | coppie {r['partite_con_entrambi']} | Legacy vince-Drago perde "
             f"{r['b_legacy_vince_drago_perde']} | Drago vince-Legacy perde "
             f"{r['c_drago_vince_legacy_perde']} | McNemar p={r['mcnemar_p']:.3f} | "
-            f"stesso mercato {r['stessi_mercati']} / mercati diversi {r['mercati_diversi']}{extra}")
+            f"stesso mercato {r['stessi_mercati']} / mercati diversi {r['mercati_diversi']} | "
+            f"righe identiche (stessa scelta e stessa probabilita') {r.get('coppie_identiche')} · "
+            f"stessa scelta con probabilita' diversa {r.get('coppie_stessa_scelta_probabilita_diversa')} | "
+            f"sulle stesse partite Drago {r['vinte'][MODEL_VARIANT_CURRENT]}/{r['decise'][MODEL_VARIANT_CURRENT]} "
+            f"· Legacy {r['vinte'][MODEL_VARIANT_LEGACY]}/{r['decise'][MODEL_VARIANT_LEGACY]}{extra}")
 
 
 def righe_compatti(d: Dict[str, Any]) -> List[str]:
@@ -582,10 +635,14 @@ def righe_compatti(d: Dict[str, Any]) -> List[str]:
         if not st:
             continue
         brier = "n.d." if st["brier"] is None else f"{st['brier']:.3f}"
+        hit_prob = st.get("successo_su_probabilita")
+        extra = (" | hit su prob " + _pct(hit_prob)
+                 if hit_prob is not None and st["successo"] is not None
+                 and abs(hit_prob - st["successo"]) > 1e-9 else "")
         out.append(f"GRUPPO| {NOMI.get(chiave, chiave)} | righe {st['righe']} | decise {st['decise']} | "
                    f"vinte {st['vinte']} | perse {st['perse']} | attesa {st['attesa']} | "
                    f"successo {_pct(st['successo'])} | IC95 {_ic(st)} | prob media "
-                   f"{_pct(st['prob_media'])} | Brier {brier}")
+                   f"{_pct(st['prob_media'])} | Brier {brier}{extra}")
     c = d.get("confronto") or {}
     out.append("CONFRONTO| " + _confronto_testo("Legacy pulito meno Drago", c))
     for chiave, c2 in (d.get("confronti_robustezza") or {}).items():
@@ -597,6 +654,19 @@ def righe_compatti(d: Dict[str, Any]) -> List[str]:
                                    if d.get("coppie_registro") else "")))
     out.append(_riga_coppie("ricostruzioni del replay (stesso istante, stessi dati)",
                             d.get("coppie_replay") or {}))
+    if (d.get("coppie_registro") or {}).get("partite_con_entrambi"):
+        cr = d["coppie_registro"]
+        out.append(f"GEMELLI| righe Drago senza la riga Legacy della stessa partita "
+                   f"{cr.get('drago_senza_gemello')} · righe Legacy (pulite) senza la riga Drago "
+                   f"{cr.get('legacy_senza_gemello')}")
+    attese = d.get("senza_esito_gia_giocate") or []
+    if attese:
+        out.append(f"NONGRADITE| {len(attese)} righe in attesa per partite GIA' giocate (da almeno 2 giorni): "
+                   "non entrano nel denominatore")
+        for x in attese[:12]:
+            out.append(f"RIGA-ATTESA| {x['data']} | {x['home']} - {x['away']} | {x['campionato']} | "
+                       f"{x['mercato']} | scritta {x['salvato_il']} | {x['variante']} | "
+                       f"{x['stagione']} | giornata {x['giornata']} | id {x['match_id']}")
     tutte = d.get("coppie_registro_tutte") or {}
     pulite = d.get("coppie_registro") or {}
     if tutte.get("partite_con_entrambi") and tutte != pulite:
@@ -686,6 +756,15 @@ def righe_testo(d: Dict[str, Any]) -> List[str]:
                  f"e Legacy {r2['vinte'][MODEL_VARIANT_LEGACY]}/{r2['decise'][MODEL_VARIANT_LEGACY]}")
     else:
         L.append("- ricostruzioni: nessuna partita con entrambi i motori nel referto")
+    attese = d.get("senza_esito_gia_giocate") or []
+    if attese:
+        L.append("")
+        L.append(f"### Righe in attesa per partite gia' giocate: {len(attese)}")
+        L.append("Non e' un pareggio: e' campione che manca (il Registro non ha ancora il risultato).")
+        for x in attese[:40]:
+            L.append(f"- {x['data']} · {x['home']} - {x['away']} · {x['campionato']} · {x['mercato']} · "
+                     f"scritta {x['salvato_il']} · {MODEL_VARIANT_LABELS.get(x['variante'], x['variante'])} · "
+                     f"{x['stagione']} · giornata {x['giornata']} · id {x['match_id']}")
     L.append("")
     L.append(f"**Verdetto**: {d['verdetto']}")
     if d.get("attesa"):
