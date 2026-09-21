@@ -90,7 +90,7 @@ def riga_compatta(campo: str, riga: Dict[str, Any]) -> str:
     testo = str(riga.get("pronostico_sicuro") or "").strip()
     return (f"`{campo}` | id {riga.get('match_id')} | {riga.get('home')} - {riga.get('away')} | "
             f"{riga.get('data') or 'data n/d'} | scritta: {str(riga.get('origin') or 'assente')[:12]} | "
-            f"letta: {origin_of(riga)} | {texto[:34]}")
+            f"letta: {origin_of(riga)} | {testo[:34]}")
 
 
 def _giorno_utc() -> str:
