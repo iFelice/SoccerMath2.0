@@ -88,12 +88,27 @@ class TestComposizione(unittest.TestCase):
     def test_righe_senza_campo_variante(self):
         self.assertEqual(4, self.d["senza_campo_variante"])
 
+    def test_elenco_delle_righe_non_top_mix(self):
+        elenco = self.d["elenco"]
+        # Il default esclude il Top Mix: resta cio' che non e' Top Mix.
+        self.assertEqual({"Analisi Rapida", "Billy"}, set(elenco))
+        self.assertEqual(1, len(elenco["Analisi Rapida"]))
+        voce = elenco["Analisi Rapida"][0]
+        self.assertIn("Casa - Ospite", voce)
+        self.assertIn("origine `analisi_rapida`", voce)
+        self.assertIn("match_id 3", voce)
+
+    def test_incrocio_origine_per_stagione(self):
+        self.assertEqual({"2026/2027": 4}, self.d["origine_per_stagione"]["Top Mix"])
+        self.assertEqual({"2026/2027": 1}, self.d["origine_per_stagione"]["Billy"])
+
     def test_il_testo_riassume_senza_nascondere(self):
         testo = "\n".join(RC._righe_testo(self.d))
         self.assertIn("righe totali: **6**", testo)
         self.assertIn("Analisi Rapida", testo)
         self.assertIn("Billy", testo)
-        self.assertIn("| origine | righe | lette attuale | lette legacy | senza `model_version` |", testo)
+        self.assertIn("| origine | righe | lette attuale | lette legacy | senza `model_version` | stagioni |", testo)
+        self.assertIn("### Elenco righe — origine Analisi Rapida (1)", testo)
 
 
 if __name__ == "__main__":

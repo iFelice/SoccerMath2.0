@@ -1,0 +1,153 @@
+name: Pulizia del Registro (origine fuori dal confronto fra i due modelli)
+
+# Toglie dal Registro le righe di una ORIGINE che non fa parte del confronto fra
+# i due motori Elo (default: `analisi_rapida`: una sola riga, motore attuale,
+# nessun gemello legacy). Le righe Top Mix NON si toccano mai: se una finisse fra
+# i selezionati lo strumento si ferma.
+#
+# Due modalita', decise dal NOME DEL TAG (come per le scritture del replay):
+#   * `pulizia-dry-*`   -> PROVA: legge, elenca e verifica, non scrive nulla;
+#   * `pulizia-write-*` -> esegue: istantanea su `sm:registro:snapshot:<data>-pre-pulizia`
+#                          PRIMA, poi UN solo HDEL, poi rilettura e verifica.
+#
+# Il nome del tag e' il comando: nessun input manuale, nessuna scrittura per sbaglio.
+
+on:
+  push:
+    tags:
+      - 'pulizia-dry-*'
+      - 'pulizia-write-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pulizia-registro
+  cancel-in-progress: false
+
+jobs:
+  pulizia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OUT: ${{ github.workspace }}/pulizia-out
+
+    steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mancanti=()
+          for nome in UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — la pulizia tocca il Registro vivo."
+            exit 1
+          fi
+
+      - name: Test dello strumento (nessuna lettura di rete)
+        run: python -m pytest -q --tb=short SoccerMath/test_registry_pulizia.py SoccerMath/test_registry_composizione.py
+
+      - name: Composizione PRIMA (sola lettura)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
+        run: |
+          mkdir -p "$OUT"
+          python SoccerMath/registry_composizione.py --json "$OUT/prima.json" 2>&1 | tee "$OUT/composizione_prima.txt"
+          python - "$OUT/prima.json" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1], encoding="utf-8"))
+          print("::warning title=composizione-prima::"
+                + " · ".join(f"{k}: {v}" for k, v in sorted(d["per_origine"].items(), key=lambda kv: -kv[1]))
+                + " · variante letta -> " + " · ".join(f"{k}: {v}" for k, v in sorted(d["per_variante"].items())))
+          PY
+
+      - name: Prova di pulizia (elenco esatto, nessuna scrittura)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
+        run: |
+          python SoccerMath/registry_pulizia.py \
+            --origini "${{ vars.PULIZIA_ORIGINI || 'analisi_rapida' }}" \
+            --rimosse "$OUT/prova_rimosse.json" 2>&1 | tee "$OUT/pulizia_prova.txt"
+          python - "$OUT/pulizia_prova.txt" <<'PY'
+          import sys
+          righe = open(sys.argv[1], encoding="utf-8").read().splitlines()
+          sel = [r.strip() for r in righe if r.strip().startswith("- `")]
+          print(f"::warning title=pulizia-prova::righe selezionate: {len(sel)} (nessuna scrittura in questa modalita')")
+          for r in sel[:8]:
+              print(f"::notice title=pulizia-riga::{r[:900]}")
+          PY
+
+      - name: Pulizia vera (solo con il tag pulizia-write-*)
+        if: startsWith(github.ref, 'refs/tags/pulizia-write-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
+          ATTESI: ${{ vars.PULIZIA_ATTESI }}
+        run: |
+          set -o pipefail
+          extra=()
+          if [ -n "$ATTESI" ]; then extra+=(--attesi "$ATTESI"); fi
+          python SoccerMath/registry_pulizia.py \
+            --origini "${{ vars.PULIZIA_ORIGINI || 'analisi_rapida' }}" \
+            --scrivi --conferma "${extra[@]}" \
+            --rimosse "$OUT/rimosse.json" 2>&1 | tee "$OUT/pulizia.txt"
+          python - "$OUT/pulizia.txt" <<'PY'
+          import sys
+          testo = open(sys.argv[1], encoding="utf-8").read()
+          for riga in testo.splitlines():
+              if riga.startswith(("- campi", "- righe", "- HDEL", "- istantanea", "- campi dopo")):
+                  print(f"::warning title=pulizia::{riga[:900]}")
+          print("::notice title=pulizia-esito::" + ("OK" if "verificata" in testo else "DA GUARDARE"))
+          PY
+          if ! grep -q "Pulizia eseguita e verificata" "$OUT/pulizia.txt"; then
+            echo "::error title=pulizia::la verifica dopo la scrittura non e' passata (istantanea disponibile)"
+            exit 4
+          fi
+
+      - name: Composizione DOPO (sola lettura)
+        if: always()
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
+        run: |
+          python SoccerMath/registry_composizione.py --json "$OUT/dopo.json" 2>&1 | tee "$OUT/composizione_dopo.txt"
+          python - "$OUT/dopo.json" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1], encoding="utf-8"))
+          print("::warning title=composizione-dopo::righe " + str(d["righe"])
+                + " · " + " · ".join(f"{k}: {v}" for k, v in sorted(d["per_origine"].items(), key=lambda kv: -kv[1]))
+                + " · variante letta -> " + " · ".join(f"{k}: {v}" for k, v in sorted(d["per_variante"].items())))
+          print("::warning title=composizione-dopo-tabella::"
+                + " | ".join(f"{k}: {sum(v.values())} righe ({v.get('current',0)} attuale / {v.get('legacy',0)} legacy)"
+                             for k, v in sorted(d["origine_per_variante"].items(), key=lambda kv: -sum(kv[1].values()))))
+          PY
+
+      - name: Referto come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulizia-registro-${{ github.run_id }}
+          path: ${{ env.OUT }}
+          if-no-files-found: warn

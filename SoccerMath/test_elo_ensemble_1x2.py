@@ -210,26 +210,40 @@ class TestEnsembleSuCampioneReale(unittest.TestCase):
 class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
     """Opzione (b): in analisi_rapida_giornata() la SELEZIONE avviene sui
     mercati Poisson puro (l'Elo non puo' cambiare il mercato scelto), mentre
-    la probabilita' salvata e' blendata SOLO se il mercato scelto e' 1X2."""
+    la probabilita' salvata e' blendata SOLO se il mercato scelto e' 1X2.
 
-    def _run(self, m_pure, elo):
+    Da quando l'Analisi Rapida gira sui DUE motori (come il Top Mix) le righe
+    scritte sono due per partita: la riga del motore ATTUALE e' esattamente
+    quella di prima, la seconda e' il gemello legacy. I test qui sotto leggono
+    la riga attuale, che e' il contratto storico; il gemello ha i suoi test in
+    ``TestAnalisiRapidaDueMotori``.
+    """
+
+    def _run(self, m_pure, elo, *, elo_legacy="uguale"):
         match = {"homeTeam": {"name": "TeamH"},
                  "awayTeam": {"name": "TeamA"},
                  "id": 12345, "utcDate": "2026-09-10T15:00:00Z"}
         stats = {"TeamH": {"att": 1.0, "def": 1.0},
                  "TeamA": {"att": 1.0, "def": 1.0}}
         saved = []
+        legacy = dict(elo) if elo_legacy == "uguale" else elo_legacy
         with mock.patch.object(prod_app, "get_full_poisson_two_heads",
                                return_value=dict(m_pure)), \
              mock.patch.object(prod_app, "predict_elo_probs",
                                return_value=dict(elo)), \
+             mock.patch.object(prod_app, "predict_elo_probs_legacy",
+                               return_value=legacy), \
              mock.patch.object(prod_app, "save_prediction_entry",
                                side_effect=lambda *a, **k: saved.append((a, k))):
             n = prod_app.analisi_rapida_giornata([match], stats, 1.35, 1.15,
                                                  "Serie A", {}, 5)
-        self.assertEqual(n, 1)
-        self.assertEqual(len(saved), 1)
-        args, kwargs = saved[0]
+        self.assertEqual(n, 2, "una riga per motore")
+        self.assertEqual(len(saved), 2)
+        for _args, kwargs in saved:
+            self.assertIn(kwargs.get(prod_app.MODEL_VARIANT_FIELD), ("current", "legacy"))
+        attuale = [(a, k) for a, k in saved if k.get(prod_app.MODEL_VARIANT_FIELD) == "current"]
+        self.assertEqual(1, len(attuale))
+        args, kwargs = attuale[0]
         # save_prediction_entry(m_id, h, a, camp, giornata, date, pron, top3, prob%, ...)
         return args[6], args[8]  # pron, prob_percentuale
 
@@ -280,13 +294,20 @@ class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
                                return_value=dict(m_pure)), \
              mock.patch.object(prod_app, "predict_elo_probs",
                                side_effect=Exception("Elo ko")), \
+             mock.patch.object(prod_app, "predict_elo_probs_legacy",
+                               side_effect=Exception("Elo legacy ko")), \
              mock.patch.object(prod_app, "save_prediction_entry",
                                side_effect=lambda *a, **k: saved.append((a, k))):
             prod_app.analisi_rapida_giornata([match], stats, 1.35, 1.15,
                                              "Serie A", {}, 5)
-        self.assertAlmostEqual(saved[0][0][8], 70.0, places=6,
+        attuale = [(a, k) for a, k in saved if k.get(prod_app.MODEL_VARIANT_FIELD) == "current"]
+        self.assertAlmostEqual(attuale[0][0][8], 70.0, places=6,
                                msg="con Elo ko la probabilita' salvata deve "
                                    "essere il Poisson puro")
+        legacy = [(a, k) for a, k in saved if k.get(prod_app.MODEL_VARIANT_FIELD) == "legacy"]
+        self.assertAlmostEqual(legacy[0][0][8], 70.0, places=6,
+                               msg="anche il motore legacy, senza il suo Elo, "
+                                   "scrive il Poisson puro (degradazione dichiarata)")
 
 
 class TestShowDetailsSelezionePuraProbabilitaBlendata(unittest.TestCase):

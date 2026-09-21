@@ -649,17 +649,27 @@ def _league_mean_gate(xg_data):
 ELO_ENSEMBLE_W = 0.25
 
 
-def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W):
+def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W, elo_probs=None, elo_disponibile=True):
     """Ritorna una COPIA del dizionario Poisson con l'1X2 nella forma
     ``w*Poisson + (1-w)*Elo`` (peso Poisson = ``ELO_ENSEMBLE_W``, validato
     in audit/diagnose_elo_ensemble.py). I Totali (u15/u25/u35/gg) e ogni
     altra chiave passano invariati. Se l'Elo non e' disponibile (errore del
     motore) ritorna il Poisson puro bit-identico: il degrado e' sempre
     controllato verso il comportamento pre-modifica.
+
+    ``elo_probs`` serve al **secondo motore** (Analisi Rapida a due modelli,
+    come il Top Mix): se dato, si usa quello invece di chiamare
+    ``predict_elo_probs``. Con ``None`` il comportamento e' quello di sempre.
+    ``elo_disponibile=False`` dice che QUEL motore non ha dato un Elo: si
+    ritorna il Poisson puro invece di ricadere sull'Elo dell'altro motore.
+    Senza questa distinzione la riga "legacy" senza Elo legacy verrebbe
+    calcolata con l'Elo ATTUALE e sembrerebbe un risultato del motore legacy.
     """
     out = dict(m)
+    if not elo_disponibile:
+        return out
     try:
-        elo_p = predict_elo_probs(home, away, league)
+        elo_p = predict_elo_probs(home, away, league) if elo_probs is None else elo_probs
     except Exception:
         return out
     for k in ("1", "X", "2"):
@@ -1667,6 +1677,17 @@ def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
 
 
 def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classifica_sess, giornata_n):
+    """Analisi Rapida della giornata, sui DUE motori come il Top Mix.
+
+    Per ogni partita la SCELTA e' una sola (argmax sui 7 mercati Poisson puri,
+    decisione dell'audit ``audit/results/ensemble_scope_analisi_rapida.md``), ma
+    viene salvata una riga per motore: l'Elo attuale (post-fix PR#24) e l'Elo
+    legacy, ciascuno nella propria variante. Prima si scriveva una riga sola, che
+    nel Registro non era confrontabile con i due modelli del Top Mix; le righe
+    scritte allora restano dove sono (nessuna riscrittura).
+
+    Ritorna il numero di RIGHE scritte (due per partita).
+    """
     salvate = 0
     for match in matches:
         try:
@@ -1691,17 +1712,39 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             # in audit/diagnose_elo_ensemble.py); i Totali restano Poisson puro.
             # Se l'Elo non e' disponibile blend_elo_into_1x2 ritorna il Poisson
             # puro bit-identico.
-            m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
-            prob_1x2_blend = {f"Vittoria {h_disp}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a_disp}": m_blend["2"]}
-            prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
-            pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
-            top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
-            # Origine esplicita: senza di essa il Record "Poisson Auto" finiva
-            # nel calderone "Analisi" e non era distinguibile dal Top Mix.
-            save_prediction_entry(m_id, h_disp, a_disp, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h_disp, a_disp),
-                                  origin=ORIGIN_ANALISI_RAPIDA, kickoff_utc=match.get('utcDate'),
-                                  prob_poisson=round(mercati[best_mkt] * 100, 1))
-            salvate += 1
+            # SECONDO MOTORE (come nel Top Mix): l'Elo pre-fix PR#24. Fallback
+            # marcato e indipendente dal primo: se manca, la riga legacy si
+            # scrive lo stesso col Poisson puro e `elo_disponibile=False` lo dice.
+            elo_legacy, elo_legacy_disponibile = None, False
+            try:
+                elo_legacy = predict_elo_probs_legacy(h, a, camp_sel)
+                elo_legacy_disponibile = True
+            except Exception as e:
+                logging.warning(f"Analisi Rapida: Elo legacy non disponibile per {h} vs {a} ({camp_sel}): {e}")
+            # Due righe per partita, una per motore: la SCELTA (argmax sui mercati
+            # Poisson puri) e' la stessa, cambia la probabilita' 1X2 (blendata con
+            # l'Elo del motore) e la variante scritta nel Registro. Cosi' anche
+            # l'Analisi Rapida si legge come i due modelli del Top Mix invece di
+            # essere un'unica riga non confrontabile.
+            for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
+                if variante == MODEL_VARIANT_CURRENT:
+                    m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
+                    elo_disp = True
+                else:
+                    m_blend = blend_elo_into_1x2(m, h, a, camp_sel, elo_probs=elo_legacy,
+                                                 elo_disponibile=elo_legacy_disponibile)
+                    elo_disp = elo_legacy_disponibile
+                prob_1x2_blend = {f"Vittoria {h_disp}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a_disp}": m_blend["2"]}
+                prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
+                pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
+                top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
+                # Origine esplicita: senza di essa il Record "Poisson Auto" finiva
+                # nel calderone "Analisi" e non era distinguibile dal Top Mix.
+                save_prediction_entry(m_id, h_disp, a_disp, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h_disp, a_disp),
+                                      origin=ORIGIN_ANALISI_RAPIDA, kickoff_utc=match.get('utcDate'),
+                                      prob_poisson=round(mercati[best_mkt] * 100, 1),
+                                      model_variant=variante)
+                salvate += 1
         except Exception as e:
             logging.warning(f"Analisi Rapida: partita {h} vs {a} saltata: {e}")
     return salvate
@@ -2040,7 +2083,7 @@ with tab1:
         with col_btn:
             if st.button("⚡ Analisi Rapida"):
                 with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, st.session_state.get("classifica", {}), g_sel)
-                st.success(f"✅ {n} salvate!")
+                st.success(f"✅ {n} righe salvate ({len(matches)} partite x 2 motori: attuale e legacy)!")
         for idx, match in enumerate(matches):
             h_api, a_api = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
             dt = format_date_italy(match['utcDate'])

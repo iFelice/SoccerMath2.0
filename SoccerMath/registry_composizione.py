@@ -87,23 +87,47 @@ def _in_finestra(riga: Dict[str, Any]) -> Optional[bool]:
     return istante >= REPLAY_START_INSTANT
 
 
-def analizza(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Conteggi della composizione: nessuna scrittura, nessuna finestra nascosta."""
+def dettaglio_riga(riga: Dict[str, Any]) -> str:
+    """Una riga in una riga di testo: partita, data, origine, variante, scheda."""
+    istante, fonte = entry_instant(riga)
+    return (f"{riga.get('home')} - {riga.get('away')} · {riga.get('data') or 'data n/d'} · "
+            f"origine `{riga.get('origin') or 'assente'}` · letto "
+            f"{MODEL_VARIANT_LABELS.get(model_variant_read(riga), model_variant_read(riga))} · "
+            f"nato {istante.strftime('%d/%m/%Y %H:%M') if istante else 'istante n/d'} "
+            f"({fonte}) · `model_version` {riga.get(MODEL_VERSION_FIELD) or 'assente'} · "
+            f"match_id {riga.get('match_id')}")
+
+
+def analizza(righe: List[Dict[str, Any]], *, origini_escluse: Tuple[str, ...] = ("top_mix",)) -> Dict[str, Any]:
+    """Conteggi della composizione: nessuna scrittura, nessuna finestra nascosta.
+
+    ``origini_escluse`` sono le origini che NON si vogliono elencare riga per
+    riga (default: ``top_mix``, che e' la grande maggioranza): nel risultato
+    finisce l'**elenco** di tutte le altre, per rispondere a "quali partite sono
+    quelle righe?", non solo a "quante sono".
+    """
     per_origine: Counter = Counter()
     per_variante: Counter = Counter()
     per_stagione: Counter = Counter()
     incrocio = defaultdict(Counter)          # origine -> variante
+    stagione_per_origine = defaultdict(Counter)   # origine -> stagione
     scheda_vecchia = Counter()               # origine -> righe senza model_version
     per_finestra = Counter()
+    elenco: Dict[str, List[str]] = defaultdict(list)
     senza_campo_variante = 0
     istante_ignoto = 0
     for riga in righe:
+        grezza = str(origin_of(riga) or "").strip().lower()
         origine = _etichetta_origine(origin_of(riga))
         variante = model_variant_read(riga)
         per_origine[origine] += 1
         per_variante[variante] += 1
-        per_stagione[_stagione(riga)] += 1
+        stagione = _stagione(riga)
+        per_stagione[stagione] += 1
         incrocio[origine][variante] += 1
+        stagione_per_origine[origine][stagione] += 1
+        if grezza not in origini_escluse:
+            elenco[origine].append(dettaglio_riga(riga))
         if not str(riga.get(MODEL_VERSION_FIELD) or "").strip():
             scheda_vecchia[origine] += 1
         dentro = _in_finestra(riga)
@@ -120,10 +144,12 @@ def analizza(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
         "per_variante": dict(per_variante),
         "per_stagione": dict(per_stagione),
         "origine_per_variante": {k: dict(v) for k, v in incrocio.items()},
+        "origine_per_stagione": {k: dict(v) for k, v in stagione_per_origine.items()},
         "senza_campo_variante": senza_campo_variante,
         "istante_ignoto": istante_ignoto,
         "scheda_vecchia_per_origine": dict(scheda_vecchia),
         "finestra": dict(per_finestra),
+        "elenco": {k: sorted(v) for k, v in elenco.items()},
         "confine_finestra": REPLAY_START_INSTANT.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
@@ -140,27 +166,38 @@ def _righe_testo(d: Dict[str, Any]) -> List[str]:
     L.append(f"- righe senza campo `model_variant`: **{d['senza_campo_variante']}** · "
              f"senza istante leggibile: **{d['istante_ignoto']}**")
     L.append("")
-    L.append("| origine | righe | lette attuale | lette legacy | senza `model_version` |")
-    L.append("|---|---|---|---|---|")
+    L.append("| origine | righe | lette attuale | lette legacy | senza `model_version` | stagioni |")
+    L.append("|---|---|---|---|---|---|")
     for origine, conteggi in sorted(d["origine_per_variante"].items(),
                                     key=lambda kv: -sum(kv[1].values())):
+        stagioni = " · ".join(f"{s} {n}" for s, n in
+                              sorted(d["origine_per_stagione"].get(origine, {}).items(), reverse=True))
         L.append(f"| {origine} | {sum(conteggi.values())} | "
                  f"{conteggi.get(MODEL_VARIANT_CURRENT, 0)} | "
                  f"{conteggi.get(MODEL_VARIANT_LEGACY, 0)} | "
-                 f"{d['scheda_vecchia_per_origine'].get(origine, 0)} |")
+                 f"{d['scheda_vecchia_per_origine'].get(origine, 0)} | {stagioni} |")
+    for origine, voci in sorted(d["elenco"].items()):
+        L.append("")
+        L.append(f"### Elenco righe — origine {origine} ({len(voci)})")
+        for voce in voci:
+            L.append(f"- {voce}")
     return L
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--json", dest="json_out", default=None, help="scrive il dettaglio in JSON")
+    ap.add_argument("--escludi", default="top_mix",
+                    help="origini di cui NON elencare le righe una per una (default: top_mix, "
+                         "cioe' si elencano tutte le righe che NON sono Top Mix)")
     args = ap.parse_args(argv)
 
     righe, fonte = load_registry_readonly()
     if righe is None:
         print("::error title=composizione::Registro non leggibile (ne' remoto ne' locale)")
         return 2
-    d = analizza(righe)
+    d = analizza(righe, origini_escluse=tuple(
+        o.strip().lower() for o in args.escludi.split(",") if o.strip()))
     d["fonte"] = fonte
     testo = "\n".join(_righe_testo(d)) + "\n"
     print(testo)
