@@ -169,6 +169,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--coverage", required=True, help="JSON della copertura (da registry_coverage_check)")
     ap.add_argument("--snapshot-cache", default=None, metavar="DIR")
     ap.add_argument("--ref", default=None, help="ref git di main (default: origin/main, poi main)")
+    ap.add_argument("--fixtures", choices=("csv", "api"), default="csv",
+                    help="sorgente delle fixture. 'csv' (default) = archivi del repo, con id "
+                         "SINTETICI; le righe del Registro vivo hanno gli id dell'API, quindi "
+                         "per misurarle serve 'api'")
     ap.add_argument("--out", default=None, metavar="FILE", help="referto markdown")
     args = ap.parse_args(argv)
 
@@ -183,7 +187,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     leghe = sorted({r["campionato"] for _, r in tutte})
-    fixtures = replay.fixtures_from_csv_and_archive(leghe)
+    # Le righe del Registro vivo portano i match_id dell'API: con le fixture dei
+    # CSV (id sintetici) nessuna partita verrebbe trovata e la diagnosi direbbe
+    # "non diagnosticabile" su tutto, senza misurare niente.
+    if args.fixtures == "api":
+        from config import FOOTBALL_DATA_API_KEY
+        fixtures = replay.fixtures_from_api(FOOTBALL_DATA_API_KEY, leghe)
+    else:
+        fixtures = replay.fixtures_from_csv_and_archive(leghe)
     dettagli = []
     non_diagnosticabili: List[Tuple[Dict[str, Any], str]] = []
     for variante, r in sorted(tutte, key=lambda x: (x[1].get("kickoff_utc") or "", x[1]["partita"])):

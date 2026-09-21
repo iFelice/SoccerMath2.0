@@ -40,3 +40,49 @@ class TestKickoff(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSorgenteFixture(unittest.TestCase):
+    """Le righe del Registro vivo hanno i match_id dell'API.
+
+    Con le fixture dei CSV (id sintetici) ogni partita risulta "non trovata" e la
+    diagnosi non misura nulla: e' successo davvero in CI, con 19 righe tutte
+    dichiarate non diagnosticabili per lo stesso motivo sbagliato.
+    """
+
+    def test_fixtures_api_chiama_lapi(self):
+        import io
+        import json
+        import tempfile
+        import contextlib
+        from unittest import mock
+
+        cov = {"solo": {"current": [{"partita": "Inter - Milan", "campionato": "Serie A",
+                                     "kickoff_utc": "2026-09-10T18:00:00Z", "match_id": 123,
+                                     "mercato": "1", "prob": 70.0}], "legacy": []}}
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(cov, f)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+
+        chiamate = {}
+
+        def finti_api(api_key, leghe, **kw):
+            chiamate["api"] = (api_key, list(leghe))
+            return {}
+
+        def finti_csv(leghe, **kw):
+            chiamate["csv"] = list(leghe)
+            return {}
+
+        with mock.patch.object(diag.replay, "fixtures_from_api", finti_api), \
+             mock.patch.object(diag.replay, "fixtures_from_csv_and_archive", finti_csv):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                diag.main(["--dump", f.name, "--coverage", f.name, "--fixtures", "api"])
+            self.assertIn("api", chiamate)
+            self.assertNotIn("csv", chiamate)
+            out2 = io.StringIO()
+            with contextlib.redirect_stdout(out2):
+                diag.main(["--dump", f.name, "--coverage", f.name])
+            self.assertIn("csv", chiamate)

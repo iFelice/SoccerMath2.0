@@ -160,7 +160,10 @@ jobs:
         run: |
           set -o pipefail
           set +e
+          # --fixtures api: le righe del Registro vivo hanno i match_id
+          # dell'API (quelle dei CSV sono sintetici e non matchano mai).
           python audit/diagnose_scarti_model_variant.py \
+            --fixtures api \
             --dump "$OUT/registro_vivo.json" --coverage "$OUT/coverage.json" \
             --snapshot-cache "$RUNNER_TEMP/sm_snap_cache" \
             --out "$OUT/diagnosi_scarti.md" 2>&1 | tee "$OUT/diagnosi.txt"
