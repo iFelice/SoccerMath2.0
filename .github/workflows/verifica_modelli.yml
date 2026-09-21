@@ -146,8 +146,10 @@ jobs:
               json.dump({"data": righe}, f, ensure_ascii=False, indent=2)
           print(f"copia locale del Registro ({fonte}): {len(righe)} righe -> {sys.argv[1]}")
           PY
+          # Solo la finestra dichiarata ricostruibile: le partite di prima non
+          # sono rigiocabili onestamente e non devono entrare nella diagnosi.
           python SoccerMath/registry_coverage_check.py --allow-mismatch \
-            --json "$OUT/coverage.json" 2>&1 | tee "$OUT/coverage.txt" | head -n 12
+            --from 2026-08-30 --json "$OUT/coverage.json" 2>&1 | tee "$OUT/coverage.txt" | head -n 12
 
       # Perche' manca la riga del modello assente: un click VERO per partita e
       # gli ingressi del selettore intercettati mentre gira. Misura, non stima.

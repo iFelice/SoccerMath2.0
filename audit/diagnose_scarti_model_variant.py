@@ -57,11 +57,23 @@ ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
 
 def _kickoff(riga: Dict[str, Any]) -> datetime:
+    """Istante del kickoff della riga del Registro.
+
+    ``kickoff_utc`` e' la fonte autorevole (c'e' in tutte le righe scritte dal
+    Top Mix a due motori e in quelle del replay). Le righe STORICHE, scritte
+    quando il campo non esisteva, hanno solo ``data`` = 'gg/mm/aaaa HH:MM'
+    nell'ora italiana: si deduce da li' e il referto lo dichiara
+    (``kickoff_dedotto``), perche' e' una ricostruzione, non un dato.
+    """
     ko = riga.get("kickoff_utc")
-    if not ko:
-        raise SystemExit(f"riga senza kickoff_utc: {riga}")
-    d = datetime.fromisoformat(str(ko).replace("Z", "+00:00"))
-    return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d.astimezone(timezone.utc)
+    if ko:
+        d = datetime.fromisoformat(str(ko).replace("Z", "+00:00"))
+        return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d.astimezone(timezone.utc)
+    from prediction_registry import parse_datetime
+    d = parse_datetime(riga.get("data"))
+    if d is None:
+        raise SystemExit(f"riga senza kickoff_utc ne' data utilizzabile: {riga}")
+    return d.astimezone(timezone.utc)
 
 
 def intercetta_selettore(chiamate: List[Dict[str, Any]]):
@@ -90,6 +102,7 @@ def diagnosi_partita(riga: Dict[str, Any], fixtures: Dict[str, List[Any]], *,
     """Un click vero sulla partita, poi la lettura di cosa ha visto il selettore."""
     lega = riga["campionato"]
     ko = _kickoff(riga)
+    dedotto = not bool(str(riga.get("kickoff_utc") or "").strip())
     istante = ko - timedelta(seconds=1)
     target = next((f for f in fixtures.get(lega, []) if str(f.match_id) == str(riga.get("match_id"))), None)
     if target is None:
@@ -186,6 +199,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             continue
         d["variante_presente"] = variante
         d["variante_assente"] = MODEL_VARIANT_LEGACY if variante == MODEL_VARIANT_CURRENT else MODEL_VARIANT_CURRENT
+        d["kickoff_dedotto"] = dedotto
         dettagli.append(d)
         assente = d["esiti"][d["variante_assente"]]
         print(f"{d['partita']} ({d['campionato']}, {d['kickoff']}): "
@@ -202,7 +216,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     for d in dettagli:
         pres, ass = d["variante_presente"], d["variante_assente"]
         e_p, e_a = d["esiti"][pres], d["esiti"][ass]
-        L.append(f"| {d['partita']} ({d['campionato']}, {d['kickoff']}) | {d['match_id']} | "
+        ded = " (kickoff dedotto dalla data italiana)" if d.get("kickoff_dedotto") else ""
+        L.append(f"| {d['partita']} ({d['campionato']}, {d['kickoff']}{ded}) | {d['match_id']} | "
                  f"{MODEL_VARIANT_LABELS[pres]}: {d['prodotta_da']} {e_p['confidence']}% "
                  f"(soglia {e_p['soglia']}%, disaccordo {e_p['disaccordo']}%) | "
                  f"{MODEL_VARIANT_LABELS[ass]}: {e_a['mercato']} {e_a['confidence']}% | "
