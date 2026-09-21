@@ -26,6 +26,7 @@ Esecuzione:
 Nessun test tocca predictions.json o JSONBin: usa solo dati in memoria.
 """
 
+import ast
 import sys
 import unittest
 from datetime import datetime
@@ -219,9 +220,16 @@ class TestUiColumnContract(unittest.TestCase):
             self.assertNotIn(helper, df.columns)
 
     def test_app_uses_same_datetime_pipeline(self):
-        """Guardia sul sorgente UI: il tab5 deve usare conversione datetime,
+        """Guardia sul sorgente UI: il Registro deve usare conversione datetime,
         sort con na_position e la DatetimeColumn col formato italiano, senza
-        stringhe di formato applicate DOPO il sort ne' colonne helper."""
+        stringhe di formato applicate DOPO il sort ne' colonne helper.
+
+        Il contratto e' lo stesso, ma il dataframe non e' piu' scritto in linea
+        nel tab5: il tab5 disegna DUE tabelle (una per motore, attuale e legacy)
+        con la stessa funzione, ``_mostra_registro_modello``. La guardia legge
+        la pipeline dove il dataframe viene costruito (quella funzione) e
+        verifica che il tab5 la chiami per ENTRAMBI i motori.
+        """
         registro_start = _APP_SOURCE.find('st.subheader("📒 Registro Predizioni & Tracking")')
         self.assertGreater(registro_start, 0, "sezione Registro non trovata in app.py")
         # Il tab Registro e' l'ultimo del file: si legge fino in fondo, non una
@@ -230,15 +238,21 @@ class TestUiColumnContract(unittest.TestCase):
         block = _APP_SOURCE[registro_start:]
         self.assertIn("build_registry_datetime_column", block,
                       "il Registro non usa la conversione datetime condivisa")
-        self.assertIn('sort_values(by="data", ascending=False, na_position="last")', block,
+        self.assertEqual(2, block.count("_mostra_registro_modello("),
+                         "il tab5 deve disegnare DUE tabelle, una per motore")
+        tree = ast.parse(_APP_SOURCE)
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                  and n.name == "_mostra_registro_modello")
+        funzione = ast.get_source_segment(_APP_SOURCE, fn)
+        self.assertIn('sort_values(by="data", ascending=False, na_position="last")', funzione,
                       "il sort del Registro non usa na_position='last'")
-        self.assertIn('format="DD/MM/YYYY HH:mm"', block,
+        self.assertIn('format="DD/MM/YYYY HH:mm"', funzione,
                       "manca il formato italiano DD/MM/YYYY HH:mm in DatetimeColumn")
-        self.assertIn("DatetimeColumn", block)
-        self.assertNotIn("data_dt", block,
+        self.assertIn("DatetimeColumn", funzione)
+        self.assertNotIn("data_dt", funzione + block,
                          "una colonna helper data_dt non deve essere esposta in UI")
         # La data non deve essere ri-formattata a stringa dopo il sort.
-        self.assertNotIn("dt.strftime('%d/%m/%Y %H:%M')", block.split("st.dataframe(")[1][:800],
+        self.assertNotIn("strftime", funzione,
                          "la colonna data non deve essere riconvertita in stringa per la UI")
 
 

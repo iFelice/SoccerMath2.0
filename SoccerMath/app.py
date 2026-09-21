@@ -2097,6 +2097,51 @@ def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
         st.markdown(f"<div class='top-mix-row'><div><b>#{p.get('rank') or i + 1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
 
 
+# Colonne delle due tabelle del Registro, in un posto solo: cosi' le due
+# tabelle non possono divergere fra loro.
+REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_standard",
+                    "prob_sicuro", "risultato_reale", "esito", "origine", "modello"]
+
+
+def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420):
+    """Una delle DUE tabelle del Registro: solo le righe di un motore.
+
+    L'etichetta del modello sta nell'intestazione, come nel Top Mix: dentro la
+    tabella la colonna della variante sarebbe la stessa parola ripetuta su ogni
+    riga, quindi non si mostra. Nessun tetto di righe.
+
+    La conversione della data e' quella condivisa (``build_registry_datetime``)
+    fatta a monte in tab5, e la colonna resta datetime64: l'ordinamento
+    cliccando l'intestazione e' cronologico, il formato italiano lo da' la
+    ``DatetimeColumn`` (nessuna stringa riconvertita dopo il sort).
+    """
+    st.markdown(f"<div class='top-mix-model {css_class}'><b>{titolo}</b> — {len(righe)} righe"
+                f"<br><small>{sottotitolo}</small></div>", unsafe_allow_html=True)
+    if righe.empty:
+        st.info("Nessuna riga di questo motore con i filtri attivi.")
+        return
+    st.dataframe(
+        righe[REGISTRO_COLONNE].sort_values(by="data", ascending=False, na_position="last"),
+        width="stretch",
+        height=altezza,
+        column_config={
+            # Colonna davvero datetime64 (non una stringa riconvertita dopo il
+            # sort): il formato momentJS tiene la vista italiana identica.
+            "data": st.column_config.DatetimeColumn(
+                None,
+                format="DD/MM/YYYY HH:mm",
+            ),
+            # La colonna del vecchio "Modello" (pre-fix / attuale) resta, ma non
+            # si chiama piu' "Modello": dentro una tabella intitolata a UN motore
+            # quel nome faceva pensare alla variante. E' la versione del RECORD.
+            "modello": st.column_config.TextColumn(
+                "Versione record",
+                help=f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}",
+            ),
+        },
+    )
+
+
 with tab2:
     st.caption("Due modelli, due tabelle: **Attuale** (Elo post-fix PR#24) sopra, "
                "**Legacy** (Elo pre-fix, boost xG) sotto. Stesso Poisson, stesse soglie, "
@@ -2280,6 +2325,10 @@ with tab5:
         # cioe' Legacy). La colonna non e' mai vuota e i due motori restano
         # separabili, senza spacciare per "Attuale" cio' che l'attuale non ha
         # mai prodotto.
+        # `variante_codice` e' il valore macchina (`current`/`legacy`): serve a
+        # scegliere le righe delle DUE tabelle, cosi' la scelta non dipende mai
+        # da come e' scritta un'etichetta.
+        df_preds['variante_codice'] = [model_variant_read(p) for p in preds]
         df_preds['variante'] = [model_variant_label(p) for p in preds]
 
         # FIX ordinamento Registro: 'data' e' persistito come stringa italiana
@@ -2291,7 +2340,10 @@ with tab5:
         # valori mancanti/non validi diventano NaT e finiscono in fondo.
         df_preds['data'] = build_registry_datetime_column(df_preds['data'])
 
-        f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
+        # NIENTE filtro "Modello": le due tabelle del Registro sono gia' una per
+        # motore (Attuale / Legacy). Un filtro in piu' potrebbe svuotarne una e
+        # far credere che quel motore non abbia righe.
+        f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         with f_col1:
             camp_options = ["Tutti"] + list(LEAGUES_CONFIG.keys())
             filter_camp = st.selectbox("Campionato", camp_options, index=0)
@@ -2303,12 +2355,6 @@ with tab5:
             # Le etichette esistono gia' nei dati: nessuna lista hardcoded.
             filter_origine = st.selectbox("Origine", ["Tutti"] + sorted(set(df_preds["origine"].tolist())), index=0)
         with f_col4:
-            # Top Mix a due motori: Attuale / Legacy. Le etichette vengono dai
-            # dati (una riga senza campo e' Attuale), nessuna lista hardcoded.
-            filter_variante = st.selectbox("Modello", ["Tutti"] + sorted(set(df_preds["variante"].tolist())), index=0,
-                                           help=f"{MODEL_VARIANT_LABELS[MODEL_VARIANT_CURRENT]} = Elo attuale (post-fix PR#24); "
-                                                f"{MODEL_VARIANT_LABELS[MODEL_VARIANT_LEGACY]} = Elo pre-fix (seconda tabella del Top Mix).")
-        with f_col5:
             stagioni_reali = sorted(df_preds['stagione'].unique().tolist(), reverse=True)
             default_stagione_idx = 1 if len(stagioni_reali) > 0 else 0
             filter_stagione = st.selectbox("Stagione", ["Tutti"] + stagioni_reali, index=default_stagione_idx)
@@ -2319,7 +2365,8 @@ with tab5:
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
         if filter_origine != "Tutti": df_preds = df_preds[df_preds["origine"] == filter_origine]
-        if filter_variante != "Tutti": df_preds = df_preds[df_preds["variante"] == filter_variante]
+        # Nessun filtro sulla variante: le due tabelle piu' sotto sono gia' una
+        # per motore, e nessuna riga viene nascosta da un filtro in piu'.
 
         filtered_records = df_preds.to_dict("records")
         current_stats = stats_current_model(filtered_records)
@@ -2389,31 +2436,25 @@ with tab5:
             f"{MODEL_LABEL_PRE_FIX} = {PRE_FIX_TOOLTIP} · "
             f"{MODEL_LABEL_CURRENT} = {CURRENT_MODEL_TOOLTIP}"
         )
-        st.dataframe(
-            df_display[
-                ["data", "stagione", "campionato", "home", "away", "mercato_standard",
-                 "prob_sicuro", "risultato_reale", "esito", "origine", "variante", "modello"]
-            ].sort_values(by="data", ascending=False, na_position="last"),
-            width="stretch",
-            height=500,
-            column_config={
-                # Colonna davvero datetime64 (non una stringa riconvertita dopo
-                # il sort): l'ordinamento cliccando l'intestazione e' quindi
-                # cronologico. Il formato momentJS mantiene la vista italiana
-                # DD/MM/YYYY HH:mm identica a prima.
-                "data": st.column_config.DatetimeColumn(
-                    None,
-                    format="DD/MM/YYYY HH:mm",
-                ),
-                "variante": st.column_config.TextColumn(
-                    "Modello Elo",
-                    help="Attuale = Elo post-fix PR#24 (prima tabella del Top Mix); "
-                         "Legacy = Elo pre-fix con boost xG (seconda tabella). "
-                         "Le righe scritte prima del Top Mix a due modelli sono Attuale.",
-                ),
-                "modello": st.column_config.TextColumn(
-                    "Modello",
-                    help=f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}",
-                )
-            },
-        )
+
+        # DUE tabelle, una per motore (come nel Top Mix): prima erano righe di
+        # entrambi i modelli mescolate in un'unica tabella con una colonna
+        # "Modello", e per leggere un solo motore bisognava filtrare.
+        maschera_attuale = df_display["variante_codice"] == MODEL_VARIANT_CURRENT
+        maschera_legacy = df_display["variante_codice"] == MODEL_VARIANT_LEGACY
+        _mostra_registro_modello(
+            df_display[maschera_attuale], "🟢 MODELLO ATTUALE",
+            "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglie 0,55 1X2 / 0,60 Totali",
+            "top-mix-current")
+        _mostra_registro_modello(
+            df_display[maschera_legacy], "🟠 MODELLO LEGACY",
+            "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
+            "top-mix-legacy")
+        # Una riga con una variante fuori dalle due non sparisce dal Registro:
+        # finisce in una terza tabella di controllo, cosi' il totale mostrato
+        # resta verificabile a occhio.
+        resto = df_display[~(maschera_attuale | maschera_legacy)]
+        if len(resto):
+            st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
+                       f"mostrate a parte, non nascoste.")
+            st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)
