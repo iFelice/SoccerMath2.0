@@ -241,8 +241,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     for d in dettagli:
         m = d["esiti"][d["variante_assente"]]["motivo"].split(" (")[0]
         motivi[m] = motivi.get(m, 0) + 1
-    L.append("Riepilogo: " + " · ".join(f"{k}: {v}" for k, v in sorted(motivi.items())) + ".")
+    riga_riepilogo = "Riepilogo: " + " · ".join(f"{k}: {v}" for k, v in sorted(motivi.items())) + "."
+    L.append(riga_riepilogo)
     L.append("")
+    # Anche su STDOUT: il riepilogo e' il risultato della diagnosi, e chi la
+    # lancia (CI compresa) legge lo stdout, non il file.
+    print(riga_riepilogo)
     if non_diagnosticabili:
         L.append(f"### Non diagnosticabili: {len(non_diagnosticabili)} su {len(tutte)}")
         L.append("")

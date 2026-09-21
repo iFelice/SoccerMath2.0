@@ -86,3 +86,29 @@ class TestSorgenteFixture(unittest.TestCase):
             with contextlib.redirect_stdout(out2):
                 diag.main(["--dump", f.name, "--coverage", f.name])
             self.assertIn("csv", chiamate)
+
+
+class TestRiepilogoSuStdout(unittest.TestCase):
+    """Il riepilogo deve finire su stdout, non solo nel file.
+
+    In CI lo legge il workflow (annotazione): se resta solo nel referto, la
+    causa misurata delle N partite non e' leggibile dal run.
+    """
+
+    def test_riepilogo_stampato(self):
+        import io
+        import json
+        import tempfile
+        import contextlib
+        from unittest import mock
+
+        cov = {"solo": {"current": [], "legacy": []}}
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(cov, f)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        out = io.StringIO()
+        with mock.patch.object(diag.replay, "fixtures_from_csv_and_archive", lambda *a, **k: {}):
+            with contextlib.redirect_stdout(out):
+                diag.main(["--dump", f.name, "--coverage", f.name])
+        self.assertIn("Nessuna partita coperta da un solo modello", out.getvalue())
