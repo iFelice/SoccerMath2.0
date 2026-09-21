@@ -160,6 +160,9 @@ def diagnosi_partita(riga: Dict[str, Any], fixtures: Dict[str, List[Any]], *,
         }
     return {"partita": riga["partita"], "campionato": lega, "kickoff": ko.strftime(ISO_Z),
             "match_id": riga.get("match_id"), "snapshot_sha": click.snapshot_sha,
+            # 'kickoff_dedotto': l'istante non veniva dal campo kickoff_utc ma dalla
+            # data italiana. Va nel referto: e' una ricostruzione, non un dato.
+            "kickoff_dedotto": dedotto,
             "prodotta_da": riga.get("mercato"), "esiti": esiti}
 
 
