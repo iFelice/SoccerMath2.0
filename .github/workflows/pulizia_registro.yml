@@ -87,14 +87,29 @@ jobs:
         run: |
           python SoccerMath/registry_pulizia.py \
             --origini "${{ vars.PULIZIA_ORIGINI || 'analisi_rapida' }}" \
-            --rimosse "$OUT/prova_rimosse.json" 2>&1 | tee "$OUT/pulizia_prova.txt"
+            --dettaglio --rimosse "$OUT/prova_rimosse.json" 2>&1 | tee "$OUT/pulizia_prova.txt"
           python - "$OUT/pulizia_prova.txt" <<'PY'
           import sys
-          righe = open(sys.argv[1], encoding="utf-8").read().splitlines()
+          testo = open(sys.argv[1], encoding="utf-8").read()
+          righe = testo.splitlines()
           sel = [r.strip() for r in righe if r.strip().startswith("- `")]
-          print(f"::warning title=pulizia-prova::righe selezionate: {len(sel)} (nessuna scrittura in questa modalita')")
-          for r in sel[:8]:
-              print(f"::notice title=pulizia-riga::{r[:900]}")
+          tecniche = [r.strip() for r in righe if r.strip().startswith("RIGA|")]
+          # Annotazioni = l'unico canale leggibile da fuori (le artifact qui non
+          # si scaricano). Si raggruppa: max 10 annotazioni per step, quindi
+          # poche righe lunghe invece di una per campo.
+          print(f"::warning title=pulizia-prova::campi selezionati: {len(sel)} "
+                f"(nessuna scrittura in questa modalita')")
+          for prefisso in ("- campi selezionati:", "- righe logiche", "- righe presenti sotto",
+                           "- righe NON attribuibili", "- campi nell", "- campi dopo"):
+              for r in righe:
+                  if r.strip().startswith(prefisso):
+                      print(f"::warning title=pulizia-conteggi::{r.strip()[:900]}")
+          for i in range(0, max(len(tecniche), 1), 9):
+              gruppo = tecniche[i:i + 9]
+              if not gruppo:
+                  break
+              print("::warning title=pulizia-campi-{}-{}::{}".format(
+                  i // 9 + 1, i + len(gruppo), " || ".join(g[:800] for g in gruppo)))
           PY
 
       - name: Pulizia vera (solo con il tag pulizia-write-*)

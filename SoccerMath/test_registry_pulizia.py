@@ -136,6 +136,28 @@ class TestPercorsoDiScrittura(unittest.TestCase):
         self.assertTrue(str(snap.call_args[0][0]).endswith("-pre-pulizia"))
 
 
+class TestRigaTecnica(unittest.TestCase):
+    """Il nome scritto e il nome ricalcolato: se non coincidono, la stessa riga
+    vive nell'hash sotto DUE nomi e cancellarne uno lascerebbe l'altra."""
+
+    def test_nome_vecchio_dichiarato(self):
+        riga = _riga(540706, "analisi_rapida", data="16/05/2026 15:30", variante="current")
+        riga.pop("origin")   # riga scritta prima del campo origin
+        riga["model_version"] = ""
+        testo = RP.riga_tecnica("540706|analisi_rapida||current", "t", riga)
+        self.assertIn("origine scritta: assente", testo)
+        self.assertIn("origine letta: unknown", testo)
+        self.assertIn("testo del pronostico: '1 - x'", testo)
+
+    def test_nome_allineato_dichiarato(self):
+        riga = _riga(1, "top_mix", variante="current")
+        campo = "|".join("" if p is None else str(p) for p in RP.dedup_key(riga))
+        testo = RP.riga_tecnica(campo, "t", riga)
+        self.assertIn("allineato a", testo)
+        self.assertIn("si |", testo)
+        self.assertNotIn("NO (nome vecchio)", testo)
+
+
 class TestGuardie(unittest.TestCase):
     def test_backend_jsonbin_non_si_pulisce(self):
         with mock.patch.object(rs, "backend", return_value=rs.BACKEND_JSONBIN):

@@ -50,12 +50,33 @@ if HERE not in sys.path:
 import registry_store as rs  # noqa: E402
 from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_LABELS,
+    dedup_key,
     model_variant_read,
     origin_of,
+    origin_from_text,
 )
 from registry_composizione import dettaglio_riga  # noqa: E402
 
 ORIGINI_DEFAULT = ("analisi_rapida",)
+
+
+def riga_tecnica(campo: str, testo: str, riga: Dict[str, Any]) -> str:
+    """Perche' un campo e' quello che e': nome scritto, origine scritta, origine letta.
+
+    Serve quando il nome del campo e la lettura NON coincidono (convenzione
+    cambiata): il nome vecchio e quello ricalcolato restano nell'hash come due
+    campi con lo stesso contenuto, e cancellarne uno solo lascerebbe la riga
+    dentro per l'altro nome.
+    """
+    grezza = str(riga.get("origin") or "").strip()
+    letta = str(origin_of(riga) or "").strip()
+    ricalcolato = "|".join("" if p is None else str(p) for p in dedup_key(riga))
+    return (f"RIGA| `{campo}` | allineato a `{ricalcolato}`: "
+            f"{'si' if campo == ricalcolato else 'NO (nome vecchio)'} | "
+            f"origine scritta: {grezza or 'assente'} | origine letta: {letta} | "
+            f"testo del pronostico: {str(riga.get('pronostico_sicuro') or 'assente')[:40]!r} | "
+            f"letto {MODEL_VARIANT_LABELS.get(model_variant_read(riga), model_variant_read(riga))} | "
+            f"{dettaglio_riga(riga)}")
 
 
 def _giorno_utc() -> str:
@@ -115,6 +136,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--attesi", type=int, default=None,
                     help="numero di righe atteso: se non combacia lo strumento si ferma")
     ap.add_argument("--rimosse", default=None, help="scrive qui il JSON delle righe rimosse")
+    ap.add_argument("--dettaglio", action="store_true",
+                    help="stampa per ogni campo il nome scritto, quello ricalcolato e le origini")
     ap.add_argument("--scrivi", action="store_true", help="esegue davvero la pulizia")
     ap.add_argument("--conferma", action="store_true",
                     help="seconda chiave: senza questa, --scrivi non scrive")
@@ -154,6 +177,28 @@ def main(argv: Optional[List[str]] = None) -> int:
               f"**{len(non_attribuibili)}**")
         for campo in non_attribuibili:
             print(f"  - `{campo}` · {dettaglio_riga(campi[campo][1])}")
+    if args.dettaglio:
+        # Un blocco per OGNI campo selezionato: nome scritto, nome ricalcolato,
+        # origine scritta e origine letta. E' il blocco che dice se cancellare
+        # il campo basta, o se la stessa riga vive sotto un secondo nome.
+        print("")
+        print("### Dettaglio tecnico dei campi selezionati")
+        for campo in da_cancellare:
+            testo, riga = campi[campo]
+            print(riga_tecnica(campo, testo, riga))
+        chiavi_logiche = {}
+        for campo in da_cancellare:
+            chiavi_logiche.setdefault(rs.field_of(campi[campo][1]), []).append(campo)
+        print(f"\n- campi selezionati: **{len(da_cancellare)}** · righe logiche distinte: "
+              f"**{len(chiavi_logiche)}**")
+        sdoppiate = {k: v for k, v in chiavi_logiche.items() if len(v) > 1}
+        print(f"- righe presenti sotto PIU' nomi di campo: **{len(sdoppiate)}**")
+        for chiave, campi_uguali in sorted(sdoppiate.items()):
+            print(f"  - riga logica `{chiave}` → campi: {', '.join('`' + c + '`' for c in sorted(campi_uguali))}")
+        for chiave, campi_uguali in sorted(chiavi_logiche.items()):
+            if len(campi_uguali) == 1 and campi_uguali[0] != chiave:
+                print(f"  - riga logica `{chiave}` → un solo campo, con nome vecchio: "
+                      f"`{campi_uguali[0]}`")
     if not args.scrivi:
         print("\n**PROVA**: nessuna scrittura. Per eseguire servono `--scrivi --conferma`.")
         return 0
