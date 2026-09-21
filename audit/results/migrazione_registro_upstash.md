@@ -56,6 +56,13 @@ del mensile). Spazio: **233 righe = 160,4 kB su 256 MB** (0,06%).
    (backend JSONBin, credenziali «non configurate») fino al primo salvataggio
    rifiutato. Ora `config._get_secret` copre anche `st.secrets`.
 
+5. **I test toccavano la copia locale vera.** `app` importa `PREDICTIONS_FILE` e
+   `DATABASE_DIR` nel **proprio** namespace: correggere `config.PREDICTIONS_FILE`
+   non basta, e la prima versione dei test di degrado ha scritto davvero nel file
+   locale del Registro (non versionato: l'originale era assente ed è stato
+   riportato all'assenza). Ora i patch mirano ai nomi di `app` e nel `tearDown`
+   c'è una **guardia** che fallisce se il file locale vero cambia.
+
 Bug veri trovati *dai test* durante la fase A/C: la copia usava il **conteggio**
 del piano al posto delle **righe** (`TypeError: 'int' object is not iterable`).
 
@@ -86,8 +93,8 @@ backend nuovo** (`REGISTRY_BACKEND=upstash`, letto dal run):
 
 | run | click | righe Attuale | righe Legacy | leak check | Registro prima → dopo | scritture |
 |---|---|---|---|---|---|---|
-| `replay-check-sym-2026-09-20` (2026-09-21) | 80 | 60 | 52 | OK | 233 → 233 (`gia_presente`: 112) | **nessuna** |
-| `replay-check-legacy-2026-09-20` (2026-09-21) | 23 | 17 | 16 | OK | 233 → 233 (`gia_presente`: 33) | **nessuna** |
+| `replay-check-sym-2026-09-20` (2026-09-21, commit `3883a64`) | 80 | 60 | 52 | OK | 233 → 233 (`gia_presente`: 112) | **nessuna** |
+| `replay-check-legacy-2026-09-20` (2026-09-21, commit `3883a64`) | 23 | 17 | 16 | OK | 233 → 233 (`gia_presente`: 33) | **nessuna** |
 
 Fedeltà (righe del Registro vs ricostruzione del replay): **109/192** sulla
 finestra simmetrica e **30/33** sulla legacy — la ricostruzione ritrova le righe
