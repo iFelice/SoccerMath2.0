@@ -98,6 +98,33 @@ jobs:
             done
           done
 
+          # Le partite coperte da UN SOLO modello, con la specie di riga che le
+          # copre: riga del REPLAY (campo variante esplicito) o click VERO
+          # dell'epoca (campo assente: prima di PR#24 il motore live era quello
+          # vecchio). Una stessa partita puo' avere entrambe le specie.
+          python - "$OUT/modelli.json" <<'PY' || true
+          import json, sys
+          d = json.load(open(sys.argv[1], encoding="utf-8"))
+          nomi = {"current": "ATTUALE", "legacy": "LEGACY"}
+          for chiave in ("intero", "vecchio", "nuovo"):
+              for variante in ("current", "legacy"):
+                  voci = d[chiave]["solo"][variante]
+                  if not voci:
+                      continue
+                  replay = [v for v in voci if v.get("riga_del_replay")]
+                  storiche = [v for v in voci if v.get("riga_storica")]
+                  print("::warning title=modelli-specie::"
+                        f"{chiave}: {len(voci)} partit{'a' if len(voci) == 1 else 'e'} "
+                        f"coperte SOLO dal modello {nomi[variante]} — "
+                        f"con una riga del REPLAY {len(replay)} · con un CLICK VERO dell'epoca {len(storiche)}")
+                  elenco = " · ".join(
+                      f"{v['partita']} [{v['mercato']} {v['prob']}] "
+                      f"{'replay' if v.get('riga_del_replay') else 'click vero'}"
+                      f"{'+click vero' if v.get('riga_storica') else ''}"
+                      for v in voci[:12])
+                  print(f"::warning title=modelli-elenco::{chiave}/{variante} ({len(voci)}): {elenco[:900]}")
+          PY
+
           # Gate: le righe del modello ATTUALE che mancano sono un guasto vero
           # (la commessa chiedeva proprio quelle). Le righe legacy mancanti no.
           python - "$OUT/modelli.json" <<'PY' || exit 3
