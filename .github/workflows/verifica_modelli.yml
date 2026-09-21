@@ -169,9 +169,16 @@ jobs:
             --out "$OUT/diagnosi_scarti.md" 2>&1 | tee "$OUT/diagnosi.txt"
           rc=$?
           set -e
+          # `|| true`: se la diagnosi non ha stampato NIENTE (crash immediato) il
+          # grep vuoto non deve uccidere il passo prima di dire cosa e' successo
+          # (e' successo davvero: errore inghiottito da una pipeline con set -e).
           grep -E "^Riepilogo|assente ->|^NON DIAGNOSTICABILI|NON diagnosticabile" "$OUT/diagnosi.txt" \
             | head -n 26 | while IFS= read -r line; do
             echo "::warning title=diagnosi::${line:0:900}"
+          done || true
+          # La coda del log sempre: se qualcosa e' andato storto, il perche' e' li'.
+          tail -n 6 "$OUT/diagnosi.txt" | while IFS= read -r line; do
+            echo "::warning title=diagnosi-coda::${line:0:900}"
           done
           # rc 3 = diagnosi fatta ma con righe NON diagnosticabili: dichiarato,
           # non un guasto (non tutte le righe storiche si lasciano rigiocare).
