@@ -93,11 +93,18 @@ jobs:
           set -e
 
           # Annotazioni compatte: le righe che contano, non tutto il referto.
-          for pattern in 'finestra ricostruibile' 'VECCHIO (prima di PR#24)' 'NUOVO (da PR#24 in poi)' \
-                         'INTERO PERIODO' 'i due campioni' 'righe del modello ATTUALE da scrivere'; do
-            grep -m 1 -- "$pattern" "$OUT/modelli.txt" | while IFS= read -r line; do
+          # Un pattern che non compare NON e' un guasto: il verdetto lo danno
+          # l'uscita dello strumento (rc) e il passo "gate" piu' sotto. Senza il
+          # `|| true` un `grep` a vuoto fa uscire 1 sotto `pipefail` + `set -e`,
+          # e la run diventa rossa per un'annotazione mancante (e' successo: il
+          # pattern 'righe del modello ATTUALE da scrivere' non esiste piu' nel
+          # referto, e la run e' caduta con "exit code 1" mentre il gate era
+          # verde).
+          for pattern in 'righe totali' 'finestra ricostruibile' 'VECCHIO (prima di PR#24)' \
+                         'NUOVO (da PR#24 in poi)' 'INTERO PERIODO' 'i due campioni'; do
+            grep -m 1 -- "$pattern" "$OUT/modelli.txt" 2>/dev/null | while IFS= read -r line; do
               echo "::warning title=modelli::${line:0:900}"
-            done
+            done || true
           done
 
           # UNA annotazione con il dettaglio che conta: quante righe senza
