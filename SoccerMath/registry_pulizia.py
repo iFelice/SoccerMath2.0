@@ -134,7 +134,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--origini", default=",".join(ORIGINI_DEFAULT),
                     help="origini da togliere dal Registro (separate da virgola)")
     ap.add_argument("--attesi", type=int, default=None,
-                    help="numero di righe atteso: se non combacia lo strumento si ferma")
+                    help="numero di CAMPI atteso (una riga puo' avere due nomi): "
+                         "se non combacia lo strumento si ferma")
+    ap.add_argument("--attesi-righe", type=int, default=None,
+                    help="numero di RIGHE LOGICHE attese fra i campi selezionati: "
+                         "se non combacia lo strumento si ferma")
     ap.add_argument("--rimosse", default=None, help="scrive qui il JSON delle righe rimosse")
     ap.add_argument("--dettaglio", action="store_true",
                     help="stampa per ogni campo il nome scritto, quello ricalcolato e le origini")
@@ -166,9 +170,17 @@ def main(argv: Optional[List[str]] = None) -> int:
               "niente scrittura (una pulizia 'quasi giusta' e' un guasto)")
         return 3
 
+    chiavi_logiche_selezione: Dict[str, List[str]] = {}
+    for campo in da_cancellare:
+        chiavi_logiche_selezione.setdefault(rs.field_of(campi[campo][1]), []).append(campo)
+    if args.attesi_righe is not None and len(chiavi_logiche_selezione) != args.attesi_righe:
+        print(f"::error title=pulizia::attese {args.attesi_righe} righe logiche, "
+              f"trovate {len(chiavi_logiche_selezione)}: niente scrittura")
+        return 3
+
     print(f"## Pulizia del Registro — origini {', '.join(f'`{o}`' for o in origini)}")
     print(f"- campi nell'hash prima: **{totale_prima}** · righe (una per chiave): **{righe_prima}**")
-    print(f"- campi selezionati: **{len(da_cancellare)}**")
+    print(f"- campi selezionati: **{len(da_cancellare)}** · righe logiche: **{len(chiavi_logiche_selezione)}**")
     for campo in da_cancellare:
         _testo, riga = campi[campo]
         print(f"  - `{campo}` · {dettaglio_riga(riga)}")
@@ -186,6 +198,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         for campo in da_cancellare:
             testo, riga = campi[campo]
             print(riga_tecnica(campo, testo, riga))
+        if non_attribuibili:
+            # Anche questi vanno identificati: sono righe che NON si toccano,
+            # ma devono avere un nome e un cognome nel referto.
+            print("")
+            print("### Dettaglio tecnico delle righe NON attribuibili")
+            for campo in non_attribuibili:
+                testo, riga = campi[campo]
+                print(riga_tecnica(campo, testo, riga))
         chiavi_logiche = {}
         for campo in da_cancellare:
             chiavi_logiche.setdefault(rs.field_of(campi[campo][1]), []).append(campo)
@@ -236,9 +256,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     chiavi_altre_prima = {c for c, (_t, r) in campi.items() if str(origin_of(r) or "").lower() not in origini}
     chiavi_altre_dopo = set(campi_dopo) - set(da_cancellare)
     rimaste = [c for c, (_t, r) in campi_dopo.items() if str(origin_of(r) or "").strip().lower() in origini]
+    rimaste_righe = len({rs.field_of(r) for c, (_t, r) in campi_dopo.items()
+                         if str(origin_of(r) or "").strip().lower() in origini})
     print(f"- campi dopo: **{len(campi_dopo)}** · righe dopo: **{righe_dopo}** "
           f"(prima {totale_prima} / {righe_prima})")
-    print(f"- righe dell'origine rimaste: **{len(rimaste)}**")
+    print(f"- campi dell'origine rimasti: **{len(rimaste)}** · righe logiche rimaste: **{rimaste_righe}**")
     print(f"- campi delle ALTRE origini: prima {len(chiavi_altre_prima)} · dopo {len(chiavi_altre_dopo)} · "
           f"{'IDENTICI' if chiavi_altre_prima == chiavi_altre_dopo else 'DIVERSI (guasto!)'}")
 

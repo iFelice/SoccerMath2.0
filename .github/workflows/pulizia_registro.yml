@@ -119,10 +119,12 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
           ATTESI: ${{ vars.PULIZIA_ATTESI }}
+          ATTESI_RIGHE: ${{ vars.PULIZIA_ATTESI_RIGHE }}
         run: |
           set -o pipefail
           extra=()
           if [ -n "$ATTESI" ]; then extra+=(--attesi "$ATTESI"); fi
+          if [ -n "$ATTESI_RIGHE" ]; then extra+=(--attesi-righe "$ATTESI_RIGHE"); fi
           python SoccerMath/registry_pulizia.py \
             --origini "${{ vars.PULIZIA_ORIGINI || 'analisi_rapida' }}" \
             --scrivi --conferma "${extra[@]}" \
@@ -135,6 +137,13 @@ jobs:
                   print(f"::warning title=pulizia::{riga[:900]}")
           print("::notice title=pulizia-esito::" + ("OK" if "verificata" in testo else "DA GUARDARE"))
           PY
+          for chiave in PULIZIA_ATTESI PULIZIA_ATTESI_RIGHE; do
+            nome=$(echo "$chiave" | tr 'A-Z' 'a-z' | tr '_' '-')
+            valore="${!chiave}"
+            if [ -z "$valore" ]; then
+              echo "::warning title=serratura-mancante::la variabile $chiave (vars.$nome) non e' impostata: la scrittura parte senza il controllo sul numero atteso"
+            fi
+          done
           if ! grep -q "Pulizia eseguita e verificata" "$OUT/pulizia.txt"; then
             echo "::error title=pulizia::la verifica dopo la scrittura non e' passata (istantanea disponibile)"
             exit 4

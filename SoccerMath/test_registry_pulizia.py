@@ -117,6 +117,13 @@ class TestPercorsoDiScrittura(unittest.TestCase):
                                      "--attesi", "26"]))
         self.assertEqual([], self.comandi)
 
+    def test_attesi_righe_diverso_ferma_tutto(self):
+        # 2 campi selezionati, ma sono 2 nomi della STESSA riga logica: chiedere
+        # 26 righe logiche deve fermare tutto prima di scrivere.
+        self.assertEqual(3, RP.main(["--origini", "analisi_rapida", "--scrivi", "--conferma",
+                                     "--attesi-righe", "26"]))
+        self.assertEqual([], self.comandi)
+
     def test_un_solo_hdel_con_i_campi_giusti(self):
         rc = RP.main(["--origini", "analisi_rapida", "--scrivi", "--conferma", "--attesi", "2"])
         self.assertEqual(0, rc)
