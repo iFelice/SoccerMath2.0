@@ -33,6 +33,72 @@ def _riga(origine, quando, *, variante=None, match_id=1, scheda=True, campionato
     return r
 
 
+def _riga_temporale(*, nata, fischio, origine="top_mix", variante="current", match_id=1):
+    """Riga con nascita e fischio distinti: e' la coppia che dice se era una previsione."""
+    return {"match_id": match_id, "home": "Casa", "away": "Ospite", "campionato": "Serie A",
+            "giornata": 1, "data": fischio, "pronostico_sicuro": "1 - Top Mix",
+            "mercato_standard": "1", "prob_sicuro": 60.0, "esito": "⏳",
+            "origin": origine, "model_variant": variante, "salvato_il": nata,
+            "model_version": "post_shrinkage_v1", "stagione": "2026/2027"}
+
+
+class TestContenutoTabelle(unittest.TestCase):
+    """Le due tabelle contengono SOLO Top Mix: il resto non entra in nessuna delle due."""
+
+    RIGHE = [
+        _riga("top_mix", "05/09/2026 18:00", match_id=1, scheda=False),
+        _riga("top_mix", "19/09/2026 20:45", variante="current", match_id=5),
+        _riga("top_mix", "20/09/2026 18:00", variante="legacy", match_id=6),
+        _riga("analisi_rapida", "24/08/2026 20:45", variante="legacy", match_id=3),
+        _riga("analisi_rapida", "24/08/2026 20:45", variante="current", match_id=3),
+        _riga("billy", "23/08/2026 20:45", match_id=4),
+    ]
+
+    def test_conta_solo_top_mix_per_motore(self):
+        ct = RC.contenuto_tabelle(self.RIGHE)
+        # 1 click senza campo (letto legacy) + 1 legacy esplicita = 2; 1 current
+        self.assertEqual({"current": 1, "legacy": 2}, ct["totale_per_motore"])
+        self.assertEqual({"2026/2027": 1}, ct["per_motore"]["current"])
+        self.assertEqual({"2026/2027": 2}, ct["per_motore"]["legacy"])
+
+    def test_dichiara_chi_resta_fuori(self):
+        ct = RC.contenuto_tabelle(self.RIGHE)
+        self.assertEqual({"Analisi Rapida": 2, "Billy": 1}, ct["fuori_dalle_tabelle"])
+
+    def test_registro_con_solo_top_mix_non_ha_fuori(self):
+        ct = RC.contenuto_tabelle([r for r in self.RIGHE if r["origin"] == "top_mix"])
+        self.assertEqual({}, ct["fuori_dalle_tabelle"])
+
+
+class TestPuntualita(unittest.TestCase):
+    """Una riga scritta dopo il fischio non e' una previsione: si vede e si dichiara."""
+
+    def test_prima_dopo_e_non_leggibili(self):
+        righe = [
+            _riga_temporale(nata="05/09/2026 17:00", fischio="05/09/2026 18:00", match_id=1),
+            _riga_temporale(nata="05/09/2026 19:30", fischio="05/09/2026 18:00", match_id=2),
+            {"match_id": 3, "home": "Casa", "away": "Ospite", "origin": "top_mix",
+             "model_variant": "current", "pronostico_sicuro": "1 - Top Mix"},
+        ]
+        pu = RC.puntualita(righe)
+        self.assertEqual({"nate prima del fischio": 1, "nate DOPO il fischio": 1,
+                          "fischio o nascita non leggibili": 1}, pu["per_origine"]["Top Mix"])
+        self.assertEqual(1, len(pu["in_ritardo"]["Top Mix"]))
+        self.assertIn("+1.5 h dopo", pu["in_ritardo"]["Top Mix"][0])
+
+    def test_ignora_le_origini_fuori_dal_confronto(self):
+        riga = _riga_temporale(nata="05/09/2026 19:30", fischio="05/09/2026 18:00",
+                               origine="analisi_rapida")
+        pu = RC.puntualita([riga])
+        self.assertEqual({}, pu["per_origine"])
+
+    def test_kickoff_utc_vince_sulla_data(self):
+        riga = _riga_temporale(nata="05/09/2026 17:00", fischio="05/09/2026 18:00", match_id=7)
+        riga["kickoff_utc"] = "2026-09-05T20:00:00Z"   # 22:00 italiane
+        pu = RC.puntualita([riga])
+        self.assertEqual({"nate prima del fischio": 1}, pu["per_origine"]["Top Mix"])
+
+
 class TestComposizione(unittest.TestCase):
     RIGHE = [
         # 2 click Top Mix veri, senza campo, nati prima del merge -> letti legacy

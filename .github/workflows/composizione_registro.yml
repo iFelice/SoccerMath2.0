@@ -67,7 +67,7 @@ jobs:
           REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
         run: |
           mkdir -p "$OUT"
-          python SoccerMath/registry_composizione.py --json "$OUT/composizione.json" \
+          python SoccerMath/registry_composizione.py --compatto --json "$OUT/composizione.json" \
             2>&1 | tee "$OUT/composizione.txt"
           # GitHub tiene al massimo 10 annotazioni per passo: il riepilogo va in
           # due annotazioni compatte (origini+varianti, stagioni+finestra), non
@@ -90,6 +90,18 @@ jobs:
                            f"{d['scheda_vecchia_per_origine'].get(o, 0)} |")
           print("::warning title=composizione-tabella::" + " | ".join(righe)[:4000])
           PY
+          # Cosa conterra' ciascuna delle DUE tabelle (solo Top Mix) e se le righe
+          # sono vere previsioni (nate prima del fischio): sono le due domande del
+          # riordino in corso, quindi vanno nel referto compatto.
+          grep -h "^TABELLE|" "$OUT/composizione.txt" | head -1 | sed 's/^TABELLE| //' | while read -r riga; do
+            echo "::warning title=contenuto-tabelle::$riga"
+          done
+          grep -h "^PUNTUALE|" "$OUT/composizione.txt" | paste -sd ' || ' - | cut -c1-3500 | while read -r riga; do
+            echo "::warning title=puntualita::$riga"
+          done
+          grep -h "^RITARDO|" "$OUT/composizione.txt" | cut -c1-220 | paste -sd ' || ' - | cut -c1-3500 | while read -r riga; do
+            echo "::warning title=righe-in-ritardo::$riga"
+          done
 
       - name: Nessuna modifica ai dati
         run: |

@@ -28,6 +28,7 @@ import json
 import os
 import sys
 from collections import Counter, defaultdict
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -35,14 +36,18 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 from prediction_registry import (  # noqa: E402
+    KICKOFF_UTC_FIELD,
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_LABELS,
     MODEL_VARIANT_LEGACY,
     MODEL_VERSION_FIELD,
+    TZ_ITALY,
     entry_instant,
     is_current_model,
     model_variant_read,
     origin_of,
+    parse_datetime,
+    parse_kickoff,
 )
 from registry_coverage_check import load_registry_readonly  # noqa: E402
 from replay_legacy_topmix import REPLAY_START_INSTANT  # noqa: E402
@@ -77,6 +82,84 @@ def _stagione(riga: Dict[str, Any]) -> str:
     if istante is None:
         return "Sconosciuta"
     return season_label(season_start_year_of(istante.date()))
+
+
+def _fischio(riga: Dict[str, Any]) -> Optional[datetime]:
+    """Fischio d'inizio della partita (ora italiana), None se non si legge.
+
+    Prima scelta ``kickoff_utc`` (ISO UTC), poi la ``data`` italiana. E' il
+    termine di confronto per capire se una riga e' nata PRIMA della partita (una
+    previsione) o DOPO (un commento a cose fatte).
+    """
+    ko = parse_kickoff(riga.get(KICKOFF_UTC_FIELD))
+    if ko is not None:
+        return ko.astimezone(TZ_ITALY)
+    return parse_datetime(riga.get("data"))
+
+
+def puntualita(righe: List[Dict[str, Any]], *,
+               origini: Tuple[str, ...] = ("top_mix",)) -> Dict[str, Any]:
+    """Le righe sono state scritte PRIMA del fischio d'inizio? (nessun risultato noto)
+
+    E' la proprieta' che rende le due tabelle un confronto fra modelli e non un
+    commento a posteriori: una riga salvata dopo il fischio conosceva il
+    risultato, e non e' una previsione. Il confronto e' fra l'istante di nascita
+    della riga (``salvato_il``) e l'ora della partita.
+
+    ``origini`` limita il conto alle righe che contano (default: solo Top Mix,
+    cioe' cio' che finisce nelle due tabelle). Le righe senza fischio
+    interpretabile NON si danno per buone: finiscono in una voce a parte.
+    """
+    per_origine = defaultdict(Counter)
+    in_ritardo: Dict[str, List[str]] = defaultdict(list)
+    senza_fischio: Dict[str, List[str]] = defaultdict(list)
+    for riga in righe:
+        grezza = str(origin_of(riga) or "").strip().lower()
+        if grezza not in origini:
+            continue
+        origine = _etichetta_origine(origin_of(riga))
+        nata, fonte = entry_instant(riga)
+        fischio = _fischio(riga)
+        if nata is None or fischio is None:
+            per_origine[origine]["fischio o nascita non leggibili"] += 1
+            senza_fischio[origine].append(dettaglio_riga(riga))
+            continue
+        if nata < fischio:
+            per_origine[origine]["nate prima del fischio"] += 1
+        else:
+            per_origine[origine]["nate DOPO il fischio"] += 1
+            ore = (nata - fischio).total_seconds() / 3600.0
+            in_ritardo[origine].append(f"{dettaglio_riga(riga)} · scritta {ore:+.1f} h dopo "
+                                       f"il fischio (nascita da `{fonte}`)")
+    return {
+        "per_origine": {k: dict(v) for k, v in per_origine.items()},
+        "in_ritardo": {k: v for k, v in in_ritardo.items()},
+        "senza_fischio": {k: v for k, v in senza_fischio.items()},
+    }
+
+
+def contenuto_tabelle(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Cosa conterranno le DUE tabelle: solo Top Mix, per motore e per stagione.
+
+    Non e' un conteggio dell'hash: e' esattamente il contenuto delle due tabelle
+    (Top Mix, una per motore), cioe' il numero da confrontare con quello che si
+    vede in pagina. Le righe di altre origini (Analisi Rapida, Billy, senza
+    origine) NON entrano in nessuna delle due.
+    """
+    per_motore: Dict[str, Counter] = defaultdict(Counter)
+    fuori: Dict[str, int] = {}
+    for riga in righe:
+        origine = str(origin_of(riga) or "").strip().lower()
+        etichetta = _etichetta_origine(origin_of(riga))
+        if origine != "top_mix":
+            fuori[etichetta] = fuori.get(etichetta, 0) + 1
+            continue
+        per_motore[model_variant_read(riga)][_stagione(riga)] += 1
+    return {
+        "per_motore": {k: dict(v) for k, v in per_motore.items()},
+        "totale_per_motore": {k: sum(v.values()) for k, v in per_motore.items()},
+        "fuori_dalle_tabelle": fuori,
+    }
 
 
 def _in_finestra(riga: Dict[str, Any]) -> Optional[bool]:
@@ -181,12 +264,50 @@ def _righe_testo(d: Dict[str, Any]) -> List[str]:
         L.append(f"### Elenco righe — origine {origine} ({len(voci)})")
         for voce in voci:
             L.append(f"- {voce}")
+
+    ct = d.get("contenuto_tabelle") or {}
+    if ct:
+        L.append("")
+        L.append("### Contenuto delle due tabelle (solo Top Mix, per motore)")
+        tot = ct.get("totale_per_motore", {})
+        L.append("- DRAGO A 2 TESTE (`current`): **" + str(tot.get(MODEL_VARIANT_CURRENT, 0)) + "** righe · "
+                 + (" · ".join(f"{s} {n}" for s, n in sorted(ct["per_motore"].get(MODEL_VARIANT_CURRENT, {}).items(), reverse=True))
+                    or "nessuna stagione"))
+        L.append("- LEGACY (`legacy`): **" + str(tot.get(MODEL_VARIANT_LEGACY, 0)) + "** righe · "
+                 + (" · ".join(f"{s} {n}" for s, n in sorted(ct["per_motore"].get(MODEL_VARIANT_LEGACY, {}).items(), reverse=True))
+                    or "nessuna stagione"))
+        fuori = ct.get("fuori_dalle_tabelle", {})
+        L.append("- fuori dalle due tabelle: " + (", ".join(f"{k} {v}" for k, v in sorted(fuori.items()))
+                                                  or "niente") + " (per costruzione: non sono Top Mix)")
+
+    pu = d.get("puntualita") or {}
+    if pu:
+        L.append("")
+        L.append("### Puntualita': righe nate PRIMA del fischio (nessun risultato noto)")
+        L.append("| origine | nate prima | nate DOPO | non verificabili |")
+        L.append("|---|---|---|---|")
+        for origine, conteggi in sorted(pu.get("per_origine", {}).items()):
+            L.append(f"| {origine} | {conteggi.get('nate prima del fischio', 0)} | "
+                     f"**{conteggi.get('nate DOPO il fischio', 0)}** | "
+                     f"{conteggi.get('fischio o nascita non leggibili', 0)} |")
+        for origine, voci in sorted((pu.get("in_ritardo") or {}).items()):
+            L.append("")
+            L.append(f"#### Nate DOPO il fischio — origine {origine} ({len(voci)})")
+            for voce in voci:
+                L.append(f"- {voce}")
+        for origine, voci in sorted((pu.get("senza_fischio") or {}).items()):
+            L.append("")
+            L.append(f"#### Fischio/nascita non leggibili — origine {origine} ({len(voci)})")
+            for voce in voci:
+                L.append(f"- {voce}")
     return L
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--json", dest="json_out", default=None, help="scrive il dettaglio in JSON")
+    ap.add_argument("--compatto", action="store_true",
+                    help="riepilogo breve prefissato TABELLE|/PUNTUALE|/RITARDO| (referti con tetto di caratteri)")
     ap.add_argument("--escludi", default="top_mix",
                     help="origini di cui NON elencare le righe una per una (default: top_mix, "
                          "cioe' si elencano tutte le righe che NON sono Top Mix)")
@@ -199,11 +320,31 @@ def main(argv: Optional[List[str]] = None) -> int:
     d = analizza(righe, origini_escluse=tuple(
         o.strip().lower() for o in args.escludi.split(",") if o.strip()))
     d["fonte"] = fonte
+    # Le due misure che servono al riordino delle tabelle: cosa conterra' ciascuna
+    # (solo Top Mix) e se le righe sono vere previsioni (nate prima del fischio).
+    d["contenuto_tabelle"] = contenuto_tabelle(righe)
+    d["puntualita"] = puntualita(righe)
     testo = "\n".join(_righe_testo(d)) + "\n"
     print(testo)
     if d["fonte"] not in ("upstash", "jsonbin"):
         print(f"::warning title=composizione::sto leggendo la copia '{d['fonte']}', "
               "NON il Registro vivo")
+    if args.compatto:
+        ct = d["contenuto_tabelle"]
+        pu = d["puntualita"]
+        print("TABELLE| " + " | ".join([
+            "Drago a 2 Teste: " + str(ct["totale_per_motore"].get(MODEL_VARIANT_CURRENT, 0)),
+            "Legacy: " + str(ct["totale_per_motore"].get(MODEL_VARIANT_LEGACY, 0)),
+            "fuori dalle due tabelle: " + ", ".join(f"{k} {v}" for k, v in sorted(ct["fuori_dalle_tabelle"].items())),
+        ]))
+        for origine, conteggi in sorted(pu.get("per_origine", {}).items()):
+            print(f"PUNTUALE| origine {origine} | prima del fischio: "
+                  f"{conteggi.get('nate prima del fischio', 0)} | DOPO il fischio: "
+                  f"{conteggi.get('nate DOPO il fischio', 0)} | non verificabili: "
+                  f"{conteggi.get('fischio o nascita non leggibili', 0)}")
+        for origine, voci in sorted((pu.get("in_ritardo") or {}).items()):
+            for voce in voci:
+                print(f"RITARDO| [{origine}] {voce[:300]}")
     if args.json_out:
         os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
         with open(args.json_out, "w", encoding="utf-8") as f:
