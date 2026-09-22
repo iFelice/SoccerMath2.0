@@ -516,6 +516,15 @@ class TestIstantaneeDeiCampi(unittest.TestCase):
         self.assertEqual(0, d["extra_non_piu_presenti"])
         self.assertEqual(1, d["extra_ancora_presenti"])
 
+    def test_la_chiave_si_puo_indicare_col_solo_nome_del_giorno(self):
+        riga = _riga(1)
+        campi = {rs.field_of(riga): RG.canon(riga), "1|top_mix||current": RG.canon(riga)}
+        with mock.patch.object(rs, "upstash_raw", return_value=self._corpo(campi)) as raw, \
+             mock.patch.object(RG, "campi_grezzi", return_value={}):
+            d = RG.elenca_campi_extra("2026-09-21-pre-pulizia-campi")
+        self.assertEqual("sm:registro:snapshot:2026-09-21-pre-pulizia-campi", raw.call_args[0][0][1])
+        self.assertTrue(d["esiste"])
+
     def test_istantanea_assente_non_inventa_elenchi(self):
         with mock.patch.object(rs, "upstash_raw", return_value={"result": None}):
             d = RG.elenca_campi_extra("2026-09-21-pre-pulizia-campi")

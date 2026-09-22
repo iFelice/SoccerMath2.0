@@ -535,7 +535,11 @@ def elenca_campi_extra(chiave_istantanea: str,
     fotografia: e' l'elenco che serve per dire, con i fatti, che cosa e' stato
     rimosso e che cosa invece e' ancora la' (SOLA LETTURA).
     """
-    corpo = rs.upstash_raw(["GET", chiave_istantanea]).get("result")
+    # La chiave si puo' indicare intera o con il solo nome del giorno (come appare
+    # nei referti): il prefisso e' uno solo e vive in ``registry_store``.
+    completa = chiave_istantanea if chiave_istantanea.startswith("sm:registro:snapshot:") \
+        else rs.snapshot_key(chiave_istantanea)
+    corpo = rs.upstash_raw(["GET", completa]).get("result")
     if not isinstance(corpo, str):
         return {"chiave": chiave_istantanea, "esiste": False, "extra": []}
     try:

@@ -171,7 +171,9 @@ jobs:
           # precedenza.
           chiave="${CAMPI_DI:-}"
           if [ -z "$chiave" ]; then
-            chiave=$(echo "$GITHUB_REF_NAME" | sed 's/^grading-campi-//')
+            # Un suffisso numerico finale e' il contatore dei tentativi (come per le
+            # chiavi delle istantanee), non parte del nome della fotografia.
+            chiave=$(echo "$GITHUB_REF_NAME" | sed 's/^grading-campi-//; s/-[0-9][0-9]*$//')
           fi
           echo "fotografia dei campi richiesta: $chiave"
           python SoccerMath/registry_grading.py --campi-di "$chiave" --fonte archivio \
