@@ -204,9 +204,29 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          DIAGNOSI_ISTANTANEA: ${{ vars.GRADING_ISTANTANEA }}
         run: |
           set +e
-          python SoccerMath/registry_grading.py --diagnosi-nomi --fonte archivio \
+          # Quale istantanea usare come termine di confronto: la variabile se c'e',
+          # altrimenti il NOME DEL TAG (`grading-diagnosi-<chiave>`, con eventuale
+          # suffisso numerico di tentativo). Cosi' il confronto si puo' rifare
+          # contro la fotografia di ieri, non solo contro quella di oggi.
+          ist="${DIAGNOSI_ISTANTANEA:-}"
+          if [ -z "$ist" ]; then
+            ist=$(echo "$GITHUB_REF_NAME" | sed 's/^grading-diagnosi-//; s/-[0-9][0-9]*$//')
+            case "$ist" in
+              20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]*) ;;
+              *) ist="" ;;
+            esac
+          fi
+          if [ -n "$ist" ]; then
+            echo "istantanea di confronto: $ist"
+            extra=(--istantanea "$ist")
+          else
+            echo "istantanea di confronto: quella di oggi (default dello strumento)"
+            extra=()
+          fi
+          python SoccerMath/registry_grading.py --diagnosi-nomi --fonte archivio "${extra[@]}" \
             --json "$OUT/diagnosi.json" 2>&1 | tee "$OUT/diagnosi.txt"
           rc=${PIPESTATUS[0]}
           set -e
