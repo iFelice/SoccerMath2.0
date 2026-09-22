@@ -466,6 +466,70 @@ class TestRiparazioneNomiVecchi(unittest.TestCase):
         self.assertTrue(any("contenuto diverso" in e for e in r["errori"]))
 
 
+class TestIstantaneeDeiCampi(unittest.TestCase):
+    """Che cosa dicono le fotografie dell'hash, e quali nomi sono stati tolti dopo."""
+
+    @staticmethod
+    def _corpo(dati):
+        return {"result": RG.json.dumps(dati, ensure_ascii=False)}
+
+    def test_elenca_istantanee_distingue_righe_e_campi(self):
+        righe = [_riga(1), _riga(2, home="Roma", away="Lazio")]
+        campi = {rs.field_of(_riga(1)): RG.canon(_riga(1)),
+                 "1|top_mix||current": RG.canon(_riga(1)),
+                 rs.field_of(righe[1]): RG.canon(righe[1])}
+        risposte = [{"result": ["sm:registro:snapshot:2026-09-21-pre-grading",
+                                "sm:registro:snapshot:2026-09-21-pre-pulizia-campi"]},
+                    self._corpo(righe), self._corpo(campi)]
+        with mock.patch.object(rs, "upstash_raw", side_effect=risposte):
+            elenco = RG.elenca_istantanee()
+        per_chiave = {v["chiave"]: v for v in elenco}
+        self.assertEqual("righe", per_chiave["2026-09-21-pre-grading"]["tipo"])
+        self.assertIsNone(per_chiave["2026-09-21-pre-grading"]["extra"])
+        self.assertEqual(2, per_chiave["2026-09-21-pre-grading"]["righe_logiche"])
+        self.assertEqual("campi", per_chiave["2026-09-21-pre-pulizia-campi"]["tipo"])
+        self.assertEqual(3, per_chiave["2026-09-21-pre-pulizia-campi"]["campi"])
+        self.assertEqual(2, per_chiave["2026-09-21-pre-pulizia-campi"]["righe_logiche"])
+        self.assertEqual(1, per_chiave["2026-09-21-pre-pulizia-campi"]["extra"])
+
+    def test_elenca_campi_extra_dice_quali_esistono_ancora(self):
+        riga = _riga(1)
+        campi = {rs.field_of(riga): RG.canon(riga),
+                 "1|top_mix||current": RG.canon(riga)}
+        with mock.patch.object(rs, "upstash_raw", return_value=self._corpo(campi)), \
+             mock.patch.object(RG, "campi_grezzi",
+                               return_value={rs.field_of(riga): (RG.canon(riga), riga)}):
+            d = RG.elenca_campi_extra("2026-09-21-pre-pulizia-campi")
+        self.assertEqual(1, len(d["extra"]))
+        self.assertFalse(d["extra"][0]["ancora_presente"])
+        self.assertEqual(1, d["extra_non_piu_presenti"])
+        self.assertEqual("1|top_mix||current", d["extra"][0]["nome"])
+        self.assertEqual("Milan - Cagliari", f"{d['extra'][0]['home']} - {d['extra'][0]['away']}")
+
+    def test_un_nome_ancora_presente_non_si_dichiara_tolto(self):
+        riga = _riga(1)
+        campi = {rs.field_of(riga): RG.canon(riga), "1|top_mix||current": RG.canon(riga)}
+        with mock.patch.object(rs, "upstash_raw", return_value=self._corpo(campi)), \
+             mock.patch.object(RG, "campi_grezzi", return_value=dict(campi)):
+            d = RG.elenca_campi_extra("2026-09-21-pre-pulizia-campi")
+        self.assertTrue(d["extra"][0]["ancora_presente"])
+        self.assertEqual(0, d["extra_non_piu_presenti"])
+        self.assertEqual(1, d["extra_ancora_presenti"])
+
+    def test_istantanea_assente_non_inventa_elenchi(self):
+        with mock.patch.object(rs, "upstash_raw", return_value={"result": None}):
+            d = RG.elenca_campi_extra("2026-09-21-pre-pulizia-campi")
+        self.assertFalse(d["esiste"])
+        self.assertEqual([], d["extra"])
+
+    def test_istantanea_di_righe_non_e_una_foto_di_campi(self):
+        with mock.patch.object(rs, "upstash_raw", return_value=self._corpo([_riga(1)])):
+            d = RG.elenca_campi_extra("2026-09-20")
+        self.assertTrue(d["esiste"])
+        self.assertTrue(d.get("non_e_una_foto_di_campi"))
+        self.assertEqual([], d["extra"])
+
+
 class TestIngressiEProtezioni(unittest.TestCase):
     """Registro illeggibile, serrature, idempotenza: nessuna scrittura per sbaglio."""
 

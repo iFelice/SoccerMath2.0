@@ -28,6 +28,7 @@ on:
       - 'grading-write-*'
       - 'grading-ripara-*'
       - 'grading-diagnosi-*'
+      - 'grading-campi-*'
 
 permissions:
   contents: read
@@ -149,6 +150,38 @@ jobs:
       # e' il termine di confronto, e dopo la cancellazione il Registro si rilegge e
       # deve contenere esattamente le righe attese (le stesse dell'istantanea, con il
       # grading applicato).
+      # Sola lettura: quali ISTANTANEE esistono e che cosa contengono. Una chiave
+      # ``...-campi`` e' l'unica fotografia che documenta i NOMI di campo: serve a
+      # dire quali nomi vecchi c'erano, quali sono ancora la' e quali non ci sono
+      # piu'. Risponde a "la cancellazione ha toccato quello che dicevamo?".
+      - name: "Istantanee e nomi di campo (solo con il tag grading-campi-*)"
+        if: startsWith(github.ref, 'refs/tags/grading-campi-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          CAMPI_DI: ${{ vars.GRADING_CAMPI_DI }}
+        run: |
+          set +e
+          python SoccerMath/registry_grading.py --elenca-istantanee --fonte archivio \
+            --json "$OUT/istantanee.json" 2>&1 | tee "$OUT/istantanee.txt"
+          echo "---"
+          python SoccerMath/registry_grading.py --campi-di "${CAMPI_DI}" --fonte archivio \
+            --json "$OUT/campi.json" 2>&1 | tee "$OUT/campi.txt"
+          set -e
+          # Le righe chiave in annotazioni: quante istantanee, che cosa contengono,
+          # e per la fotografia dei campi qual e' la conta degli extra.
+          grep -E "^ISTANTANEA\||^CAMPI\|" "$OUT/istantanee.txt" "$OUT/campi.txt" | cut -c1-1500 \
+            | while IFS= read -r riga; do echo "::warning title=istantanee::${riga:0:1500}"; done
+          # L'elenco dei nomi EXTRA a blocchi (una riga per nome, unite con ·).
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=campi-extra-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""} /^EXTRA\|/ {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/campi.txt")
+          echo "blocchi di nomi extra: $i"
+
       # Sola lettura: com'e' fatto l'hash NOME PER NOME (quanti campi grezzi, quante
       # righe logiche, quali chiavi vivono sotto piu' nomi, se i contenuti
       # coincidono) e se le righe sono esattamente quelle dell'istantanea con il

@@ -482,6 +482,95 @@ def diagnosi_nomi(*, istantanea: Optional[str] = None, api_key: str = "",
     return fuori
 
 
+def elenca_istantanee(prefisso: str = "sm:registro:snapshot:") -> List[Dict[str, Any]]:
+    """Tutte le istantanee del Registro, con che cosa contengono (SOLA LETTURA).
+
+    Serve a sapere su quali fotografie si puo' contare: una chiave ``...-campi``
+    contiene i CAMPI come sono scritti nell'hash (nome -> testo), quindi e' l'unica
+    che puo' documentare i nomi di campo, compresi quelli vecchi; una chiave senza
+    suffisso contiene le righe logiche, che non dicono niente sui nomi.
+    """
+    chiavi = rs.upstash_raw(["KEYS", f"{prefisso}*"]).get("result") or []
+    fuori: List[Dict[str, Any]] = []
+    for chiave in sorted(str(c) for c in chiavi):
+        nome_chiave = chiave[len(prefisso):] if chiave.startswith(prefisso) else chiave
+        corpo = rs.upstash_raw(["GET", chiave]).get("result")
+        voce: Dict[str, Any] = {"chiave": nome_chiave,
+                                "byte": len(corpo.encode("utf-8")) if isinstance(corpo, str) else None}
+        try:
+            dati = json.loads(corpo) if isinstance(corpo, str) else None
+        except (TypeError, json.JSONDecodeError):
+            dati = None
+        if isinstance(dati, list):
+            voci = [(None, r) for r in dati if isinstance(r, dict)]
+            voce.update({"tipo": "righe", "campi": None, "righe": len(voci)})
+        elif isinstance(dati, dict):
+            voci = []
+            for nome, testo in dati.items():
+                try:
+                    riga = json.loads(testo)
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if isinstance(riga, dict):
+                    voci.append((nome, riga))
+            voce.update({"tipo": "campi", "campi": len(voci), "righe": len(voci)})
+        else:
+            voce.update({"tipo": "illeggibile", "campi": None, "righe": None})
+            fuori.append(voce)
+            continue
+        chiavi_logiche = {rs.field_of(r) for _n, r in voci}
+        voce["righe_logiche"] = len(chiavi_logiche)
+        voce["extra"] = (len(voci) - len(chiavi_logiche)) if voce["tipo"] == "campi" else None
+        fuori.append(voce)
+    return fuori
+
+
+def elenca_campi_extra(chiave_istantanea: str,
+                       live: Optional[Sequence[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """I nomi di campo NON allineati alla chiave, in un'istantanea dei campi.
+
+    Per ognuno: la chiave logica che lo contiene, la partita, la variante letta e se
+    quel nome esiste ANCORA nell'hash vivo (nomi come sono scritti adesso). Un nome
+    che l'istantanea ha e il vivo non ha piu' e' un nome tolto dopo quella
+    fotografia: e' l'elenco che serve per dire, con i fatti, che cosa e' stato
+    rimosso e che cosa invece e' ancora la' (SOLA LETTURA).
+    """
+    corpo = rs.upstash_raw(["GET", chiave_istantanea]).get("result")
+    if not isinstance(corpo, str):
+        return {"chiave": chiave_istantanea, "esiste": False, "extra": []}
+    try:
+        dati = json.loads(corpo)
+    except (TypeError, json.JSONDecodeError):
+        return {"chiave": chiave_istantanea, "esiste": True, "illeggibile": True, "extra": []}
+    if not isinstance(dati, dict):
+        return {"chiave": chiave_istantanea, "esiste": True, "non_e_una_foto_di_campi": True, "extra": []}
+    nomi_vivi = set(campi_grezzi().keys())
+    per_chiave: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {}
+    for nome, testo in dati.items():
+        try:
+            riga = json.loads(testo)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if isinstance(riga, dict):
+            per_chiave.setdefault(rs.field_of(riga), []).append((nome, riga))
+    extra: List[Dict[str, Any]] = []
+    for chiave in sorted(per_chiave):
+        voci = per_chiave[chiave]
+        for nome, riga in voci:
+            if nome == chiave:
+                continue
+            extra.append({
+                "nome": nome, "chiave": chiave, "match_id": riga.get("match_id"),
+                "home": riga.get("home"), "away": riga.get("away"),
+                "variante": model_variant_read(riga), "origine": origin_of(riga),
+                "ancora_presente": nome in nomi_vivi,
+            })
+    return {"chiave": chiave_istantanea, "esiste": True, "righe_logiche": len(per_chiave),
+            "campi": sum(len(v) for v in per_chiave.values()), "extra": extra,
+            "extra_ancora_presenti": sum(1 for e in extra if e["ancora_presente"]),
+            "extra_non_piu_presenti": sum(1 for e in extra if not e["ancora_presente"])}
+
+
 def chiave_istantanea_libera(giorno: str, scrivi: bool, *, suffisso: str = "pre-grading") -> str:
     """``<giorno>-pre-grading``, con un suffisso se quella chiave esiste gia'.
 
@@ -702,6 +791,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="JSON {match_id: \"golcasa-golospiti\"} per una prova senza rete")
     ap.add_argument("--giorno", default=None, help="giorno dell'istantanea (default: oggi UTC)")
     ap.add_argument("--compatto", action="store_true", help="righe brevi per le annotazioni")
+    ap.add_argument("--elenca-istantanee", action="store_true",
+                    help="sola lettura: quali istantanee esistono e che cosa contengono "
+                         "(righe logiche oppure campi scritti, con i nomi extra)")
+    ap.add_argument("--campi-di", default=None,
+                    help="sola lettura: elenca i nomi di campo EXTRA di un'istantanea dei campi "
+                         "(``<giorno>-pre-pulizia-campi`` …) e dice quali esistono ancora "
+                         "nell'hash vivo")
     ap.add_argument("--diagnosi-nomi", action="store_true",
                     help="sola lettura: com'e' fatto l'hash (campi grezzi, chiavi con piu' nomi, "
                          "contenuti diversi, coerenza con l'istantanea)")
@@ -713,6 +809,33 @@ def main(argv: Optional[List[str]] = None) -> int:
                          "``<oggi>-pre-grading``)")
     ap.add_argument("--json", dest="json_out", default=None, help="scrive il referto in JSON")
     args = ap.parse_args(argv)
+
+    if args.elenca_istantanee or args.campi_di:
+        intestazione = "sm:registro:snapshot:"
+        if args.elenca_istantanee:
+            for voce in elenca_istantanee(intestazione):
+                print("ISTANTANEA| " + " | ".join(
+                    f"{k} {v}" for k, v in voce.items() if v is not None))
+        if args.campi_di:
+            for chiave_chiesta in [c.strip() for c in args.campi_di.split(",") if c.strip()]:
+                d = elenca_campi_extra(chiave_chiesta)
+                print(f"CAMPI| chiave {chiave_chiesta} | esiste: {d.get('esiste')} | "
+                      f"righe_logiche: {d.get('righe_logiche')} | campi: {d.get('campi')} | "
+                      f"extra: {len(d.get('extra') or [])} | ancora presenti: "
+                      f"{d.get('extra_ancora_presenti')} | non piu' presenti: "
+                      f"{d.get('extra_non_piu_presenti')}")
+                for e in d.get("extra") or []:
+                    print(f"EXTRA| {e['nome']} | chiave {e['chiave']} | {e['home']} - {e['away']} "
+                          f"| {e['variante']} | origine {e['origine']} | id {e['match_id']} | "
+                          f"ancora presente: {'si' if e['ancora_presente'] else 'NO'}")
+        if args.json_out:
+            os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
+            with open(args.json_out, "w", encoding="utf-8") as f:
+                json.dump({"istantanee": elenca_istantanee(intestazione) if args.elenca_istantanee else None,
+                           "campi": [elenca_campi_extra(c) for c in (args.campi_di or "").split(",")
+                                     if c.strip()]},
+                          f, ensure_ascii=False, indent=2, default=str)
+        return 0
 
     if args.diagnosi_nomi:
         from config import FOOTBALL_DATA_API_KEY
