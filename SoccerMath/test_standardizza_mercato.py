@@ -241,7 +241,11 @@ class TestPersistenzaAllaGenerazioneAST(unittest.TestCase):
         # percorso completo, cosi' nessuno dei due pezzi puo' sparire in silenzio.
         # `ast.unparse` normalizza gli apici a ', quindi anche il confronto
         # structurale si fa su testo normalizzato allo stesso modo.
-        fetch = ast.unparse(self._fn("fetch_and_calc_top_mix")).replace("'", '"')
+        # Dal Top Mix a due motori l'assemblaggio della riga vive in
+        # `_riga_top_mix` (chiamata da `calcola_righe_top_mix` per entrambe le
+        # varianti): la guardia legge l'intero percorso.
+        fetch = "".join(ast.unparse(self._fn(n)).replace("'", '"')
+                        for n in ("fetch_and_calc_top_mix", "calcola_righe_top_mix", "_riga_top_mix"))
         src = fetch + ast.unparse(self._fn("seleziona_riga_top_mix")).replace("'", '"')
         self.assertIn("mercato_standard", fetch)
         self.assertIn('"mercato_standard": riga["mercato_standard"]', fetch)

@@ -1,0 +1,333 @@
+"""Copertura per modello nel Registro: conteggi, differenze e referto.
+
+Prova la misura richiesta dalla commessa ("per ogni partita del periodo il
+Registro deve avere ENTRAMBI i modelli: stesso campione, stessa lunghezza"):
+una riga per modello=1 partita coperta, due modelli sulla stessa partita=1
+partita con entrambi, e le partite coperte da un solo modello devono comparire
+con il loro mercato (non sparire in un totale).
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import shutil
+import tempfile
+import unittest
+from unittest import mock
+from datetime import date
+from pathlib import Path
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+import registry_coverage_check as check  # noqa: E402
+from registry_coverage import (  # noqa: E402
+    coverage_by_variant,
+    match_key,
+    render_coverage,
+    row_day,
+    top_mix_rows,
+)
+from prediction_registry import (  # noqa: E402
+    MODEL_VARIANT_CURRENT,
+    MODEL_VARIANT_FIELD,
+    MODEL_VARIANT_LEGACY,
+    ORIGIN_TOP_MIX,
+)
+
+
+def _riga(mid, home, away, variante, giorno="19/09/2026 18:00", kickoff="2026-09-19T16:00:00Z",
+          mercato="1", prob=61.0, campionato="Serie A", esito="✅", origin=ORIGIN_TOP_MIX):
+    return {"match_id": mid, "home": home, "away": away, "campionato": campionato,
+            "data": giorno, "kickoff_utc": kickoff, "mercato_standard": mercato,
+            "prob_sicuro": prob, "esito": esito, "origin": origin,
+            MODEL_VARIANT_FIELD: variante}
+
+
+class TestCopertura(unittest.TestCase):
+    def test_stesso_campione_e_differenze_esplicite(self):
+        righe = [
+            _riga(1, "Inter", "Roma", MODEL_VARIANT_CURRENT),
+            _riga(1, "Inter", "Roma", MODEL_VARIANT_LEGACY, mercato="GG", prob=58.0),
+            _riga(2, "Milan", "Lazio", MODEL_VARIANT_CURRENT, mercato="2", prob=64.0),
+            _riga(3, "Napoli", "Torino", MODEL_VARIANT_LEGACY, mercato="UNDER_2.5", prob=60.5),
+            # righe di ALTRE origini e con variante mancante (storica = attuale)
+            _riga(9, "X", "Y", MODEL_VARIANT_CURRENT, origin="analisi_rapida"),
+            {"match_id": 10, "home": "A", "away": "B", "campionato": "Serie A",
+             "data": "19/09/2026 15:00", "mercato_standard": "1", "origin": ORIGIN_TOP_MIX, "esito": "⏳"},
+        ]
+        cov = coverage_by_variant(righe)
+        self.assertEqual(3, cov["partite"][MODEL_VARIANT_CURRENT])   # 1, 2, 10
+        self.assertEqual(2, cov["partite"][MODEL_VARIANT_LEGACY])    # 1, 3
+        self.assertEqual(1, cov["comuni"])
+        self.assertEqual(3, cov["righe_totali"][MODEL_VARIANT_CURRENT])   # 1, 2 e la riga senza campo variante
+        self.assertEqual(2, cov["righe_totali"][MODEL_VARIANT_LEGACY])
+        self.assertFalse(cov["pareggio"])
+        solo_c = {r["partita"] for r in cov["solo"][MODEL_VARIANT_CURRENT]}
+        solo_l = {r["partita"] for r in cov["solo"][MODEL_VARIANT_LEGACY]}
+        self.assertEqual({"Milan - Lazio", "A - B"}, solo_c)
+        self.assertEqual({"Napoli - Torino"}, solo_l)
+        self.assertEqual({"UNDER_2.5"}, {r["mercato"] for r in cov["solo"][MODEL_VARIANT_LEGACY]})
+        testo = render_coverage(cov)
+        self.assertIn("NON coincidono", testo)
+        self.assertIn("Napoli - Torino", testo)
+
+    def test_campioni_identici(self):
+        righe = []
+        for i, (h, a) in enumerate([("Inter", "Roma"), ("Milan", "Lazio")], start=1):
+            righe.append(_riga(i, h, a, MODEL_VARIANT_CURRENT, mercato="GG"))
+            righe.append(_riga(i, h, a, MODEL_VARIANT_LEGACY, mercato="1"))
+        cov = coverage_by_variant(righe)
+        self.assertTrue(cov["pareggio"])
+        self.assertEqual(2, cov["partite"][MODEL_VARIANT_CURRENT])
+        self.assertEqual(2, cov["partite"][MODEL_VARIANT_LEGACY])
+        self.assertIn("COINCIDONO", render_coverage(cov))
+
+    def test_filtro_periodo_usa_il_kickoff(self):
+        righe = [
+            _riga(1, "Inter", "Roma", MODEL_VARIANT_CURRENT, kickoff="2026-08-29T18:00:00Z"),
+            _riga(2, "Milan", "Lazio", MODEL_VARIANT_CURRENT, kickoff="2026-09-19T16:00:00Z"),
+        ]
+        self.assertEqual(1, len(top_mix_rows(righe, date(2026, 9, 1), None)))
+        self.assertEqual(1, len(top_mix_rows(righe, None, date(2026, 8, 31))))
+        self.assertEqual(2, len(top_mix_rows(righe)))
+        self.assertEqual(date(2026, 8, 29), row_day(righe[0]))
+
+    def test_chiave_partita_senza_match_id(self):
+        a = {"home": "Inter", "away": "Roma", "kickoff_utc": "2026-09-19T16:00:00Z"}
+        b = dict(a)
+        self.assertEqual(match_key(a), match_key(b))
+        self.assertNotEqual(match_key(a), match_key({**b, "away": "Lazio"}))
+        self.assertEqual(("id", "42"), match_key({"match_id": 42}))
+        # match_id 0/None non identifica nulla: si ricade sui nomi
+        self.assertEqual(match_key(a)["0"] if False else match_key(a)[0], "nomi")
+
+    def test_check_readonly_non_scrive(self):
+        """Il controllo deve solo leggere: nessun PUT, nessun file toccato."""
+        src = open(os.path.join(HERE, "registry_coverage_check.py"), encoding="utf-8").read()
+        self.assertNotIn("requests.put", src)
+        self.assertNotIn("save_predictions", src)
+        self.assertNotIn("open(PREDICTIONS_FILE, \"w\"", src)
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "cov.json")
+            rc = check.main(["--from", "2026-09-01", "--to", "2026-09-20", "--json", out,
+                             "--allow-mismatch"])
+            self.assertIn(rc, (0, 1))
+            self.assertTrue(os.path.exists(out))
+            dati = json.load(open(out, encoding="utf-8"))
+            self.assertIn("partite", dati)
+            self.assertIn("fonte", dati)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestLetturaDalBackendAttivo(unittest.TestCase):
+    """La copertura deve leggere dal backend ATTIVO, non sempre da JSONBin.
+
+    E' successo davvero: con il replay che scriveva su Upstash, copertura e
+    verifica dei click leggevano il bin JSONBin (108 righe) e il referto
+    descriveva un Registro diverso da quello scritto.
+    """
+
+    def _post_array(self, campi):
+        class _R:
+            status_code = 200
+            text = ""
+
+            def __init__(self, p):
+                self._p = p
+
+            def json(self):
+                return self._p
+
+        def finto(url, json=None, headers=None, timeout=None):  # noqa: A002
+            if str(json[0]).upper() == "HGETALL":
+                piatto = []
+                for campo, valore in campi.items():
+                    piatto += [campo, valore]
+                return _R({"result": piatto})
+            return _R({"result": 0})
+        return finto
+
+    def test_con_upstash_legge_upstash(self):
+        import json as _json
+        import requests
+        from registry_coverage_check import load_registry_readonly
+        campo = "7|top_mix||current"
+        riga = {"match_id": 7, "origin": "top_mix", "model_variant": "current", "home": "Inter",
+                "away": "Milan", "mercato_standard": "1", "prob_sicuro": 61.0}
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env), \
+             mock.patch.object(requests, "post", self._post_array({campo: _json.dumps(riga)})):
+            righe, fonte = load_registry_readonly()
+        self.assertEqual("upstash", fonte)
+        self.assertEqual([7], [r["match_id"] for r in righe])
+
+    def test_remoto_giu_dichiara_il_file_locale(self):
+        import requests
+        import tempfile
+        from registry_coverage_check import load_registry_readonly
+        import config
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump({"data": [{"match_id": 1}]}, f)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+
+        def esplode(*a, **k):
+            raise RuntimeError("rete giu'")
+
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env), mock.patch.object(requests, "post", esplode), \
+             mock.patch.object(config, "PREDICTIONS_FILE", f.name):
+            righe, fonte = load_registry_readonly()
+        self.assertTrue(fonte.startswith("file locale"), fonte)
+        self.assertEqual([1], [r["match_id"] for r in righe])
+
+
+class TestDegradoDellApp(unittest.TestCase):
+    """Con il Registro su Upstash, se il backend non risponde l'app NON deve
+    rompersi: legge la copia locale e lo dichiara. E' il percorso che l'utente
+    incontra se Upstash e' giu' o se i secret sono sbagliati.
+
+    Nota di igiene, imparata sbagliando: ``app`` importa ``PREDICTIONS_FILE`` e
+    ``DATABASE_DIR`` nel PROPRIO namespace, quindi correggere
+    ``config.PREDICTIONS_FILE`` non basta — la prima versione di questi test ha
+    scritto davvero nella copia locale del Registro. Qui si corregge il nome
+    giusto e c'e' una guardia che fallisce se il file locale vero cambia.
+    """
+
+    def setUp(self):
+        import app
+        from config import PREDICTIONS_FILE
+        self.app = app
+        self.file_vero = Path(PREDICTIONS_FILE)
+        self.prima = self.file_vero.read_bytes() if self.file_vero.exists() else None
+
+    def tearDown(self):
+        ora = self.file_vero.read_bytes() if self.file_vero.exists() else None
+        self.assertEqual(self.prima, ora,
+                         f"il test ha modificato la copia locale vera ({self.file_vero}): "
+                         "i patch devono mirare a app.PREDICTIONS_FILE, non a config")
+
+    def _file_locale(self, righe, nome="registro"):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        percorso = Path(d) / f"{nome}.json"
+        percorso.write_text(json.dumps({"data": righe}), encoding="utf-8")
+        return percorso
+
+    def test_credenziali_assenti_ricade_sul_file_locale(self):
+        import config
+        percorso = self._file_locale([{"match_id": 42, "data": "10/09/2026 20:00"}])
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "",
+               "UPSTASH_REDIS_REST_TOKEN": ""}
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(config, "UPSTASH_REDIS_REST_URL", ""), \
+             mock.patch.object(config, "UPSTASH_REDIS_REST_TOKEN", ""), \
+             mock.patch.object(self.app, "PREDICTIONS_FILE", str(percorso)):
+            righe = self.app.load_predictions()
+        self.assertEqual([{"match_id": 42, "data": "10/09/2026 20:00"}], righe,
+                         "l'app deve leggere la copia locale, non esplodere")
+
+    def test_backend_giu_ricade_sul_file_locale(self):
+        import requests
+        percorso = self._file_locale([{"match_id": 7, "data": "10/09/2026 20:00"}])
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(self.app, "PREDICTIONS_FILE", str(percorso)), \
+             mock.patch.object(requests, "post", side_effect=RuntimeError("rete giu'")):
+            righe = self.app.load_predictions()
+        self.assertEqual([{"match_id": 7, "data": "10/09/2026 20:00"}], righe)
+
+    def test_salvataggio_riporta_l_errore_senza_mentire(self):
+        """Il messaggio non deve dire "salvati" se l'hash non ha risposto."""
+        import requests
+        percorso = self._file_locale([])
+        env = {"REGISTRY_BACKEND": "upstash", "UPSTASH_REDIS_REST_URL": "https://db.upstash.io",
+               "UPSTASH_REDIS_REST_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(self.app, "PREDICTIONS_FILE", str(percorso)), \
+             mock.patch.object(self.app, "DATABASE_DIR", str(percorso.parent)), \
+             mock.patch.object(requests, "post", side_effect=RuntimeError("rete giu'")):
+            esito = self.app.save_predictions([{"match_id": 1, "data": "10/09/2026 20:00"}])
+        self.assertTrue(esito["locale"], "la copia locale si scrive comunque")
+        self.assertEqual("errore", esito["remoto"])
+        self.assertIn("upstash", str(esito.get("backend_registro")))
+        self.assertIn("rete giu'", str(esito.get("remoto_dettaglio")))
+
+
+class TestRegistroDaFile(unittest.TestCase):
+    """La misura su file serve a verificare i dati ricostruiti quando il
+    Registro live non e' raggiungibile: deve leggere sia una lista sia
+    {"data": [...]} e dichiarare la fonte, senza toccare nulla."""
+
+    def _file(self, contenuto):
+        import json
+        import tempfile
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(contenuto, f)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_legge_la_forma_del_registro(self):
+        from registry_coverage_check import load_registry_file
+        righe, fonte = load_registry_file(self._file({"data": [{"match_id": 1}]}))
+        self.assertEqual([{"match_id": 1}], righe)
+        self.assertTrue(fonte.startswith("file "))
+
+    def test_legge_anche_una_lista_nuda(self):
+        from registry_coverage_check import load_registry_file
+        righe, _ = load_registry_file(self._file([{"match_id": 1}, {"match_id": 2}]))
+        self.assertEqual(2, len(righe))
+
+    def test_forma_sbagliata_ferma_tutto(self):
+        from registry_coverage_check import load_registry_file
+        with self.assertRaises(SystemExit):
+            load_registry_file(self._file({"record": {"data": []}}))
+
+
+class TestMisuraDimensione(unittest.TestCase):
+    """Il PUT su JSONBin e' rifiutato oltre 100 kB sul piano free: il registro
+    deve essere MISURATO, non stimato, e il motivo del rifiuto deve arrivare
+    fino al messaggio d'errore (non solo "errore")."""
+
+    def test_save_predictions_dichiara_byte_e_dettaglio(self):
+        """Chi scrive deve restituire i byte e il motivo del rifiuto.
+
+        Il PUT del bin e' passato in `registry_store.jsonbin_save` (strato unico
+        dei due backend): qui si verifica che la risposta venga letta la', che
+        `save_predictions` deleghi e che quello che l'utente vede (`byte_scritti`,
+        `remoto_dettaglio`) arrivi fino a lui.
+        """
+        import inspect
+        import app
+        import registry_store as rs
+        src_app = inspect.getsource(app.save_predictions)
+        self.assertIn("byte_scritti", src_app)
+        self.assertIn("remoto_dettaglio", src_app)
+        self.assertIn("save_rows", src_app)
+        src_store = inspect.getsource(rs.jsonbin_save)
+        self.assertIn("r = scrivi(", src_store, "la risposta del PUT non e' letta")
+        self.assertIn("status_code", src_store)
+        self.assertIn("remoto_dettaglio", src_store)
+        self.assertIn("byte", src_store)
+
+    def test_la_scrittura_del_replay_misura_il_payload(self):
+        import inspect
+        import replay_legacy_topmix as replay
+        src = inspect.getsource(replay.write_to_registry)
+        self.assertIn("byte_payload", src)
+
+    def test_il_controllo_di_copertura_stampa_la_dimensione(self):
+        import inspect
+        import registry_coverage_check as check
+        src = inspect.getsource(check.main)
+        self.assertIn("kB", src)

@@ -63,6 +63,15 @@ GROQ_API_KEY = _get_secret("GROQ_API_KEY", "")
 JSONBIN_API_KEY = _get_secret("JSONBIN_API_KEY", "")
 JSONBIN_BIN_ID = _get_secret("JSONBIN_BIN_ID", "")
 
+# Registro: dove vive (registry_store.py) e con quali credenziali. Qui perche'
+# _get_secret copre ANCHE i secrets di Streamlit Cloud, che non finiscono in
+# os.environ: senza questo passaggio, un secret aggiunto nell'app (backend,
+# URL e token di Upstash) resterebbe invisibile al codice.
+REGISTRY_BACKEND = _get_secret("REGISTRY_BACKEND", "jsonbin")
+REGISTRY_HASH_KEY = _get_secret("REGISTRY_HASH_KEY", "sm:registro")
+UPSTASH_REDIS_REST_URL = _get_secret("UPSTASH_REDIS_REST_URL", "")
+UPSTASH_REDIS_REST_TOKEN = _get_secret("UPSTASH_REDIS_REST_TOKEN", "")
+
 
 # ==========================================
 # 2. GESTIONE STAGIONI

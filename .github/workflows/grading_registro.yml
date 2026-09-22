@@ -1,0 +1,317 @@
+name: Grading delle righe in attesa (partite gia' giocate, stagioni passate)
+
+# Completa il grading delle righe del Registro rimaste "in attesa" la cui partita
+# e' GIA' stata giocata: il giro di produzione (app.aggiorna_risultati_reali)
+# interroga solo la stagione in corso, quindi le partite dell'ultima giornata
+# della stagione precedente non le chiedera' mai piu'. Quelle righe non entrano
+# nel denominatore delle percentuali di successo (misurato il 21/09/2026: 10
+# righe, stagione 2025/2026).
+#
+# Scrive SOLO due campi per riga: `risultato_reale` ed `esito`. Nessun pronostico,
+# nessuna probabilita', nessun altro campo: la verifica dopo la scrittura confronta
+# riga per riga (ogni riga non selezionata deve essere IDENTICA).
+#
+# Due modalita', decise dal NOME DEL TAG:
+#   * `grading-check-*`        -> PROVA: legge, verifica le fonti, non scrive nulla;
+#   * `grading-write-<N>r-*`   -> esegue: istantanea PRIMA, scrittura, verifica.
+#                                 <N> = quante righe in attesa ci si aspetta: se il
+#                                 numero non combacia, la scrittura non parte.
+#
+# Il risultato viene dalla fonte autorevole (football-data.org, per `match_id`,
+# con controllo di stato/squadre/giorno) e viene CONFRONTATO con l'archivio della
+# stagione nei CSV del repo: se i due non coincidono la riga si salta e si dichiara.
+
+on:
+  push:
+    tags:
+      - 'grading-check-*'
+      - 'grading-write-*'
+      - 'grading-ripara-*'
+      - 'grading-diagnosi-*'
+      - 'grading-campi-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grading-registro
+  cancel-in-progress: false
+
+jobs:
+  grading:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OUT: ${{ github.workspace }}/grading-out
+      REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
+
+    steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          mancanti=()
+          for nome in UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — il grading legge e scrive il Registro vivo."
+            exit 1
+          fi
+          if [ -z "$FOOTBALL_DATA_API_KEY" ]; then
+            echo "::warning title=fonte-api::FOOTBALL_DATA_API_KEY assente: il risultato verra' preso dall'archivio della stagione nei CSV (e il referto lo dira' riga per riga)."
+          fi
+
+      - name: Test dello strumento (nessuna rete)
+        run: python -m pytest -q --tb=short SoccerMath/test_registry_grading.py SoccerMath/test_registry_composizione.py
+
+      - name: Selezione e fonti (sola lettura, nessuna scrittura)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          mkdir -p "$OUT"
+          set +e
+          python SoccerMath/registry_grading.py --compatto --json "$OUT/piano.json" \
+            2>&1 | tee "$OUT/grading_prova.txt"
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "esito dello strumento: $rc"
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=grading-prova-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/grading_prova.txt")
+          if [ "$rc" != "0" ]; then
+            echo "::error title=grading-prova::strumento uscito con $rc: il referto (con l'errore) e' nei blocchi qui sopra"
+          fi
+
+      - name: Grading vero (solo con il tag grading-write-*)
+        if: startsWith(github.ref, 'refs/tags/grading-write-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          set -o pipefail
+          set +e
+          # La serratura arriva dal NOME DEL TAG: il tag di scrittura dichiara da
+          # se' quante righe in attesa si aspetta (es. grading-write-10r-2026-09-21).
+          attesi=$(echo "$GITHUB_REF_NAME" | sed -n 's/.*[^0-9]\([0-9][0-9]*\)r[^0-9].*/\1/p')
+          if [ -z "$attesi" ]; then
+            echo "::error title=serratura-mancante::il tag di scrittura deve dichiarare quante righe si aspetta (es. grading-write-10r-2026-09-21): senza, non si scrive."
+            exit 3
+          fi
+          echo "serratura dal tag: righe attese in attesa = $attesi"
+          python SoccerMath/registry_grading.py --scrivi --conferma --attesi "$attesi" \
+            --compatto --json "$OUT/grading.json" \
+            2>&1 | tee "$OUT/grading.txt"
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "esito dello strumento: $rc"
+          # Il referto INTERO in annotazioni: e' l'unico canale leggibile da fuori.
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=grading-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/grading.txt")
+          if grep -q "Grading eseguito e verificato" "$OUT/grading.txt"; then
+            echo "::notice title=grading-esito::OK (istantanea + verifica riga per riga)"
+          else
+            echo "::error title=grading-esito::la verifica dopo la scrittura NON e' passata (l'istantanea e' al sicuro: vedi le righe sopra)"
+          fi
+          exit "$rc"
+
+      # Il salvataggio scrive la riga sotto il nome canonico di OGGI; se la stessa
+      # riga viveva sotto un nome di campo di una convenzione precedente, quel campo
+      # resta con il contenuto di prima e due campi con la stessa chiave e contenuto
+      # DIVERSO fermano la lettura del Registro (guardia dello store). Questo passo
+      # toglie quei campi, e SOLO quelli: l'istantanea scattata prima della scrittura
+      # e' il termine di confronto, e dopo la cancellazione il Registro si rilegge e
+      # deve contenere esattamente le righe attese (le stesse dell'istantanea, con il
+      # grading applicato).
+      # Sola lettura: quali ISTANTANEE esistono e che cosa contengono. Una chiave
+      # ``...-campi`` e' l'unica fotografia che documenta i NOMI di campo: serve a
+      # dire quali nomi vecchi c'erano, quali sono ancora la' e quali non ci sono
+      # piu'. Risponde a "la cancellazione ha toccato quello che dicevamo?".
+      - name: "Istantanee e nomi di campo (solo con il tag grading-campi-*)"
+        if: startsWith(github.ref, 'refs/tags/grading-campi-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          CAMPI_DI: ${{ vars.GRADING_CAMPI_DI }}
+        run: |
+          set +e
+          python SoccerMath/registry_grading.py --elenca-istantanee --fonte archivio \
+            --json "$OUT/istantanee.json" 2>&1 | tee "$OUT/istantanee.txt"
+          echo "---"
+          # La chiave della fotografia sta nel NOME DEL TAG (`grading-campi-<chiave>`),
+          # come per gli altri comandi di questo progetto: cosi' il comando e' nel ref
+          # ed e' tracciabile. La variabile GRADING_CAMPI_DI, se impostata, ha la
+          # precedenza.
+          chiave="${CAMPI_DI:-}"
+          if [ -z "$chiave" ]; then
+            # Un suffisso numerico finale e' il contatore dei tentativi (come per le
+            # chiavi delle istantanee), non parte del nome della fotografia.
+            chiave=$(echo "$GITHUB_REF_NAME" | sed 's/^grading-campi-//; s/-[0-9][0-9]*$//')
+          fi
+          echo "fotografia dei campi richiesta: $chiave"
+          python SoccerMath/registry_grading.py --campi-di "$chiave" --fonte archivio \
+            --json "$OUT/campi.json" 2>&1 | tee "$OUT/campi.txt"
+          set -e
+          # Le righe chiave in annotazioni: quante istantanee, che cosa contengono,
+          # e per la fotografia dei campi qual e' la conta degli extra.
+          grep -E "^ISTANTANEA\||^CAMPI\|" "$OUT/istantanee.txt" "$OUT/campi.txt" | cut -c1-1500 \
+            | while IFS= read -r riga; do echo "::warning title=istantanee::${riga:0:1500}"; done
+          # L'elenco dei nomi EXTRA a blocchi (una riga per nome, unite con ·).
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=campi-extra-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""} /^EXTRA\|/ {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/campi.txt")
+          echo "blocchi di nomi extra: $i"
+
+      # Sola lettura: com'e' fatto l'hash NOME PER NOME (quanti campi grezzi, quante
+      # righe logiche, quali chiavi vivono sotto piu' nomi, se i contenuti
+      # coincidono) e se le righe sono esattamente quelle dell'istantanea con il
+      # grading applicato. Serve a verificare una scrittura da fuori, senza
+      # scaricare artifact e senza log del job.
+      - name: "Diagnosi dei nomi di campo (solo con il tag grading-diagnosi-*)"
+        if: startsWith(github.ref, 'refs/tags/grading-diagnosi-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          DIAGNOSI_ISTANTANEA: ${{ vars.GRADING_ISTANTANEA }}
+        run: |
+          set +e
+          # Quale istantanea usare come termine di confronto: la variabile se c'e',
+          # altrimenti il NOME DEL TAG (`grading-diagnosi-<chiave>`, con eventuale
+          # suffisso numerico di tentativo). Cosi' il confronto si puo' rifare
+          # contro la fotografia di ieri, non solo contro quella di oggi.
+          ist="${DIAGNOSI_ISTANTANEA:-}"
+          if [ -z "$ist" ]; then
+            ist=$(echo "$GITHUB_REF_NAME" | sed 's/^grading-diagnosi-//; s/-[0-9][0-9]*$//')
+            case "$ist" in
+              20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]*) ;;
+              *) ist="" ;;
+            esac
+          fi
+          if [ -n "$ist" ]; then
+            echo "istantanea di confronto: $ist"
+            extra=(--istantanea "$ist")
+          else
+            echo "istantanea di confronto: quella di oggi (default dello strumento)"
+            extra=()
+          fi
+          python SoccerMath/registry_grading.py --diagnosi-nomi --fonte archivio "${extra[@]}" \
+            --json "$OUT/diagnosi.json" 2>&1 | tee "$OUT/diagnosi.txt"
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "esito dello strumento: $rc"
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 5 ]; then
+              echo "::warning title=diagnosi-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""; i=0} {riga = riga (n ? " · " : "") $0; n++; i++; if (i >= 2) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/diagnosi.txt" | head -n 5)
+          if [ "$rc" != "0" ]; then
+            echo "::error title=diagnosi::uscita $rc: leggere i blocchi qui sopra"
+          fi
+
+      - name: "Riparazione dei nomi di campo vecchi (solo con il tag grading-ripara-*)"
+        if: startsWith(github.ref, 'refs/tags/grading-ripara-')
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          ISTANTANEA: ${{ vars.GRADING_ISTANTANEA }}
+        run: |
+          set +e
+          istantanea="${ISTANTANEA:-$(date -u +%F)-pre-grading}"
+          echo "istantanea di confronto: $istantanea"
+          python SoccerMath/registry_grading.py --ripara-nomi --scrivi --conferma \
+            --fonte archivio --istantanea "$istantanea" --json "$OUT/riparazione.json" \
+            2>&1 | tee "$OUT/riparazione.txt"
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "esito dello strumento: $rc"
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=riparazione-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""; i=0} {riga = riga (n ? " · " : "") $0; n++; i++; if (i >= 3) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/riparazione.txt" | head -n 3)
+          if [ "$rc" != "0" ]; then
+            echo "::error title=riparazione::strumento uscito con $rc: vedi i blocchi qui sopra (l'istantanea e' al sicuro su Upstash)"
+          fi
+          exit "$rc"
+
+      - name: "Dopo la scrittura: quante righe restano in attesa (sola lettura)"
+        if: always()
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          set +e
+          python SoccerMath/registry_grading.py --compatto --fonte archivio \
+            2>&1 | tee "$OUT/grading_dopo.txt"
+          set -e
+          head -n 1 "$OUT/grading_dopo.txt" | while IFS= read -r riga; do
+            echo "::warning title=grading-dopo::${riga:0:900}"
+          done
+
+      - name: Composizione del Registro (sola lettura)
+        if: always()
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          set +e
+          python SoccerMath/registry_composizione.py --compatto --json "$OUT/composizione.json" \
+            2>&1 | tee "$OUT/composizione.txt"
+          rc=$?
+          set -e
+          while IFS= read -r blocco; do
+            echo "::warning title=composizione::$blocco"
+          done < <(awk 'BEGIN{n=0; riga=""; i=0} {riga = riga (n ? " · " : "") $0; n++; i++; if (i >= 2) {print riga; riga=""; n=0}} END{if (n) print riga}' "$OUT/composizione.txt" | head -n 2)
+          if [ "$rc" != "0" ]; then
+            echo "::error title=composizione::uscita $rc (vedi le righe sopra)"
+          fi
+
+      - name: Referto come artifact
+        if: always()
+        # L'upload non decide l'esito dei dati: se la quota artifact di GitHub e'
+        # piena (403) il grading resta valido e verificato — il referto sta anche
+        # nelle annotazioni, l'istantanea sta su Upstash.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: grading-registro-${{ github.run_id }}
+          path: ${{ env.OUT }}
+          if-no-files-found: warn

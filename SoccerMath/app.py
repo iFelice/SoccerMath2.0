@@ -46,13 +46,13 @@ from prediction_registry import (
     MODEL_VERSION_CURRENT,
     MODEL_VERSION_FIELD,
     MODEL_LABEL_CURRENT,
+    MODEL_LABEL_LEGACY,
     MODEL_LABEL_PRE_FIX,
     PRE_FIX_TOOLTIP,
     CURRENT_MODEL_TOOLTIP,
     new_prediction_metadata,
     model_label,
-    stats_current_model,
-    stats_historical,
+    is_current_model,
     stats_all,
     backup_prediction_file,
     build_registry_datetime_column,
@@ -80,7 +80,19 @@ from prediction_registry import (
     gate_shadow_fields_from_row,
     gate_off_confidence,
     gate_off_fields_from_row,
+    # --- Top Mix a due motori: variante del modello (attuale / legacy) ---
+    MODEL_VARIANT_FIELD,
+    MODEL_VARIANT_CURRENT,
+    MODEL_VARIANT_LEGACY,
+    MODEL_VARIANT_LABELS,
+    model_variant_label,
+    model_variant_of,
+    # Lettura della variante per DATA quando il campo manca: e' quella che
+    # l'utente deve vedere (una riga nata prima del merge di PR#24 e' del
+    # motore di allora, cioe' legacy).
+    model_variant_read,
 )
+from models.legacy_elo import predict_elo_probs_legacy
 
 API_KEY_ODDS = ODDS_API_KEY
 API_KEY_DATA = FOOTBALL_DATA_API_KEY
@@ -186,21 +198,28 @@ st.markdown("""
     .match-date { font-size: 13px; font-weight: 800; color: var(--sm-accent) !important; display: block; margin-top: 5px; }
     .stat-container { background-color: var(--sm-muted-bg); color: var(--sm-card-text); border: 1px solid var(--sm-card-border); border-radius: 8px; padding: 10px; text-align: center; height: 100%; }
     .top-mix-row { background-color: var(--sm-card-bg); color: var(--sm-card-text); border: 1px solid var(--sm-card-border); border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    /* Top Mix a due modelli: intestazioni distinte per le due tabelle */
+    .top-mix-model { color: var(--sm-card-text); border-radius: 8px; padding: 12px 15px; margin: 18px 0 10px 0; border-left: 6px solid; font-size: 17px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .top-mix-current { background-color: rgba(40, 167, 69, 0.12); border-color: #28a745; }
+    .top-mix-legacy { background-color: rgba(253, 126, 20, 0.12); border-color: #fd7e14; }
     .match-result { font-size: 18px; font-weight: 800; color: #28a745; margin-top: 5px; display: block; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- REGISTRO PREDIZIONI ---
 def load_predictions():
-    # Fonte remota primaria se configurata; in fallback il file locale.
-    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
-        try:
-            r = requests.get(f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}/latest", headers={"X-Master-Key": JSONBIN_API_KEY}, timeout=5)
-            if r.status_code == 200:
-                rec = r.json().get("record", {})
-                if isinstance(rec, dict) and "data" in rec: return rec["data"]
-                elif isinstance(rec, list): return rec
-        except: pass
+    # Fonte remota primaria: il backend attivo (JSONBin come sempre, oppure
+    # Upstash Redis se REGISTRY_BACKEND=upstash). In fallback il file locale,
+    # SOLO se il backend non e' configurato o non risponde: un hash remoto
+    # vuoto E' una risposta valida (registro vuoto), non un motivo per leggere
+    # una copia locale vecchia.
+    try:
+        from registry_store import load_rows
+        righe, fonte = load_rows(strict=False)
+        if fonte != "nessuno" and righe is not None:
+            return righe
+    except Exception as e:
+        logging.warning(f"Registro remoto non leggibile: {e}")
     if os.path.exists(PREDICTIONS_FILE):
         try:
             with open(PREDICTIONS_FILE, "r", encoding="utf-8") as f:
@@ -217,11 +236,14 @@ def save_predictions(preds):
     senza copia integrale. Il remoto viene aggiornato SOLO dopo che la scrittura
     locale e' riuscita.
 
-    Ritorna ``{"locale": bool, "remoto": "ok"|"disattivato"|"errore"|"saltato"}``:
-    il PUT non puo' piu' fallire in silenzio dentro un ``except: pass`` perche'
-    il toast "Top Mix salvati!" verrebbe letto come una conferma di un record
-    che non esiste (problema ``jsonbin_unchecked`` in
-    ``audit/results/topmix_registry_tracking.json``).
+    Ritorna ``{"locale": bool, "remoto": "ok"|"disattivato"|"errore"|"saltato"}``
+    piu' ``remoto_dettaglio`` (codice HTTP e messaggio del servizio, troncati) e
+    ``byte_scritti`` (dimensione del payload): il PUT non puo' piu' fallire in
+    silenzio dentro un ``except: pass`` perche' il toast "Top Mix salvati!"
+    verrebbe letto come una conferma di un record che non esiste (problema
+    ``jsonbin_unchecked`` in ``audit/results/topmix_registry_tracking.json``), e
+    quando fallisce serve sapere PERCHE' (es. il limite di 100 kB dei bin del
+    piano free JSONBin: "Free users cannot create a record over 100kb").
     """
     esito = {"locale": False, "remoto": "saltato"}
     try:
@@ -234,27 +256,33 @@ def save_predictions(preds):
         logging.warning(f"Scrittura registro locale fallita: {e}")
         esito["remoto"] = "saltato"
         return esito
-    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
+    # Scrittura remota: backend attivo tramite lo strato unico. Con JSONBin e'
+    # il PUT del bin intero di sempre; con Upstash e' un HSET dei SOLI campi
+    # nuovi o cambiati, quindi non riscrive lo storico e non puo' cancellare le
+    # righe che un altro scrittore ha aggiunto nel frattempo.
+    try:
+        from registry_store import backend as backend_attivo
+        from registry_store import esito_scrittura, save_rows
+        remoto = esito_scrittura(save_rows(preds))
+    except Exception as e:
+        # Se la scrittura non e' nemmeno partita (credenziali mancanti, rete
+        # giu'), dire QUALE backend e' rimasto senza risposta: "n/d" non aiuta
+        # chi legge il messaggio o il log.
         try:
-            r_put = requests.put(
-                f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}",
-                json={"data": preds},
-                headers={"X-Master-Key": JSONBIN_API_KEY, "Content-Type": "application/json"},
-                timeout=10,
-            )
-            if getattr(r_put, "status_code", None) == 200:
-                esito["remoto"] = "ok"
-            else:
-                esito["remoto"] = "errore"
-                logging.warning(
-                    f"PUT JSONBin respinto: HTTP {getattr(r_put, 'status_code', '?')} "
-                    f"(registro locale scritto, remoto NO)"
-                )
-        except Exception as e:
-            esito["remoto"] = "errore"
-            logging.warning(f"PUT JSONBin fallito: {e} (registro locale scritto, remoto NO)")
-    else:
-        esito["remoto"] = "disattivato"
+            remoto = {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300],
+                      "backend": backend_attivo()}
+        except Exception:
+            remoto = {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300]}
+    esito["remoto"] = remoto.get("remoto", "errore")
+    esito["backend_registro"] = remoto.get("backend", "n/d")
+    if "byte" in remoto:
+        esito["byte_scritti"] = remoto["byte"]
+    for chiave in ("remoto_dettaglio", "comandi", "righe_scritte", "righe_saltate", "righe_hash"):
+        if chiave in remoto:
+            esito[chiave] = remoto[chiave]
+    if esito["remoto"] not in ("ok", "disattivato"):
+        logging.warning(f"Scrittura remota rifiutata/fallita: {esito.get('remoto_dettaglio', esito['remoto'])} "
+                        f"(registro locale scritto, remoto NO)")
     return esito
 
 def _mercato_name_tokens(name):
@@ -357,56 +385,43 @@ def standardizza_mercato(testo, home=None, away=None):
     
     return "ALTRO"
 
-def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
-                          mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
-                          prob_poisson=None, prob_elo=None, elo_disponibile=None,
-                          snapshot_sha=None,
-                          gate_shadow_confidence=None, gate_shadow_ammessa=None,
-                          gate_off_confidence=None, gate_off_ammessa=None):
-    """Scrive UNA previsione nel registro e dice cosa ha fatto.
+def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
+                           mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
+                           prob_poisson=None, prob_elo=None, elo_disponibile=None,
+                           snapshot_sha=None,
+                           gate_shadow_confidence=None, gate_shadow_ammessa=None,
+                           gate_off_confidence=None, gate_off_ammessa=None,
+                           model_variant=MODEL_VARIANT_CURRENT, salvato_il=None):
+    """Costruisce il record del registro (nessun I/O): la forma della riga vive QUI.
 
-    Due modifiche puntuali, entrambe richieste da
-    ``audit/margini_migliorabili_topmix.md`` §7 (problemi ``dedup_match_id``,
-    ``origin_collapsed``, ``schema_gaps``):
-
-    - la chiave di unicita' non e' piu' il solo ``match_id`` ma
-      ``(match_id, origin, selector_version)``: se Analisi Rapida o Billy hanno
-      salvato per primi, la riga Top Mix NON sparisce piu', e un ricalcolo
-      aggiorna la propria previsione finche' non e' stata giudicata;
-    - ``tipo`` non e' piu' derivato dal testo libero del pronostico: l'origine
-      la passa il chiamante (``origin=ORIGIN_TOP_MIX`` ecc.) e il testo resta
-      solo il fallback per i record legacy.
-
-    ``prob_poisson``/``prob_elo``/``elo_disponibile`` salvano le DUE componenti
-    della confidence: senza di esse il numero del registro non e' riconducibile
-    a nessun vincolo del selettore (e il fallback Elo silenzioso resta
-    invisibile). ``gate_shadow_confidence``/``gate_shadow_ammessa`` sono i campi
-    della modalita' ombra del veto (referto §11quater): OPZIONALI, aggiunti al
-    record SOLO quando ``gate_shadow_confidence`` non e' ``None``, senza
-    toccare nessun campo gia' salvato. ``gate_off_confidence``/
-    ``gate_off_ammessa`` sono il SECONDO segnale ombra (referto §11quinquies:
-    gate assente, nessuno sconto), stesso pattern, indipendente dal primo.
-    Ritorna ``{"azione", "remoto", "record"}``.
+    E' la stessa funzione per il salvataggio live (``save_prediction_entry``)
+    e per il replay walk-forward del modello legacy
+    (``replay_legacy_topmix.py``): una riga ricostruita ha quindi ESATTAMENTE
+    le chiavi di una riga normale, e l'unico campo che distingue i due motori
+    e' ``model_variant`` (``current`` / ``legacy``). ``salvato_il`` e' l'ora di
+    scrittura (default: adesso, ora italiana); il replay la passa esplicita.
     """
-    preds = load_predictions()
     stagione_reale = calcola_stagione_calcolo(match_date)
     metadata = new_prediction_metadata()
     mercato_code = mercato_standard if mercato_standard else standardizza_mercato(pronostico, h, a)
     orig = resolve_origin(origin, pronostico)
     sha = snapshot_sha if snapshot_sha is not None else snapshot_fingerprint(DATABASE_DIR)
+    variante = str(model_variant or MODEL_VARIANT_CURRENT).strip().lower()
     entry = {
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
         "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": mercato_code,
         "top3": top3, "prob_sicuro": prob, "risultati_attesi": ris_attesi,
         "risultato_reale": None, "esito": "⏳", "tipo": tipo_for_origin(orig),
-        "stagione": stagione_reale, "salvato_il": datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
+        "stagione": stagione_reale,
+        "salvato_il": salvato_il or datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
         "origin": orig,
         "selector_version": SELECTOR_VERSION_CURRENT,
+        MODEL_VARIANT_FIELD: variante,
         "rank": rank,
         "kickoff_utc": kickoff_utc or "",
         "data_snapshot_sha": sha or "",
         "calculation_id": build_calculation_id(match_id, orig, SELECTOR_VERSION_CURRENT,
-                                               kickoff_utc, sha, rank),
+                                               kickoff_utc, sha, rank, model_variant=variante),
         "poisson": prob_poisson,
         "elo": prob_elo,
         "elo_disponibile": elo_disponibile if elo_disponibile is not None else (prob_elo is not None),
@@ -424,6 +439,54 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     if gate_off_confidence is not None:
         entry[GATE_OFF_CONFIDENCE_FIELD] = gate_off_confidence
         entry[GATE_OFF_AMMESSA_FIELD] = bool(gate_off_ammessa)
+    return entry
+
+
+def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
+                          mercato_standard=None, origin=None, rank=None, kickoff_utc=None,
+                          prob_poisson=None, prob_elo=None, elo_disponibile=None,
+                          snapshot_sha=None,
+                          gate_shadow_confidence=None, gate_shadow_ammessa=None,
+                          gate_off_confidence=None, gate_off_ammessa=None,
+                          model_variant=MODEL_VARIANT_CURRENT):
+    """Scrive UNA previsione nel registro e dice cosa ha fatto.
+
+    Due modifiche puntuali, entrambe richieste da
+    ``audit/margini_migliorabili_topmix.md`` §7 (problemi ``dedup_match_id``,
+    ``origin_collapsed``, ``schema_gaps``):
+
+    - la chiave di unicita' non e' piu' il solo ``match_id`` ma
+      ``(match_id, origin, selector_version, model_variant)``: se Analisi
+      Rapida o Billy hanno salvato per primi, la riga Top Mix NON sparisce
+      piu', e un ricalcolo aggiorna la propria previsione finche' non e' stata
+      giudicata; la riga legacy di una partita non tocca mai quella current;
+    - ``tipo`` non e' piu' derivato dal testo libero del pronostico: l'origine
+      la passa il chiamante (``origin=ORIGIN_TOP_MIX`` ecc.) e il testo resta
+      solo il fallback per i record legacy.
+
+    ``prob_poisson``/``prob_elo``/``elo_disponibile`` salvano le DUE componenti
+    della confidence: senza di esse il numero del registro non e' riconducibile
+    a nessun vincolo del selettore (e il fallback Elo silenzioso resta
+    invisibile). ``gate_shadow_confidence``/``gate_shadow_ammessa`` sono i campi
+    della modalita' ombra del veto (referto §11quater): OPZIONALI, aggiunti al
+    record SOLO quando ``gate_shadow_confidence`` non e' ``None``, senza
+    toccare nessun campo gia' salvato. ``gate_off_confidence``/
+    ``gate_off_ammessa`` sono il SECONDO segnale ombra (referto §11quinquies:
+    gate assente, nessuno sconto), stesso pattern, indipendente dal primo.
+    ``model_variant`` dice con quale motore Elo e' stata calcolata la riga
+    (``current`` default, ``legacy`` per la seconda tabella del Top Mix).
+    La forma del record e' costruita da ``build_prediction_entry``.
+    Ritorna ``{"azione", "remoto", "record"}``.
+    """
+    preds = load_predictions()
+    entry = build_prediction_entry(
+        match_id, h, a, camp, giornata, match_date, pronostico, top3, prob, ris_attesi,
+        mercato_standard=mercato_standard, origin=origin, rank=rank, kickoff_utc=kickoff_utc,
+        prob_poisson=prob_poisson, prob_elo=prob_elo, elo_disponibile=elo_disponibile,
+        snapshot_sha=snapshot_sha,
+        gate_shadow_confidence=gate_shadow_confidence, gate_shadow_ammessa=gate_shadow_ammessa,
+        gate_off_confidence=gate_off_confidence, gate_off_ammessa=gate_off_ammessa,
+        model_variant=model_variant)
     preds, azione = upsert_prediction_entry(preds, entry)
     if azione == "gia_graduata":
         # La previsione e' gia' stata giudicata: NON si tocca, e il record nuovo
@@ -586,17 +649,27 @@ def _league_mean_gate(xg_data):
 ELO_ENSEMBLE_W = 0.25
 
 
-def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W):
+def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W, elo_probs=None, elo_disponibile=True):
     """Ritorna una COPIA del dizionario Poisson con l'1X2 nella forma
     ``w*Poisson + (1-w)*Elo`` (peso Poisson = ``ELO_ENSEMBLE_W``, validato
     in audit/diagnose_elo_ensemble.py). I Totali (u15/u25/u35/gg) e ogni
     altra chiave passano invariati. Se l'Elo non e' disponibile (errore del
     motore) ritorna il Poisson puro bit-identico: il degrado e' sempre
     controllato verso il comportamento pre-modifica.
+
+    ``elo_probs`` serve al **secondo motore** (Analisi Rapida a due modelli,
+    come il Top Mix): se dato, si usa quello invece di chiamare
+    ``predict_elo_probs``. Con ``None`` il comportamento e' quello di sempre.
+    ``elo_disponibile=False`` dice che QUEL motore non ha dato un Elo: si
+    ritorna il Poisson puro invece di ricadere sull'Elo dell'altro motore.
+    Senza questa distinzione la riga "legacy" senza Elo legacy verrebbe
+    calcolata con l'Elo ATTUALE e sembrerebbe un risultato del motore legacy.
     """
     out = dict(m)
+    if not elo_disponibile:
+        return out
     try:
-        elo_p = predict_elo_probs(home, away, league)
+        elo_p = predict_elo_probs(home, away, league) if elo_probs is None else elo_probs
     except Exception:
         return out
     for k in ("1", "X", "2"):
@@ -1437,18 +1510,111 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
     }
 
 
-@st.cache_data(ttl=1800, show_spinner="Calcolando Top 10...")
+def _riga_top_mix(league, match, h_disp, a_disp, riga):
+    """Riga del Top Mix: campi del match + campi del selettore (stesso ordine di prima)."""
+    return {
+        "league": league, "giornata": match['matchday'],
+        "home": h_disp, "away": a_disp, "match_id": match.get("id"),
+        "utcDate": match['utcDate'],
+        "market": riga["market"],
+        "mercato_standard": riga["mercato_standard"],
+        "prob": riga["prob"], "prob_val": riga["prob_val"],
+        "poisson": riga["poisson"], "elo": riga["elo"],
+        "elo_disponibile": riga["elo_disponibile"],
+        "rank": None,
+    }
+
+
+def calcola_righe_top_mix(league, matches, engine):
+    """Righe Top Mix delle partite ``matches`` di una lega, per ENTRAMBI i motori.
+
+    Per ogni partita: stesso Poisson a due teste, poi il selettore puro
+    (``seleziona_riga_top_mix``: argmax, blend, soglie 0,55/0,60, veto) viene
+    applicato DUE volte con due Elo diversi:
+
+    * ``current`` -> ``predict_elo_probs`` (``models/elo_engine.py``, post PR#24);
+    * ``legacy``  -> ``predict_elo_probs_legacy`` (``models/elo_engine_legacy.py``,
+      il blob pre-PR#24 byte per byte, vedi ``models/legacy_elo.py``).
+
+    Ritorna ``{"current": [righe], "legacy": [righe]}`` NON ancora classificate
+    (``rank`` None): le due liste possono contenere partite diverse, e' voluto.
+    E' la stessa funzione che usa il replay walk-forward
+    (``replay_legacy_topmix.py``), cosi' le righe ricostruite nascono dal
+    medesimo codice di quelle live. Nessun I/O HTTP qui dentro.
+    """
+    team_stats, avg_h, avg_a, _ = engine
+    righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}
+    for match in matches:
+        h = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?')
+        a = match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
+        # [solo UI] h/a RESTANO GREZZI per le chiavi qui sotto (clean_name,
+        # Elo); il nome mostrato/salvato passa da display_name.
+        h_disp, a_disp = display_name(h), display_name(a)
+        h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})
+        a_s = team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
+
+        # Poisson a due teste: 1X2 da mercato normalizzato, O/U e GG da lambda base
+        m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+
+        # Elo agreement (solo per 1X2): qui e' I/O (engine/cache Elo), la
+        # decisione resta nella funzione pura.
+        elo_probs, elo_disponibile = None, False
+        try:
+            elo_probs = predict_elo_probs(h, a, league)
+            elo_disponibile = True
+        except Exception as e:
+            logging.warning(f"Elo non disponibile per {h} vs {a} ({league}): {e}")
+        # Secondo motore: l'Elo legacy (pre-PR#24). Fallback marcato allo
+        # stesso modo, indipendente dal primo.
+        elo_legacy, elo_legacy_disponibile = None, False
+        try:
+            elo_legacy = predict_elo_probs_legacy(h, a, league)
+            elo_legacy_disponibile = True
+        except Exception as e:
+            logging.warning(f"Elo legacy non disponibile per {h} vs {a} ({league}): {e}")
+
+        # [solo UI] le etichette "Vittoria {squadra}" e il codice mercato
+        # usano il nome display: mercato_standard resta identico perche'
+        # etichetta e nome passati a codice_mercato_selezionato derivano
+        # dalla STESSA variabile (come prima col grezzo).
+        riga = seleziona_riga_top_mix(m_poisson, elo_probs, elo_disponibile, h_disp, a_disp)
+        if riga is not None:
+            righe[MODEL_VARIANT_CURRENT].append(_riga_top_mix(league, match, h_disp, a_disp, riga))
+        riga_legacy = seleziona_riga_top_mix(m_poisson, elo_legacy, elo_legacy_disponibile, h_disp, a_disp)
+        if riga_legacy is not None:
+            righe[MODEL_VARIANT_LEGACY].append(_riga_top_mix(league, match, h_disp, a_disp, riga_legacy))
+    return righe
+
+
+def classifica_top_mix(righe):
+    """Ordina per probabilita' decrescente e assegna ``rank``: NESSUN tetto.
+
+    Il vecchio tetto di dieci righe (slice sulla lista ordinata) e' stato
+    tolto: si mostrano e si registrano TUTTE le partite sopra le soglie del
+    selettore (0,55 1X2 / 0,60 Totali), quante sono. Le soglie non cambiano.
+    """
+    ordinate = sorted(righe, key=lambda x: x['prob'], reverse=True)
+    for i, r in enumerate(ordinate):
+        r["rank"] = i + 1
+    return ordinate
+
+
+@st.cache_data(ttl=1800, show_spinner="Calcolando Top Mix...")
 def fetch_and_calc_top_mix():
-    """Top 10 del turno: HTTP, motore, Elo per partita, poi ``seleziona_riga_top_mix``.
+    """Top Mix del turno, due tabelle: HTTP, motore, poi ``calcola_righe_top_mix``.
 
     La selezione di riga (7 mercati, argmax, blend, soglie, veto) NON e' piu'
-    qui dentro: e' nella funzione pura sopra, testata in
-    ``SoccerMath/test_topmix_selector_parity.py``. Qui restano solo I/O e
+    qui dentro: e' nella funzione pura ``seleziona_riga_top_mix``, testata in
+    ``SoccerMath/test_topmix_selector_parity.py``; il calcolo per partita (due
+    motori Elo) e' in ``calcola_righe_top_mix``. Qui restano solo I/O e
     assemblaggio. Igienizzati in precedenza (referto §4): timeout sulla GET,
     fallback Elo marcato, coda di rate-limit solo FRA le leghe (l'ultima non
     aspetta piu' nulla) e `rank` sulla riga.
+
+    Ritorna ``(top_current, top_legacy, missing)``: due liste gia' ordinate e
+    classificate, senza tetto di righe, e le leghe senza motore.
     """
-    all_preds, missing = [], []
+    per_variante, missing = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}, []
     leghe = list(LEAGUES_CONFIG.keys())
     for i_lega, league in enumerate(leghe):
         if i_lega:
@@ -1456,7 +1622,6 @@ def fetch_and_calc_top_mix():
             time.sleep(6.5)
         engine = get_league_engine(league)
         if not engine: missing.append(league); continue
-        team_stats, avg_h, avg_a, _ = engine
         try:
             r = requests.get(f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches", headers={'X-Auth-Token': API_KEY_DATA}, params={"status": "TIMED,SCHEDULED"}, timeout=15)
             if r.status_code != 200: continue
@@ -1466,50 +1631,63 @@ def fetch_and_calc_top_mix():
         except Exception as e:
             logging.warning(f"Errore fetch Top Mix {league}: {e}")
             continue
-        for match in matches:
-            h = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?')
-            a = match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
-            # [solo UI] h/a RESTANO GREZZI per le chiavi qui sotto (clean_name,
-            # Elo); il nome mostrato/salvato passa da display_name.
-            h_disp, a_disp = display_name(h), display_name(a)
-            h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})
-            a_s = team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
+        righe = calcola_righe_top_mix(league, matches, engine)
+        for variante, lista in righe.items():
+            per_variante[variante].extend(lista)
+    top_current = classifica_top_mix(per_variante[MODEL_VARIANT_CURRENT])
+    top_legacy = classifica_top_mix(per_variante[MODEL_VARIANT_LEGACY])
+    return top_current, top_legacy, missing
 
-            # Poisson a due teste: 1X2 da mercato normalizzato, O/U e GG da lambda base
-            m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
 
-            # Elo agreement (solo per 1X2): qui e' I/O (engine/cache Elo), la
-            # decisione resta nella funzione pura.
-            elo_probs, elo_disponibile = None, False
-            try:
-                elo_probs = predict_elo_probs(h, a, league)
-                elo_disponibile = True
-            except Exception as e:
-                logging.warning(f"Elo non disponibile per {h} vs {a} ({league}): {e}")
+def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
+    """Argomenti di ``save_prediction_entry`` / ``build_prediction_entry`` per la
+    riga Top Mix ``p``: UN solo posto decide come una riga del Top Mix diventa
+    un record del registro (tab2 live e replay walk-forward usano questo).
 
-            # [solo UI] le etichette "Vittoria {squadra}" e il codice mercato
-            # usano il nome display: mercato_standard resta identico perche'
-            # etichetta e nome passati a codice_mercato_selezionato derivano
-            # dalla STESSA variabile (come prima col grezzo).
-            riga = seleziona_riga_top_mix(m_poisson, elo_probs, elo_disponibile, h_disp, a_disp)
-            if riga is not None:
-                all_preds.append({
-                    "league": league, "giornata": match['matchday'],
-                    "home": h_disp, "away": a_disp, "match_id": match.get("id"),
-                    "utcDate": match['utcDate'],
-                    "market": riga["market"],
-                    "mercato_standard": riga["mercato_standard"],
-                    "prob": riga["prob"], "prob_val": riga["prob_val"],
-                    "poisson": riga["poisson"], "elo": riga["elo"],
-                    "elo_disponibile": riga["elo_disponibile"],
-                    "rank": None,
-                })
-    top_10 = sorted(all_preds, key=lambda x: x['prob'], reverse=True)[:10]
-    for i, r in enumerate(top_10):
-        r["rank"] = i + 1
-    return top_10, missing
+    Gate shadow (referto §11quater): la riga GIOCATA porta anche i campi ombra
+    (confidenza penalizzata dal disaccordo |P-E| e ammissione sotto il solo
+    filtro conf_shadow >= soglia). Se il calcolo fallisce -> None -> campi
+    assenti, record identico a prima. Nessun effetto su market/prob/rank reali.
+    """
+    campi_shadow = gate_shadow_fields_from_row(
+        p.get("market"), p.get("prob"), p.get("poisson"), p.get("elo"),
+        p.get("elo_disponibile", True),
+    )
+    campi_off = gate_off_fields_from_row(
+        p.get("market"), p.get("prob"), p.get("poisson"), p.get("elo"),
+        p.get("elo_disponibile", True),
+    )
+    args = (
+        p['match_id'], p['home'], p['away'], p['league'], p['giornata'],
+        format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"),
+        f"{p['market']} - Top Mix", [], p['prob_val'], "",
+    )
+    kwargs = dict(
+        mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']),
+        origin=ORIGIN_TOP_MIX, rank=p.get("rank"),
+        kickoff_utc=p.get('utcDate'), prob_poisson=p.get('poisson'),
+        prob_elo=p.get('elo'), elo_disponibile=p.get("elo_disponibile", True),
+        gate_shadow_confidence=(campi_shadow or {}).get(GATE_SHADOW_CONFIDENCE_FIELD),
+        gate_shadow_ammessa=(campi_shadow or {}).get(GATE_SHADOW_AMMESSA_FIELD),
+        gate_off_confidence=(campi_off or {}).get(GATE_OFF_CONFIDENCE_FIELD),
+        gate_off_ammessa=(campi_off or {}).get(GATE_OFF_AMMESSA_FIELD),
+        model_variant=model_variant,
+    )
+    return args, kwargs
+
 
 def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classifica_sess, giornata_n):
+    """Analisi Rapida della giornata, sui DUE motori come il Top Mix.
+
+    Per ogni partita la SCELTA e' una sola (argmax sui 7 mercati Poisson puri,
+    decisione dell'audit ``audit/results/ensemble_scope_analisi_rapida.md``), ma
+    viene salvata una riga per motore: l'Elo attuale (post-fix PR#24) e l'Elo
+    legacy, ciascuno nella propria variante. Prima si scriveva una riga sola, che
+    nel Registro non era confrontabile con i due modelli del Top Mix; le righe
+    scritte allora restano dove sono (nessuna riscrittura).
+
+    Ritorna il numero di RIGHE scritte (due per partita).
+    """
     salvate = 0
     for match in matches:
         try:
@@ -1534,17 +1712,39 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             # in audit/diagnose_elo_ensemble.py); i Totali restano Poisson puro.
             # Se l'Elo non e' disponibile blend_elo_into_1x2 ritorna il Poisson
             # puro bit-identico.
-            m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
-            prob_1x2_blend = {f"Vittoria {h_disp}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a_disp}": m_blend["2"]}
-            prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
-            pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
-            top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
-            # Origine esplicita: senza di essa il Record "Poisson Auto" finiva
-            # nel calderone "Analisi" e non era distinguibile dal Top Mix.
-            save_prediction_entry(m_id, h_disp, a_disp, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h_disp, a_disp),
-                                  origin=ORIGIN_ANALISI_RAPIDA, kickoff_utc=match.get('utcDate'),
-                                  prob_poisson=round(mercati[best_mkt] * 100, 1))
-            salvate += 1
+            # SECONDO MOTORE (come nel Top Mix): l'Elo pre-fix PR#24. Fallback
+            # marcato e indipendente dal primo: se manca, la riga legacy si
+            # scrive lo stesso col Poisson puro e `elo_disponibile=False` lo dice.
+            elo_legacy, elo_legacy_disponibile = None, False
+            try:
+                elo_legacy = predict_elo_probs_legacy(h, a, camp_sel)
+                elo_legacy_disponibile = True
+            except Exception as e:
+                logging.warning(f"Analisi Rapida: Elo legacy non disponibile per {h} vs {a} ({camp_sel}): {e}")
+            # Due righe per partita, una per motore: la SCELTA (argmax sui mercati
+            # Poisson puri) e' la stessa, cambia la probabilita' 1X2 (blendata con
+            # l'Elo del motore) e la variante scritta nel Registro. Cosi' anche
+            # l'Analisi Rapida si legge come i due modelli del Top Mix invece di
+            # essere un'unica riga non confrontabile.
+            for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
+                if variante == MODEL_VARIANT_CURRENT:
+                    m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
+                    elo_disp = True
+                else:
+                    m_blend = blend_elo_into_1x2(m, h, a, camp_sel, elo_probs=elo_legacy,
+                                                 elo_disponibile=elo_legacy_disponibile)
+                    elo_disp = elo_legacy_disponibile
+                prob_1x2_blend = {f"Vittoria {h_disp}": m_blend["1"], "Pareggio": m_blend["X"], f"Vittoria {a_disp}": m_blend["2"]}
+                prob_best = prob_1x2_blend.get(best_mkt, mercati[best_mkt])
+                pron = f"{best_mkt} - {prob_best:.0%} - Poisson Auto"
+                top3 = [f"{i+1}. {k} - {v:.0%}" for i, (k, v) in enumerate(sorted([(k, v) for k, v in mercati.items() if k != best_mkt], key=lambda x: -x[1])[:3])]
+                # Origine esplicita: senza di essa il Record "Poisson Auto" finiva
+                # nel calderone "Analisi" e non era distinguibile dal Top Mix.
+                save_prediction_entry(m_id, h_disp, a_disp, camp_sel, giornata_n, match_date_str, pron, top3, round(prob_best*100, 1), "", mercato_standard=codice_mercato_selezionato(best_mkt, h_disp, a_disp),
+                                      origin=ORIGIN_ANALISI_RAPIDA, kickoff_utc=match.get('utcDate'),
+                                      prob_poisson=round(mercati[best_mkt] * 100, 1),
+                                      model_variant=variante)
+                salvate += 1
         except Exception as e:
             logging.warning(f"Analisi Rapida: partita {h} vs {a} saltata: {e}")
     return salvate
@@ -1808,6 +2008,7 @@ with st.sidebar:
             .match-card { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
             .stat-container { background-color: #f8f9fa !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
             .top-mix-row { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
+            .top-mix-model { color: #1a1d23 !important; }
             .team-name { color: #1a1d23 !important; }
             .label-header { color: #0056b3 !important; border-bottom: 2px solid #e0e4e9 !important; }
             .match-date { color: #0056b3 !important; }
@@ -1882,7 +2083,7 @@ with tab1:
         with col_btn:
             if st.button("⚡ Analisi Rapida"):
                 with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, st.session_state.get("classifica", {}), g_sel)
-                st.success(f"✅ {n} salvate!")
+                st.success(f"✅ {n} righe salvate ({len(matches)} partite x 2 motori: attuale e legacy)!")
         for idx, match in enumerate(matches):
             h_api, a_api = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
             dt = format_date_italy(match['utcDate'])
@@ -1922,52 +2123,127 @@ with tab1:
         else:
             st.info("👋 Premi SINCRONIZZA per caricare le partite del campionato selezionato.")
 
+def _mostra_blocco_modello(records, titolo, sottotitolo):
+    """Blocco statistiche di UN motore: le STESSE righe della sua tabella.
+
+    Un solo modo di contare, quello della tabella: la variante letta (campo
+    esplicito, oppure DATA quando il campo manca) sceglie sia il blocco sia la
+    tabella, quindi i due numeri non possono divergere.
+    """
+    s = stats_all(records)
+    st.markdown(f"##### {titolo} — {s['total']} righe")
+    st.caption(sottotitolo)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Totale", s["total"])
+    c2.metric("✅ Vinte", s["wins"],
+              delta=f"{s['win_rate']:.1f}%" if s["decided"] else None,
+              help="Percentuale calcolata solo sulle partite decise (esclude quelle in attesa).")
+    c3.metric("❌ Perse", s["losses"])
+    c4.metric("⏳ Attesa", s["pending"])
+
+
+def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
+    """Una delle due tabelle del Top Mix: intestazione esplicita + tutte le righe."""
+    st.markdown(f"<div class='top-mix-model {css_class}'><b>{titolo}</b><br><small>{sottotitolo}</small></div>",
+                unsafe_allow_html=True)
+    if not righe:
+        st.info("Nessuna partita sopra le soglie (0,55 1X2 / 0,60 Totali) per questo modello.")
+        return
+    st.caption(f"{len(righe)} partite sopra soglia (nessun tetto di righe).")
+    for i, p in enumerate(righe):
+        dt = format_date_italy(p['utcDate'], "%d/%m %H:%M")
+        # Un'Elo assente non e' un consenso: lo si dice, in UI e nel registro.
+        badge_elo = "" if p.get("elo_disponibile", True) else " · <small>⚠️ Elo n/d · soglia 60%</small>"
+        st.markdown(f"<div class='top-mix-row'><div><b>#{p.get('rank') or i + 1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
+
+
+# Nomi dei due modelli come li chiama il progetto (solo UI/etichette).
+# Il motore attuale a due teste e' il "Drago a 2 Teste"; il vecchio, pre-fix
+# PR#24, e' il "Legacy". I nomi TECNICI (``current``/``legacy``) e le etichette
+# delle SCHEDE del record restano quelli dei referti: qui si cambia come si
+# chiamano i due motori in pagina, non cosa contengono i dati.
+NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", MODEL_VARIANT_LEGACY: "Legacy"}
+
+# Colonne delle due tabelle del Registro, in un posto solo: cosi' le due
+# tabelle non possono divergere fra loro.
+REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_standard",
+                    "prob_sicuro", "risultato_reale", "esito", "origine"]
+
+
+def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420):
+    """Una delle DUE tabelle del Registro: solo le righe di un motore.
+
+    L'etichetta del modello sta nell'intestazione, come nel Top Mix: dentro la
+    tabella la colonna della variante sarebbe la stessa parola ripetuta su ogni
+    riga, quindi non si mostra. Nessun tetto di righe.
+
+    La colonna della SCHEDA del record (``model_version``) non c'e' piu': dice
+    con quale versione di pipeline la riga e' stata SCRITTA, non con quale motore
+    e' stata calcolata, e dentro una tabella intitolata a un motore sembrava un
+    secondo modello ("scheda post-fix" nella tabella Legacy, per esempio, dove le
+    righe del periodo ricostruito le ha scritte il codice attuale). Il dettaglio
+    resta dichiarato nella didascalia del blocco Legacy, e i dati hanno ancora il
+    campo: e' solo fuori dalla vista delle due tabelle.
+
+    La conversione della data e' quella condivisa (``build_registry_datetime``)
+    fatta a monte in tab5, e la colonna resta datetime64: l'ordinamento
+    cliccando l'intestazione e' cronologico, il formato italiano lo da' la
+    ``DatetimeColumn`` (nessuna stringa riconvertita dopo il sort).
+    """
+    st.markdown(f"<div class='top-mix-model {css_class}'><b>{titolo}</b> — {len(righe)} righe"
+                f"<br><small>{sottotitolo}</small></div>", unsafe_allow_html=True)
+    if righe.empty:
+        st.info("Nessuna riga di questo motore con i filtri attivi.")
+        return
+    st.dataframe(
+        righe[REGISTRO_COLONNE].sort_values(by="data", ascending=False, na_position="last"),
+        width="stretch",
+        height=altezza,
+        column_config={
+            # Colonna davvero datetime64 (non una stringa riconvertita dopo il
+            # sort): il formato momentJS tiene la vista italiana identica.
+            "data": st.column_config.DatetimeColumn(
+                None,
+                format="DD/MM/YYYY HH:mm",
+            ),
+        },
+    )
+
+
 with tab2:
-    if st.button("🚀 Calcola Top 10", type="primary"):
-        top_10, missing = fetch_and_calc_top_mix()
+    st.caption("Due modelli, due tabelle: **Attuale** (Elo post-fix PR#24) sopra, "
+               "**Legacy** (Elo pre-fix, boost xG) sotto. Stesso Poisson, stesse soglie, "
+               "nessun tetto di righe. Entrambe scrivono nel Registro (campo `model_variant`).")
+    if st.button("🚀 Calcola Top Mix", type="primary"):
+        top_current, top_legacy, missing = fetch_and_calc_top_mix()
         # fetch_and_calc_top_mix e' cached (ttl=1800) e il suo `now` e' congelato:
         # si rifiltra contro l'orologio reale PRIMA di mostrare e di salvare, cosi'
         # nessuna partita gia' iniziata puo' entrare nel registro (problema
         # `cache_30min` in audit/results/topmix_registry_tracking.json).
-        top_10, scartate_inizio = righe_non_iniziate(top_10)
+        top_current, scartate_cur = righe_non_iniziate(top_current)
+        top_legacy, scartate_leg = righe_non_iniziate(top_legacy)
+        scartate_inizio = scartate_cur + scartate_leg
         if scartate_inizio:
             st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
         if missing: st.warning(f"⚠️ Mancanti: {', '.join(missing)}")
+        tabelle = (
+            (MODEL_VARIANT_CURRENT, top_current, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+             "Elo attuale (models/elo_engine.py, post-fix PR#24)", "top-mix-current"),
+            (MODEL_VARIANT_LEGACY, top_legacy, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
+             "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo)", "top-mix-legacy"),
+        )
         esiti_save = []
-        for i, p in enumerate(top_10):
-            dt = format_date_italy(p['utcDate'], "%d/%m %H:%M")
-            # Un'Elo assente non e' un consenso: lo si dice, in UI e nel registro.
-            badge_elo = "" if p.get("elo_disponibile", True) else " · <small>⚠️ Elo n/d · soglia 60%</small>"
-            st.markdown(f"<div class='top-mix-row'><div><b>#{i+1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
-            if not p.get('match_id'):
-                continue
-            # Gate shadow (referto §11quater): la riga GIOCATA porta anche i
-            # campi ombra (confidenza penalizzata dal disaccordo |P-E| e
-            # ammissione sotto il solo filtro conf_shadow >= soglia). Se il
-            # calcolo fallisce -> None -> campi assenti, record identico a
-            # prima. Nessun effetto su market/prob/rank/ammissione reali.
-            campi_shadow = gate_shadow_fields_from_row(
-                p.get("market"), p.get("prob"), p.get("poisson"), p.get("elo"),
-                p.get("elo_disponibile", True),
-            )
-            campi_off = gate_off_fields_from_row(
-                p.get("market"), p.get("prob"), p.get("poisson"), p.get("elo"),
-                p.get("elo_disponibile", True),
-            )
-            esiti_save.append(save_prediction_entry(
-                p['match_id'], p['home'], p['away'], p['league'], p['giornata'],
-                format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"),
-                f"{p['market']} - Top Mix", [], p['prob_val'], "",
-                mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']),
-                origin=ORIGIN_TOP_MIX, rank=p.get("rank") or i + 1,
-                kickoff_utc=p.get('utcDate'), prob_poisson=p.get('poisson'),
-                prob_elo=p.get('elo'), elo_disponibile=p.get("elo_disponibile", True),
-                gate_shadow_confidence=(campi_shadow or {}).get(GATE_SHADOW_CONFIDENCE_FIELD),
-                gate_shadow_ammessa=(campi_shadow or {}).get(GATE_SHADOW_AMMESSA_FIELD),
-                gate_off_confidence=(campi_off or {}).get(GATE_OFF_CONFIDENCE_FIELD),
-                gate_off_ammessa=(campi_off or {}).get(GATE_OFF_AMMESSA_FIELD)))
+        for variante, righe_tab, titolo, sottotitolo, css in tabelle:
+            _mostra_tabella_top_mix(righe_tab, titolo, sottotitolo, css)
+            for p in righe_tab:
+                if not p.get('match_id'):
+                    continue
+                # Stesso meccanismo per le due tabelle: cambia solo model_variant.
+                args_reg, kwargs_reg = argomenti_registro_top_mix(p, model_variant=variante)
+                esiti_save.append(save_prediction_entry(*args_reg, **kwargs_reg))
         # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
-        # quando il PUT remoto era fallito dentro un `except: pass`.
+        # quando la scrittura remota (PUT su JSONBin, HSET su Upstash) era
+        # fallita dentro un `except: pass`.
         n_err_remoto = sum(1 for e in esiti_save if e.get("remoto") == "errore")
         n_nuove = sum(1 for e in esiti_save if e.get("azione") == "aggiunta")
         n_agg = sum(1 for e in esiti_save if e.get("azione") == "aggiornata")
@@ -1981,7 +2257,7 @@ with tab2:
                 dettaglio += f", {n_senza_id} senza match_id"
             if n_err_remoto:
                 st.warning(f"⚠️ {n_err_remoto}/{len(esiti_save)} righe salvate SOLO in locale: "
-                           f"PUT remoto fallito (vedi log). Registro: {dettaglio}.")
+                           f"scrittura remota fallita (vedi log). Registro: {dettaglio}.")
             else:
                 st.success(f"✅ Top Mix nel registro: {dettaglio}.")
 
@@ -2054,6 +2330,43 @@ with tab4:
 
 
 # --- TAB 5 REGISTRO ---
+def _mostra_affidabilita(record_cal, etichetta=None):
+    """Blocco Brier/gap del Registro su un insieme di record (una variante o tutti)."""
+    cal_stat = compute_calibration_stats(record_cal)
+    if not cal_stat["decise"]:
+        return
+    if etichetta:
+        st.markdown(f"###### Affidabilita' — modello {etichetta}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Partite decise", cal_stat["decise"])
+    c2.metric("Brier medio", f"{cal_stat['brier']:.4f}" if cal_stat["brier"] is not None else "n/d",
+              help="Media di (probabilita' dichiarata - esito)^2 sulle partite gia' giudicate e con prob_sicuro valido. 0,25 = scommessa alla pari; sotto = meglio del caso per eventi binari.")
+    c3.metric("Prob. media", f"{cal_stat['prob_media']:.1f}%" if cal_stat["prob_media"] is not None else "n/d")
+    c4.metric("Gap prob - hit", f"{cal_stat['gap']:+.1f} pp" if cal_stat["gap"] is not None else "n/d",
+              help="Positivo = il modello SI ESPONE piu' di quanto realizza (sovrastima la coda). E' LA STESSA GRANDAZZA misurata in audit/results/topmix_margins.md §2, ma qui sui dati LIVE del registro.")
+    cal_by = calibration_by_mercato(record_cal, min_decise=5)
+    if cal_by:
+        st.caption("Affidabilita' per mercato e per origine (solo i tagli con almeno 5 partite decise). "
+                   "Il gap positivo e' il costo di esporre il massimo fra 7 mercati.")
+        st.dataframe(
+            pd.DataFrame([{
+                "Mercato": r["mercato"], "Origine": tipo_for_origin(r["origine"]),
+                "Decise": r["decise"], "Prob. media": r["prob_media"],
+                "Hit": r["hit_rate"], "Gap (pp)": r["gap"], "Brier": r["brier"],
+            } for r in cal_by]),
+            width="stretch", hide_index=True,
+            column_config={
+                "Prob. media": st.column_config.NumberColumn(format="%.1f%%"),
+                "Hit": st.column_config.NumberColumn("Hit", format="%.1f%%"),
+                "Gap (pp)": st.column_config.NumberColumn("Gap (pp)", format="%+.1f"),
+                "Brier": st.column_config.NumberColumn("Brier", format="%.4f"),
+            },
+        )
+    avvertenza = overall_reliability_transfer_warning(cal_stat)
+    if avvertenza:
+        st.caption("⚠️ " + avvertenza)
+
+
 with tab5:
     st.subheader("📒 Registro Predizioni & Tracking")
     if st.button("🔄 Aggiorna Risultati", type="primary"):
@@ -2074,6 +2387,17 @@ with tab5:
         # scritti prima del campo `origin` vi risalgono dal testo, cosi' la
         # colonna non e' vuota per il passato e la misura e' separabile.
         df_preds['origine'] = [tipo_for_origin(origin_of(p)) for p in preds]
+        # Variante del modello (Top Mix a due motori): "Attuale" / "Legacy".
+        # Il campo manca nelle righe scritte prima del due-motori: la' decide la
+        # DATA (una riga nata prima del merge di PR#24 e' del motore di allora,
+        # cioe' Legacy). La colonna non e' mai vuota e i due motori restano
+        # separabili, senza spacciare per "Attuale" cio' che l'attuale non ha
+        # mai prodotto.
+        # `variante_codice` e' il valore macchina (`current`/`legacy`): serve a
+        # scegliere le righe delle DUE tabelle, cosi' la scelta non dipende mai
+        # da come e' scritta un'etichetta.
+        df_preds['variante_codice'] = [model_variant_read(p) for p in preds]
+        df_preds['variante'] = [model_variant_label(p) for p in preds]
 
         # FIX ordinamento Registro: 'data' e' persistito come stringa italiana
         # ("05/09/2026 16:00") e sortarla come testo confronta prima il giorno
@@ -2084,6 +2408,9 @@ with tab5:
         # valori mancanti/non validi diventano NaT e finiscono in fondo.
         df_preds['data'] = build_registry_datetime_column(df_preds['data'])
 
+        # NIENTE filtro "Modello": le due tabelle del Registro sono gia' una per
+        # motore (Attuale / Legacy). Un filtro in piu' potrebbe svuotarne una e
+        # far credere che quel motore non abbia righe.
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         with f_col1:
             camp_options = ["Tutti"] + list(LEAGUES_CONFIG.keys())
@@ -2106,35 +2433,55 @@ with tab5:
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
         if filter_origine != "Tutti": df_preds = df_preds[df_preds["origine"] == filter_origine]
+        # Nessun filtro sulla variante: le due tabelle piu' sotto sono gia' una
+        # per motore, e nessuna riga viene nascosta da un filtro in piu'.
 
-        filtered_records = df_preds.to_dict("records")
-        current_stats = stats_current_model(filtered_records)
-        historical_stats = stats_historical(filtered_records)
-        all_stats = stats_all(filtered_records)
+        # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
+        df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
+        # UNA sola lettura della variante per tutta la pagina: blocchi, tabelle e
+        # affidabilita' partono dalla stessa colonna `variante_codice`, calcolata
+        # sulle righe del Registro (dove il campo manca davvero). Passare da un
+        # DataFrame di pandas invece crea la colonna con NaN, e `str(nan)` e'
+        # "nan": le righe senza campo sparivano dal blocco legacy (bug corretto
+        # anche dentro `model_variant_read`, ma qui non si passa piu' di li').
+        maschera_attuale = df_display["variante_codice"] == MODEL_VARIANT_CURRENT
+        maschera_legacy = df_display["variante_codice"] == MODEL_VARIANT_LEGACY
+        # DUE blocchi, uno per motore, con le STESSE righe delle due tabelle piu'
+        # sotto. La fetta "scheda vecchia" del Registro non e' un terzo modello:
+        # sono righe della tabella Legacy, quindi contano nel blocco Legacy e
+        # sono dichiarate come dettaglio.
+        attuale_records = df_display[maschera_attuale].to_dict("records")
+        legacy_records = df_display[maschera_legacy].to_dict("records")
+        parti_variante = {MODEL_VARIANT_CURRENT: attuale_records, MODEL_VARIANT_LEGACY: legacy_records}
+        resto_records = df_display[~(maschera_attuale | maschera_legacy)].to_dict("records")
+        if resto_records:
+            # Variante non riconosciuta: non si nasconde (vedi la terza tabella).
+            parti_variante["altro"] = resto_records
+        all_records = df_display.to_dict("records")
+        all_stats = stats_all(all_records)
+        schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
-        st.caption(
-            "Statistiche separate: il win rate del **modello attuale** usa SOLO le predizioni "
-            f"`{MODEL_VERSION_CURRENT}`; le predizioni pre-fix e i record legacy/ambiguo restano "
-            "visibili per audit ma sono esclusi dalle metriche attuali."
-        )
-
-        st.markdown("##### 📊 Modello attuale")
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Totale", current_stats["total"])
-        s2.metric("✅ Vinte", current_stats["wins"],
-                  delta=f"{current_stats['win_rate']:.1f}%" if current_stats["decided"] else None,
-                  help="Percentuale calcolata solo sulle partite decise del modello attuale (esclude quelle in attesa).")
-        s3.metric("❌ Perse", current_stats["losses"])
-        s4.metric("⏳ Attesa", current_stats["pending"])
-
-        st.markdown("##### 📜 Storico / pre-fix (audit)")
-        h1, h2, h3, h4 = st.columns(4)
-        h1.metric("Totale", historical_stats["total"])
-        h2.metric("✅ Vinte", historical_stats["wins"],
-                  delta=f"{historical_stats['win_rate']:.1f}%" if historical_stats["decided"] else None,
-                  help="Win rate storico/audit separato, calcolato solo sulle partite decise non incluse nel modello attuale.")
-        h3.metric("❌ Perse", historical_stats["losses"])
-        h4.metric("⏳ Attesa", historical_stats["pending"])
+        _mostra_blocco_modello(
+            attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+            f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
+            "Elo post-fix PR#24, soglie 0,55 1X2 / 0,60 Totali.")
+        _mostra_blocco_modello(
+            legacy_records, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]} (Elo pre-fix PR#24)",
+            f"Righe della tabella 🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}: "
+            "Elo pre-fix con boost xG retroattivo, stesse soglie.")
+        # Il dettaglio delle schede NON e' un modello: e' la sotto-fetta del
+        # blocco legacy scritta prima del versionamento dei record.
+        if schede_vecchie:
+            st.caption(
+                f"📜 Di cui **{len(schede_vecchie)}** con la **scheda vecchia** (record scritto "
+                "prima del versionamento, senza `model_version`): sono nella tabella Legacy e "
+                "contano qui, ma restano fuori dalle metriche del modello attuale.")
+        if any(r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD) for r in attuale_records):
+            st.caption(
+                f"ℹ️ {sum(1 for r in attuale_records if r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD))} "
+                "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
+                "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
+            )
 
         st.caption(
             f"Totale registro (audit complessivo): Totale {all_stats['total']}, "
@@ -2144,62 +2491,43 @@ with tab5:
 
         # --- AFFIDABILITA' (Brier), non solo win rate ---
         # `prob_sicuro` era gia' persistito: expose the calibration for free.
-        cal_stat = compute_calibration_stats(filtered_records)
-        if cal_stat["decise"]:
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Partite decise", cal_stat["decise"])
-            c2.metric("Brier medio", f"{cal_stat['brier']:.4f}" if cal_stat["brier"] is not None else "n/d",
-                      help="Media di (probabilita' dichiarata - esito)^2 sulle partite gia' giudicate e con prob_sicuro valido. 0,25 = scommessa alla pari; sotto = meglio del caso per eventi binari.")
-            c3.metric("Prob. media", f"{cal_stat['prob_media']:.1f}%" if cal_stat["prob_media"] is not None else "n/d")
-            c4.metric("Gap prob - hit", f"{cal_stat['gap']:+.1f} pp" if cal_stat["gap"] is not None else "n/d",
-                      help="Positivo = il modello SI ESPONE piu' di quanto realizza (sovrastima la coda). E' LA STESSA GRANDAZZA misurata in audit/results/topmix_margins.md §2, ma qui sui dati LIVE del registro.")
-            cal_by = calibration_by_mercato(filtered_records, min_decise=5)
-            if cal_by:
-                st.caption("Affidabilita' per mercato e per origine (solo i tagli con almeno 5 partite decise). "
-                           "Il gap positivo e' il costo di esporre il massimo fra 7 mercati.")
-                st.dataframe(
-                    pd.DataFrame([{
-                        "Mercato": r["mercato"], "Origine": tipo_for_origin(r["origine"]),
-                        "Decise": r["decise"], "Prob. media": r["prob_media"],
-                        "Hit": r["hit_rate"], "Gap (pp)": r["gap"], "Brier": r["brier"],
-                    } for r in cal_by]),
-                    width="stretch", hide_index=True,
-                    column_config={
-                        "Prob. media": st.column_config.NumberColumn(format="%.1f%%"),
-                        "Hit": st.column_config.NumberColumn("Hit", format="%.1f%%"),
-                        "Gap (pp)": st.column_config.NumberColumn("Gap (pp)", format="%+.1f"),
-                        "Brier": st.column_config.NumberColumn("Brier", format="%.4f"),
-                    },
-                )
-            avvertenza = overall_reliability_transfer_warning(cal_stat)
-            if avvertenza:
-                st.caption("⚠️ " + avvertenza)
+        # Con due modelli nel registro la calibrazione si legge PER VARIANTE:
+        # mescolarle produrrebbe un Brier di nessuno dei due. Le parti sono le
+        # stesse dei due blocchi e delle due tabelle (calcolate una volta sola).
+        if len(parti_variante) > 1:
+            for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
+                _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
+        else:
+            _mostra_affidabilita(all_records)
 
-        # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
-        df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
+        # La SCHEDA del record (con quale versione di pipeline la riga e' stata
+        # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
+        # non compare piu' come colonna: si dice a parole, una volta.
         st.caption(
-            f"{MODEL_LABEL_PRE_FIX} = {PRE_FIX_TOOLTIP} · "
-            f"{MODEL_LABEL_CURRENT} = {CURRENT_MODEL_TOOLTIP}"
+            "**Come sono state scritte le righe** (non e' il motore, che e' il titolo delle due tabelle): "
+            f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
+            f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
+            f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
+            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
         )
-        st.dataframe(
-            df_display[
-                ["data", "stagione", "campionato", "home", "away", "mercato_standard",
-                 "prob_sicuro", "risultato_reale", "esito", "origine", "modello"]
-            ].sort_values(by="data", ascending=False, na_position="last"),
-            width="stretch",
-            height=500,
-            column_config={
-                # Colonna davvero datetime64 (non una stringa riconvertita dopo
-                # il sort): l'ordinamento cliccando l'intestazione e' quindi
-                # cronologico. Il formato momentJS mantiene la vista italiana
-                # DD/MM/YYYY HH:mm identica a prima.
-                "data": st.column_config.DatetimeColumn(
-                    None,
-                    format="DD/MM/YYYY HH:mm",
-                ),
-                "modello": st.column_config.TextColumn(
-                    "Modello",
-                    help=f"{MODEL_LABEL_PRE_FIX}: {PRE_FIX_TOOLTIP}\n\n{MODEL_LABEL_CURRENT}: {CURRENT_MODEL_TOOLTIP}",
-                )
-            },
-        )
+
+        # DUE tabelle, una per motore (come nel Top Mix): prima erano righe di
+        # entrambi i modelli mescolate in un'unica tabella con una colonna
+        # "Modello", e per leggere un solo motore bisognava filtrare. Le due
+        # maschere sono le stesse dei blocchi qui sopra.
+        _mostra_registro_modello(
+            df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+            "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglie 0,55 1X2 / 0,60 Totali",
+            "top-mix-current")
+        _mostra_registro_modello(
+            df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
+            "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
+            "top-mix-legacy")
+        # Una riga con una variante fuori dalle due non sparisce dal Registro:
+        # finisce in una terza tabella di controllo, cosi' il totale mostrato
+        # resta verificabile a occhio.
+        resto = df_display[~(maschera_attuale | maschera_legacy)]
+        if len(resto):
+            st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
+                       f"mostrate a parte, non nascoste.")
+            st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)

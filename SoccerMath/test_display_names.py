@@ -356,8 +356,10 @@ class TestAnalisiRapidaRegistraDisplay(unittest.TestCase):
             })
             return {"azione": "aggiunta"}
         with mock.patch.object(prod_app, "save_prediction_entry", side_effect=_cattura), \
+             mock.patch.object(prod_app, "predict_elo_probs_legacy",
+                               return_value={"1": 0.5, "X": 0.3, "2": 0.2}), \
              mock.patch.object(prod_app, "blend_elo_into_1x2",
-                               side_effect=lambda m, h, a, camp: dict(m)):
+                               side_effect=lambda m, h, a, camp, **kw: dict(m)):
             if display_reale:
                 n = prod_app.analisi_rapida_giornata(
                     self.MATCHES, self.TEAM_STATS, 1.35, 1.15, "Serie A", {}, 7)
@@ -365,8 +367,13 @@ class TestAnalisiRapidaRegistraDisplay(unittest.TestCase):
                 with mock.patch.object(prod_app, "display_name", side_effect=lambda x: x):
                     n = prod_app.analisi_rapida_giornata(
                         self.MATCHES, self.TEAM_STATS, 1.35, 1.15, "Serie A", {}, 7)
-        self.assertEqual(n, len(self.MATCHES))
-        return {r["match_id"]: r for r in salvate}
+        # Due motori (come il Top Mix): due righe per partita.
+        self.assertEqual(n, 2 * len(self.MATCHES))
+        self.assertEqual(2 * len(self.MATCHES), len(salvate))
+        self.assertEqual({"current", "legacy"}, {r.get("model_variant") for r in salvate})
+        # Il contratto storico (nomi/probabilita') si legge sulla riga del motore
+        # attuale: il gemello legacy ha i suoi test dedicati.
+        return {r["match_id"]: r for r in salvate if r.get("model_variant") == "current"}
 
     def test_stessi_numeri_solo_nomi_diversi(self):
         con_display = self._gira(display_reale=True)

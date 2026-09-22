@@ -1,0 +1,140 @@
+# Migrazione del Registro: da JSONBin a Upstash (referto)
+
+Data: 2026-09-21 · Commits: `bcbb273` → `acfd645` (fase A→E) · Proposta e numeri
+della scelta: `audit/results/proposta_shard_registro.md` §8–§9.
+
+## 1. Perché (misurato, non stimato)
+
+Il Registro era **un unico documento** riscritto per intero a ogni salvataggio.
+Con JSONBin free questo significa un tetto di **100 kB per record**: il replay
+del 20/09/2026 è stato **rifiutato con HTTP 403** («Free users cannot update a
+record over 100kb») con un payload di **140353 B / 206 righe**. Il Registro live
+era già a **108 righe / 52,2 kB**: ~150 righe per bin, cioè poche settimane di
+margine, e ogni click dell'app rischiava di fallire per colpa di righe scritte
+giorni prima.
+
+## 2. La scelta
+
+**Upstash Redis free via REST**: 256 MB, **500.000 comandi/mese**, 1 DB, nessuna
+carta, `/multi-exec` atomico disponibile. Il Registro diventa un **hash**: *una
+riga = un campo*, con chiave `dedup_key` (la stessa della fusione). Un salvataggio
+tocca solo le righe nuove o cambiate, non riscrive lo storico.
+
+JSONBin **resta l'archivio dichiarato**: 108 righe, non più scritto.
+
+## 3. Le fasi, con gli esiti
+
+| fase | cosa | esito misurato |
+|---|---|---|
+| A | `registry_store.py`: due backend dietro una facciata (`jsonbin` = comportamento di prima byte per byte; `upstash` = `HSET` per riga). App e replay passano da lì. | 885 test verdi |
+| B | sola lettura dai runner (dove stanno i secret) | JSONBin **108** righe / 52,2 kB · Upstash **0** righe · confronto 108/0/0 · **nessuna scrittura** |
+| C | copia: `HGETALL` + **un solo** `HSET` (108 righe, 56354 B), poi rilettura e confronto per chiave | **identici**: solo su JSONBin 0 · solo su Upstash 0 · diverse 0 |
+| D | scrittura: finestra simmetrica, poi legacy | simmetrica **108 → 206** (98 aggiunte; payload 140354 B, *esattamente* quello che JSONBin rifiutava) · legacy **206 → 233** (27 aggiunte) · rilancio a Registro completo: **0 scritture, 0 sovrascritture** |
+| E | istantanea giornaliera `sm:registro:snapshot:<giorno>` (1 `SET`), riletta e confrontata | **233 righe · 164243 B · fedele** (0/0/0) |
+
+Comandi consumati dalla migrazione: **~40 su 500.000** (0,008%). In esercizio: un
+salvataggio = 1 lettura + 1–2 `HSET`; l'istantanea = 3 comandi al giorno (0,02%
+del mensile). Spazio: **233 righe = 160,4 kB su 256 MB** (0,06%).
+
+## 4. Quattro cose scoperte misurando (nessuna ipotizzata)
+
+1. **`HGETALL` risponde con un array piatto.** L'API REST di Upstash restituisce
+   `["campo", "valore", ...]` (forma RESP2), non un oggetto JSON. La prima copia
+   era *scritta bene* e «riletta» come vuota: 108 righe sulla chiave, «0 righe»
+   in lettura. Ora `registry_store.hash_da_risposta()` accetta entrambe le forme
+   e, su una risposta inattesa, **alza** l'errore invece di valere "vuoto" — su un
+   percorso di scrittura "vuoto" vuol dire riscrivere tutto sopra lo storico.
+2. **Rilanciare il replay a Registro completo usciva 1.** Le azioni sono un
+   `Counter`: la chiave `aggiunta` non esiste se vale zero, e `None != 0` faceva
+   sembrare fallita una scrittura che *non doveva* avvenire (idempotenza).
+3. **Copertura e click-veri leggevano JSONBin** mentre il replay scriveva su
+   Upstash: il referto descriveva 108 righe e la scrittura ne produceva 233.
+   Ora `registry_coverage_check.load_registry_readonly()` passa dallo strato
+   unico e dichiara la fonte (`upstash` / `jsonbin` / `file locale (motivo)`).
+4. **In Streamlit Cloud i secret non stanno in `os.environ`.** Lo strato leggeva
+   solo l'ambiente: il passaggio a Upstash in app non avrebbe avuto alcun effetto
+   (backend JSONBin, credenziali «non configurate») fino al primo salvataggio
+   rifiutato. Ora `config._get_secret` copre anche `st.secrets`.
+
+5. **I test toccavano la copia locale vera.** `app` importa `PREDICTIONS_FILE` e
+   `DATABASE_DIR` nel **proprio** namespace: correggere `config.PREDICTIONS_FILE`
+   non basta, e la prima versione dei test di degrado ha scritto davvero nel file
+   locale del Registro (non versionato: l'originale era assente ed è stato
+   riportato all'assenza). Ora i patch mirano ai nomi di `app` e nel `tearDown`
+   c'è una **guardia** che fallisce se il file locale vero cambia.
+
+Bug veri trovati *dai test* durante la fase A/C: la copia usava il **conteggio**
+del piano al posto delle **righe** (`TypeError: 'int' object is not iterable`).
+
+## 5. Stato del Registro dopo la migrazione
+
+| dove | righe | dimensione | ruolo |
+|---|---|---|---|
+| hash Upstash `sm:registro` | **233** | 160,4 kB | **Registro vivo** (app e replay scrivono qui) |
+| `sm:registro:snapshot:2026-09-20` | 233 | 164243 B | punto di ripristino giornaliero |
+| bin JSONBin | 108 | 52,2 kB | **archivio dichiarato**, non più scritto |
+| file locale dell'app | — | — | copia dell'app, usata solo se il remoto non risponde |
+
+## 6. Comandi (il comando sta nel nome del tag)
+
+| tag | cosa fa | scrive? |
+|---|---|---|
+| `migra-registro-prova-*` | dice cosa copierebbe | no |
+| `migra-registro-esegui-*` | copia + verifica di uguaglianza | sì (solo righe assenti) |
+| `migra-registro-diagnostica-*` | prova di andata e ritorno su una chiave a parte | 1 campo, poi lo rimuove |
+| `istantanea-registro-*` | istantanea del giorno, riletta e confrontata | sì (1 chiave) |
+| `replay-write-{sym,legacy}-upstash-*` | replay che scrive sul Registro vivo | sì (solo righe nuove) |
+| `replay-check-{sym,legacy}-*` | stessa finestra in sola lettura | no |
+
+## 7. Verifica finale (sola lettura, Registro migrato)
+
+Due run in sola lettura sulle finestre della commessa, con il Registro **sul
+backend nuovo** (`REGISTRY_BACKEND=upstash`, letto dal run):
+
+| run | click | righe Attuale | righe Legacy | leak check | Registro prima → dopo | scritture |
+|---|---|---|---|---|---|---|
+| `replay-check-sym-2026-09-20` (2026-09-21, commit `3883a64`) | 80 | 60 | 52 | OK | 233 → 233 (`gia_presente`: 112) | **nessuna** |
+| `replay-check-legacy-2026-09-20` (2026-09-21, commit `3883a64`) | 23 | 17 | 16 | OK | 233 → 233 (`gia_presente`: 33) | **nessuna** |
+
+Fedeltà (righe del Registro vs ricostruzione del replay): **109/192** sulla
+finestra simmetrica e **30/33** sulla legacy — la ricostruzione ritrova le righe
+scritte, che è la prova che il Registro migrato è leggibile e coerente.
+
+Il registro Top Mix nel periodo conta **171 righe** (138 prima di PR#24, 33 dopo),
+verificate a campione (6): i due modelli coincidono dove il motore è lo stesso,
+differiscono dove la riga è stata salvata **prima** della correzione `ae8784d`
+(04/09 15:25 locali) — quelle quattro righe un replay di oggi **non deve**
+riprodurle, e non le riproduce.
+
+Numeri che crescono col calendario: la finestra legacy arriva a *oggi*, quindi
+ogni giorno concluso aggiunge partite (21 → 23 click, +2 righe per modello tra il
+run del 20/09 e quello del 21/09). Non è instabilità: è la finestra che si allunga.
+
+## 8. Se qualcosa non torna (scala di diagnosi)
+
+1. `python SoccerMath/registry_backend_status.py` — righe e kB dei **due**
+   backend, `DBSIZE` e **chiavi presenti**: dice subito se si sta guardando la
+   chiave giusta (una chiave sbagliata mostra 0 righe e la chiave vera compare
+   nell'elenco);
+2. `migra-registro-diagnostica-*` — prova di andata e ritorno con **un** campo in
+   una chiave a parte, riletto e poi rimosso: distingue chiave sbagliata,
+   permessi (risposta con `error`) e valore non conservato;
+3. `istantanea-registro-*` — riscrive/rilegge l'istantanea del giorno e la
+   confronta col Registro: se non coincide, il Registro è in movimento o il
+   percorso di scrittura è rotto;
+4. in app: se il Registro appare **vuoto** mentre ci si aspetta 233 righe, il
+   punto 1 dice se è un problema di chiave/credenziali o se l'hash è davvero
+   vuoto. Un hash vuoto è una risposta valida e l'app mostrerà il Registro vuoto:
+   **non** ricade sul file locale (una copia vecchia al posto del vivo è peggio).
+
+## 9. Cosa resta a mano (una volta)
+
+- **Streamlit Cloud → Secrets**: `REGISTRY_BACKEND = "upstash"` ✅ fatto il
+  2026-09-21. Servono anche `UPSTASH_REDIS_REST_URL` e
+  `UPSTASH_REDIS_REST_TOKEN` (già presenti).
+- **GitHub**: i secret `UPSTASH_*` sono già presenti per i runner. La variabile
+  di repository `REGISTRY_BACKEND` è **opzionale**: senza, la CI usa l'hash
+  (default del workflow) e il tag `-jsonbin-` serve a leggere l'archivio.
+- **Istantanea automatica**: il `cron` di GitHub gira solo dai workflow del
+  branch di default, quindi diventa attivo quando questo lavoro arriva su `main`.
+  Fino ad allora l'istantanea si comanda col tag.

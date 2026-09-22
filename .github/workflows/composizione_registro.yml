@@ -1,0 +1,121 @@
+name: Composizione del Registro (sola lettura)
+
+# Risponde a una domanda nata da una verifica in UI: "perche' la tabella del
+# modello legacy ha piu' righe di quella del modello attuale?". I due numeri non
+# sono due campioni dello stesso esperimento: la tabella legacy contiene anche
+# righe che il Top Mix non ha mai prodotto (Analisi Rapida, Billy) e righe di
+# partite che il modello attuale non avrebbe scelto (sotto soglia / veto).
+#
+# Sola lettura: nessun PUT/HSET, nessuna scrittura di registro, nessuna chiave
+# creata. Legge con lo stesso strato del resto del programma, quindi descrive il
+# backend ATTIVO (Upstash), non una copia locale.
+#
+# Lanciabile a mano: Actions -> "Composizione del Registro" -> Run workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: composizione-registro
+  cancel-in-progress: false
+
+jobs:
+  composizione:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OUT: ${{ github.workspace }}/composizione-out
+
+    steps:
+      - name: Checkout del branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt
+
+      - name: Secrets necessari
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mancanti=()
+          for nome in UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — serve una lettura del Registro vivo."
+            exit 1
+          fi
+
+      - name: Test dello strumento (nessuna lettura di rete)
+        run: python -m pytest -q --tb=short SoccerMath/test_registry_composizione.py
+
+      - name: Composizione (sola lettura)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ vars.REGISTRY_BACKEND || 'upstash' }}
+        run: |
+          mkdir -p "$OUT"
+          python SoccerMath/registry_composizione.py --compatto --json "$OUT/composizione.json" \
+            2>&1 | tee "$OUT/composizione.txt"
+          # GitHub tiene al massimo 10 annotazioni per passo: il riepilogo va in
+          # due annotazioni compatte (origini+varianti, stagioni+finestra), non
+          # in una riga per conteggio.
+          python - "$OUT/composizione.json" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1], encoding="utf-8"))
+          orig = " · ".join(f"{k}: {v}" for k, v in sorted(d["per_origine"].items(), key=lambda kv: -kv[1]))
+          var = " · ".join(f"{k}: {v}" for k, v in sorted(d["per_variante"].items()))
+          print(f"::warning title=composizione::fonte {d['fonte']} · righe {d['righe']} · "
+                f"variante letta -> {var}")
+          print(f"::warning title=composizione-origini::per origine -> {orig}")
+          print(f"::warning title=composizione-finestra::"
+                + " · ".join(f"{k}: {v}" for k, v in sorted(d["finestra"].items()))
+                + " · senza campo variante: " + str(d["senza_campo_variante"])
+                + " · per stagione: " + " / ".join(f"{k} {v}" for k, v in sorted(d["per_stagione"].items())))
+          righe = ["| origine | righe | attuale | legacy | senza model_version |", "|---|---|---|---|---|"]
+          for o, c in sorted(d["origine_per_variante"].items(), key=lambda kv: -sum(kv[1].values())):
+              righe.append(f"| {o} | {sum(c.values())} | {c.get('current', 0)} | {c.get('legacy', 0)} | "
+                           f"{d['scheda_vecchia_per_origine'].get(o, 0)} |")
+          print("::warning title=composizione-tabella::" + " | ".join(righe)[:4000])
+          PY
+          # Cosa conterra' ciascuna delle DUE tabelle (solo Top Mix) e se le righe
+          # sono vere previsioni (nate prima del fischio): sono le due domande del
+          # riordino in corso, quindi vanno nel referto compatto.
+          grep -h "^TABELLE|" "$OUT/composizione.txt" | head -1 | sed 's/^TABELLE| //' | while read -r riga; do
+            echo "::warning title=contenuto-tabelle::$riga"
+          done
+          grep -h "^PUNTUALE|" "$OUT/composizione.txt" | paste -sd ' || ' - | cut -c1-3500 | while read -r riga; do
+            echo "::warning title=puntualita::$riga"
+          done
+          grep -h "^RITARDO|" "$OUT/composizione.txt" | cut -c1-220 | paste -sd ' || ' - | cut -c1-3500 | while read -r riga; do
+            echo "::warning title=righe-in-ritardo::$riga"
+          done
+
+      - name: Nessuna modifica ai dati
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error title=dati::lo strumento ha modificato file versionati"
+            git status --porcelain
+            exit 1
+          fi
+          echo "Nessuna modifica: sola lettura confermata."
+
+      - name: Referto come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: composizione-registro-${{ github.run_id }}
+          path: ${{ env.OUT }}
+          if-no-files-found: warn

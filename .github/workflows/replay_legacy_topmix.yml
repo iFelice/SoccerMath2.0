@@ -1,0 +1,480 @@
+name: Replay Top Mix legacy (walk-forward, no-leakage)
+
+# Rifa' il click "Calcola Top Mix" per ogni partita conclusa nella finestra, UN
+# SECONDO PRIMA del suo kickoff, con il database estratto da git com'era a
+# quell'istante (SoccerMath/db_snapshot.py). Ogni click produce ENTRAMBI i
+# modelli (attuale e legacy): le righe candidate vengono AGGIUNTE al registro
+# (JSONBin) ciascuna con la sua model_variant, mai una riga esistente
+# modificata, caricamento remoto stretto (GET 200 obbligatorio), PUT verificato.
+# Nessun commit, nessun push.
+#
+# Le due commesse sono le due META' della storia ricostruibile, separate
+# dall'istante del merge di PR#24 (2026-09-18T21:51:58Z), senza sovrapposizioni:
+#
+#   simmetrico:  --from 2026-08-30 --to 2026-09-18
+#                --from-instant 2026-08-30T11:27:06Z --to-instant 2026-09-18T21:51:58Z
+#   legacy:      --from 2026-09-18 --to oggi   --from-instant 2026-09-18T21:51:58Z
+#
+# Default: dry-run (referto + JSON delle righe candidate come artifact, nessuna
+# scrittura). Scrivere richiede il tag "replay-write-{sym,legacy}-*": cosi' il
+# comando sta nel nome del ref ed e' tracciabile a posteriori. Il tag
+# "replay-check-{sym,legacy}-*" esegue lo STESSO comando in sola lettura.
+
+on:
+  # Il push su un branch arena/** registra il workflow (altrimenti GitHub non lo
+  # espone al dispatch finche' non e' su main) e fa girare il dry-run come CI
+  # di sola lettura: mai --write da un push.
+  #
+  # Niente filtri "paths" QUI: con quelli attivi un push di TAG non fa partire
+  # nulla quando il commit e' gia' sul remoto (il tag non "tocca" file), e per
+  # una commessa comandata dal tag sarebbe un comando che non parte. Il filtro
+  # e' dentro il job (passo "Salta?"), dove branch e tag si distinguono.
+  push:
+    branches:
+      - 'arena/**'
+    # Scrittura nel Registro: mai da un push di branch (il default resta
+    # dry-run). Solo un tag esplicito "replay-write-*" chiede --write, cosi'
+    # l'intenzione e' dichiarata nel ref e tracciabile a posteriori.
+    tags:
+      - 'replay-write-*'
+      - 'replay-check-*'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run (solo referto) oppure write (aggiunge le righe legacy al registro)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - write
+      day_from:
+        description: "primo giorno UTC (YYYY-MM-DD); default = 2026-08-30, primo istante ricostruibile dal repo"
+        required: false
+        default: "2026-08-30"
+      day_to:
+        description: "ultimo giorno UTC (YYYY-MM-DD); vuoto = oggi"
+        required: false
+        default: ""
+      from_instant:
+        description: "confine iniziale a ISTANTE (YYYY-MM-DDTHH:MM:SSZ), incluso"
+        required: false
+        default: ""
+      to_instant:
+        description: "confine finale a ISTANTE, escluso: partiziona su un merge senza sovrapposizioni"
+        required: false
+        default: ""
+      model:
+        description: "quali modelli scrivere: both (default), current, legacy"
+        required: false
+        default: "both"
+      verifica_campione:
+        description: "quante righe del Registro verificare per periodo (ricostruzione all'istante del salvataggio)"
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: replay-legacy-topmix
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+      REPLAY_OUT: ${{ github.workspace }}/replay-out
+      # Da push di branch non ci sono input: dry-run sulla finestra di default.
+      MODE: ${{ startsWith(github.ref, 'refs/tags/replay-write-') && 'write' || github.event.inputs.mode || 'dry-run' }}
+      COMMESSA: ${{ contains(github.ref, '-sym-') && 'simmetrico' || (contains(github.ref, '-legacy-') && 'legacy' || 'input') }}
+      DAY_FROM: ${{ github.event.inputs.day_from || '2026-08-30' }}
+      DAY_TO: ${{ github.event.inputs.day_to || '' }}
+      FROM_INSTANT: ${{ github.event.inputs.from_instant || '' }}
+      TO_INSTANT: ${{ github.event.inputs.to_instant || '' }}
+      MODEL: ${{ github.event.inputs.model || 'both' }}
+      VERIFICA_CAMPIONE: ${{ github.event.inputs.verifica_campione || '3' }}
+      COVERAGE_FROM: ${{ github.event.inputs.coverage_from || '2026-08-30' }}
+      # Dove vive il Registro per QUESTA esecuzione: **l'hash Upstash**, che
+      # dopo la migrazione e' il Registro vivo (l'app ci scrive). JSONBin resta
+      # l'ARCHIVIO dichiarato e non va piu' scritto: per leggerlo apposta (un
+      # confronto storico) il tag lo dice con "-jsonbin-". La variabile del
+      # repository, se impostata, ha comunque la precedenza.
+      BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
+
+    steps:
+      # La finestra si decide qui, in un posto solo e leggibile: un tag
+      # "replay-{write,check}-sym-*" o "-legacy-*" e' il COMANDO della
+      # commessa (limiti a istante compresi), altrimenti valgono gli input.
+      - name: Finestra del replay
+        id: finestra
+        run: |
+          case "$COMMESSA" in
+            simmetrico)
+              echo "extra=--model both --from 2026-08-30 --to 2026-09-18 --from-instant 2026-08-30T11:27:06Z --to-instant 2026-09-18T21:51:58Z" >> "$GITHUB_OUTPUT" ;;
+            legacy)
+              echo "extra=--model both --from 2026-09-18 --to $(date -u +%F) --from-instant 2026-09-18T21:51:58Z" >> "$GITHUB_OUTPUT" ;;
+            *)
+              extra="--model $MODEL --from $DAY_FROM"
+              [ -n "$DAY_TO" ] && extra="$extra --to $DAY_TO"
+              [ -n "$FROM_INSTANT" ] && extra="$extra --from-instant $FROM_INSTANT"
+              [ -n "$TO_INSTANT" ] && extra="$extra --to-instant $TO_INSTANT"
+              echo "extra=$extra" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - name: "Checkout (storia completa: gli snapshot vengono da git)"
+        # nessuna guardia: il passo "Salta?" (filtro di path) ha bisogno del checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Il filtro di path vive qui e non nel trigger (vedi sopra). Un tag e' un
+      # COMANDO: si esegue sempre. Un push di branch che non tocca niente del
+      # replay esce subito, senza sprecare richieste all'API.
+      - name: Salta? (push di branch senza modifiche rilevanti)
+        id: salta
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "tag ${GITHUB_REF_NAME}: si esegue sempre"
+            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          PRIMA='${{ github.event.before }}'
+          if [ -z "$PRIMA" ] || [ "$PRIMA" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${PRIMA}^{commit}" 2>/dev/null; then
+            echo "confronto non possibile (primo push o before assente): si esegue"
+            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          CAMBIATI=$(git diff --name-only "$PRIMA" '${{ github.event.after }}' || true)
+          echo "$CAMBIATI"
+          if printf '%s\n' "$CAMBIATI" | grep -qE '^(\.github/workflows/replay_legacy_topmix\.yml|SoccerMath/(replay_legacy_topmix|db_snapshot|registry_coverage|registry_coverage_check|prediction_registry|registry_store|registry_backend_status)\.py|SoccerMath/models/(elo_engine_legacy|legacy_elo)\.py|SoccerMath/test_(replay_legacy_no_leakage|registry_coverage|topmix_dual_tables)\.py)$'; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "nessuna modifica rilevante per il replay: esco"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dipendenze
+        if: steps.salta.outputs.skip != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        if: steps.salta.outputs.skip != 'true'
+        run: |
+          if [ -z "${{ secrets.FOOTBALL_DATA_API_KEY }}" ]; then
+            echo "::error::FOOTBALL_DATA_API_KEY mancante: le fixture (id, orari, shortName) vengono da football-data.org."
+            exit 1
+          fi
+          if [ "$MODE" = "write" ] && { [ -z "${{ secrets.JSONBIN_API_KEY }}" ] || [ -z "${{ secrets.JSONBIN_BIN_ID }}" ]; }; then
+            echo "::error title=secret mancanti::mode=write richiede JSONBIN_API_KEY e JSONBIN_BIN_ID. I secret di Streamlit Cloud non sono visibili ai runner GitHub: aggiungerli (stessi nomi) in https://github.com/${{ github.repository }}/settings/secrets/actions, poi ripushare il tag replay-write-*."
+            exit 1
+          fi
+
+      - name: Test di non-leakage e di copertura (prima di qualunque scrittura)
+        if: steps.salta.outputs.skip != 'true'
+        run: |
+          python -m pytest -q --tb=short \
+            SoccerMath/test_replay_legacy_no_leakage.py \
+            SoccerMath/test_registry_coverage.py \
+            SoccerMath/test_righe_non_ricostruite.py \
+            SoccerMath/test_confronto_modelli.py \
+            SoccerMath/test_registry_store.py \
+            SoccerMath/test_registry_backend_status.py \
+            SoccerMath/test_legacy_elo_engine.py \
+            SoccerMath/test_model_variant_registry.py \
+            SoccerMath/test_topmix_dual_tables.py
+
+      - name: Replay
+        if: steps.salta.outputs.skip != 'true'
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          # Dove vive il Registro adesso. Variabile del repository (non un
+          # segreto): assente o 'jsonbin' = comportamento di sempre; 'upstash'
+          # commuta lettura e scrittura sull'hash Redis, senza toccare il codice.
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+          # Passata da variabile d'ambiente, non interpolata nel corpo dello
+          # script: un input di dispatch non puo' diventare comando.
+          EXTRA: ${{ steps.finestra.outputs.extra }}
+        run: |
+          mkdir -p "$REPLAY_OUT"
+          ARGS=(--fixtures api --ref "origin/main" --out "$REPLAY_OUT")
+          read -r -a EXTRA_ARGS <<< "$EXTRA"
+          ARGS+=("${EXTRA_ARGS[@]}")
+          if [ "$MODE" = "write" ]; then
+            ARGS+=(--write)
+          else
+            ARGS+=(--dump-merged "$REPLAY_OUT/predictions_merged_preview.json")
+          fi
+          set -o pipefail
+          python SoccerMath/replay_legacy_topmix.py "${ARGS[@]}" 2>&1 \
+            | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run\|to view a Streamlit app" \
+            | tee "$REPLAY_OUT/replay.log"
+
+      # Sola lettura: conta le partite coperte da ciascun modello nel Registro
+      # (dopo l'eventuale scrittura) e le differenze. Non scrive nulla: se i
+      # due campioni non coincidono esce 1 e lo dice.
+      # Ogni passo che legge il Registro deve guardare lo STESSO backend del
+      # replay, altrimenti il referto descrive un Registro e il replay ne scrive
+      # un altro.
+      - name: Copertura per modello nel Registro (sola lettura)
+        if: steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+        run: |
+          python SoccerMath/registry_coverage_check.py \
+            --from "$COVERAGE_FROM" \
+            --to "${DAY_TO:-$(date -u +%F)}" \
+            --json "$REPLAY_OUT/coverage.json" --allow-mismatch \
+            2>&1 | tee "$REPLAY_OUT/coverage.txt"
+
+      # Le righe del Registro che il replay di OGGI non ritrova, una per una:
+      # quante sono, di che periodo e di quale partita. E' la misura che separa
+      # "partita giocata prima della finestra ricostruibile" (il Drago a 2 Teste
+      # non ha i dati per pronosticarla) da qualunque altro motivo. SOLA LETTURA:
+      # legge il Registro e il referto del replay, non scrive nulla.
+      - name: Righe non ritrovate dal replay (sola lettura, elenco per data e partita)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+        # ATTENZIONE all'esito: il log del job non e' leggibile da fuori e le
+        # artifact sono in 403, quindi l'UNICO canale e' l'annotazione. Questo
+        # passo non usa ``set -e`` sulla pipeline: prende il codice di uscita,
+        # poi pubblica TUTTO il referto (errori compresi) in annotazioni a
+        # blocchi. Cosi' un guasto dello strumento si vede, invece di lasciare un
+        # passo verde e muto.
+        run: |
+          set +e
+          python SoccerMath/righe_non_ricostruite.py \
+            --replay-json "$REPLAY_OUT/replay_legacy_topmix.json" \
+            --compatto --json "$REPLAY_OUT/non_ritrovate.json" \
+            2>&1 | tee "$REPLAY_OUT/non_ritrovate.txt"
+          rc=${PIPESTATUS[0]}
+          echo "esito dello strumento: $rc"
+          if [ ! -s "$REPLAY_OUT/non_ritrovate.txt" ]; then
+            echo "nessun output: lo strumento non e' partito" > "$REPLAY_OUT/non_ritrovate.txt"
+          fi
+          ls -la "$REPLAY_OUT" 2>&1 | head -15
+          # Il referto INTERO in annotazioni: 8 blocchi da 3200 caratteri bastano
+          # per ~25 kB, cioe' l'elenco completo delle righe.
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=non-ritrovate-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/non_ritrovate.txt")
+          chunck=$(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/non_ritrovate.txt" | wc -l)
+          echo "blocchi di referto: $chunck"
+          if [ "$rc" != "0" ]; then
+            echo "::error title=non-ritrovate::strumento uscito con $rc: il referto (con l'errore) e' nei blocchi qui sopra"
+          fi
+
+      # La percentuale di successo dei due motori senza le righe di TRANSIZIONE
+      # (partita dentro la finestra ricostruibile che nessuno dei due motori
+      # definitivi rifa': codice intermedio, ne' vecchio ne' nuovo). Con la
+      # differenza, il suo intervallo di confidenza, il test esatto di Fisher, la
+      # potenza e le due controprove appaiate. SOLA LETTURA: legge il Registro e
+      # il referto del replay, non scrive nulla.
+      - name: Percentuale di successo dei due motori (sola lettura, senza le righe di transizione)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+        # Come il passo precedente: niente ``set -e`` sulla pipeline, il codice di
+        # uscita si legge da ``PIPESTATUS`` e il referto INTERO finisce in
+        # annotazioni. Un guasto dello strumento si vede, non lascia un passo
+        # verde e muto.
+        run: |
+          set +e
+          python SoccerMath/confronto_modelli.py \
+            --replay-json "$REPLAY_OUT/replay_legacy_topmix.json" \
+            --compatto --json "$REPLAY_OUT/confronto_modelli.json" \
+            2>&1 | tee "$REPLAY_OUT/confronto_modelli.txt"
+          rc=${PIPESTATUS[0]}
+          echo "esito dello strumento: $rc"
+          if [ ! -s "$REPLAY_OUT/confronto_modelli.txt" ]; then
+            echo "nessun output: lo strumento non e' partito" > "$REPLAY_OUT/confronto_modelli.txt"
+          fi
+          i=0
+          while IFS= read -r blocco; do
+            i=$((i+1))
+            if [ "$i" -le 8 ]; then
+              echo "::warning title=successo-$i::$blocco"
+            fi
+          done < <(awk 'BEGIN{n=0; riga=""} {riga = riga (n ? " · " : "") $0; n++; if (length(riga) > 3000) {print riga; riga=""; n=0}} END{if (n) print riga}' "$REPLAY_OUT/confronto_modelli.txt")
+          if [ "$rc" != "0" ]; then
+            echo "::error title=successo::strumento uscito con $rc: il referto (con l'errore) e' nei blocchi qui sopra"
+          fi
+
+      # Stato dei due backend del Registro (JSONBin / Upstash): quante righe,
+      # quanti kB, quali differenze per chiave di campo. SOLA LETTURA: serve a
+      # verificare i secret e a misurare la migrazione senza toccare nulla.
+      - name: Stato dei due backend del Registro (sola lettura)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+        run: |
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_backend_status.py --json "$REPLAY_OUT/stato_backend.json" \
+            2>&1 | tee "$REPLAY_OUT/stato_backend.txt"
+          rc=$?
+          set -e
+          # `|| true`: questo giro serve a PUBBLICARE le righe del referto. Se la
+          # pipeline esce nonzero (per esempio un `grep` che non trova nulla, o
+          # `head` che chiude il tubo) la run non deve diventare rossa per
+          # un'annotazione mancante: il verdetto sta nell'uscita di rc, sotto.
+          grep -v '^\s*$' "$REPLAY_OUT/stato_backend.txt" | head -n 12 | while IFS= read -r line; do
+            echo "::warning title=registro::${line:0:900}"
+          done || true
+          if [ "$rc" != "0" ]; then
+            echo "::error title=registro::stato backend uscito con $rc (un backend non risponde: vedi le righe sopra)"
+          fi
+
+      # Il replay ricostruisce a kickoff - 1 s; le righe del Registro sono state
+      # scritte quando l'utente ha premuto il bottone. Questo campione toglie il
+      # dubbio: ricostruisce il click ALL'ISTANTE DEL SALVATAGGIO e confronta.
+      # Sola lettura, e se nessuna riga coincide esce 1 (metodo sbagliato).
+      - name: Il replay rifa' i click veri? (campione, sola lettura)
+        if: always() && steps.salta.outputs.skip != 'true'
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ env.BACKEND }}
+        run: |
+          # pipefail: senza, un errore dello script finiva inghiottito dalla
+          # pipe e il passo risultava verde (e' successo davvero).
+          set -o pipefail
+          # L'esito deve restare visibile ANCHE quando lo script esce 1 (nessuna
+          # coincidenza): con set -e il passo si interrompeva prima di stampare.
+          set +e
+          python audit/verifica_click_live.py \
+            --from "$COVERAGE_FROM" --to "${DAY_TO:-$(date -u +%F)}" \
+            --per-variante "${VERIFICA_CAMPIONE:-3}" --fixtures api \
+            --out "$REPLAY_OUT/verifica_click_live.md" \
+            2>&1 | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run" \
+            | tee "$REPLAY_OUT/verifica_click_live.txt"
+          rc=$?
+          set -e
+          echo "--- esito della verifica (sempre visibile) ---"
+          tail -n 16 "$REPLAY_OUT/verifica_click_live.txt" | while IFS= read -r line; do
+            echo "::warning title=click-veri::${line:0:900}"
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error title=click-veri::verifica uscita con $rc: nessuna riga riprodotta o errore (vedi le righe sopra)"
+          fi
+          exit "$rc"
+
+      # I log grezzi del job stanno su storage esterno (non sempre leggibile via
+      # API): i numeri chiave e, in caso di errore, la coda del log vengono
+      # ripubblicati come annotazioni, cosi' l'esito e' verificabile senza
+      # scaricare artifact.
+      - name: Numeri chiave (annotazioni sempre)
+        if: always() && steps.salta.outputs.skip != 'true'
+        run: |
+          if [ -f "$REPLAY_OUT/replay_legacy_topmix.md" ]; then
+            head -n 6 "$REPLAY_OUT/replay_legacy_topmix.md" | grep -v '^\s*$' | while IFS= read -r line; do
+              echo "::warning title=replay::${line:0:900}"
+            done
+            for r in "righe Attuale" "righe Legacy" "Copertura:" "partite con ENTRAMBI" "solo modello" "coincidono" "Registro:"; do
+              grep -h "$r" "$REPLAY_OUT/replay_legacy_topmix.md" | head -n 4 | while IFS= read -r line; do
+                echo "::warning title=copertura::${line:0:900}"
+              done
+            done
+            # Fedelta': righe current gia' scritte dai click veri vs righe ricostruite
+            sed -n "/## Fedelta/,/^## /p" "$REPLAY_OUT/replay_legacy_topmix.md" | grep -v '^\s*$' | head -n 8 | while IFS= read -r line; do
+              echo "::warning title=fedelta::${line:0:900}"
+            done
+          else
+            echo "::warning title=replay::nessun referto prodotto"
+          fi
+          if [ -f "$REPLAY_OUT/coverage.txt" ]; then
+            head -n 12 "$REPLAY_OUT/coverage.txt" | while IFS= read -r line; do
+              echo "::warning title=coverage-live::${line:0:900}"
+            done
+          fi
+
+      - name: Diagnosi (annotazioni con la coda del log)
+        if: failure() && steps.salta.outputs.skip != 'true'
+        run: |
+          if [ -f "$REPLAY_OUT/replay.log" ]; then
+            # Prima le righe che spiegano il PERCHE' (PUT JSONBin, HTTP, eccezioni),
+            # poi la coda del log.
+            grep -nE 'JSONBin|PUT|HTTP [0-9]|Traceback|Error|errore' "$REPLAY_OUT/replay.log" \
+              | tail -n 12 | while IFS= read -r line; do
+              echo "::error title=perche::${line:0:900}"
+            done
+            tail -n 60 "$REPLAY_OUT/replay.log" | grep -v '^\s*$' | tail -n 25 | while IFS= read -r line; do
+              echo "::error title=replay::${line:0:900}"
+            done
+          else
+            echo "::error title=replay::nessun log prodotto (fallimento prima dell'avvio)"
+          fi
+
+      - name: Riepilogo
+        if: always() && steps.salta.outputs.skip != 'true'
+        run: |
+          {
+            echo "## Replay Top Mix legacy — mode=$MODE (evento: ${{ github.event_name }})"
+            echo
+            if [ -f "$REPLAY_OUT/replay_legacy_topmix.md" ]; then
+              cat "$REPLAY_OUT/replay_legacy_topmix.md"
+            else
+              echo "Referto assente: il replay non e' arrivato in fondo."
+            fi
+            if [ -f "$REPLAY_OUT/coverage.txt" ]; then
+              echo
+              echo "### Copertura nel Registro (sola lettura)"
+              echo
+              echo '```'
+              cat "$REPLAY_OUT/coverage.txt"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nessuna modifica a file versionati
+        if: always() && steps.salta.outputs.skip != 'true'
+        run: |
+          if ! git diff --exit-code -- SoccerMath audit; then
+            echo "::error::il replay ha modificato file committati"
+            exit 1
+          fi
+          echo "Nessun file versionato modificato."
+
+      - name: Artifact (referto, righe candidate, copia fusa per anteprima)
+        if: always() && steps.salta.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-legacy-topmix-${{ github.run_id }}
+          path: replay-out/
+          if-no-files-found: warn
+          retention-days: 7

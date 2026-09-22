@@ -98,19 +98,26 @@ CUTOFF_COMMIT_TIME = datetime(2026, 9, 4, 15, 40, 10, tzinfo=timezone.utc)
 CUTOFF_MERGE_TIME = datetime(2026, 9, 4, 16, 50, 17, tzinfo=timezone.utc)
 
 # Etichette UI.
-MODEL_LABEL_CURRENT = "✓ Modello attuale"
-MODEL_LABEL_PRE_FIX = "⚠️ Pre-fix"
-MODEL_LABEL_LEGACY = "Legacy"
-MODEL_LABEL_AMBIGUOUS = "⚠️ Ambiguo"
+# Etichette della SCHEDA del record (``model_version`` = con quale versione di
+# pipeline la riga e' stata scritta). NON sono il motore Elo: quello e'
+# ``model_variant`` e decide in quale delle due tabelle del Registro sta la
+# riga. Prima si chiamavano "✓ Modello attuale" / "Legacy" e dentro la tabella
+# del MOTORE legacy la scritta "Modello attuale" sembrava una contraddizione:
+# erano due cose diverse (scheda contro motore) con due nomi quasi uguali.
+MODEL_LABEL_CURRENT = "✓ scheda post-fix"
+MODEL_LABEL_PRE_FIX = "⚠️ scheda pre-fix"
+MODEL_LABEL_LEGACY = "senza versione"
+MODEL_LABEL_AMBIGUOUS = "⚠️ scheda ambigua"
 MODEL_LABEL_UNKNOWN = "N/D"
 
 PRE_FIX_TOOLTIP = (
-    "Predizione generata prima del fix di regolarizzazione dei piccoli campioni. "
-    "Conservata per audit e non inclusa nelle statistiche del modello attuale."
+    "Record scritto prima del fix di regolarizzazione dei piccoli campioni. "
+    "Conservato per audit e non incluso nelle statistiche del modello attuale."
 )
 CURRENT_MODEL_TOOLTIP = (
-    f"Predizione generata con il motore corrente ({MODEL_VERSION_CURRENT}). "
-    "Inclusa nelle statistiche del modello attuale."
+    f"Record scritto dal versionamento in produzione ({MODEL_VERSION_CURRENT}). "
+    "E' la SCHEDA del record, non il motore Elo: il motore decide in quale delle "
+    "due tabelle sta la riga (Attuale / Legacy)."
 )
 
 
@@ -142,6 +149,136 @@ TIPO_BY_ORIGIN = {
 # disaccordo, perche' e' parte della chiave di dedup e dell'aggregazione.
 SELECTOR_VERSION_FIELD = "selector_version"
 SELECTOR_VERSION_CURRENT = "topmix_gate025_ens06_v1"
+
+# ---------------------------------------------------------------------------
+# Variante del MODELLO: Top Mix a due motori (attuale / legacy)
+# ---------------------------------------------------------------------------
+# Dal Top Mix a due tabelle ogni riga dice con QUALE motore Elo e' stata
+# calcolata: ``current`` = ``models/elo_engine.py`` (post PR#24, senza boost
+# xG), ``legacy`` = ``models/elo_engine_legacy.py`` (il blob pre-PR#24, byte
+# per byte; vedi ``models/legacy_elo.py``). Poisson, selettore e soglie sono
+# gli stessi: cambia solo la componente Elo della confidence 1X2 e del veto.
+#
+# Compatibilita' con i record esistenti: il campo MANCA in tutto quello che e'
+# stato scritto prima, e l'assenza vale ``current`` (era l'unico modello in
+# produzione). Per questo:
+#   - ``model_variant_of`` ritorna ``current`` quando il campo manca;
+#   - ``dedup_key`` include la variante, cosi' una riga legacy della stessa
+#     partita NON collide con la riga current gia' scritta (mai sovrascritta);
+#   - ``build_calculation_id`` aggiunge la variante SOLO quando non e'
+#     ``current``: gli id gia' calcolati restano identici.
+# Non va confuso con ``model_version`` (post_shrinkage_v1 / pre_shrinkage /
+# legacy), che descrive l'era del motore Poisson e NON cambia qui.
+MODEL_VARIANT_FIELD = "model_variant"
+MODEL_VARIANT_CURRENT = "current"
+MODEL_VARIANT_LEGACY = "legacy"
+MODEL_VARIANTS = (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY)
+MODEL_VARIANT_LABELS = {
+    MODEL_VARIANT_CURRENT: "Attuale",
+    MODEL_VARIANT_LEGACY: "Legacy",
+}
+
+# Da QUANDO il motore Elo di oggi e' in produzione: il merge di PR#24
+# (``626cd0b``, 2026-09-18T21:51:58Z). Prima di quell'istante in produzione
+# girava il motore che oggi si chiama ``legacy`` (``models/elo_engine_legacy.py``
+# e' il blob pre-PR#24, byte per byte). Quindi il campo mancante NON puo' valere
+# "current" per tutte le epoche: vale quello che girava quando la riga e' nata,
+# e l'istante della riga lo dice. E' lo stesso confine usato dalle due commesse
+# di replay (``replay_legacy_topmix.PR24_MERGE_INSTANT``, half-open: una riga
+# nata esattamente a quell'istante e' del modello nuovo).
+TWO_MODELS_MERGE_INSTANT = datetime(2026, 9, 18, 21, 51, 58, tzinfo=timezone.utc)
+
+# Da dove viene la variante di una riga letta: serve a dirlo, non a nasconderlo.
+MODEL_VARIANT_SOURCE_EXPLICIT = "esplicita"
+MODEL_VARIANT_SOURCE_SAVED = "salvato_il"
+MODEL_VARIANT_SOURCE_KICKOFF = "kickoff_utc"
+MODEL_VARIANT_SOURCE_MATCH_DATE = "data_partita"
+MODEL_VARIANT_SOURCE_UNKNOWN = "istante_ignoto"
+
+
+def entry_instant(entry: Any) -> Tuple[Optional[datetime], str]:
+    """Istante in cui la riga e' nata, con la fonte che l'ha deciso.
+
+    ``salvato_il`` e' il momento del salvataggio, cioe' quando il motore ha
+    girato: e' la fonte privilegiata, la stessa di ``entry_generation_time``.
+    Se manca si ripiega sull'istante della partita (``kickoff_utc``, altrimenti
+    la ``data`` italiana): la partita si gioca DOPO il click che l'ha prevista,
+    quindi e' un'approssimazione, e la fonte lo dichiara.
+    """
+    if not is_dict(entry):
+        return None, MODEL_VARIANT_SOURCE_UNKNOWN
+    dt = parse_datetime(entry.get(SALVATO_IL_FIELD))
+    if dt is not None:
+        return dt, MODEL_VARIANT_SOURCE_SAVED
+    ko = entry.get(KICKOFF_UTC_FIELD)
+    if ko is not None and str(ko).strip():
+        dt = parse_datetime(str(ko).strip().replace("Z", "+00:00"))
+        if dt is not None:
+            return dt, MODEL_VARIANT_SOURCE_KICKOFF
+    dt = parse_datetime(entry.get(DATA_FIELD))
+    if dt is not None:
+        return dt, MODEL_VARIANT_SOURCE_MATCH_DATE
+    return None, MODEL_VARIANT_SOURCE_UNKNOWN
+
+
+def _testo_campo_variante(value: Any) -> str:
+    """Il campo variante come testo, con i valori ASSENTI trattati per quello che sono.
+
+    Un record letto dal registro JSON non ha la chiave; un DataFrame di pandas
+    la crea con ``NaN``. ``str(nan)`` e' ``"nan"``: senza questo filtro una riga
+    senza campo veniva letta come una terza variante chiamata ``nan`` e spariva
+    dal blocco legacy (bug visto in UI il 21/09/2026). ``None``, ``NaN``,
+    ``pd.NA`` e stringhe vuote valgono tutti "campo assente".
+    """
+    if value is None:
+        return ""
+    if isinstance(value, float) and value != value:      # NaN di pandas/numpy
+        return ""
+    if value is not value:                               # pd.NA e simili
+        return ""
+    testo = str(value).strip()
+    return "" if testo.lower() in {"nan", "none", "nat", "na", "<na>", "<nat>"} else testo
+
+
+def model_variant_read(entry: Any, *, boundary: Optional[datetime] = None) -> str:
+    """Variante di una riga LETTA: il campo esplicito vince, l'assenza decide per data.
+
+    Differenza (voluta) da ``model_variant_of``, che resta la convenzione del
+    percorso di SCRITTURA e dell'interfaccia: li' il campo mancante vale
+    ``current`` perche' e' cosi' che sono state scritte le righe e la chiave di
+    dedup non deve cambiare sotto i piedi. In LETTURA quella convenzione e'
+    sbagliata per tutto cio' che e' nato prima del merge di PR#24: allora in
+    produzione girava il motore vecchio, quindi quelle righe sono del modello
+    ``legacy`` per definizione.
+
+    * campo esplicito presente  -> quello (qualunque sia la data);
+    * campo assente, istante noto -> ``legacy`` se l'istante precede
+      ``TWO_MODELS_MERGE_INSTANT``, ``current`` altrimenti;
+    * campo assente, istante ignoto -> ``current``, ma
+      ``model_variant_read_source`` lo dichiara (``istante_ignoto``) e chi
+      legge deve poterlo contare invece di far finta di saperlo.
+    """
+    if not is_dict(entry):
+        return MODEL_VARIANT_CURRENT
+    v = _testo_campo_variante(entry.get(MODEL_VARIANT_FIELD)).lower()
+    if v:
+        return v
+    dt, _ = entry_instant(entry)
+    if dt is None:
+        return MODEL_VARIANT_CURRENT
+    return (MODEL_VARIANT_LEGACY if dt < (boundary or TWO_MODELS_MERGE_INSTANT)
+            else MODEL_VARIANT_CURRENT)
+
+
+def model_variant_read_source(entry: Any) -> str:
+    """Da dove viene la variante letta (campo o istante), per poterlo dichiarare."""
+    if not is_dict(entry):
+        return MODEL_VARIANT_SOURCE_UNKNOWN
+    if _testo_campo_variante(entry.get(MODEL_VARIANT_FIELD)):
+        return MODEL_VARIANT_SOURCE_EXPLICIT
+    _, fonte = entry_instant(entry)
+    return fonte
+
 
 # ---------------------------------------------------------------------------
 # Gate shadow (audit/margini_migliorabili_topmix.md §11quater, piano §9 punto 4)
@@ -790,7 +927,34 @@ def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def stats_current_model(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    return compute_stats([e for e in entries if is_current_model(e) and not is_excluded_from_stats(e)])
+    """Metriche del MODELLO ATTUALE: ``model_version`` corrente, non escluse e
+    variante ``current`` (le righe senza campo si leggono per data: quelle nate
+    prima del merge di PR#24 sono del motore legacy e NON contano qui). Le righe della
+    variante legacy hanno lo stesso ``model_version`` ma un altro motore Elo:
+    contarle qui mescolerebbe i due modelli che il Top Mix vuole confrontare.
+    Vedi ``stats_legacy_variant`` per il blocco gemello."""
+    return compute_stats([e for e in entries if is_current_model(e) and not is_excluded_from_stats(e)
+                          and not is_legacy_variant(e)])
+
+
+def stats_legacy_variant(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """Metriche del MODELLO LEGACY (Elo pre-PR#24): stessi filtri del blocco
+    attuale, ma solo righe lette come ``legacy`` (campo esplicito, oppure campo
+    assente e riga nata prima del merge di PR#24)."""
+    return compute_stats([e for e in entries if is_current_model(e) and not is_excluded_from_stats(e)
+                          and is_legacy_variant(e)])
+
+
+def split_by_variant(entries: Iterable[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Partiziona i record per variante (``current`` / ``legacy`` / altro).
+
+    Usa la lettura per data: le righe senza campo nate prima del merge di PR#24
+    finiscono nel blocco ``legacy``, che e' il motore che le ha prodotte.
+    """
+    out: Dict[str, List[Dict[str, Any]]] = {}
+    for e in entries:
+        out.setdefault(model_variant_read(e), []).append(e)
+    return out
 
 
 def stats_historical(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
@@ -869,19 +1033,59 @@ def selector_version_of(entry: Any) -> str:
     return str(entry.get(SELECTOR_VERSION_FIELD) or "")
 
 
-def dedup_key(entry: Any) -> Tuple[Any, str, str]:
+def model_variant_of(entry: Any) -> str:
+    """Variante del modello di una riga; il campo assente vale ``current``.
+
+    **E' la convenzione del percorso di scrittura e degli id**, non quella di
+    lettura: serve a non far cambiare chiavi e id delle righe gia' scritte. Per
+    LEGGERE (mostrare, contare, classificare) si usa ``model_variant_read``, che
+    quando il campo manca decide con la DATA: una riga nata prima del merge di
+    PR#24 e' del motore che girava allora, cioe' ``legacy``. Un valore
+    sconosciuto viene riportato com'e' (in
+    minuscolo), cosi' non si confonde con nessuna delle due varianti note.
+    """
+    if not is_dict(entry):
+        return MODEL_VARIANT_CURRENT
+    v = _testo_campo_variante(entry.get(MODEL_VARIANT_FIELD)).lower()
+    return v or MODEL_VARIANT_CURRENT
+
+
+def is_legacy_variant(entry: Any) -> bool:
+    """La riga e' del motore legacy? Si legge per DATA quando il campo manca:
+    una riga nata prima del merge di PR#24 e' del motore che girava allora."""
+    return model_variant_read(entry) == MODEL_VARIANT_LEGACY
+
+
+def model_variant_label(entry: Any) -> str:
+    """Etichetta mostrata all'utente: anche qui vale la lettura per data."""
+    v = model_variant_read(entry)
+    return MODEL_VARIANT_LABELS.get(v, v)
+
+
+def dedup_key(entry: Any) -> Tuple[Any, str, str, str]:
     """Chiave di unicita' di una previsione.
 
     Non piu' il solo ``match_id``: la stessa partita puo' legittimamente avere
-    UNA riga per origine (Top Mix, Analisi Rapida, Billy) e una riga per versione
-    del selettore. Il dedup per solo match_id faceva perdere la riga Top Mix
-    quando Analisi Rapida aveva salvato per prima (problema ``dedup_match_id``,
-    blocking, in results/topmix_registry_tracking.json).
+    UNA riga per origine (Top Mix, Analisi Rapida, Billy), una riga per versione
+    del selettore e una riga per variante del modello (attuale / legacy). Il
+    dedup per solo match_id faceva perdere la riga Top Mix quando Analisi
+    Rapida aveva salvato per prima (problema ``dedup_match_id``, blocking, in
+    results/topmix_registry_tracking.json). La variante entra nella chiave
+    perche' la riga legacy di una partita NON deve mai sostituire la riga
+    current gia' scritta.
+
+    La variante si legge con ``model_variant_read`` (per data quando il campo
+    manca): con la convenzione vecchia - campo assente = ``current`` - una riga
+    scritta PRIMA del merge di PR#24 occupava il posto della riga del modello
+    attuale e il replay la saltava come ``gia_presente``: 20 partite erano
+    rimaste senza la riga del modello attuale pur essendo una scelta che il
+    motore attuale esprime (misurato il 21/09/2026, referto par. 4.5).
     """
     if not is_dict(entry):
-        return (None, ORIGIN_UNKNOWN, "")
+        return (None, ORIGIN_UNKNOWN, "", MODEL_VARIANT_CURRENT)
     mid = entry.get("match_id")
-    return (None if mid is None else str(mid), origin_of(entry), selector_version_of(entry))
+    return (None if mid is None else str(mid), origin_of(entry), selector_version_of(entry),
+            model_variant_read(entry))
 
 
 def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
@@ -925,10 +1129,18 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
 # ---------------------------------------------------------------------------
 def build_calculation_id(match_id: Any, origin: Any, selector_version: Any,
                          kickoff_utc: Any = None, snapshot_sha: Any = None,
-                         rank: Any = None) -> str:
-    """Id deterministico di una scrittura: stesso input -> stesso id."""
+                         rank: Any = None, model_variant: Any = None) -> str:
+    """Id deterministico di una scrittura: stesso input -> stesso id.
+
+    ``model_variant`` entra nell'hash SOLO se non e' ``current`` (o assente):
+    gli id delle righe gia' scritte, tutte del modello attuale, non cambiano, e
+    una riga legacy della stessa partita/rank/snapshot ha un id diverso.
+    """
     parti = [str(match_id), str(origin or ""), str(selector_version or ""),
              str(kickoff_utc or ""), str(snapshot_sha or ""), str(rank if rank is not None else "")]
+    variante = str(model_variant or "").strip().lower()
+    if variante and variante != MODEL_VARIANT_CURRENT:
+        parti.append(variante)
     return hashlib.sha1("|".join(parti).encode("utf-8")).hexdigest()[:16]
 
 

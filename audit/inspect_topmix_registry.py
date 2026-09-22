@@ -122,14 +122,24 @@ def _calls_function(fn: Optional[ast.AST], name: str) -> bool:
     return False
 
 
-def _assigns_call_to(fn: Optional[ast.AST], attr: str) -> bool:
-    """True se il risultato della chiamata ``.<attr>(...)`` viene assegnato."""
+def _assigns_call_to(fn: Optional[ast.AST], attr: "str | Tuple[str, ...]") -> bool:
+    """True se il risultato della chiamata ``.<attr>(...)`` viene assegnato.
+
+    ``attr`` puo' essere piu' di un nome: la scrittura remota si chiama
+    ``requests.put`` dentro ``registry_store`` e ``put`` nei test, e in entrambi
+    i casi la risposta deve finire in una variabile (altrimenti non c'e' nulla
+    da controllare).
+    """
     if fn is None:
         return False
+    attrs = (attr,) if isinstance(attr, str) else attr
     for node in ast.walk(fn):
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
             f = node.value.func
-            if isinstance(f, ast.Attribute) and f.attr == attr:
+            if isinstance(f, ast.Attribute) and f.attr in attrs:
+                return True
+            # `r = scrivi(...)`: scrittura passata come parametro (store unico).
+            if isinstance(f, ast.Name) and "scrivi" in attrs:
                 return True
     return False
 
@@ -196,6 +206,17 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     tree = ast.parse(raw_src, filename=path)
     module_src_raw = ast.unparse(tree)
     save_entry = _fn(tree, "save_prediction_entry")
+    # Dal Top Mix a due motori la FORMA del record vive in
+    # build_prediction_entry (pura, condivisa col replay legacy) e
+    # save_prediction_entry la chiama: il percorso di salvataggio da ispezionare
+    # e' l'unione dei due, altrimenti i campi risulterebbero "assenti" solo
+    # perche' spostati di una funzione.
+    build_entry = _fn(tree, "build_prediction_entry")
+    save_nodes = [n for n in (save_entry, build_entry) if n is not None]
+    if save_entry is not None and (build_entry is None
+                                   or not _calls_function(save_entry, "build_prediction_entry")):
+        save_nodes = [save_entry]
+    save_path_src = chr(10).join(ast.unparse(n) for n in save_nodes)
     save_preds = _fn(tree, "save_predictions")
     load_preds = _fn(tree, "load_predictions")
     top_mix = _fn(tree, "fetch_and_calc_top_mix")
@@ -203,7 +224,15 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     # a parte: le guardie leggono il PERCORSO COMPLETO, perche' altrimenti basta
     # "spostare" una soglia nell'altra funzione per metterla fuori portata.
     selez = _fn(tree, "seleziona_riga_top_mix")
-    src_topmix = chr(10).join(ast.unparse(n) for n in (top_mix, selez) if n is not None)
+    # Dal Top Mix a due motori l'orchestrazione e' su tre funzioni: fetch
+    # (HTTP + assemblaggio), calcola_righe_top_mix (per partita, due Elo) e
+    # classifica_top_mix (ordinamento + rank, senza tetto). Le guardie leggono
+    # l'unione, per la stessa ragione di cui sopra.
+    calcola = _fn(tree, "calcola_righe_top_mix")
+    classifica = _fn(tree, "classifica_top_mix")
+    riga_tm = _fn(tree, "_riga_top_mix")
+    nodi_topmix = [n for n in (top_mix, calcola, classifica, riga_tm, selez) if n is not None]
+    src_topmix = chr(10).join(ast.unparse(n) for n in nodi_topmix)
     analisi = _fn(tree, "analisi_rapida_giornata")
     show = _fn(tree, "show_details")
     select_md = _fn(tree, "select_next_matchday_matches")
@@ -231,7 +260,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         "passa_origine": False,
     }
     if save_entry is not None:
-        src = ast.unparse(save_entry)
+        src = save_path_src
         dedup["source"] = src
         if "match_id" in src and "return" in src:
             # if any(p.get("match_id") == match_id for p in preds): return
@@ -256,15 +285,15 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     # --- tipo: Top Mix vs Analisi (Billy non ha un tipo proprio) ---
     tipo = {
         "field": "tipo",
-        "top_mix_marker": "Top Mix" in (ast.unparse(save_entry) if save_entry else ""),
+        "top_mix_marker": "Top Mix" in (save_path_src if save_entry else ""),
         "billy_tipo_esplicito": False,
         "fallback_label": "Analisi",
         "rule": None,
     }
-    src_save = ast.unparse(save_entry) if save_entry is not None else ""
+    src_save = save_path_src if save_entry is not None else ""
     module_blob = ast.unparse(tree)
     if save_entry is not None:
-        for node in ast.walk(save_entry):
+        for node in (n for fn in save_nodes for n in ast.walk(fn)):
             if isinstance(node, ast.IfExp):
                 text = ast.unparse(node)
                 if "Top Mix" in text and "Analisi" in text:
@@ -280,7 +309,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     # --- metadata nuove predizioni ---
     facts["new_entry_fields_in_save"] = []
     if save_entry is not None:
-        src = ast.unparse(save_entry)
+        src = save_path_src
         for field in (
             "match_id", "home", "away", "campionato", "giornata", "data",
             "pronostico_sicuro", "mercato_standard", "top3", "prob_sicuro",
@@ -302,7 +331,15 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             ) if f'"{f}"' not in src and f"'{f}'" not in src
         ]
 
-    # --- JSONBin PUT ---
+    # --- Scrittura del Registro (JSONBin) ---
+    # Dalla migrazione il PUT non sta piu' dentro `save_predictions`: la funzione
+    # dell'app DELEGA a `registry_store` (strato unico per i due backend) e il
+    # PUT vive in `registry_store.jsonbin_save`. Le guardie restano le stesse —
+    # niente PUT senza controllo di `status_code`, niente `except: pass` che
+    # ingoia il rifiuto, esito che torna al chiamante — ma vanno lette dove il
+    # codice sta adesso, piu' la delega che le tiene collegate.
+    store_path = os.path.join(os.path.dirname(path), "registry_store.py")
+    store_fn = _fn(_load(store_path), "jsonbin_save") if os.path.exists(store_path) else None
     jsonbin = {
         "put_present": False,
         "response_assigned": False,
@@ -311,19 +348,29 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         "bare_put_swallowed": False,
         "bare_excepts": 0,
         "ritorna_esito": False,
+        # Nuove chiavi: dove sta la scrittura e chi la chiama.
+        "put_dove": None,
+        "delega_a_registry_store": False,
     }
     if save_preds is not None:
         src = ast.unparse(save_preds)
+        jsonbin["delega_a_registry_store"] = (
+            "registry_store" in src and ("save_rows" in src or "esito_scrittura" in src)
+        )
+    dove = store_fn if store_fn is not None else save_preds
+    if dove is not None:
+        src = ast.unparse(dove)
+        jsonbin["put_dove"] = "registry_store.jsonbin_save" if store_fn is not None else "app.save_predictions"
         jsonbin["put_present"] = "requests.put" in src
         jsonbin["status_code_checked"] = "status_code" in src
-        jsonbin["except_pass"] = _put_is_bare_in_try_except_pass(save_preds)
+        jsonbin["except_pass"] = _put_is_bare_in_try_except_pass(dove)
         jsonbin["bare_put_swallowed"] = jsonbin["except_pass"]
-        jsonbin["response_assigned"] = _assigns_call_to(save_preds, "put")
-        jsonbin["bare_excepts"] = _bare_excepts(save_preds)
+        jsonbin["response_assigned"] = _assigns_call_to(dove, ("put", "scrivi"))
+        jsonbin["bare_excepts"] = _bare_excepts(dove)
         # L'esito della scrittura deve TORNA.RE al chiamante, altrimenti il
         # messaggio all'utente non puo' essere condizionato a nulla.
         jsonbin["ritorna_esito"] = bool(
-            [n for n in ast.walk(save_preds) if isinstance(n, ast.Return) and n.value is not None]
+            [n for n in ast.walk(dove) if isinstance(n, ast.Return) and n.value is not None]
         )
     facts["jsonbin_write"] = jsonbin
 
@@ -385,13 +432,22 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             "min_conf_ou_gg": "min_conf = 0.60" in raw_src or "min_conf = 0.6" in src,
             "min_conf_1x2": "min_conf = 0.55" in src or "min_conf = 0.55" in raw_src,
             "disagree": "abs(poisson_prob - elo_prob) < 0.25" in src,
-            "global_top10": "[:10]" in src,
+            # Ordinamento globale per probabilita' SENZA il vecchio tetto [:10]:
+            # tutte le righe sopra soglia vanno mostrate e registrate.
+            "ordinamento_globale": "sorted(righe, key=lambda x: x['prob'], reverse=True)" in src,
+            "cap_10_assente": "[:10]" not in src,
+            # Due motori: la selezione pura viene applicata anche all'Elo legacy.
+            "elo_legacy_chiamato": "predict_elo_probs_legacy(h, a, league)" in src,
             # La selezione deve stare in UN solo posto: se vive nella funzione
             # pura, il chiamante non deve piu' costruire i 7 mercati (altrimenti
             # restano due copie che possono divergere in silenzio).
-            "selezione_in_un_solo_punto": ("mercati = {" in ast.unparse(top_mix))
-                                          != (selez is not None
-                                              and "mercati = {" in ast.unparse(selez)),
+            # Dal Top Mix a due motori i "chiamanti" sono fetch + calcola_righe
+            # (+ classifica, + _riga_top_mix): nessuno di loro deve costruire i
+            # mercati.
+            "selezione_in_un_solo_punto": (
+                not any("mercati = {" in ast.unparse(n)
+                        for n in (top_mix, calcola, classifica, riga_tm) if n is not None)
+                and selez is not None and "mercati = {" in ast.unparse(selez)),
             "codice_mercato_chiamato": "codice_mercato_selezionato(" in src,
         }
     facts["top_mix_selector"] = seven
@@ -444,14 +500,14 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     igiene: Dict[str, Any] = {}
     if top_mix is not None:
         src_tm = src_topmix
-        getters = [n for node in (top_mix, selez) if node is not None for n in ast.walk(node)
+        getters = [n for node in nodi_topmix for n in ast.walk(node)
                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
                    and n.func.attr == "get" and isinstance(n.func.value, ast.Name)
                    and n.func.value.id == "requests"]
         igiene["requests_get_total"] = len(getters)
         igiene["requests_get_con_timeout"] = sum(
             1 for g in getters if any(kw.arg == "timeout" for kw in g.keywords))
-        igiene["bare_excepts"] = _bare_excepts(top_mix) + _bare_excepts(selez)
+        igiene["bare_excepts"] = sum(_bare_excepts(n) for n in nodi_topmix)
         igiene["elo_flag_disponibilita"] = ("elo_disponibile" in src_tm
                                            and "elo_disponibile = False" in src_tm)
         # senza Elo la confidence e' Poisson puro: deve valere la soglia 0,60

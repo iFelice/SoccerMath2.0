@@ -1,0 +1,413 @@
+name: Verifica i due modelli nel Registro (sola lettura)
+
+# Risponde, sul Registro vero (hash Upstash), alla domanda della commessa:
+# "per ogni partita dell'intero periodo ricostruibile il Registro ha sia la
+# scelta del modello ATTUALE sia quella del LEGACY? stesso campione?"
+#
+# Sola lettura: nessun PUT/HSET, nessuna scrittura di registro. Il comando sta
+# nel nome del tag ("verifica-modelli-*"), come per le altre commesse.
+#
+# Esito del passo:
+#   * se manca una riga del modello ATTUALE per una partita che ha il legacy,
+#     la run e' ROSSA: e' una copertura incompleta della parte che la commessa
+#     chiedeva di rigiocare (si ripara rilanciando il replay, che aggiunge);
+#   * se manca il LEGACY (sotto soglia o veto per quel modello) la run resta
+#     verde ma lo dichiara: quelle righe non si scrivono (sarebbe un campione
+#     falsato: vietato dalla commessa).
+
+on:
+  push:
+    tags:
+      - 'verifica-modelli-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verifica-modelli
+  cancel-in-progress: false
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OUT: ${{ github.workspace }}/modelli-out
+
+    steps:
+      - name: "Checkout (storia completa: la diagnosi ricostruisce gli snapshot da git)"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt pytest
+
+      - name: Secrets necessari
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mancanti=()
+          for nome in JSONBIN_API_KEY JSONBIN_BIN_ID UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — la verifica legge il Registro vivo: servono entrambi i backend."
+            exit 1
+          fi
+
+      - name: Test dello strumento (nessuna lettura di rete)
+        run: |
+          python -m pytest -q --tb=short \
+            SoccerMath/test_registry_modelli_check.py \
+            SoccerMath/test_model_variant_registry.py \
+            SoccerMath/test_registry_backend_status.py \
+            audit/test_diagnose_scarti.py
+
+      - name: Verifica (sola lettura)
+        id: verifica
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
+        run: |
+          mkdir -p "$OUT"
+          set -o pipefail
+          set +e
+          python SoccerMath/registry_modelli_check.py --json "$OUT/modelli.json" --allow-mismatch \
+            2>&1 | tee "$OUT/modelli.txt"
+          rc=$?
+          set -e
+
+          # Annotazioni compatte: le righe che contano, non tutto il referto.
+          # Un pattern che non compare NON e' un guasto: il verdetto lo danno
+          # l'uscita dello strumento (rc) e il passo "gate" piu' sotto. Senza il
+          # `|| true` un `grep` a vuoto fa uscire 1 sotto `pipefail` + `set -e`,
+          # e la run diventa rossa per un'annotazione mancante (e' successo: il
+          # pattern 'righe del modello ATTUALE da scrivere' non esiste piu' nel
+          # referto, e la run e' caduta con "exit code 1" mentre il gate era
+          # verde).
+          for pattern in 'righe totali' 'finestra ricostruibile' 'VECCHIO (prima di PR#24)' \
+                         'NUOVO (da PR#24 in poi)' 'INTERO PERIODO' 'i due campioni'; do
+            grep -m 1 -- "$pattern" "$OUT/modelli.txt" 2>/dev/null | while IFS= read -r line; do
+              echo "::warning title=modelli::${line:0:900}"
+            done || true
+          done
+
+          # UNA annotazione con il dettaglio che conta: quante righe senza
+          # etichetta sono nate prima/dopo il merge di PR#24, che specie di riga
+          # copre le partite a un solo modello, e i numeri del gate. Il tetto di
+          # annotazioni per passo non lascia spazio a una riga per volta.
+          python - "$OUT/modelli.json" <<'PY' || true
+          import json, sys
+          d = json.load(open(sys.argv[1], encoding="utf-8"))
+          intero = d["intero"]
+          se = intero["senza_etichetta"]
+          parti = [f"senza etichetta: {se['prima_della_fusione']} nate PRIMA del merge (lette legacy), "
+                   f"{se['dopo_la_fusione']} dopo (lette current), {se['istante_ignoto']} senza istante "
+                   f"leggibile · fonti {se['fonti']}"]
+          for chiave in ("vecchio", "nuovo", "intero"):
+              c = d[chiave]
+              # solo[current] = hanno la riga attuale e NON quella legacy, quindi
+              # il modello che manca e' l'altro: l'etichetta dice il mancante.
+              for variante, mancante in (("current", "LEGACY"), ("legacy", "ATTUALE")):
+                  voci = c["solo"][variante]
+                  if voci:
+                      replay = sum(1 for v in voci if v.get("riga_del_replay"))
+                      storiche = sum(1 for v in voci if v.get("riga_storica"))
+                      parti.append(f"{chiave}: {len(voci)} partite senza il modello {mancante} "
+                                   f"(riga del replay {replay}, click vero {storiche})")
+          print("::warning title=modelli-dettaglio::" + " · ".join(parti)[:4000])
+          PY
+
+          # Gate: le righe del modello ATTUALE che mancano sono un guasto vero
+          # (la commessa chiedeva proprio quelle). Le righe legacy mancanti no.
+          python - "$OUT/modelli.json" <<'PY' || exit 3
+          import json, sys
+          try:
+              d = json.load(open(sys.argv[1], encoding="utf-8"))
+          except Exception as e:
+              print(f"::error title=modelli::json non leggibile: {e}")
+              sys.exit(1)
+          mancano_attuale = len(d["intero"]["solo"]["legacy"])
+          mancano_legacy = len(d["intero"]["solo"]["current"])
+          print(f"::warning title=modelli::righe ATTUALE mancanti: {mancano_attuale} · righe LEGACY mancanti: {mancano_legacy}")
+          # Il verdetto NON si da' qui: manca una riga attuale, ma se il motore
+          # attuale non esprimeva una scelta (sotto soglia o veto) la riga non
+          # va scritta. Lo misura la diagnosi, e il passo "gate" decide su
+          # quella misura: qui si dichiara il numero, non lo si giudica.
+          if mancano_legacy:
+              print(f"::warning title=modelli::i due campioni NON coincidono: {mancano_legacy} partite "
+                    "senza scelta del modello legacy (sotto soglia o veto). Righe non scritte per scelta: "
+                    "sarebbero un campione falsato.")
+          else:
+              print("::notice title=modelli::i due campioni COINCIDONO su tutto il periodo")
+          PY
+          if [ "$rc" != "0" ]; then
+            echo "::error title=modelli::lo strumento e' uscito con $rc (2 = Registro non leggibile)"
+            exit "$rc"
+          fi
+
+      # La copia fusa del Registro serve alla diagnosi: la si scrive QUI, in
+      # locale nel runner, leggendo il Registro (nessuna scrittura remota).
+      - name: Copia locale del Registro per la diagnosi (sola lettura)
+        if: always()
+        env:
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
+        run: |
+          python - "$OUT/registro_vivo.json" <<'PY'
+          import json, sys
+          sys.path.insert(0, "SoccerMath")
+          from registry_coverage_check import load_registry_readonly
+          righe, fonte = load_registry_readonly()
+          with open(sys.argv[1], "w", encoding="utf-8") as f:
+              json.dump({"data": righe}, f, ensure_ascii=False, indent=2)
+          print(f"copia locale del Registro ({fonte}): {len(righe)} righe -> {sys.argv[1]}")
+          PY
+          # Solo la finestra dichiarata ricostruibile: le partite di prima non
+          # sono rigiocabili onestamente e non devono entrare nella diagnosi.
+          python SoccerMath/registry_coverage_check.py --allow-mismatch \
+            --from 2026-08-30 --json "$OUT/coverage.json" 2>&1 | tee "$OUT/coverage.txt" | head -n 12
+
+      # Perche' manca la riga del modello assente: un click VERO per partita e
+      # gli ingressi del selettore intercettati mentre gira. Misura, non stima.
+      - name: Perche' manca il modello assente (misurato, sola lettura)
+        if: always()
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          set -o pipefail
+          set +e
+          # --fixtures api: le righe del Registro vivo hanno i match_id
+          # dell'API (quelle dei CSV sono sintetici e non matchano mai).
+          python audit/diagnose_scarti_model_variant.py \
+            --fixtures api \
+            --dump "$OUT/registro_vivo.json" --coverage "$OUT/coverage.json" \
+            --snapshot-cache "$RUNNER_TEMP/sm_snap_cache" \
+            --out "$OUT/diagnosi_scarti.md" --json "$OUT/diagnosi_scarti.json" \
+            2>&1 | tee "$OUT/diagnosi.txt"
+          rc=$?
+          set -e
+          # `|| true`: se la diagnosi non ha stampato NIENTE (crash immediato) il
+          # grep vuoto non deve uccidere il passo prima di dire cosa e' successo
+          # (e' successo davvero: errore inghiottito da una pipeline con set -e).
+          # GitHub tiene al massimo 10 annotazioni per passo: le righe per
+          # partita si fermano a 8, e il RIEPILOGO va in UNA annotazione a parte
+          # (altrimenti la coda della diagnosi non sarebbe leggibile dal run:
+          # e' successo, con 19 partite e solo le prime 10 visibili).
+          grep -E "assente ->|NON diagnosticabile" "$OUT/diagnosi.txt" \
+            | head -n 4 | while IFS= read -r line; do
+            echo "::warning title=diagnosi::${line:0:900}"
+          done || true
+          grep -m1 "^Riepilogo" "$OUT/diagnosi.txt" | while IFS= read -r line; do
+            echo "::warning title=diagnosi-riepilogo::${line:0:900}"
+          done || true
+          grep -m1 "^NON DIAGNOSTICABILI" "$OUT/diagnosi.txt" | while IFS= read -r line; do
+            echo "::warning title=diagnosi-parziale::${line:0:900}"
+          done || true
+          # La coda del log sempre: se qualcosa e' andato storto, il perche' e' li'.
+          tail -n 6 "$OUT/diagnosi.txt" | while IFS= read -r line; do
+            echo "::warning title=diagnosi-coda::${line:0:900}"
+          done
+          # rc 3 = diagnosi fatta ma con righe NON diagnosticabili: dichiarato,
+          # non un guasto (non tutte le righe storiche si lasciano rigiocare).
+          # Ogni altro codice diverso da 0 e' un errore vero.
+          if [ "$rc" = "3" ]; then
+            echo "::warning title=diagnosi::la causa e' misurata solo in parte: vedi le righe NON diagnosticabili"
+          elif [ "$rc" != "0" ]; then
+            echo "::error title=diagnosi::uscita $rc (la causa delle partite senza modello non e' stata misurata)"
+            exit "$rc"
+          fi
+
+      # Il gate dell'ATTUALE: una riga attuale mancante e' un guasto SOLO se il
+      # motore attuale esprimeva una scelta. La diagnosi l'ha appena misurato
+      # partita per partita: "sotto soglia" o "veto" = assenza spiegata (la riga
+      # non va scritta: sarebbe un campione falsato); qualunque altro motivo, o
+      # l'assenza della misura, = guasto, e la run diventa ROSSA.
+      - name: "Gate: ogni riga ATTUALE mancante ha una causa misurata?"
+        if: always()
+        run: |
+          python - "$OUT/modelli.json" "$OUT/diagnosi_scarti.json" <<'PY'
+          import json, os, sys
+
+          def carica(percorso):
+              try:
+                  with open(percorso, encoding="utf-8") as f:
+                      return json.load(f)
+              except Exception as e:
+                  print(f"::warning title=gate-attuale::non leggibile {os.path.basename(percorso)}: {e}")
+                  return None
+
+          modelli = carica(sys.argv[1])
+          diagnosi = carica(sys.argv[2])
+          if modelli is None:
+              print("::error title=gate-attuale::senza il conteggio dei due modelli non c'e' verdetto")
+              sys.exit(1)
+          mancanti = modelli["intero"]["solo"]["legacy"]          # partite senza la riga ATTUALE
+          if not mancanti:
+              print("::notice title=gate-attuale::nessuna partita senza la riga del modello ATTUALE")
+              sys.exit(0)
+
+          spiegate = {}
+          if diagnosi:
+              for r in diagnosi.get("targets", []):
+                  if r.get("variante_assente") == "current":
+                      spiegate[str(r.get("match_id"))] = r.get("categoria_assente")
+              for r in diagnosi.get("non_diagnosticabili", []):
+                  if r.get("variante_assente") == "current":
+                      spiegate.setdefault(str(r.get("match_id")), "non misurata")
+          ok = ("sotto soglia", "veto")
+          ignote = []
+          for m in mancanti:
+              cat = spiegate.get(str(m.get("match_id")))
+              if cat not in ok:
+                  ignote.append((m, cat or "non misurata"))
+          for m, cat in ignote[:8]:
+              print(f"::error title=gate-attuale::{m['partita']} ({m['campionato']}, {m['data']}): "
+                    f"{m['mercato']} {m['prob']}% senza riga attuale e con causa NON misurata "
+                    f"({cat}): da chiarire prima di dichiarare il campione completo")
+          if ignote:
+              print(f"::error title=gate-attuale::{len(ignote)} partite su {len(mancanti)} senza riga "
+                    f"ATTUALE e senza causa misurata (sotto soglia/veto). La run NON e' verde: la causa "
+                    f"e' nell'annotazione 'attuale-mancante' (chiave di dedup occupata da una riga "
+                    f"senza campo, che il percorso di scrittura legge come current).")
+              sys.exit(1)
+          print(f"::notice title=gate-attuale::tutte le {len(mancanti)} partite senza riga ATTUALE "
+                f"hanno una causa MISURATA dal selettore (sotto soglia o veto): la riga non va scritta")
+          PY
+
+      # Le prove per riga: quando e' NATA la riga che copre la partita, che
+      # specie e', e perche' la riga del modello che manca non c'e'. Il caso da
+      # misurare: la chiave di dedup della riga mancante puo' essere OCCUPATA da
+      # una riga senza campo variante (che il percorso di scrittura legge come
+      # ``current``), e allora il replay salta l'aggiunta ("gia_presente").
+      - name: "Elenco con le prove: partite senza la riga ATTUALE"
+        if: always()
+        run: |
+          python - "$OUT/modelli.json" "$OUT/diagnosi_scarti.json" "$OUT/registro_vivo.json" <<'PY' || true
+          import json, os, sys
+          sys.path.insert(0, "SoccerMath")
+          from prediction_registry import (ORIGIN_TOP_MIX, SELECTOR_VERSION_CURRENT, dedup_key,
+                                           model_variant_of)
+
+          def carica(p):
+              try:
+                  with open(p, encoding="utf-8") as f:
+                      return json.load(f)
+              except Exception:
+                  return None
+
+          modelli, diagnosi, registro = carica(sys.argv[1]), carica(sys.argv[2]), carica(sys.argv[3])
+          if not modelli:
+              sys.exit(0)
+          righe_registro = (registro or {}).get("data") or []
+          # Le chiavi che il percorso di SCRITTURA considera gia' prese: e' la
+          # convenzione con cui il replay decide se aggiungere o saltare.
+          chiavi = {dedup_key(r) for r in righe_registro if isinstance(r, dict)}
+          cat, occupate = {}, 0
+          for r in (diagnosi or {}).get("targets", []):
+              if r.get("variante_assente") == "current":
+                  cat[str(r.get("match_id"))] = r.get("categoria_assente")
+          for r in (diagnosi or {}).get("non_diagnosticabili", []):
+              if r.get("variante_assente") == "current":
+                  cat.setdefault(str(r.get("match_id")), "non misurata")
+          inc = modelli.get("incrocio_nascita_partita") or {}
+          dettaglio, mancanti = [], modelli["intero"]["solo"]["legacy"]
+          for m in mancanti:
+              chiave = (str(m.get("match_id")), ORIGIN_TOP_MIX, SELECTOR_VERSION_CURRENT, "current")
+              presa = chiave in chiavi
+              occupate += 1 if presa else 0
+              dettaglio.append(f"{m['partita']} ({m['campionato']}, {m['data']}): legacy "
+                               f"{'del replay' if m.get('riga_del_replay') else 'di un click vero'} "
+                               f"nata {m.get('salvato_il') or '?'} "
+                               f"({'prima' if m.get('riga_nata_prima_della_fusione') else 'dopo'} il merge), "
+                               f"chiave attuale {'OCCUPATA' if presa else 'libera'}; causa "
+                               f"{cat.get(str(m.get('match_id')), 'non misurata')}")
+          testa = (f"righe senza etichetta: nate prima del merge e partite prima "
+                   f"{inc.get('nate_prima_partita_prima')}, nate PRIMA del merge e partite DOPO "
+                   f"{inc.get('nate_prima_partita_dopo')} (lette legacy: il motore era quello), "
+                   f"nate dopo il merge {inc.get('nate_dopo_partita_dopo')} · "
+                   f"partite senza la riga ATTUALE: {len(mancanti)}, di cui con la chiave del modello "
+                   f"attuale GIA' OCCUPATA da una riga senza campo: {occupate} "
+                   f"(il replay le salta: 'gia_presente')")
+          print("::notice title=attuale-mancante::" + " · ".join([testa] + dettaglio)[:12000])
+          PY
+
+      - name: Composizione del Registro (sola lettura, dichiara le specie di riga)
+        if: always()
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          REGISTRY_BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
+        run: |
+          # Perche' la tabella del legacy ha piu' righe di quella dell'attuale:
+          # le righe si contano per origine, variante letta e stagione. Sola
+          # lettura (nessun PUT/HSET), e l'avviso se sta leggendo una copia.
+          python SoccerMath/registry_composizione.py --compatto --json "$OUT/composizione.json" \
+            2>&1 | tee "$OUT/composizione.txt" || true
+          python - "$OUT/composizione.json" <<'PY' || true
+          import json, sys
+          try:
+              d = json.load(open(sys.argv[1], encoding="utf-8"))
+          except Exception as e:
+              print(f"::warning title=composizione::json non leggibile: {e}")
+              sys.exit(0)
+          orig = " · ".join(f"{k}: {v}" for k, v in sorted(d["per_origine"].items(), key=lambda kv: -kv[1]))
+          var = " · ".join(f"{k}: {v}" for k, v in sorted(d["per_variante"].items()))
+          print(f"::warning title=composizione::fonte {d['fonte']} · righe {d['righe']} · variante letta -> {var}")
+          print(f"::warning title=composizione-origini::per origine -> {orig}")
+          print(f"::warning title=composizione-finestra::"
+                + " · ".join(f"{k}: {v}" for k, v in sorted(d["finestra"].items()))
+                + " · senza campo variante: " + str(d["senza_campo_variante"])
+                + " · per stagione: " + " / ".join(f"{k} {v}" for k, v in sorted(d["per_stagione"].items())))
+          righe = ["| origine | righe | attuale | legacy | senza model_version |", "|---|---|---|---|---|"]
+          for o, c in sorted(d["origine_per_variante"].items(), key=lambda kv: -sum(kv[1].values())):
+              righe.append(f"| {o} | {sum(c.values())} | {c.get('current', 0)} | {c.get('legacy', 0)} | "
+                           f"{d['scheda_vecchia_per_origine'].get(o, 0)} |")
+          print("::warning title=composizione-tabella::" + " | ".join(righe)[:4000])
+          # Cosa conterra' ciascuna delle DUE tabelle (solo Top Mix) e se le righe
+          # sono vere previsioni (nate prima del fischio, nessun risultato noto).
+          ct = d.get("contenuto_tabelle") or {}
+          tot = ct.get("totale_per_motore", {})
+          print("::warning title=contenuto-tabelle::Drago a 2 Teste: "
+                + str(tot.get("current", 0)) + " righe ("
+                + " · ".join(f"{s} {n}" for s, n in sorted((ct.get("per_motore") or {}).get("current", {}).items(), reverse=True))
+                + ") · Legacy: " + str(tot.get("legacy", 0)) + " righe ("
+                + " · ".join(f"{s} {n}" for s, n in sorted((ct.get("per_motore") or {}).get("legacy", {}).items(), reverse=True))
+                + ") · fuori dalle due tabelle: "
+                + (", ".join(f"{k} {v}" for k, v in sorted((ct.get("fuori_dalle_tabelle") or {}).items())) or "niente"))
+          pu = d.get("puntualita") or {}
+          print("::warning title=puntualita::" + " || ".join(
+              f"[{o}] prima del fischio: {c.get('nate prima del fischio', 0)} · DOPO: "
+              f"{c.get('nate DOPO il fischio', 0)} · non verificabili: "
+              f"{c.get('fischio o nascita non leggibili', 0)}"
+              for o, c in sorted((pu.get("per_origine") or {}).items()))[:3500])
+          rit = [f"[{o}] {v}" for o, voci in sorted((pu.get("in_ritardo") or {}).items()) for v in voci]
+          if rit:
+              print("::warning title=righe-in-ritardo::" + " || ".join(x[:200] for x in rit)[:3500])
+          PY
+
+      - name: Artifact (referto della verifica)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verifica-modelli-${{ github.run_id }}
+          path: ${{ env.OUT }}
+          if-no-files-found: warn
