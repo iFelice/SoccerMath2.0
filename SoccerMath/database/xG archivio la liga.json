@@ -18953,11 +18953,11 @@
     "date": "2026-09-18 19:00:00",
     "home_team": "Espanyol",
     "away_team": "Elche",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 3,
+    "home_xg": 1.07744,
+    "away_xg": 1.25113,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18965,11 +18965,11 @@
     "date": "2026-09-19 14:15:00",
     "home_team": "Athletic Club",
     "away_team": "Alaves",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 0,
+    "home_xg": 1.46153,
+    "away_xg": 0.0461634,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18977,11 +18977,11 @@
     "date": "2026-09-19 16:30:00",
     "home_team": "Celta Vigo",
     "away_team": "Racing Santander",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 5,
+    "away_goals": 0,
+    "home_xg": 2.2295,
+    "away_xg": 0.719901,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -18989,11 +18989,11 @@
     "date": "2026-09-19 12:00:00",
     "home_team": "Osasuna",
     "away_team": "Rayo Vallecano",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 1,
+    "home_xg": 0.926414,
+    "away_xg": 1.35649,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19001,11 +19001,11 @@
     "date": "2026-09-19 19:00:00",
     "home_team": "Sevilla",
     "away_team": "Barcelona",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 3,
+    "home_xg": 0.758355,
+    "away_xg": 3.56261,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19013,11 +19013,11 @@
     "date": "2026-09-20 14:15:00",
     "home_team": "Atletico Madrid",
     "away_team": "Real Madrid",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 1,
+    "home_xg": 2.40619,
+    "away_xg": 0.420774,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19025,11 +19025,11 @@
     "date": "2026-09-20 16:30:00",
     "home_team": "Deportivo La Coruna",
     "away_team": "Real Betis",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 1,
+    "home_xg": 1.93872,
+    "away_xg": 1.00253,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19037,11 +19037,11 @@
     "date": "2026-09-20 12:00:00",
     "home_team": "Getafe",
     "away_team": "Malaga",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 0,
+    "home_xg": 1.18796,
+    "away_xg": 0.660498,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19049,11 +19049,11 @@
     "date": "2026-09-20 19:00:00",
     "home_team": "Valencia",
     "away_team": "Real Sociedad",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 3,
+    "home_xg": 1.52762,
+    "away_xg": 2.33411,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19061,11 +19061,11 @@
     "date": "2026-09-20 16:30:00",
     "home_team": "Villarreal",
     "away_team": "Levante",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 3,
+    "away_goals": 1,
+    "home_xg": 4.28569,
+    "away_xg": 0.941792,
+    "is_result": true
   },
   {
     "season": 2026,
