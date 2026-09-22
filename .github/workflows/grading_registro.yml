@@ -165,7 +165,16 @@ jobs:
           python SoccerMath/registry_grading.py --elenca-istantanee --fonte archivio \
             --json "$OUT/istantanee.json" 2>&1 | tee "$OUT/istantanee.txt"
           echo "---"
-          python SoccerMath/registry_grading.py --campi-di "${CAMPI_DI}" --fonte archivio \
+          # La chiave della fotografia sta nel NOME DEL TAG (`grading-campi-<chiave>`),
+          # come per gli altri comandi di questo progetto: cosi' il comando e' nel ref
+          # ed e' tracciabile. La variabile GRADING_CAMPI_DI, se impostata, ha la
+          # precedenza.
+          chiave="${CAMPI_DI:-}"
+          if [ -z "$chiave" ]; then
+            chiave=$(echo "$GITHUB_REF_NAME" | sed 's/^grading-campi-//')
+          fi
+          echo "fotografia dei campi richiesta: $chiave"
+          python SoccerMath/registry_grading.py --campi-di "$chiave" --fonte archivio \
             --json "$OUT/campi.json" 2>&1 | tee "$OUT/campi.txt"
           set -e
           # Le righe chiave in annotazioni: quante istantanee, che cosa contengono,
