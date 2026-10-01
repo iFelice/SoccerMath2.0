@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Probe JSON endpoints without saving responses
         run: |
-          python - <<'PY'
+          python - <<'PY' | tee "$RUNNER_TEMP/probe.txt"
           import json, urllib.request, urllib.error
           urls = {
             'sofascore_event': 'https://api.sofascore.com/api/v1/event/11930405',
@@ -23,6 +23,7 @@ jobs:
             'fotmob_match': 'https://www.fotmob.com/api/data/matchDetails?matchId=3901262',
             'fotmob_pl_seasons': 'https://www.fotmob.com/api/data/leagueseasondeepstats?id=47',
           }
+          : > "$RUNNER_TEMP/probe.txt"
           for name, url in urls.items():
             try:
               req = urllib.request.Request(url, headers={'Accept': 'application/json', 'User-Agent': 'Arena-source-probe/1.0'})
@@ -39,3 +40,8 @@ jobs:
             except Exception as e:
               print(f'{name}: NETWORK_ERROR {type(e).__name__}: {e}')
           PY
+      - name: Publish status-only probe report
+        uses: actions/upload-artifact@v4
+        with:
+          name: arena-source-probe-status
+          path: ${{ runner.temp }}/probe.txt
