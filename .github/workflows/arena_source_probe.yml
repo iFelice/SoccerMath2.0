@@ -2,57 +2,56 @@ name: Arena source connectivity probe
 on:
   workflow_dispatch:
   push:
-    branches:
-      - 'arena/**'
-    paths:
-      - '.github/workflows/arena_source_probe.yml'
+    branches: ['arena/**']
+    paths: ['.github/workflows/arena_source_probe.yml']
 permissions:
   contents: read
-  statuses: write
 jobs:
-  probe:
+  sofascore:
+    name: SofaScore JSON access
     runs-on: ubuntu-latest
     steps:
-      - name: Probe JSON endpoints without saving responses
+      - name: Probe status only
         run: |
-          python - <<'PY' | tee "$RUNNER_TEMP/probe.txt"
-          import json, urllib.request, urllib.error
-          urls = {
-            'sofascore_event': 'https://api.sofascore.com/api/v1/event/11930405',
-            'sofascore_injuries': 'https://api.sofascore.com/api/v1/team/17/injuries',
-            'sofascore_lineups': 'https://www.sofascore.com/api/v1/event/16275102/lineups',
-            'fotmob_match': 'https://www.fotmob.com/api/data/matchDetails?matchId=3901262',
-            'fotmob_pl_seasons': 'https://www.fotmob.com/api/data/leagueseasondeepstats?id=47',
-          }
-          : > "$RUNNER_TEMP/probe.txt"
-          for name, url in urls.items():
+          python - <<'PY'
+          import urllib.request, urllib.error, sys
+          urls = ['https://api.sofascore.com/api/v1/event/11930405', 'https://api.sofascore.com/api/v1/team/17/injuries', 'https://www.sofascore.com/api/v1/event/16275102/lineups']
+          failed = 0
+          for u in urls:
             try:
-              req = urllib.request.Request(url, headers={'Accept': 'application/json', 'User-Agent': 'Arena-source-probe/1.0'})
+              req=urllib.request.Request(u, headers={'Accept':'application/json','User-Agent':'Arena-source-probe/1.0'})
               with urllib.request.urlopen(req, timeout=30) as r:
-                body = r.read(2_000_000)
-                try:
-                  obj = json.loads(body)
-                  shape = ('object keys=' + ','.join(list(obj)[:12])) if isinstance(obj, dict) else ('array len=' + str(len(obj)))
-                  print(f'{name}: HTTP {r.status}; content-type={r.headers.get("content-type")}; bytes={len(body)}; {shape}')
-                except Exception as e:
-                  print(f'{name}: HTTP {r.status}; content-type={r.headers.get("content-type")}; bytes={len(body)}; NON_JSON {type(e).__name__}')
+                print(f'HTTP {r.status} {u}')
+                if r.status != 200: failed += 1
             except urllib.error.HTTPError as e:
-              print(f'{name}: HTTP {e.code}; content-type={e.headers.get("content-type")}; error-body-not-read')
+              print(f'HTTP {e.code} {u}')
+              failed += 1
             except Exception as e:
-              print(f'{name}: NETWORK_ERROR {type(e).__name__}: {e}')
+              print(f'NETWORK_ERROR {type(e).__name__} {u}')
+              failed += 1
+          sys.exit(1 if failed else 0)
           PY
-          n=0
-          while IFS= read -r line; do
-            n=$((n+1))
-            echo "::notice::$line"
-            GH_TOKEN="$GITHUB_TOKEN" gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
-              -f state=success -f context="source-probe/$n" \
-              -f description="$line" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
-          done < "$RUNNER_TEMP/probe.txt"
-          echo '### Status-only endpoint results' >> "$GITHUB_STEP_SUMMARY"
-          cat "$RUNNER_TEMP/probe.txt" >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish status-only probe report
-        uses: actions/upload-artifact@v4
-        with:
-          name: arena-source-probe-status
-          path: ${{ runner.temp }}/probe.txt
+  fotmob:
+    name: FotMob JSON access
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe status only
+        run: |
+          python - <<'PY'
+          import urllib.request, urllib.error, sys
+          urls = ['https://www.fotmob.com/api/data/matchDetails?matchId=3901262', 'https://www.fotmob.com/api/data/leagueseasondeepstats?id=47']
+          failed = 0
+          for u in urls:
+            try:
+              req=urllib.request.Request(u, headers={'Accept':'application/json','User-Agent':'Arena-source-probe/1.0'})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                print(f'HTTP {r.status} {u}')
+                if r.status != 200: failed += 1
+            except urllib.error.HTTPError as e:
+              print(f'HTTP {e.code} {u}')
+              failed += 1
+            except Exception as e:
+              print(f'NETWORK_ERROR {type(e).__name__} {u}')
+              failed += 1
+          sys.exit(1 if failed else 0)
+          PY
