@@ -1,6 +1,11 @@
 name: Arena source connectivity probe
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - '.github/workflows/arena_source_probe.yml'
 permissions:
   contents: read
 jobs:
