@@ -1,0 +1,36 @@
+name: Arena source connectivity probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe JSON endpoints without saving responses
+        run: |
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+          urls = {
+            'sofascore_event': 'https://api.sofascore.com/api/v1/event/11930405',
+            'sofascore_injuries': 'https://api.sofascore.com/api/v1/team/17/injuries',
+            'sofascore_lineups': 'https://www.sofascore.com/api/v1/event/16275102/lineups',
+            'fotmob_match': 'https://www.fotmob.com/api/data/matchDetails?matchId=3901262',
+            'fotmob_pl_seasons': 'https://www.fotmob.com/api/data/leagueseasondeepstats?id=47',
+          }
+          for name, url in urls.items():
+            try:
+              req = urllib.request.Request(url, headers={'Accept': 'application/json', 'User-Agent': 'Arena-source-probe/1.0'})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                body = r.read(2_000_000)
+                try:
+                  obj = json.loads(body)
+                  shape = ('object keys=' + ','.join(list(obj)[:12])) if isinstance(obj, dict) else ('array len=' + str(len(obj)))
+                  print(f'{name}: HTTP {r.status}; content-type={r.headers.get("content-type")}; bytes={len(body)}; {shape}')
+                except Exception as e:
+                  print(f'{name}: HTTP {r.status}; content-type={r.headers.get("content-type")}; bytes={len(body)}; NON_JSON {type(e).__name__}')
+            except urllib.error.HTTPError as e:
+              print(f'{name}: HTTP {e.code}; content-type={e.headers.get("content-type")}; error-body-not-read')
+            except Exception as e:
+              print(f'{name}: NETWORK_ERROR {type(e).__name__}: {e}')
+          PY
