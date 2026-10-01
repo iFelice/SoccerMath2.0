@@ -40,7 +40,7 @@ jobs:
             except Exception as e:
               print(f'{name}: NETWORK_ERROR {type(e).__name__}: {e}')
           PY
-          while IFS= read -r line; do echo "::notice title=SOURCE_PROBE::$line"; done < "$RUNNER_TEMP/probe.txt"
+          while IFS= read -r line; do echo "::warning title=SOURCE_PROBE::$line"; done < "$RUNNER_TEMP/probe.txt"
       - name: Publish status-only probe report
         uses: actions/upload-artifact@v4
         with:
