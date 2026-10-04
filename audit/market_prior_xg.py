@@ -57,7 +57,7 @@ from market_prior import XgPriorParams, DEFAULT_PARAMS, build_index        # noq
 OUT_DIR = os.path.join(_AUDIT_DIR, "results")
 OUT_PATH = os.path.join(OUT_DIR, "market_prior_xg_report.md")
 STAKE = MVV.STAKE
-ELO_ENSEMBLE_W = MVV.ELO_ENSEMBLE_W
+POISSON_1X2_WEIGHT = MVV.POISSON_1X2_WEIGHT
 
 BASE_TAGS = ("static", "ver", "none", "xgp")
 
@@ -189,9 +189,9 @@ def run_variants(df, camp_key, xg_data, lookup, index, sens=SENS_GRID):
                     lh, la = lam_base_h, lam_base_a
                 mp = CLV.get_full_poisson(CLV._clip_lambda(lh), CLV._clip_lambda(la))
                 rec[f"{tag}_1"], rec[f"{tag}_X"], rec[f"{tag}_2"] = mp["1"], mp["X"], mp["2"]
-                rec[f"{tag}b_1"] = ELO_ENSEMBLE_W * mp["1"] + (1 - ELO_ENSEMBLE_W) * e1
-                rec[f"{tag}b_X"] = ELO_ENSEMBLE_W * mp["X"] + (1 - ELO_ENSEMBLE_W) * eX
-                rec[f"{tag}b_2"] = ELO_ENSEMBLE_W * mp["2"] + (1 - ELO_ENSEMBLE_W) * e2
+                rec[f"{tag}b_1"] = POISSON_1X2_WEIGHT * mp["1"] + (1 - POISSON_1X2_WEIGHT) * e1
+                rec[f"{tag}b_X"] = POISSON_1X2_WEIGHT * mp["X"] + (1 - POISSON_1X2_WEIGHT) * eX
+                rec[f"{tag}b_2"] = POISSON_1X2_WEIGHT * mp["2"] + (1 - POISSON_1X2_WEIGHT) * e2
             rows.append(rec)
 
         dr = r_h + home_adv - r_a

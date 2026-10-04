@@ -8,7 +8,7 @@ Deterministici e offline. Coprono il punto 6 del protocollo:
   * join quote 1:1 sul df di load_league (dati reali, sola lettura);
   * equivalenza bit-faithful del ramo NORM-SUM con
     diagnose_production_baseline.run_models;
-  * blend costante con app.ELO_ENSEMBLE_W (produzione);
+  * blend costante con app.POISSON_1X2_WEIGHT (produzione);
   * CLV e bootstrap deterministici.
 
 Eseguibili con pytest o direttamente:
@@ -197,7 +197,7 @@ class TestWalkForward(unittest.TestCase):
     def test_blend_produzione(self):
         df = _league_df(n_rounds=2)
         out = self._run(df)
-        w = M.ELO_ENSEMBLE_W
+        w = M.POISSON_1X2_WEIGHT
         rebuilt = w * out["prodn_1"] + (1 - w) * out["elo_1"]
         self.assertTrue(np.allclose(rebuilt, out["model_1"], atol=1e-12))
 
@@ -240,13 +240,13 @@ class TestEquivalenzaRunModels(unittest.TestCase):
 
 
 # =====================================================================
-# 5. Blend costante = produzione (app.ELO_ENSEMBLE_W)
+# 5. Blend costante = produzione (app.POISSON_1X2_WEIGHT)
 # =====================================================================
 class TestBlendProduzione(unittest.TestCase):
 
     def test_w_uguale_a_app(self):
         import app as prod_app   # import pesante (bare mode): solo qui
-        self.assertEqual(M.ELO_ENSEMBLE_W, prod_app.ELO_ENSEMBLE_W)
+        self.assertEqual(M.POISSON_1X2_WEIGHT, prod_app.POISSON_1X2_WEIGHT)
 
 
 # =====================================================================

@@ -124,7 +124,7 @@ def _costante(src: str, nome: str):
 
 
 SRC = _sorgente_app()
-ELO_W = _costante(SRC, "ELO_ENSEMBLE_W")
+POISSON_W = _costante(SRC, "POISSON_1X2_WEIGHT")
 FINESTRA = _costante(SRC, "TOP_MIX_ROUND_WINDOW_DAYS")
 
 
@@ -322,7 +322,9 @@ def _esegui(vecchio: bool, elemi):
         "LEAGUES_CONFIG": {lg: {} for lg in LEGHE},
         "LEAGUE_CODE_MAP": dict(CODICI),
         "API_KEY_DATA": "TEST-KEY",
-        "ELO_ENSEMBLE_W": ELO_W,
+        "POISSON_1X2_WEIGHT": POISSON_W,
+        # Il fixture storico usa il vecchio nome: stesso valore, sola compatibilita'.
+        "ELO_ENSEMBLE_W": POISSON_W,
         "TOP_MIX_ROUND_WINDOW_DAYS": FINESTRA,
         "logging": _Logging(),
         "time": _Time,
@@ -440,7 +442,8 @@ class TestGuardieTesto(unittest.TestCase):
     }
     NORMALIZZA = [("m_poisson[", "m["), ('f"Vittoria {h}"', 'f"Vittoria {home}"'),
                   ('f"Vittoria {a}"', 'f"Vittoria {away}"'), ("elo_p[", "elo_probs["),
-                  ("{h}", "{home}"), ("{a}", "{away}")]
+                  ("{h}", "{home}"), ("{a}", "{away}"),
+                  ("ELO_ENSEMBLE_W", "POISSON_1X2_WEIGHT")]
 
     def _nuovo(self):
         return (_blocco(SRC, "seleziona_riga_top_mix") + _blocco(SRC, "calcola_righe_top_mix")
@@ -462,7 +465,7 @@ class TestGuardieTesto(unittest.TestCase):
                        _blocco(SRC, "fetch_and_calc_top_mix"))
         for atteso in ("min_conf = 0.60", "min_conf = 0.55",
                        "abs(poisson_prob - elo_prob) < 0.25",
-                       "confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob",
+                       "confidence = POISSON_1X2_WEIGHT * poisson_prob + (1 - POISSON_1X2_WEIGHT) * elo_prob",
                        "best_mkt = max(mercati, key=mercati.get)"):
             self.assertIn(atteso, nuovo, atteso)
         # Ordinamento globale invariato, tetto [:10] DICHIARATAMENTE rimosso.
@@ -668,7 +671,7 @@ class TestParitaCasiLimite(unittest.TestCase):
     def test_veto_a_discrepanza_esatta(self):
         """|P-E| == 0.25 NON e' ammesso (< stretto), 0.2499999 si': confine movente.
 
-        Vettori a 0.80 (prima 0.70): con ELO_ENSEMBLE_W=0.25 la confidence a
+        Vettori a 0.80 (prima 0.70): con POISSON_1X2_WEIGHT=0.25 la confidence a
         0.70 cadrebbe sotto 0.55 e il confine verrebbe deciso dalla soglia di
         ammissibilita', non dal veto (adattato al porting w=0.25, 2026-09-12)."""
         for delta, atteso in ((0.25, 0), (0.2499999, 1)):

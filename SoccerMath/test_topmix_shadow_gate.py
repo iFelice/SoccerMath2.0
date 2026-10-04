@@ -42,7 +42,7 @@ from test_topmix_selector_parity import (  # noqa: E402
 )
 
 SRC = open(APP_PATH, encoding="utf-8").read()
-ELO_W = _costante(SRC, "ELO_ENSEMBLE_W")
+POISSON_W = _costante(SRC, "POISSON_1X2_WEIGHT")
 
 
 def _codice_stub(best, h, a):
@@ -53,7 +53,7 @@ def _codice_stub(best, h, a):
 
 def _carica_mirror():
     ns = {
-        "ELO_ENSEMBLE_W": ELO_W,
+        "POISSON_1X2_WEIGHT": POISSON_W,
         "codice_mercato_selezionato": _codice_stub,
         "gate_shadow_confidence": R.gate_shadow_confidence,
         "gate_off_confidence": R.gate_off_confidence,
@@ -64,7 +64,7 @@ def _carica_mirror():
 
 def _carica_selettore():
     ns = {
-        "ELO_ENSEMBLE_W": ELO_W,
+        "POISSON_1X2_WEIGHT": POISSON_W,
         "codice_mercato_selezionato": _codice_stub,
     }
     exec(_blocco(SRC, "seleziona_riga_top_mix"), ns)
@@ -234,7 +234,7 @@ class TestMirrorCasiNoti(unittest.TestCase):
         # Stessa costruzione di test_veto_a_discrepanza_esatta (delta = 0.25,
         # elo = m["1"] - 0.25): il selettore REALE scarta (0.25 non e' < 0.25);
         # l'ombra dimezza invece di azzerare. Vettore a 0.80 (prima 0.70):
-        # con ELO_ENSEMBLE_W=0.25 la confidence a 0.70 resterebbe sotto 0.55 e
+        # con POISSON_1X2_WEIGHT=0.25 la confidence a 0.70 resterebbe sotto 0.55 e
         # il confine lo deciderrebbe la soglia, non il veto (porting 2026-09-12).
         m = _vettore_1x2(0.80)
         elo = {"1": m["1"] - 0.25, "X": 0.15, "2": 0.15}

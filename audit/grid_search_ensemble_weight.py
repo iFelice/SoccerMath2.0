@@ -14,7 +14,7 @@ diagnose_clv_pinnacle (testa 1X2 NORM-SUM bit-faithful a
 diagnose_production_baseline.run_models + Elo walk-forward K=24, importati, non
 riscritti) con emit_season esteso a train+validation+test. La griglia e'
 w in {0.0, 0.1, ..., 1.0}; w=0.6 e' il valore attuale di produzione
-(app.ELO_ENSEMBLE_W).
+(app.POISSON_1X2_WEIGHT).
 
 Metriche per w (stesse convenzioni degli altri audit):
   * Brier / LogLoss 1X2 (formule di brier_ll_1x2, verifica dal test);
@@ -63,8 +63,8 @@ OUT_PATH = os.path.join(OUT_DIR, "ensemble_weight_grid_search.md")
 # porting 2026-09-12 W_PROD = 0.25, che non cade sulla griglia: senza di lui
 # boot_stats(w_ref=W_PROD) andrebbe in errore sui futuri re-run)
 GRID_W = tuple(sorted(set(round(0.1 * i, 1) for i in range(11))
-                      | {round(CLV.ELO_ENSEMBLE_W, 4)}))
-W_PROD = CLV.ELO_ENSEMBLE_W                            # app.ELO_ENSEMBLE_W
+                      | {round(CLV.POISSON_1X2_WEIGHT, 4)}))
+W_PROD = CLV.POISSON_1X2_WEIGHT                            # app.POISSON_1X2_WEIGHT
 TRAIN_SEASONS = ("2022/23", "2023/24")
 TRAIN_WARMUP = 60        # righe iniziali per lega escluse dal SOLO campione train
 STAKE = 10.0             # puntata fissa, come backtest_experiment_all.STAKE
@@ -261,7 +261,7 @@ def render(payload):
     ap("")
     ap(f"Griglia w in {{{', '.join(f'{w:.1f}' for w in GRID_W)}}} (peso Poisson; "
        f"1-w su Elo). **w=0.6 e' il valore attuale di produzione** "
-       f"(`app.ELO_ENSEMBLE_W`). Selezione solo su TRAIN 2022/23+2023/24, "
+       f"(`app.POISSON_1X2_WEIGHT`). Selezione solo su TRAIN 2022/23+2023/24, "
        f"conferma su VALIDATION 2024/25, TEST 2025/26 sola lettura. Pipeline: "
        "walker condiviso di `diagnose_clv_pinnacle` (NORM-SUM bit-faithful a "
        "`run_models` + Elo K=24 di `diagnose_elo_ensemble`), esteso a emettere "
@@ -424,7 +424,7 @@ def render(payload):
        + ", ".join(c["split"] + f" {c['roi_wstar']:+.2f}% vs {c['roi_prod']:+.2f}%"
                    for c in roi_cmp)
        + " (w* vs 0.6): il blend più Elo scommessa più e peggio, quello attuale "
-       "meno e meglio. Abbassare ELO_ENSEMBLE_W migliora le metriche di "
+       "meno e meglio. Abbassare POISSON_1X2_WEIGHT migliora le metriche di "
        "calibrazione e peggiora il ROI storico: qualsiasi cambio di produzione "
        "deve pesare entrambi gli aspetti (qui si misura, non si decide).")
     ap("")

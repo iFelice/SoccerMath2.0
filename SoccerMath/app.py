@@ -636,23 +636,26 @@ def _league_mean_gate(xg_data):
     return None, None
 
 
-# --- ENSEMBLE POISSON+ELO SULL'1X2 (leva validata in audit) ---
-# Peso della componente Poisson nell'ensemble 1X2. Scelto in
-# audit/diagnose_elo_ensemble.py (walk-forward no-leakage, 5 leghe,
-# VALIDATION 2024/25 + TEST 2025/26): Brier 1X2 0.5893 (solo Poisson) ->
-# 0.5830 con w=0.6, migliore tra tutti i pesi testati e mai peggiore del
-# solo Poisson in TEST. Lo stesso blend 0.6/0.4 era gia' usato come
-# confidence del Top Mix; da qui in avanti e' la probabilita' 1X2 mostrata.
+# --- ENSEMBLE POISSON+ELO SULL'1X2 ---
+# Peso della componente POISSON: la probabilita' finale e'
+#   0.25 * Poisson + 0.75 * Elo.
+# Il vecchio nome ELO_ENSEMBLE_W era fuorviante proprio perche' indicava il
+# peso opposto. L'alias resta temporaneamente per gli import esterni, ma il
+# codice di produzione usa solo il nome non ambiguo. Questa rinomina non cambia
+# formule o numeri; l'eventuale ritaratura sul motore Elo corrente e' un audit
+# separato.
 # L'ensemble tocca SOLO le probabilita' 1X2 finali: stats del motore
 # (att/def/att0/def0/att0_pure/def0_pure), Totali (O/U, GG/NG) e la
 # funzione get_full_poisson_two_heads restano bit-identici.
-ELO_ENSEMBLE_W = 0.25
+POISSON_1X2_WEIGHT = 0.25
+# Compatibilita' temporanea: non usare in nuovo codice.
+ELO_ENSEMBLE_W = POISSON_1X2_WEIGHT
 
 
-def blend_elo_into_1x2(m, home, away, league, w=ELO_ENSEMBLE_W, elo_probs=None, elo_disponibile=True):
+def blend_elo_into_1x2(m, home, away, league, w=POISSON_1X2_WEIGHT, elo_probs=None, elo_disponibile=True):
     """Ritorna una COPIA del dizionario Poisson con l'1X2 nella forma
-    ``w*Poisson + (1-w)*Elo`` (peso Poisson = ``ELO_ENSEMBLE_W``, validato
-    in audit/diagnose_elo_ensemble.py). I Totali (u15/u25/u35/gg) e ogni
+    ``w*Poisson + (1-w)*Elo`` (peso Poisson = ``POISSON_1X2_WEIGHT``, valore
+    attualmente in produzione). I Totali (u15/u25/u35/gg) e ogni
     altra chiave passano invariati. Se l'Elo non e' disponibile (errore del
     motore) ritorna il Poisson puro bit-identico: il degrado e' sempre
     controllato verso il comportamento pre-modifica.
@@ -1406,9 +1409,9 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
         min_conf = 0.60
     else:
         # Per 1X2: media armonica pesata (stesso peso dell'ensemble
-        # ELO_ENSEMBLE_W: la confidence coincide con la probabilita'
+        # POISSON_1X2_WEIGHT: la confidence coincide con la probabilita'
         # 1X2 ensemble usata ovunque)
-        confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
+        confidence = POISSON_1X2_WEIGHT * poisson_prob + (1 - POISSON_1X2_WEIGHT) * elo_prob
         min_conf = 0.55
 
     # Filtro qualità: confidence minima e nessun disaccordo estremo
@@ -1487,7 +1490,7 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
         confidence = poisson_prob
         min_conf = 0.60
     else:
-        confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob
+        confidence = POISSON_1X2_WEIGHT * poisson_prob + (1 - POISSON_1X2_WEIGHT) * elo_prob
         min_conf = 0.55
 
     disaccordo = abs(poisson_prob - elo_prob)
@@ -2090,8 +2093,9 @@ with tab1:
             h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})
             a_s = team_stats.get(clean_name(a_api), {"att": 1.0, "def": 1.0})
             m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
-            # 1X2 mostrato = ensemble Poisson+Elo (w=ELO_ENSEMBLE_W, validato
-            # in audit); Totali (u25/gg) restano Poisson puro. m_poisson (puro)
+            # 1X2 mostrato = ensemble Poisson+Elo
+            # (w=POISSON_1X2_WEIGHT, peso Poisson di produzione); Totali
+            # (u25/gg) restano Poisson puro. m_poisson (puro)
             # viene passato a show_details per la selezione (argmax): il blend
             # deve restare fuori dall'argmax, come in analisi_rapida_giornata().
             m = blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel)

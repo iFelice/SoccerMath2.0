@@ -88,7 +88,7 @@ class TestDueMotori(unittest.TestCase):
 
     def test_1x2_ogni_motore_usa_il_suo_elo(self):
         _n, righe = _gira(self.M_1X2, self.ELO_CUR, self.ELO_LEG)
-        w = app.ELO_ENSEMBLE_W
+        w = app.POISSON_1X2_WEIGHT
         p_cur = righe[MODEL_VARIANT_CURRENT][0][8]
         p_leg = righe[MODEL_VARIANT_LEGACY][0][8]
         self.assertAlmostEqual(round((w * 0.70 + (1 - w) * 0.50) * 100, 1), p_cur, places=6)
@@ -112,7 +112,7 @@ class TestDueMotori(unittest.TestCase):
     def test_elo_legacy_assente_non_fa_cadere_la_riga_attuale(self):
         n, righe = _gira(self.M_1X2, self.ELO_CUR, None, legacy_ko=True)
         self.assertEqual(2, n, "anche col legacy ko si scrivono le due righe")
-        w = app.ELO_ENSEMBLE_W
+        w = app.POISSON_1X2_WEIGHT
         self.assertAlmostEqual(round((w * 0.70 + (1 - w) * 0.50) * 100, 1),
                                righe[MODEL_VARIANT_CURRENT][0][8], places=6)
         self.assertAlmostEqual(70.0, righe[MODEL_VARIANT_LEGACY][0][8], places=6,

@@ -23,7 +23,7 @@ hit rate/ROI. Percio' in produzione:
 Contratti fissati da questo test (per sempre):
 
 1. ``app.blend_elo_into_1x2`` applica ESATTAMENTE ``w*Poisson + (1-w)*Elo``
-   con ``w = app.ELO_ENSEMBLE_W = 0.6`` alla terna 1X2, non tocca i Totali
+   con ``w = app.POISSON_1X2_WEIGHT = 0.25`` alla terna 1X2, non tocca i Totali
    (u15/u25/u35/gg) e non muta il dizionario di input; se l'Elo non e'
    disponibile (errore o valori non validi) degrada al Poisson puro
    bit-identico (comportamento pre-modifica).
@@ -82,6 +82,13 @@ POISSON_SAMPLE = {
 ELO_SAMPLE = {"1": 0.5431, "X": 0.2387, "2": 0.2182}
 
 
+class TestNomePesoEnsemble(unittest.TestCase):
+    def test_alias_legacy_ha_lo_stesso_valore(self):
+        """La rinomina e' solo semantica: il vecchio import resta bit-identico."""
+        self.assertEqual(prod_app.POISSON_1X2_WEIGHT, 0.25)
+        self.assertEqual(prod_app.ELO_ENSEMBLE_W, prod_app.POISSON_1X2_WEIGHT)
+
+
 class TestBlendEloInto1x2Formula(unittest.TestCase):
     """Contratto matematico dell'ensemble, Elo controllato via mock."""
 
@@ -90,7 +97,7 @@ class TestBlendEloInto1x2Formula(unittest.TestCase):
                                return_value=dict(ELO_SAMPLE)):
             out = prod_app.blend_elo_into_1x2(dict(POISSON_SAMPLE),
                                               "Home", "Away", "Serie A")
-        w = prod_app.ELO_ENSEMBLE_W
+        w = prod_app.POISSON_1X2_WEIGHT
         self.assertEqual(w, 0.25,
                          "il peso dell'ensemble deve restare 0.25 "
                          "(conferma 2026-09-12 in ensemble_weight_grid_search.md)")
@@ -193,7 +200,7 @@ class TestEnsembleSuCampioneReale(unittest.TestCase):
                     hs, as_, avg_h, avg_a)
                 m_blend = prod_app.blend_elo_into_1x2(m_raw, h, a, camp_key)
                 elo_p = prod_app.predict_elo_probs(h, a, camp_key)
-                w = prod_app.ELO_ENSEMBLE_W
+                w = prod_app.POISSON_1X2_WEIGHT
                 for k in KEYS_1X2:
                     self.assertEqual(
                         m_blend[k],
@@ -253,7 +260,7 @@ class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
                   "u15": 0.35, "u25": 0.55, "u35": 0.75, "gg": 0.60}
         elo = {"1": 0.50, "X": 0.28, "2": 0.22}
         pron, prob = self._run(m_pure, elo)
-        w = prod_app.ELO_ENSEMBLE_W
+        w = prod_app.POISSON_1X2_WEIGHT
         attesa = w * 0.70 + (1 - w) * 0.50
         self.assertTrue(pron.startswith("Vittoria TeamH"),
                         f"la selezione deve restare sull'argmax Poisson: {pron}")
@@ -367,7 +374,7 @@ class TestShowDetailsSelezionePuraProbabilitaBlendata(unittest.TestCase):
                   "u15": 0.35, "u25": 0.55, "u35": 0.75, "gg": 0.60}
         m_blend = self._blend(m_pure, elo={"1": 0.50, "X": 0.28, "2": 0.22})
         pron, prob, kwargs = self._call(m_pure, m_blend, "fallback")
-        attesa = prod_app.ELO_ENSEMBLE_W * 0.70 + (1 - prod_app.ELO_ENSEMBLE_W) * 0.50
+        attesa = prod_app.POISSON_1X2_WEIGHT * 0.70 + (1 - prod_app.POISSON_1X2_WEIGHT) * 0.50
         self.assertTrue(pron.startswith("Vittoria TeamH"),
                         f"la selezione deve restare sull'argmax Poisson: {pron}")
         self.assertIn("Fallback", pron)
@@ -395,7 +402,7 @@ class TestShowDetailsSelezionePuraProbabilitaBlendata(unittest.TestCase):
                   "u15": 0.35, "u25": 0.55, "u35": 0.75, "gg": 0.60}
         m_blend = self._blend(m_pure, elo={"1": 0.50, "X": 0.28, "2": 0.22})
         pron, prob, _ = self._call(m_pure, m_blend, "errore_ai")
-        attesa = prod_app.ELO_ENSEMBLE_W * 0.70 + (1 - prod_app.ELO_ENSEMBLE_W) * 0.50
+        attesa = prod_app.POISSON_1X2_WEIGHT * 0.70 + (1 - prod_app.POISSON_1X2_WEIGHT) * 0.50
         self.assertTrue(pron.startswith("Vittoria TeamH"),
                         f"atteso argmax Poisson anche su Errore AI: {pron}")
         self.assertIn("Errore AI", pron)
@@ -427,7 +434,7 @@ class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
         self.assertGreaterEqual(
             n_calls, 3,
             "blend_elo_into_1x2 non risulta cablata nei punti di emissione")
-        self.assertIn("confidence = ELO_ENSEMBLE_W * poisson_prob", src,
+        self.assertIn("confidence = POISSON_1X2_WEIGHT * poisson_prob", src,
                       "la confidence 1X2 del Top Mix deve usare lo stesso "
                       "peso dell'ensemble")
 

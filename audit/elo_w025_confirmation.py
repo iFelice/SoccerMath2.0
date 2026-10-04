@@ -1,6 +1,6 @@
 """
 elo_w025_confirmation.py — Audit di CONFERMA (sola lettura) per il cambio di
-produzione ``ELO_ENSEMBLE_W`` 0.6 -> 0.25.
+produzione ``POISSON_1X2_WEIGHT`` 0.6 -> 0.25.
 
 RIUSA la pipeline gia' committata di ``audit/grid_search_ensemble_weight.py``
 (walker condiviso di ``diagnose_clv_pinnacle``, matrici per-riga-per-w,
@@ -43,7 +43,7 @@ from backtest_experiment_all import LEAGUES  # noqa: E402
 
 OUT_PATH = GS.OUT_PATH                     # audit/results/ensemble_weight_grid_search.md
 
-W_OLD = 0.6                                # attuale (app.ELO_ENSEMBLE_W)
+W_OLD = 0.6                                # attuale (app.POISSON_1X2_WEIGHT)
 W_NEW = 0.25                               # candidato
 MARK_START = "<!-- conferma-w025:start -->"
 MARK_END = "<!-- conferma-w025:end -->"
@@ -126,7 +126,7 @@ def render_section(payload):
     L = []
     ap = L.append
     ap(MARK_START)
-    ap(f"## Conferma cambio produzione: ELO_ENSEMBLE_W 0.6 -> 0.25 "
+    ap(f"## Conferma cambio produzione: POISSON_1X2_WEIGHT 0.6 -> 0.25 "
        f"({payload['generated_at']})")
     ap("")
     ap("Audit di conferma SOLA LETTURA riusando la pipeline di questo report "
