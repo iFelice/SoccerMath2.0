@@ -1,10 +1,16 @@
 {
- "_schema": "elo_walker_parity/1",
- "generated_at_utc": "2026-10-05T13:19:05+00:00",
+ "_schema": "elo_walker_parity/2",
+ "generated_at_utc": "2026-10-05T17:39:09+00:00",
  "repo_head_commit": "3f9f04278096aba2bc96fc5335a45ccd0d219094",
- "main_merge_base_commit": "3f9f04278096aba2bc96fc5335a45ccd0d219094",
- "diff_vs_main_su_SoccerMath": "(vuoto: produzione identica a main)",
  "generato_da": "audit/make_elo_parity_fixture.py usando solo models/elo_engine.py (EloEngine, predict_elo_probs) non modificato",
+ "provenance": {
+  "commit": "3f9f04278096aba2bc96fc5335a45ccd0d219094",
+  "production_input_oids": {
+   "SoccerMath/models/elo_engine.py": "f76e6db59ee6c055c014d039a69938d80d399c2b",
+   "SoccerMath/config.py": "656bc59788bc2d9848f9538973985db21f77e49f",
+   "SoccerMath/database": "4650d65444bd7bc262d5f55dd7a55203097aaa63"
+  }
+ },
  "leagues": {
   "Serie A": {
    "n_matches_full_db": 1570,

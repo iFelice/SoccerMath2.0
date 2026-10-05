@@ -10,10 +10,12 @@ Cosa viene importato (e NON riscritto)
   (K base 24, moltiplicatore per scarto ``calculate_goal_margin_multiplier``,
   home advantage per lega da ``config.LEAGUE_HOME_ADVANTAGE``).
   L'aritmetica dell'update NON e' riscritta qui: si usa ``compute_ratings()``.
-* ``models.elo_engine.predict_elo_probs``    -> conversione Elo -> 1X2
+* ``models.elo_engine.elo_probs_from_ratings`` -> conversione Elo -> 1X2
   (e_H logistica su dr/400, p_draw gaussiana 0.27*exp(-(dr/320)^2) clip
   [0.06,0.34], normalizzazione, arrotondamento a 4 decimali).
-  La formula NON e' riscritta qui.
+  La formula NON e' riscritta qui. E' la funzione PURA estratta da
+  ``predict_elo_probs`` dalla PR #30 (bit-exact): prende i rating in input,
+  non legge nessuno stato globale.
 * ``app.blend_elo_into_1x2``                 -> blend w*Poisson + (1-w)*Elo.
   La formula NON e' riscritta qui.
 * ``diagnose_clv_pinnacle.run_model_with_elo`` -> testa Poisson di produzione
@@ -34,21 +36,37 @@ PRIMA della partita) e ``elo_after``. Il walker quindi:
      la coppia (elo_before casa, elo_before trasferta) per ogni partita
      leggendo le liste ``history`` in ordine di append (un cursore per
      squadra). Sono i rating di produzione, non ricalcolati;
-  3. per ogni partita inietta quei due rating in ``engine.ratings`` e chiama
-     ``predict_elo_probs(home, away, league)`` di produzione, che legge il
-     motore dalla cache di modulo ``_ELO_ENGINES_CACHE``.
+  3. per ogni partita passa quei due rating e l'home advantage della lega a
+     ``elo_probs_from_ratings(r_h, r_a, home_adv)`` di produzione.
 
 => previsione PRIMA, aggiornamento DOPO per costruzione (``elo_before`` e' per
 definizione lo stato precedente all'applicazione del delta di quella partita).
 Il walker non puo' "vedere" il risultato della partita che sta prevedendo.
 
-EFFETTO COLLATERALE DICHIARATO (necessario, confinato al processo di audit)
---------------------------------------------------------------------------
-``predict_elo_probs`` non accetta rating in input: prende il motore da
-``models.elo_engine._ELO_ENGINES_CACHE`` (cache globale di modulo, TTL 3600 s).
-Per usarla punto-nel-tempo bisogna scrivere in quella cache e mutare
-``engine.ratings`` prima di ogni chiamata. Vedi ``REFACTOR_MINIMO_PROPOSTO``
-in fondo al file: NON e' applicato.
+NESSUN EFFETTO COLLATERALE (dalla PR #30 in poi)
+------------------------------------------------
+La versione precedente di questo walker doveva scrivere in
+``models.elo_engine._ELO_ENGINES_CACHE`` (cache globale di modulo, TTL 3600 s)
+e mutare ``engine.ratings`` prima di ogni chiamata, perche' l'unico punto di
+ingresso alla conversione era ``predict_elo_probs``, che i rating se li va a
+prendere da solo dallo stato globale.
+
+La PR #30 ha estratto ``elo_probs_from_ratings(r_h, r_a, home_adv)``: funzione
+pura, i rating sono argomenti. Il walker ora chiama quella. Conseguenze
+verificabili:
+
+  * ``build_walker_table`` NON legge e NON scrive ``_ELO_ENGINES_CACHE`` /
+    ``_ELO_ENGINES_STAMP`` (il test di parita' lo asserisce confrontando lo
+    snapshot delle due dict prima e dopo la chiamata);
+  * ``engine.ratings`` non viene piu' sovrascritto a ogni riga, quindi il
+    motore passato dal chiamante esce dalla funzione integro;
+  * non serve piu' il "refresh" periodico per non far scadere il TTL;
+  * due walker su leghe diverse non possono piu' interferire fra loro.
+
+L'aritmetica non cambia di un bit: ``predict_elo_probs`` e'
+``elo_probs_from_ratings`` preceduta dalla sola risoluzione dei rating
+(``engine.ratings.get(clean_name(team), DEFAULT_INITIAL_RATING)``), che qui
+viene fatta dal walker a partire dalla ``history`` di produzione.
 
 ORDINAMENTO A PARITA' DI DATA (documentato, NON corretto)
 ---------------------------------------------------------
@@ -76,7 +94,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 from collections import defaultdict
 
 import numpy as np
@@ -91,8 +108,8 @@ if _SM not in sys.path:
     sys.path.insert(0, _SM)
 
 # --- PRODUZIONE (import, non riscrittura) --------------------------------
-import models.elo_engine as PROD_ELO                      # noqa: E402
-from models.elo_engine import EloEngine, predict_elo_probs  # noqa: E402
+import models.elo_engine as PROD_ELO                      # noqa: E402  (solo per il test di non-interferenza)
+from models.elo_engine import EloEngine, elo_probs_from_ratings  # noqa: E402
 from config import LEAGUE_HOME_ADVANTAGE, clean_name, get_league_db_files  # noqa: E402
 
 LEAGUES = ("Serie A", "Premier League", "La Liga", "Bundesliga", "Ligue 1")
@@ -140,37 +157,6 @@ def _prematch_ratings(engine: EloEngine) -> pd.DataFrame:
     return out
 
 
-class _CacheInjection:
-    """Context manager: installa ``engine`` nella cache di modulo di
-    produzione per ``league`` e la ripulisce all'uscita (nessuno stato
-    residuo fra leghe). Vedi EFFETTO COLLATERALE DICHIARATO nel docstring."""
-
-    def __init__(self, league: str, engine: EloEngine):
-        self.league = league
-        self.engine = engine
-        self._prev_engine = None
-        self._prev_stamp = None
-
-    def __enter__(self):
-        self._prev_engine = PROD_ELO._ELO_ENGINES_CACHE.get(self.league)
-        self._prev_stamp = PROD_ELO._ELO_ENGINES_STAMP.get(self.league)
-        PROD_ELO._ELO_ENGINES_CACHE[self.league] = self.engine
-        PROD_ELO._ELO_ENGINES_STAMP[self.league] = time.monotonic()
-        return self
-
-    def refresh(self):
-        PROD_ELO._ELO_ENGINES_STAMP[self.league] = time.monotonic()
-
-    def __exit__(self, *exc):
-        if self._prev_engine is None:
-            PROD_ELO._ELO_ENGINES_CACHE.pop(self.league, None)
-            PROD_ELO._ELO_ENGINES_STAMP.pop(self.league, None)
-        else:
-            PROD_ELO._ELO_ENGINES_CACHE[self.league] = self._prev_engine
-            PROD_ELO._ELO_ENGINES_STAMP[self.league] = self._prev_stamp
-        return False
-
-
 def build_walker_table(league: str, engine: EloEngine = None) -> pd.DataFrame:
     """Tabella per-partita del walker Elo fedele.
 
@@ -178,48 +164,61 @@ def build_walker_table(league: str, engine: EloEngine = None) -> pd.DataFrame:
     elo_home_pre, elo_away_pre, d (= dr con home advantage), e_H, p_draw,
     elo_1, elo_X, elo_2, home_adv.
 
-    ``d``/``e_H``/``elo_1/X/2`` vengono dall'OUTPUT di ``predict_elo_probs``
-    (produzione), non da una formula riscritta qui.
+    ``d``/``e_H``/``elo_1/X/2`` vengono dall'OUTPUT di
+    ``elo_probs_from_ratings`` (produzione, funzione pura), non da una formula
+    riscritta qui.
+
+    NON tocca ``_ELO_ENGINES_CACHE``/``_ELO_ENGINES_STAMP`` e NON muta
+    ``engine.ratings``: vedi "NESSUN EFFETTO COLLATERALE" nel docstring del
+    modulo.
     """
     if engine is None:
         engine = EloEngine(league)
         engine.compute_ratings()
     df = engine.matches_df
     pre = _prematch_ratings(engine)
-    final_ratings = dict(engine.ratings)   # da ripristinare a fine walk
+    home_adv = engine.home_adv       # stesso valore che predict_elo_probs passerebbe
 
     out = []
-    with _CacheInjection(league, engine) as inj:
-        for i, (idx, row) in enumerate(df.iterrows()):
-            if i % 200 == 0:
-                inj.refresh()              # mai far scadere il TTL di 3600 s
-            h_cl, a_cl = row["HomeClean"], row["AwayClean"]
-            r_h = pre.at[idx, "elo_home_pre"]
-            r_a = pre.at[idx, "elo_away_pre"]
-            # stato PRE-partita visibile a predict_elo_probs
-            engine.ratings = {h_cl: r_h, a_cl: r_a}
-            p = predict_elo_probs(row["HomeTeam"], row["AwayTeam"], league)
-            fthg = row.get("FTHG")
-            ftag = row.get("FTAG")
-            out.append({
-                "league": league,
-                "date": row["Date_Parsed"],
-                "home_raw": row["HomeTeam"], "away_raw": row["AwayTeam"],
-                "home": h_cl, "away": a_cl,
-                "FTHG": fthg, "FTAG": ftag,
-                "FTR": str(row["FTR"]).strip().upper(),
-                "home_adv": p["home_adv"],
-                "elo_home_pre": r_h, "elo_away_pre": r_a,
-                "d": p["elo_diff"],
-                "e_H": p["expected_score_home"],
-                # p_draw = componente pareggio di predict_elo_probs: la terna
-                # e' gia' normalizzata a 1 per costruzione, quindi elo_X e'
-                # esattamente p_draw arrotondato a 4 decimali dalla produzione.
-                "p_draw": p["X"],
-                "elo_1": p["1"], "elo_X": p["X"], "elo_2": p["2"],
-            })
-        engine.ratings = final_ratings
+    for idx, row in df.iterrows():
+        h_cl, a_cl = row["HomeClean"], row["AwayClean"]
+        r_h = pre.at[idx, "elo_home_pre"]
+        r_a = pre.at[idx, "elo_away_pre"]
+        # funzione PURA di produzione: i rating pre-partita sono argomenti,
+        # nessuno stato globale letto o scritto.
+        p = elo_probs_from_ratings(r_h, r_a, home_adv)
+        fthg = row.get("FTHG")
+        ftag = row.get("FTAG")
+        out.append({
+            "league": league,
+            "date": row["Date_Parsed"],
+            "home_raw": row["HomeTeam"], "away_raw": row["AwayTeam"],
+            "home": h_cl, "away": a_cl,
+            "FTHG": fthg, "FTAG": ftag,
+            "FTR": str(row["FTR"]).strip().upper(),
+            "home_adv": p["home_adv"],
+            "elo_home_pre": r_h, "elo_away_pre": r_a,
+            "d": p["elo_diff"],
+            "e_H": p["expected_score_home"],
+            # p_draw = componente pareggio di elo_probs_from_ratings: la terna
+            # e' gia' normalizzata a 1 per costruzione, quindi elo_X e'
+            # esattamente p_draw arrotondato a 4 decimali dalla produzione.
+            "p_draw": p["X"],
+            "elo_1": p["1"], "elo_X": p["X"], "elo_2": p["2"],
+        })
     return pd.DataFrame(out)
+
+
+def cache_snapshot() -> tuple:
+    """Fotografia delle due dict globali di ``models.elo_engine``.
+
+    Serve al test di non-interferenza: ``build_walker_table`` deve lasciarle
+    identiche a prima della chiamata.
+    """
+    return (
+        {k: id(v) for k, v in PROD_ELO._ELO_ENGINES_CACHE.items()},
+        dict(PROD_ELO._ELO_ENGINES_STAMP),
+    )
 
 
 # =====================================================================
@@ -261,32 +260,25 @@ def ordering_report(league: str) -> dict:
 
 
 # =====================================================================
-# REFACTOR_MINIMO_PROPOSTO (NON APPLICATO)
+# REFACTOR_MINIMO_PROPOSTO — stato aggiornato
 # =====================================================================
 REFACTOR_MINIMO_PROPOSTO = """
-models/elo_engine.py — estrarre la conversione Elo->1X2 in una funzione pura,
-e far chiamare quella a predict_elo_probs (zero cambi numerici):
+[1] APPLICATO IN PRODUZIONE dalla PR #30 (merge in main 4f07713).
 
-    def elo_probs_from_ratings(r_h: float, r_a: float, home_adv: float) -> dict:
-        dr = r_h + home_adv - r_a
-        e_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
-        e_a = 1.0 - e_h
-        p_draw = 0.27 * math.exp(-((dr / 320.0) ** 2))
-        p_draw = max(0.06, min(0.34, p_draw))
-        p_home = (1.0 - p_draw) * e_h
-        p_away = (1.0 - p_draw) * e_a
-        total = p_home + p_draw + p_away
-        return {...}   # corpo attuale di predict_elo_probs, invariato
+    models/elo_engine.py espone ora la funzione pura
 
-    def predict_elo_probs(home_team, away_team, league_name) -> dict:
-        engine = get_elo_engine(league_name)
-        r_h = engine.ratings.get(clean_name(home_team), DEFAULT_INITIAL_RATING)
-        r_a = engine.ratings.get(clean_name(away_team), DEFAULT_INITIAL_RATING)
-        return elo_probs_from_ratings(r_h, r_a, engine.home_adv)
+        elo_probs_from_ratings(r_h, r_a, home_adv) -> dict
 
-Motivo: senza questo, un backtest point-in-time non puo' chiedere le
-probabilita' per rating arbitrari senza scrivere nella cache globale
-_ELO_ENGINES_CACHE (effetto collaterale). Secondo (opzionale) hook utile:
-EloEngine.compute_ratings(as_of=None) per limitare il df a Date_Parsed < as_of.
-Nessuna delle due modifiche e' applicata in questo audit.
+    e predict_elo_probs la chiama dopo aver risolto i rating dal motore.
+    Questo walker la usa direttamente: non scrive piu' in
+    _ELO_ENGINES_CACHE, non muta engine.ratings.
+
+[2] NON APPLICATO (resta una proposta, fuori dal perimetro di questo audit):
+
+        EloEngine.compute_ratings(as_of=None)
+
+    per limitare il df a Date_Parsed < as_of senza passare dalla riscrittura
+    dei CSV in una cartella temporanea. Oggi il troncamento punto-nel-tempo
+    (usato dal generatore della fixture, cutoff_cases) si ottiene ripuntando
+    config.DATABASE_DIR su una copia filtrata.
 """

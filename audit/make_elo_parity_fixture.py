@@ -50,6 +50,7 @@ from models.elo_engine import EloEngine, predict_elo_probs     # noqa: E402
 LEAGUES = ("Serie A", "Premier League", "La Liga", "Bundesliga", "Ligue 1")
 OUT_DIR = os.path.join(_AUDIT_DIR, "fixtures")
 OUT_PATH = os.path.join(OUT_DIR, "elo_walker_parity.json")
+OUT_PATH_USED: list = []
 
 #: date di cutoff per lega: si scelgono i QUANTILI dell'indice di produzione,
 #: spostati alla PRIMA partita della sua data (vedi nota sul tie-order).
@@ -59,6 +60,25 @@ N_NOW_FIXTURES = 10
 
 def _git(*args):
     return subprocess.check_output(["git", *args], cwd=_REPO_ROOT).decode().strip()
+
+
+#: Input di PRODUZIONE da cui dipende, bit per bit, il contenuto numerico
+#: della fixture. Per ognuno si registra l'object id git al commit di
+#: generazione: un blob per i file, un tree per la cartella del DB (un solo
+#: hash che copre tutti i CSV e i loro contenuti).
+PRODUCTION_INPUTS = (
+    "SoccerMath/models/elo_engine.py",   # EloEngine, predict_elo_probs, formula 1X2
+    "SoccerMath/config.py",              # LEAGUE_HOME_ADVANTAGE, clean_name, get_league_db_files
+    "SoccerMath/database",               # tree: tutti i CSV letti da load_and_preprocess_matches
+)
+
+
+def production_input_oids(commit: str) -> dict:
+    """``{path: object id git al commit}`` per gli input di produzione.
+
+    Non dipende dal working tree: legge l'oggetto git del commit indicato.
+    """
+    return {p: _git("rev-parse", f"{commit}:{p}") for p in PRODUCTION_INPUTS}
 
 
 def _fresh_engine(league: str) -> EloEngine:
@@ -127,16 +147,29 @@ class _RepointDB:
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     head = _git("rev-parse", "HEAD")
-    diff_prod = _git("diff", "--stat", "3f9f04278096aba2bc96fc5335a45ccd0d219094",
-                     "--", "SoccerMath/")
+    # La fixture e' valida solo se gli input di produzione in working tree
+    # coincidono con quelli del commit dichiarato: altrimenti il commit scritto
+    # nel manifest non descriverebbe i numeri generati.
+    sporco = _git("status", "--porcelain", "--", *PRODUCTION_INPUTS)
+    if sporco:
+        raise SystemExit(
+            "RIFIUTO DI GENERARE: gli input di produzione hanno modifiche non "
+            "committate, il commit dichiarato nel manifest non li descriverebbe.\n"
+            + sporco)
     fixture = {
-        "_schema": "elo_walker_parity/1",
+        "_schema": "elo_walker_parity/2",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "repo_head_commit": head,
-        "main_merge_base_commit": "3f9f04278096aba2bc96fc5335a45ccd0d219094",
-        "diff_vs_main_su_SoccerMath": diff_prod or "(vuoto: produzione identica a main)",
         "generato_da": "audit/make_elo_parity_fixture.py usando solo "
                        "models/elo_engine.py (EloEngine, predict_elo_probs) non modificato",
+        # Provenienza AUTOCONTENUTA: nessun riferimento a main o a una
+        # whitelist di commit. Il test ricostruisce la fixture dal commit
+        # qui dichiarato e la confronta bit-exact; questi object id git
+        # dicono esattamente QUALE produzione quel commit contiene.
+        "provenance": {
+            "commit": head,
+            "production_input_oids": production_input_oids(head),
+        },
         "leagues": {},
     }
 
@@ -203,11 +236,17 @@ def main():
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    with open(OUT_PATH, "w", encoding="utf-8") as f:
+    out_path = OUT_PATH
+    if "--out" in sys.argv:
+        out_path = sys.argv[sys.argv.index("--out") + 1]
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(fixture, f, indent=1, ensure_ascii=False, sort_keys=False)
-    print(f"scritta {OUT_PATH}")
+    OUT_PATH_USED.append(out_path)
+    print(f"scritta {out_path}")
     print(f"commit di generazione: {head}")
-    print(f"diff produzione vs main: {fixture['diff_vs_main_su_SoccerMath']!r}")
+    for p, oid in fixture["provenance"]["production_input_oids"].items():
+        print(f"  input produzione {p:34s} {oid}")
     for lg in LEAGUES:
         b = fixture["leagues"][lg]
         print(f"  {lg:16s} n={b['n_matches_full_db']:5d} "

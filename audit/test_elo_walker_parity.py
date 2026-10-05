@@ -5,18 +5,54 @@ congelata.
 
 Fixture: audit/fixtures/elo_walker_parity.json
 Generata da: audit/make_elo_parity_fixture.py (solo codice di produzione)
-Il commit di generazione e' dentro la fixture (campo repo_head_commit) e viene
-ri-asserito qui contro il merge-base di main.
 
-Tre controlli:
+PROVENIENZA DELLA FIXTURE (riscritta: niente whitelist su main)
+---------------------------------------------------------------
+La versione precedente di questo test asseriva
+
+    git diff --stat <commit-cablato> -- SoccerMath/   ==   ""
+
+cioe' "la produzione di oggi deve essere identica a quella di un commit
+scritto a mano nel test". E' una whitelist: si rompe alla PRIMA PR che tocca
+la produzione anche solo per un refactor bit-exact (ed e' esattamente quello
+che e' successo con la PR #30, che ha estratto ``elo_probs_from_ratings``).
+Un test di provenienza non deve dipendere da dove sta main.
+
+La fixture dichiara da sola il commit che l'ha generata, nel suo manifest:
+
+    fixture["provenance"] = {
+        "commit": <sha>,
+        "production_input_oids": {<path di produzione>: <object id git>, ...}
+    }
+
+I tre controlli di provenienza, tutti RELATIVI AL COMMIT DICHIARATO e nessuno
+relativo a main:
+
+  V1  il commit dichiarato esiste in questo repository;
+  V2  gli object id degli input di produzione registrati nel manifest sono
+      davvero quelli di QUEL commit (``git rev-parse <commit>:<path>``):
+      il manifest non puo' dichiarare un commit e descriverne un altro;
+  V3  (prova forte) la fixture e' RIGENERABILE da quel commit: si estrae il
+      commit in un worktree git separato, vi si esegue il generatore e si
+      confronta bit-exact il blocco numerico ``leagues``.
+
+Conseguenza voluta: la produzione puo' evolvere quanto vuole senza rompere
+questo test. Cio' che il test nega e' solo che la fixture menta sulla propria
+origine. La corrispondenza fra fixture e produzione di OGGI e' invece
+compito di P1/P2/P3, che la misurano come fatto, non come whitelist.
+
+Controlli di parita':
+  P0  non interferenza: il walker non legge ne' scrive la cache globale di
+      modulo ``_ELO_ENGINES_CACHE`` / ``_ELO_ENGINES_STAMP``.
   P1  stato finale: il rating ``elo_after`` dell'ultima partita di ogni
       squadra nel walker == ``EloEngine.ratings`` di produzione (repr esatto).
-  P2  conversione: le probabilita' del walker, calcolate sullo stato finale,
+  P2  conversione: le probabilita' del walker (``elo_probs_from_ratings``)
       == ``predict_elo_probs`` di produzione sulle stesse coppie (bit-exact).
   P3  walk-forward: per ogni cutoff della fixture, le probabilita' del walker
       per la PRIMA partita della data di cutoff == quelle di un motore di
       PRODUZIONE costruito su CSV troncati a ``Date < cutoff`` (bit-exact),
       inclusi i rating pre-partita.
+  P4  no-leakage (classe TestNoLeakage).
 
 Esecuzione:
     python audit/test_elo_walker_parity.py
@@ -26,8 +62,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 
@@ -39,24 +77,121 @@ sys.path.insert(0, _AUDIT_DIR)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 
 import models.elo_engine as PROD_ELO                       # noqa: E402
-from models.elo_engine import EloEngine, predict_elo_probs  # noqa: E402
+from models.elo_engine import (                            # noqa: E402
+    EloEngine, predict_elo_probs, elo_probs_from_ratings,
+)
 import elo_walker_core as W                                 # noqa: E402
 
 FIXTURE_PATH = os.path.join(_AUDIT_DIR, "fixtures", "elo_walker_parity.json")
-MAIN_MERGE_BASE = "3f9f04278096aba2bc96fc5335a45ccd0d219094"
+GENERATOR_PATH = os.path.join(_AUDIT_DIR, "make_elo_parity_fixture.py")
 
 with open(FIXTURE_PATH, encoding="utf-8") as _f:
     FIX = json.load(_f)
 
 
+def _git(*args, cwd=_REPO_ROOT):
+    return subprocess.check_output(["git", *args], cwd=cwd,
+                                   stderr=subprocess.STDOUT).decode().strip()
+
+
 class TestProvenienzaFixture(unittest.TestCase):
-    def test_fixture_generata_da_produzione_di_main(self):
-        self.assertEqual(FIX["main_merge_base_commit"], MAIN_MERGE_BASE)
-        diff = subprocess.check_output(
-            ["git", "diff", "--stat", MAIN_MERGE_BASE, "--", "SoccerMath/"],
-            cwd=_REPO_ROOT).decode().strip()
-        self.assertEqual(diff, "", "la produzione e' stata modificata: "
-                                   "la fixture non e' piu' quella di main")
+    """Provenienza AUTOCONTENUTA: tutto e' relativo al commit che la fixture
+    dichiara. Nessun riferimento a main, nessun commit cablato nel test."""
+
+    def test_v0_manifest_ha_il_blocco_di_provenienza(self):
+        self.assertIn("provenance", FIX,
+                      "la fixture non dichiara da quale commit viene")
+        prov = FIX["provenance"]
+        self.assertIn("commit", prov)
+        self.assertIn("production_input_oids", prov)
+        self.assertTrue(prov["production_input_oids"],
+                        "nessun input di produzione registrato")
+        # coerenza interna del manifest
+        self.assertEqual(prov["commit"], FIX["repo_head_commit"])
+        # il test NON deve contenere commit cablati: lo si verifica leggendosi
+        with open(os.path.abspath(__file__), encoding="utf-8") as f:
+            src = f.read()
+        import re as _re
+        cablati = _re.findall(r"[\"\']([0-9a-f]{40})[\"\']", src)
+        self.assertEqual(cablati, [],
+                         f"commit cablati nel test (whitelist): {cablati}")
+
+    def test_v1_commit_dichiarato_esiste(self):
+        commit = FIX["provenance"]["commit"]
+        try:
+            tipo = _git("cat-file", "-t", commit)
+        except subprocess.CalledProcessError as e:
+            self.fail(f"il commit dichiarato {commit} non esiste in questo "
+                      f"repository: {e.output.decode().strip()}")
+        self.assertEqual(tipo, "commit")
+
+    def test_v2_oid_produzione_coerenti_col_commit_dichiarato(self):
+        commit = FIX["provenance"]["commit"]
+        attesi = FIX["provenance"]["production_input_oids"]
+        errori = []
+        for path, oid_dichiarato in sorted(attesi.items()):
+            try:
+                oid_reale = _git("rev-parse", f"{commit}:{path}")
+            except subprocess.CalledProcessError as e:
+                errori.append(f"{path}: non risolvibile al commit {commit[:12]} "
+                              f"({e.output.decode().strip()})")
+                continue
+            if oid_reale != oid_dichiarato:
+                errori.append(f"{path}: manifest={oid_dichiarato} "
+                              f"commit={oid_reale}")
+        if errori:
+            self.fail("il manifest non descrive il commit che dichiara:\n  "
+                      + "\n  ".join(errori))
+        print(f"\n  V2 OK: {len(attesi)} input di produzione coerenti con "
+              f"{commit[:12]}")
+
+    def test_v3_fixture_rigenerabile_dal_commit_dichiarato(self):
+        """Prova forte: si rigenera la fixture ESEGUENDO la produzione del
+        commit dichiarato (worktree separato) e si confronta il blocco
+        numerico bit-exact. Indipendente da dove sta main e da cosa contiene
+        il working tree di oggi."""
+        commit = FIX["provenance"]["commit"]
+        wt = tempfile.mkdtemp(prefix="elo_prov_wt_")
+        shutil.rmtree(wt, ignore_errors=True)          # git vuole il path libero
+        out_json = os.path.join(tempfile.mkdtemp(prefix="elo_prov_out_"),
+                                "rigenerata.json")
+        try:
+            try:
+                _git("worktree", "add", "--detach", wt, commit)
+            except subprocess.CalledProcessError as e:
+                self.skipTest("NON VERIFICABILE: git worktree non disponibile "
+                              f"o commit non estraibile: {e.output.decode().strip()}")
+            # il generatore e' uno strumento di audit, non di produzione:
+            # si porta quello di oggi sopra la PRODUZIONE del commit dichiarato.
+            os.makedirs(os.path.join(wt, "audit"), exist_ok=True)
+            shutil.copy(GENERATOR_PATH, os.path.join(wt, "audit"))
+            proc = subprocess.run(
+                [sys.executable, os.path.join("audit", "make_elo_parity_fixture.py"),
+                 "--out", out_json],
+                cwd=wt, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0,
+                             f"generatore fallito nel worktree:\n{proc.stdout}\n{proc.stderr}")
+            with open(out_json, encoding="utf-8") as f:
+                rig = json.load(f)
+            self.assertEqual(rig["provenance"]["commit"], commit,
+                             "il worktree non e' al commit dichiarato")
+            self.assertEqual(
+                rig["provenance"]["production_input_oids"],
+                FIX["provenance"]["production_input_oids"],
+                "gli input di produzione rigenerati non coincidono col manifest")
+            # confronto BIT-EXACT del blocco numerico
+            self.assertEqual(
+                json.dumps(rig["leagues"], sort_keys=True, ensure_ascii=False),
+                json.dumps(FIX["leagues"], sort_keys=True, ensure_ascii=False),
+                "la fixture NON e' riproducibile dal commit che dichiara")
+            n = sum(len(v["final_ratings"]) for v in FIX["leagues"].values())
+            print(f"\n  V3 OK: fixture rigenerata da {commit[:12]} identica "
+                  f"({len(FIX['leagues'])} leghe, {n} rating finali)")
+        finally:
+            subprocess.run(["git", "worktree", "remove", "--force", wt],
+                           cwd=_REPO_ROOT, capture_output=True)
+            shutil.rmtree(wt, ignore_errors=True)
+            shutil.rmtree(os.path.dirname(out_json), ignore_errors=True)
 
 
 class TestParitaWalker(unittest.TestCase):
@@ -65,13 +200,52 @@ class TestParitaWalker(unittest.TestCase):
     def setUpClass(cls):
         cls.engines = {}
         cls.tables = {}
+        cls.cache_prima = {}
+        cls.cache_dopo = {}
+        cls.ratings_intatti = {}
         for lg in W.LEAGUES:
             PROD_ELO._ELO_ENGINES_CACHE.pop(lg, None)
             PROD_ELO._ELO_ENGINES_STAMP.pop(lg, None)
             e = EloEngine(lg)
             e.compute_ratings()
             cls.engines[lg] = e
+            rating_finali = {t: repr(float(r)) for t, r in e.ratings.items()}
+            cls.cache_prima[lg] = W.cache_snapshot()
             cls.tables[lg] = W.build_walker_table(lg, engine=e)
+            cls.cache_dopo[lg] = W.cache_snapshot()
+            cls.ratings_intatti[lg] = (
+                rating_finali == {t: repr(float(r)) for t, r in e.ratings.items()})
+
+    # ---- P0 -------------------------------------------------------------
+    def test_p0_walker_non_tocca_la_cache_globale(self):
+        """Il walker usa la funzione PURA elo_probs_from_ratings: non deve
+        leggere ne' scrivere _ELO_ENGINES_CACHE / _ELO_ENGINES_STAMP, ne'
+        mutare engine.ratings."""
+        for lg in W.LEAGUES:
+            self.assertEqual(self.cache_prima[lg], self.cache_dopo[lg],
+                             f"{lg}: build_walker_table ha toccato la cache globale")
+            self.assertTrue(self.ratings_intatti[lg],
+                            f"{lg}: build_walker_table ha mutato engine.ratings")
+        # e la cache deve essere rimasta VUOTA per queste leghe: il walker non
+        # ci ha mai scritto nulla (nessun engine installato, nessun timestamp)
+        for lg in W.LEAGUES:
+            self.assertNotIn(lg, PROD_ELO._ELO_ENGINES_CACHE,
+                             f"{lg}: engine lasciato nella cache globale")
+            self.assertNotIn(lg, PROD_ELO._ELO_ENGINES_STAMP,
+                             f"{lg}: timestamp lasciato nella cache globale")
+        # prova strutturale: i nomi globali/attributi referenziati dal
+        # bytecode di build_walker_table (co_names ignora commenti e
+        # docstring) contengono la funzione pura e NON la cache di modulo.
+        nomi = set(W.build_walker_table.__code__.co_names)
+        self.assertIn("elo_probs_from_ratings", nomi,
+                      f"il walker non chiama la funzione pura; co_names={sorted(nomi)}")
+        for vietato in ("_ELO_ENGINES_CACHE", "_ELO_ENGINES_STAMP",
+                        "predict_elo_probs", "get_elo_engine"):
+            self.assertNotIn(vietato, nomi,
+                             f"il walker referenzia ancora {vietato}")
+        print("\n  P0 OK: cache globale intatta per tutte e 5 le leghe; "
+              f"co_names(build_walker_table) include elo_probs_from_ratings "
+              f"e nessun simbolo di cache")
 
     # ---- P1 -------------------------------------------------------------
     def test_p1_stato_finale_identico(self):
@@ -95,17 +269,37 @@ class TestParitaWalker(unittest.TestCase):
 
     # ---- P2 -------------------------------------------------------------
     def test_p2_conversione_identica(self):
+        """Due lati, stesso bit:
+        (a) produzione di oggi (predict_elo_probs) vs fixture congelata;
+        (b) via del walker (elo_probs_from_ratings, funzione pura) vs la
+            stessa produzione, sugli stessi rating."""
+        import config as PROD_CONFIG
+        n = 0
         for lg in W.LEAGUES:
             eng = self.engines[lg]
             PROD_ELO._ELO_ENGINES_CACHE[lg] = eng
             PROD_ELO._ELO_ENGINES_STAMP[lg] = time.monotonic()
             for case in FIX["leagues"][lg]["now_fixtures"]:
                 got = predict_elo_probs(case["home_raw"], case["away_raw"], lg)
+                # (a) produzione vs fixture
                 for k, v in case["probs"].items():
                     self.assertEqual(repr(got[k]), repr(v),
                                      f"{lg} {case['home_raw']}-{case['away_raw']} chiave {k}")
+                # (b) walker (funzione pura) vs produzione
+                r_h = eng.ratings.get(PROD_CONFIG.clean_name(case["home_raw"]),
+                                      PROD_ELO.DEFAULT_INITIAL_RATING)
+                r_a = eng.ratings.get(PROD_CONFIG.clean_name(case["away_raw"]),
+                                      PROD_ELO.DEFAULT_INITIAL_RATING)
+                puro = elo_probs_from_ratings(r_h, r_a, eng.home_adv)
+                for k in got:
+                    self.assertEqual(repr(puro[k]), repr(got[k]),
+                                     f"{lg} {case['home_raw']}-{case['away_raw']} "
+                                     f"chiave {k}: funzione pura != predict_elo_probs")
+                n += 1
             PROD_ELO._ELO_ENGINES_CACHE.pop(lg, None)
             PROD_ELO._ELO_ENGINES_STAMP.pop(lg, None)
+        print(f"\n  P2 OK: {n} accoppiamenti, fixture == predict_elo_probs == "
+              f"elo_probs_from_ratings")
 
     # ---- P3 -------------------------------------------------------------
     def test_p3_walk_forward_vs_produzione_troncata(self):
