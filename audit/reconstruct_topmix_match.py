@@ -91,9 +91,9 @@ OU_GG_MARKETS = ("Over 2.5", "Under 2.5", "GG", "NG")
 MIN_CONF_OU_GG = 0.60
 MIN_CONF_1X2 = 0.55
 # Pesi del blend 1X2 del Top Mix: agganciati alla costante di produzione
-# app.ELO_ENSEMBLE_W (ensemble Poisson+Elo validato in
+# app.POISSON_1X2_WEIGHT (ensemble Poisson+Elo validato in
 # audit/diagnose_elo_ensemble.py), cosi' la ricostruzione non puo' divergere.
-POISSON_WEIGHT = float(_prod.ELO_ENSEMBLE_W)
+POISSON_WEIGHT = float(_prod.POISSON_1X2_WEIGHT)
 ELO_WEIGHT = 1.0 - POISSON_WEIGHT
 ELO_DISAGREE_MAX = 0.25
 TOP_N = 10

@@ -42,7 +42,7 @@ Metriche (convenzioni degli altri audit): Brier/LogLoss 1X2
 (brier_ll_1x2) e ROI a puntata fissa con selezione edge>0 vs fair de-vigata
  Bet365 e Average, settle sullo stesso book (roi_1x2, EDGE_MIN=0), su
 VALIDATION 2024/25 e TEST 2025/26, per lega e aggregato, sia sulla testa
-Poisson pura sia sul blend di produzione 0.6/0.4 (app.ELO_ENSEMBLE_W).
+Poisson pura sia sul blend di produzione 0.6/0.4 (app.POISSON_1X2_WEIGHT).
 
 Output: audit/results/market_values_versioned_report.md
 Uso:    python audit/market_values_versioned.py
@@ -78,7 +78,7 @@ OUT_PATH = os.path.join(OUT_DIR, "market_values_versioned_report.md")
 
 STAKE = 10.0
 EDGE_MIN = 0.0                    # convenzione backtest_experiment_all
-ELO_ENSEMBLE_W = CLV.ELO_ENSEMBLE_W   # 0.6, app.ELO_ENSEMBLE_W
+POISSON_1X2_WEIGHT = CLV.POISSON_1X2_WEIGHT   # peso Poisson di produzione
 SUMMER_DAY = (9, 15)              # rilevazione post-estiva: 15/9
 WINTER_DAY = (2, 15)              # rilevazione post-invernale: 15/2
 
@@ -460,9 +460,9 @@ def run_market_variants(df, camp_key, xg_data, lookup):
                     lh, la = lam_base_h, lam_base_a
                 mp = CLV.get_full_poisson(CLV._clip_lambda(lh), CLV._clip_lambda(la))
                 rec[f"{tag}_1"], rec[f"{tag}_X"], rec[f"{tag}_2"] = mp["1"], mp["X"], mp["2"]
-                rec[f"{tag}b_1"] = ELO_ENSEMBLE_W * mp["1"] + (1 - ELO_ENSEMBLE_W) * e1
-                rec[f"{tag}b_X"] = ELO_ENSEMBLE_W * mp["X"] + (1 - ELO_ENSEMBLE_W) * eX
-                rec[f"{tag}b_2"] = ELO_ENSEMBLE_W * mp["2"] + (1 - ELO_ENSEMBLE_W) * e2
+                rec[f"{tag}b_1"] = POISSON_1X2_WEIGHT * mp["1"] + (1 - POISSON_1X2_WEIGHT) * e1
+                rec[f"{tag}b_X"] = POISSON_1X2_WEIGHT * mp["X"] + (1 - POISSON_1X2_WEIGHT) * eX
+                rec[f"{tag}b_2"] = POISSON_1X2_WEIGHT * mp["2"] + (1 - POISSON_1X2_WEIGHT) * e2
             rec["dfac_h"] = abs(mkt_ver_h - mkt_static_h)
             rec["dfac_a"] = abs(mkt_ver_a - mkt_static_a)
             rows.append(rec)

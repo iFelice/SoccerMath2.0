@@ -94,7 +94,7 @@ class TestProductionConstants(unittest.TestCase):
         src = _app_topmix_source()
         # la confidence 1X2 usa la costante condivisa dell'ensemble
         self.assertIn(
-            "confidence = ELO_ENSEMBLE_W * poisson_prob + (1 - ELO_ENSEMBLE_W) * elo_prob",
+            "confidence = POISSON_1X2_WEIGHT * poisson_prob + (1 - POISSON_1X2_WEIGHT) * elo_prob",
             src)
         # semantica del peso: 0.25 Poisson / 0.75 Elo (porting 2026-09-12,
         # conferma in audit/results/ensemble_weight_grid_search.md)
