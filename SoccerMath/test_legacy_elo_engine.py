@@ -11,8 +11,14 @@ di PRIMA del fix, non una ricostruzione: questi test lo dimostrano.
   si chiede conferma anche a git.
 * ``TestUnicaDifferenza``: il diff fra motore legacy e attuale e' SOLO il
   boost xG retroattivo di ``compute_ratings`` (import di ``get_understat_xg``,
-  ``xg_data``, ``xg_adj``, ``xg_elo_boost`` in ``dr``); ``predict_elo_probs``
-  e' identica riga per riga.
+  ``xg_data``, ``xg_adj``, ``xg_elo_boost`` in ``dr``) PIU' l'estrazione
+  puramente strutturale di ``elo_probs_from_ratings`` (PR #30), che il file
+  legacy non puo' ricevere perche' e' congelato verbatim al blob
+  ``784cecc9...``. L'estrazione non cambia numeri: la condizione
+  ``predict_elo_probs identica nei due motori``, che prima era un confronto di
+  testo, e' ora verificata (a) come testo sulla forma delegante attesa e
+  (b) come IDENTITA' NUMERICA bit-exact fra i due moduli su una griglia di
+  rating e home advantage.
 * ``TestConvivenza``: i due moduli hanno cache separate e danno probabilita'
   diverse sugli stessi dati (se le medie xG ci sono: senza, il boost e' 0 e i
   due motori coincidono per costruzione).
@@ -76,8 +82,30 @@ class TestProvenienzaVerbatim(unittest.TestCase):
             self.assertEqual(genitore.strip(), L.LEGACY_ELO_SOURCE_COMMIT)
 
 
+def _senza_docstring(src: str, nome_funzione: str) -> str:
+    """Sorgente con le righe del docstring di ``nome_funzione`` rimosse.
+
+    Serve al diff testuale: il docstring della funzione estratta (PR #30)
+    documenta la formula ed e' lungo; pinnarlo riga per riga in questo test
+    lo renderebbe un duplicato della documentazione. Il CODICE resta pinnato
+    integralmente.
+    """
+    albero = ast.parse(src)
+    righe = src.splitlines()
+    for node in albero.body:
+        if isinstance(node, ast.FunctionDef) and node.name == nome_funzione:
+            doc = node.body[0] if node.body else None
+            if (isinstance(doc, ast.Expr) and isinstance(doc.value, ast.Constant)
+                    and isinstance(doc.value.value, str)):
+                return "\n".join(righe[:doc.lineno - 1] + righe[doc.end_lineno:])
+            return src
+    raise AssertionError(nome_funzione)
+
+
 class TestUnicaDifferenza(unittest.TestCase):
+    #: righe presenti SOLO nel legacy (boost xG) o spostate dal refactor PR #30
     RIMOSSE_ATTESE = [
+        # --- boost xG retroattivo, unica differenza di COMPORTAMENTO ---
         "from scraper_xg import get_understat_xg",
         "xg_data = get_understat_xg(self.league_name) or {}",
         "xg_adj = 0.0",
@@ -90,8 +118,32 @@ class TestUnicaDifferenza(unittest.TestCase):
         "",
         "xg_elo_boost = max(-100, min(100, xg_adj * 400))",
         "dr = r_h + self.home_adv - r_a + xg_elo_boost",
+        # --- PR #30: estrazione di elo_probs_from_ratings, nessun numero cambia ---
+        "def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:",
+        "engine = get_elo_engine(league_name)",
+        "h_cl = clean_name(home_team)",
+        "a_cl = clean_name(away_team)",
+        "r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)",
+        "r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)",
+        "dr = r_h + engine.home_adv - r_a",
+        '"elo_diff": round(dr, 1), "home_adv": engine.home_adv,',
     ]
-    AGGIUNTE_ATTESE = ["dr = r_h + self.home_adv - r_a"]
+    #: righe presenti SOLO nell'attuale (docstring della funzione pura escluso)
+    AGGIUNTE_ATTESE = [
+        "dr = r_h + self.home_adv - r_a",
+        "def elo_probs_from_ratings(r_h: float, r_a: float, home_adv: float) -> dict:",
+        "dr = r_h + home_adv - r_a",
+        '"elo_diff": round(dr, 1), "home_adv": home_adv,',
+        "",
+        "",
+        "def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:",
+        "engine = get_elo_engine(league_name)",
+        "h_cl = clean_name(home_team)",
+        "a_cl = clean_name(away_team)",
+        "r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)",
+        "r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)",
+        "return elo_probs_from_ratings(r_h, r_a, engine.home_adv)",
+    ]
 
     @classmethod
     def setUpClass(cls):
@@ -101,7 +153,8 @@ class TestUnicaDifferenza(unittest.TestCase):
             cls.current = f.read()
 
     def test_il_diff_e_solo_il_boost_xg(self):
-        diff = list(difflib.unified_diff(self.legacy.splitlines(), self.current.splitlines(),
+        corrente = _senza_docstring(self.current, "elo_probs_from_ratings")
+        diff = list(difflib.unified_diff(self.legacy.splitlines(), corrente.splitlines(),
                                          lineterm="", n=0))
         rimosse = [l[1:].strip() for l in diff if l.startswith("-") and not l.startswith("---")]
         aggiunte = [l[1:].strip() for l in diff if l.startswith("+") and not l.startswith("+++")]
@@ -114,11 +167,60 @@ class TestUnicaDifferenza(unittest.TestCase):
                 return ast.unparse(node)
         raise AssertionError(nome)
 
-    def test_predict_elo_probs_identica_nei_due_motori(self):
-        self.assertEqual(self._fn(self.legacy, "predict_elo_probs"),
-                         self._fn(self.current, "predict_elo_probs"))
+    def test_get_elo_engine_identica_nei_due_motori(self):
         self.assertEqual(self._fn(self.legacy, "get_elo_engine"),
                          self._fn(self.current, "get_elo_engine"))
+
+    def test_predict_elo_probs_attuale_e_sola_delega(self):
+        """La versione attuale e' ESATTAMENTE la forma delegante attesa."""
+        self.assertEqual(
+            self._fn(self.current, "predict_elo_probs"),
+            "def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:\n"
+            "    engine = get_elo_engine(league_name)\n"
+            "    h_cl = clean_name(home_team)\n"
+            "    a_cl = clean_name(away_team)\n"
+            "    r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)\n"
+            "    r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)\n"
+            "    return elo_probs_from_ratings(r_h, r_a, engine.home_adv)")
+
+    def test_predict_elo_probs_identica_nei_due_motori_bit_exact(self):
+        """Identita' NUMERICA legacy vs attuale: stessi rating, stesso
+        home advantage, dizionari bit-identici su tutte le chiavi.
+
+        Sostituisce il vecchio confronto di testo, che il refactor PR #30
+        rende strutturalmente impossibile (il legacy e' congelato verbatim).
+        """
+        import time
+        import models.elo_engine as attuale
+        import models.elo_engine_legacy as legacy
+
+        class _Stub:
+            def __init__(self, ratings, home_adv):
+                self.ratings = dict(ratings)
+                self.home_adv = home_adv
+
+        lega = "__PARITA_LEGACY__"
+        for home_adv in (55.0, 56.0, 58.0, 60.0, 70.0):
+            for r_h in range(1200, 1901, 50):
+                for r_a in range(1200, 1901, 50):
+                    stub_a = _Stub({"CASA": float(r_h), "FUORI": float(r_a)}, home_adv)
+                    stub_l = _Stub({"CASA": float(r_h), "FUORI": float(r_a)}, home_adv)
+                    attuale._ELO_ENGINES_CACHE[lega] = stub_a
+                    attuale._ELO_ENGINES_STAMP[lega] = time.monotonic()
+                    legacy._ELO_ENGINES_CACHE[lega] = stub_l
+                    legacy._ELO_ENGINES_STAMP[lega] = time.monotonic()
+                    try:
+                        a = attuale.predict_elo_probs("CASA", "FUORI", lega)
+                        b = legacy.predict_elo_probs("CASA", "FUORI", lega)
+                    finally:
+                        attuale._ELO_ENGINES_CACHE.pop(lega, None)
+                        attuale._ELO_ENGINES_STAMP.pop(lega, None)
+                        legacy._ELO_ENGINES_CACHE.pop(lega, None)
+                        legacy._ELO_ENGINES_STAMP.pop(lega, None)
+                    self.assertEqual(sorted(a), sorted(b))
+                    for k in a:
+                        self.assertEqual(repr(a[k]), repr(b[k]),
+                                         f"chiave {k} r_h={r_h} r_a={r_a} ha={home_adv}")
 
     def test_costanti_identiche(self):
         for nome in ("DEFAULT_INITIAL_RATING", "HOME_ADVANTAGE", "BASE_K_FACTOR",
