@@ -36,3 +36,9 @@ SoccerMath/database/predictions.json
 .vscode/
 .idea/
 xg-verify-out/
+
+# Audit: artefatti pesanti rigenerabili dagli script in audit/
+# (parquet, csv.gz, json per-partita). Si rigenerano con:
+#   python audit/elo_weight_retune.py
+#   python audit/elo_conversion_audit.py
+audit/output/

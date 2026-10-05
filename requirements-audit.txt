@@ -1,1 +1,21 @@
+# Dipendenze dei soli script di audit (cartella audit/).
+# NON sono dipendenze di produzione: SoccerMath/ gira con
+# SoccerMath/requirements.txt e basta.
+#
+# Ordine di installazione in CI (vedi i workflow):
+#   pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest
+#
+# Le versioni sono FISSATE (==) a quelle con cui sono stati prodotti i
+# risultati nei referti sotto audit/results/: un audit deve essere
+# riproducibile, non "l'ultima che passa".
+#
+# scipy e pyarrow sono gia' soddisfatte dall'ambiente di produzione
+# (scipy e' in SoccerMath/requirements.txt, pyarrow arriva come dipendenza di
+# streamlit): qui vengono fissate alle stesse versioni che quell'ambiente
+# installa, quindi il pin NON provoca ne' downgrade ne' upgrade di numpy o
+# pandas. Verificato in venv pulito, vedi audit/results/elo_conversion_audit.md.
+
 scikit-learn==1.9.1
+statsmodels==0.15.0
+scipy==1.17.1
+pyarrow==25.0.1
