@@ -1168,6 +1168,30 @@ def sezione_prerequisiti(ap):
     ap("```")
     ap("")
 
+    ap("### P.7 Ambiente di esecuzione")
+    ap("")
+    ap("Le dipendenze degli script di audit stanno in `requirements-audit.txt`, "
+       "con versioni **fissate** (`==`): un audit deve essere riproducibile. "
+       "In CI si installano nell'ordine")
+    ap("")
+    ap("```")
+    ap("pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest")
+    ap("```")
+    ap("")
+    rc, out = _run("python -m pip freeze")
+    interessanti = ("numpy", "pandas", "scipy", "pyarrow", "statsmodels",
+                    "scikit-learn", "streamlit", "pytest")
+    righe = [l for l in out.splitlines()
+             if l.split("==")[0].strip().lower() in interessanti]
+    ap("**Versioni con cui sono stati prodotti i numeri di questo referto**")
+    ap(""); ap("```"); ap("\n".join(sorted(righe, key=str.lower)) or "(non rilevate)")
+    ap("```"); ap("")
+    ap("`scipy` e `pyarrow` sono fissate alle stesse versioni che l'ambiente di "
+       "produzione gia' installa (`scipy` e' in `SoccerMath/requirements.txt`, "
+       "`pyarrow` arriva come dipendenza di `streamlit`): il pin non sposta "
+       "`numpy` ne' `pandas`. Verificato in venv pulito con `pip check`.")
+    ap("")
+
 
 def scrivi_report(d, R_, head, sporco, stime, w_scelti):
     A = []

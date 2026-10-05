@@ -1,7 +1,7 @@
 # Audit della conversione Elo -> 1X2 (punto 3 della roadmap Elo)
 
-Generato: 2026-10-05T17:57:13+00:00 UTC  
-Commit: `d28e9244f8c48517ed9cf37e7c3cf8c9a7819362`  
+Generato: 2026-10-05T19:31:48+00:00 UTC  
+Commit: `f864dd38559a4d9830f0b2fdb8242cc9aac9b111`  
 Produzione (`SoccerMath/`) modificata rispetto a HEAD: **(pulita: nessuna modifica)**  
 `app.POISSON_1X2_WEIGHT` letto in sola lettura: **0.25** (non modificato)  
 Bootstrap: 2000 repliche, seed 20260905, blocchi (lega x stagione x giornata), IC percentile 2.5-97.5  
@@ -113,10 +113,10 @@ audit/test_elo_walker_parity.py::TestNoLeakage::test_p4_alterare_il_risultato_no
   P4: righe successive modificate = 467 / 569
 PASSED
 
-============================== 9 passed in 7.80s ===============================
+============================== 9 passed in 8.94s ===============================
 ```
 
-**Esito**: TUTTI VERDI — `============================== 9 passed in 7.80s ===============================`. P1 (stato finale), P2 (conversione), P3 (walk-forward contro la produzione su CSV troncati) e P4 (no-leakage) restano **bit-exact** dopo il passaggio del walker alla funzione pura; P0 e' il nuovo controllo di non interferenza con la cache globale.
+**Esito**: TUTTI VERDI — `============================== 9 passed in 8.94s ===============================`. P1 (stato finale), P2 (conversione), P3 (walk-forward contro la produzione su CSV troncati) e P4 (no-leakage) restano **bit-exact** dopo il passaggio del walker alla funzione pura; P0 e' il nuovo controllo di non interferenza con la cache globale.
 
 ### P.6 Gli artefatti pesanti non sono in git e sono rigenerabili
 
@@ -140,6 +140,29 @@ git check-ignore -v audit/output/*  &&  git ls-files audit/output/
 python audit/elo_weight_retune.py      # elo_walker_per_match.parquet/.csv.gz
 python audit/elo_conversion_audit.py   # elo_conversion_pooled.csv.gz
 ```
+
+### P.7 Ambiente di esecuzione
+
+Le dipendenze degli script di audit stanno in `requirements-audit.txt`, con versioni **fissate** (`==`): un audit deve essere riproducibile. In CI si installano nell'ordine
+
+```
+pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest
+```
+
+**Versioni con cui sono stati prodotti i numeri di questo referto**
+
+```
+numpy==2.4.6
+pandas==3.0.6
+pyarrow==25.0.1
+pytest==9.1.1
+scikit-learn==1.9.1
+scipy==1.17.1
+statsmodels==0.15.0
+streamlit==1.65.0
+```
+
+`scipy` e `pyarrow` sono fissate alle stesse versioni che l'ambiente di produzione gia' installa (`scipy` e' in `SoccerMath/requirements.txt`, `pyarrow` arriva come dipendenza di `streamlit`): il pin non sposta `numpy` ne' `pandas`. Verificato in venv pulito con `pip check`.
 
 ## 0. La formula di `p_draw` e da cosa dipende
 
@@ -811,7 +834,7 @@ verdetti:
 | B | 0.002467 | 0.000252 | 0.004661 | 0.002120 | 0.001187 | 0.003748 | True | False | False | False | PEGGIORE |
 | C | -0.002472 | -0.006143 | 0.001072 | -0.001130 | -0.003791 | -0.001154 | False | True | False | True | NON DISTINGUIBILE |
 
-[tempo finora 13.7s]
+[tempo finora 16.4s]
 
 ========================================================================
 S6. Diagnostiche (non criteri)
@@ -952,5 +975,5 @@ S7. Impatto Top Mix (selettore PURO di produzione, Elo iniettato)
 
 artefatto: audit/output/elo_conversion_pooled.csv.gz (3504 righe)
 
-[tempo totale 15.2s]
+[tempo totale 18.7s]
 ```
