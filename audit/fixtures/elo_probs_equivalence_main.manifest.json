@@ -1,0 +1,30 @@
+{
+ "_schema": "elo_probs_equivalence/1",
+ "generated_at_utc": "2026-10-05T14:56:10+00:00",
+ "repo_head_commit": "3f9f04278096aba2bc96fc5335a45ccd0d219094",
+ "produzione_sporca_rispetto_al_commit": "(pulita)",
+ "generator": "audit/make_elo_probs_equivalence_fixture.py",
+ "grid": {
+  "lo": 1200,
+  "hi": 1900,
+  "step": 10,
+  "leagues": [
+   "Serie A",
+   "Premier League",
+   "La Liga",
+   "Bundesliga",
+   "Ligue 1"
+  ],
+  "home_adv": {
+   "Serie A": "55.0",
+   "Premier League": "60.0",
+   "La Liga": "58.0",
+   "Bundesliga": "70.0",
+   "Ligue 1": "56.0"
+  }
+ },
+ "n_grid": 25205,
+ "n_match": 7334,
+ "n_total": 32539,
+ "sha256_payload_non_compresso": "f38ded073159ed3ef4e34d904a46a5b0c040084e22a029d2c0526ae0e0e779e7"
+}

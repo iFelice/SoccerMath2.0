@@ -231,13 +231,60 @@ def get_elo_leaderboard(league_name: str) -> pd.DataFrame:
     return engine.get_leaderboard()
 
 
-def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:
-    engine = get_elo_engine(league_name)
-    h_cl = clean_name(home_team)
-    a_cl = clean_name(away_team)
-    r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)
-    r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)
-    dr = r_h + engine.home_adv - r_a
+def elo_probs_from_ratings(r_h: float, r_a: float, home_adv: float) -> dict:
+    """Conversione Elo -> 1X2: funzione PURA, nessuno stato, nessuna cache.
+
+    Estratta dal corpo di ``predict_elo_probs`` senza alcun cambio numerico:
+    stesse operazioni, stesso ordine, stessi arrotondamenti, stesse chiavi.
+
+    Formula, nell'ordine esatto in cui viene calcolata:
+
+    1. differenza di rating, home advantage incluso::
+
+           dr = r_h + home_adv - r_a
+
+    2. punteggio atteso della squadra di casa (logistica Elo in base 10 con
+       scala 400) e, per complemento, quello della squadra ospite::
+
+           e_h = 1 / (1 + 10 ** (-dr / 400))
+           e_a = 1 - e_h
+
+    3. probabilita' di pareggio: campana gaussiana centrata sull'equilibrio
+       (dr = 0), ampiezza 0.27, scala 320, troncata nell'intervallo
+       [0.06, 0.34]::
+
+           p_draw = 0.27 * exp(-((dr / 320) ** 2))
+           p_draw = max(0.06, min(0.34, p_draw))
+
+    4. la massa residua ``1 - p_draw`` viene ripartita fra casa e trasferta
+       in proporzione ai punteggi attesi::
+
+           p_home = (1 - p_draw) * e_h
+           p_away = (1 - p_draw) * e_a
+
+    5. normalizzazione sulla somma dei tre esiti e arrotondamento::
+
+           total = p_home + p_draw + p_away
+           "1" = round(p_home / total, 4)
+           "X" = round(p_draw / total, 4)
+           "2" = round(p_away / total, 4)
+
+       (``total`` vale 1 per costruzione, perche' ``e_h + e_a = 1``; la
+       divisione resta nel codice per non alterare l'aritmetica in virgola
+       mobile preesistente.)
+
+    Chiavi del dict restituito: ``"1"``, ``"X"``, ``"2"`` (terna 1X2
+    arrotondata a 4 decimali), ``elo_home`` / ``elo_away`` (rating in
+    ingresso, 1 decimale), ``elo_diff`` (``dr``, 1 decimale), ``home_adv``
+    (il valore ricevuto, non arrotondato), ``expected_score_home`` /
+    ``expected_score_away`` (``e_h`` / ``e_a``, 4 decimali).
+
+    :param r_h: rating Elo della squadra di casa.
+    :param r_a: rating Elo della squadra in trasferta.
+    :param home_adv: vantaggio casalingo in punti Elo (per lega in
+        ``config.LEAGUE_HOME_ADVANTAGE``, default ``HOME_ADVANTAGE``).
+    """
+    dr = r_h + home_adv - r_a
     e_h = 1.0 / (1.0 + 10.0 ** (-dr / 400.0))
     e_a = 1.0 - e_h
     p_draw = 0.27 * math.exp(-((dr / 320.0) ** 2))
@@ -250,9 +297,18 @@ def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:
         "X": round(p_draw / total, 4),
         "2": round(p_away / total, 4),
         "elo_home": round(r_h, 1), "elo_away": round(r_a, 1),
-        "elo_diff": round(dr, 1), "home_adv": engine.home_adv,
+        "elo_diff": round(dr, 1), "home_adv": home_adv,
         "expected_score_home": round(e_h, 4), "expected_score_away": round(e_a, 4),
     }
+
+
+def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:
+    engine = get_elo_engine(league_name)
+    h_cl = clean_name(home_team)
+    a_cl = clean_name(away_team)
+    r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)
+    r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)
+    return elo_probs_from_ratings(r_h, r_a, engine.home_adv)
 
 
 def get_team_elo_history(team_name: str, league_name: str) -> pd.DataFrame:
