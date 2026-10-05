@@ -38,6 +38,9 @@ on:
     tags:
       - 'replay-write-*'
       - 'replay-check-*'
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       mode:
@@ -77,7 +80,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: replay-legacy-topmix
+  group: replay-legacy-topmix-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
@@ -137,33 +140,41 @@ jobs:
       # Il filtro di path vive qui e non nel trigger (vedi sopra). Un tag e' un
       # COMANDO: si esegue sempre. Un push di branch che non tocca niente del
       # replay esce subito, senza sprecare richieste all'API.
-      - name: Salta? (push di branch senza modifiche rilevanti)
+      - name: Salta? (solo documentazione)
         id: salta
+        shell: bash
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             echo "tag ${GITHUB_REF_NAME}: si esegue sempre"
-            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          PRIMA='${{ github.event.before }}'
-          if [ -z "$PRIMA" ] || [ "$PRIMA" = "0000000000000000000000000000000000000000" ] \
-             || ! git cat-file -e "${PRIMA}^{commit}" 2>/dev/null; then
-            echo "confronto non possibile (primo push o before assente): si esegue"
-            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          CAMBIATI=$(git diff --name-only "$PRIMA" '${{ github.event.after }}' || true)
-          echo "$CAMBIATI"
-          if printf '%s\n' "$CAMBIATI" | grep -qE '^(\.github/workflows/replay_legacy_topmix\.yml|SoccerMath/(replay_legacy_topmix|db_snapshot|registry_coverage|registry_coverage_check|prediction_registry|registry_store|registry_backend_status)\.py|SoccerMath/models/(elo_engine_legacy|legacy_elo)\.py|SoccerMath/test_(replay_legacy_no_leakage|registry_coverage|topmix_dual_tables)\.py)$'; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE='${{ github.event.pull_request.base.sha }}'
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            git fetch --no-tags origin main
+            BASE=$(git merge-base HEAD origin/main)
           else
-            echo "nessuna modifica rilevante per il replay: esco"
+            echo "Evento manuale: si esegue sempre"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CAMBIATI=$(git diff --name-only "$BASE" HEAD)
+          printf '%s\n' "$CAMBIATI"
+          if [ -n "$CAMBIATI" ] && printf '%s\n' "$CAMBIATI" | grep -qEv '(^docs/|\.md$)'; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$CAMBIATI" ]; then
+            echo "Tutti i file modificati sono documentazione: salto il replay"
             echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nessun file rilevato: eseguo per sicurezza"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Dipendenze
         if: steps.salta.outputs.skip != 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install -r SoccerMath/requirements.txt pytest
+          pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest
 
       - name: Secrets necessari
         if: steps.salta.outputs.skip != 'true'

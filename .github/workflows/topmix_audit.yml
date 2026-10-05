@@ -10,26 +10,9 @@ on:
   push:
     branches:
       - 'arena/**'
-    paths:
-      - '.github/workflows/topmix_audit.yml'
-      - 'audit/reconstruct_topmix_match.py'
-      - 'audit/fetch_jsonbin_match.py'
-      - 'audit/inspect_topmix_registry.py'
-      - 'audit/test_reconstruct_topmix_match.py'
-      - 'audit/test_topmix_registry_tracking.py'
-      - 'audit/test_jsonbin_readonly_get.py'
-      - 'SoccerMath/test_standardizza_mercato.py'
-      - 'SoccerMath/test_registry_tracking.py'
-      - 'SoccerMath/test_topmix_selector_parity.py'
-      - 'SoccerMath/test_topmix_shadow_gate.py'
-      - 'SoccerMath/test_fixtures/topmix_selettore_pre_refactor.py'
-      - 'audit/make_topmix_selector_fixture.py'
-      - 'audit/test_topmix_next_matchday.py'
-      - 'audit/test_topmix_margins.py'
-      - 'audit/topmix_margins.py'
-      - 'audit/topmix_selector_audit_protocol.md'
-      - 'SoccerMath/app.py'
-      - 'SoccerMath/prediction_registry.py'
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -52,23 +35,53 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Salta? (solo documentazione)
+        id: salta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE='${{ github.event.pull_request.base.sha }}'
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            git fetch --no-tags origin main
+            BASE=$(git merge-base HEAD origin/main)
+          else
+            echo "Evento manuale: si esegue sempre"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CAMBIATI=$(git diff --name-only "$BASE" HEAD)
+          printf '%s\n' "$CAMBIATI"
+          if [ -n "$CAMBIATI" ] && printf '%s\n' "$CAMBIATI" | grep -qEv '(^docs/|\.md$)'; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$CAMBIATI" ]; then
+            echo "Tutti i file modificati sono documentazione: salto l'audit"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nessun file rilevato: eseguo per sicurezza"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Python
+        if: steps.salta.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Dipendenze
+        if: steps.salta.outputs.skip != 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install -r SoccerMath/requirements.txt pytest
+          pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest
 
       - name: Cartella report (non versionata)
+        if: steps.salta.outputs.skip != 'true'
         run: mkdir -p "$AUDIT_OUT"
 
       # `test_topmix_selector_parity.py` ha bisogno di `fetch-depth: 0` solo per il
       # test di provenienza del fixture (confronto col blob): gli altri girano con
       # la sola stdlib. Il check finale `git diff` resta l'unico guard di non-scrittura.
       - name: Test diagnostici (nessuna scrittura registro)
+        if: steps.salta.outputs.skip != 'true'
         run: |
           python -m pytest \
             audit/test_topmix_registry_tracking.py \
@@ -83,6 +96,7 @@ jobs:
             -q --tb=short
 
       - name: GET JSONBin Schalke–Bayern (sola lettura, mai PUT)
+        if: steps.salta.outputs.skip != 'true'
         env:
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
@@ -100,6 +114,7 @@ jobs:
           PY
 
       - name: Ricostruzione Schalke–Bayern (funzioni di produzione + commit storici)
+        if: steps.salta.outputs.skip != 'true'
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
@@ -114,6 +129,7 @@ jobs:
             --output "$AUDIT_OUT/schalke_bayern_921.json"
 
       - name: Ispezione tracciamento Registro (AST, no JSONBin)
+        if: steps.salta.outputs.skip != 'true'
         run: |
           python - <<'PY'
           import json, os, sys
@@ -135,7 +151,7 @@ jobs:
           PY
 
       - name: Riepilogo
-        if: always()
+        if: always() && steps.salta.outputs.skip != 'true'
         run: |
           {
             echo "## Audit Top Mix (sola lettura)"
@@ -172,7 +188,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Nessuna modifica ai dati/codice di produzione
-        if: always()
+        if: always() && steps.salta.outputs.skip != 'true'
         run: |
           if ! git diff --exit-code -- SoccerMath audit/results; then
             echo "::error::l'audit ha modificato file committati"
@@ -181,7 +197,7 @@ jobs:
           echo "Nessun file di produzione modificato."
 
       - name: Pubblica i report come artifact
-        if: always()
+        if: always() && steps.salta.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: topmix-audit-${{ github.run_id }}
