@@ -122,4 +122,4 @@ MDE 80% B: `0.15` log-lambda. Rapporto sd posterior/prior B: `0.433`.
 Entrambi NO-GO: pista da mantenere in raccolta prospettica/validazione ground truth; non e' un effetto negativo.
 
 ## Chiusura
-Report generato con dati player_match recuperati; il precedente report 'fonti assenti' e' sostituito.
+Report generato con dati player_match recuperati dall'artifact GitHub Actions; il precedente referto non basato su artifact e' sostituito.

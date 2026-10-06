@@ -850,7 +850,7 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
         ap("Entrambi NO-GO: pista da mantenere in raccolta prospettica/validazione ground truth; non e' un effetto negativo.")
     ap("")
     ap("## Chiusura")
-    ap("Report generato con dati player_match recuperati; il precedente report 'fonti assenti' e' sostituito.")
+    ap("Report generato con dati player_match recuperati dall'artifact GitHub Actions; il precedente referto non basato su artifact e' sostituito.")
     return "\n".join(lines) + "\n"
 
 
