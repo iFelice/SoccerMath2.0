@@ -1,6 +1,6 @@
 # Triage deriva Elo e seeding delle neopromosse
 
-Generato sul commit `3419422de148d2d1a78c9abeb5bdd82ebbfd133b`. Data di esecuzione UTC: 2026-10-06T22:33:13.534124+00:00
+Generato sul commit `c786215f8e98727f116f79fc248df582a90b6092`. Data di esecuzione UTC: 2026-10-06T22:34:45.271082+00:00
 
 > **Audit di sola lettura. Nessuna modifica a `SoccerMath/`; nessuna variante e' stata applicata alla produzione.** S0 e' la produzione corrente; S1-S4 vivono esclusivamente in questo script di audit.
 
@@ -16,8 +16,8 @@ Le verifiche del punto 0 sono state eseguite prima di scrivere i nuovi file audi
 | OK | `git rev-parse --is-shallow-repository` dopo `git fetch --unshallow origin` | false |
 | OK | `.venv/bin/pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest` | exit 0; installazione completata |
 | OK | `.venv/bin/pip check` | No broken requirements found. |
-| OK | `.venv/bin/pytest -q audit/test_elo_walker_parity.py audit/test_elo_drift_triage.py SoccerMath/test_elo_probs_from_ratings.py` | 20 passed in 11.83s |
-| OK | `.venv/bin/python audit/elo_weight_retune.py` | 2026-10-06 22:32:32.220   [1/6] costruzione campione   Serie A          elo= 1570 poisson= 1570 join= 1570   Premier League   elo= 1570 poisson= 1570 join= 1570   La Liga          elo= 1591 poisson= 1591 join= 1591   Bundesliga       elo= 1260 poisson= 1260 join= 1260   Ligue 1          elo= 1343 poisson= 1343 join= 1343   totale righe: 7334 [2/6] artefatto per-partita   parquet=True righe=7334 [3/6] mismatch vecchia replica [4/6] griglia + bootstrap a blocchi   train (post burn-in) n=1752   validation 2024/25 n=1752   test 2025/26 n=1752   burn-in 2022/23 (solo descrittivo) n=1826 [5/6] dettaglio per lega [6/6] report scritto /home/user/SoccerMath2.0/audit/results/elo_weight_retune.md |
+| OK | `.venv/bin/pytest -q audit/test_elo_walker_parity.py audit/test_elo_drift_triage.py SoccerMath/test_elo_probs_from_ratings.py` | 20 passed in 11.10s |
+| OK | `.venv/bin/python audit/elo_weight_retune.py` | 2026-10-06 22:33:58.855   [1/6] costruzione campione   Serie A          elo= 1570 poisson= 1570 join= 1570   Premier League   elo= 1570 poisson= 1570 join= 1570   La Liga          elo= 1591 poisson= 1591 join= 1591   Bundesliga       elo= 1260 poisson= 1260 join= 1260   Ligue 1          elo= 1343 poisson= 1343 join= 1343   totale righe: 7334 [2/6] artefatto per-partita   parquet=True righe=7334 [3/6] mismatch vecchia replica [4/6] griglia + bootstrap a blocchi   train (post burn-in) n=1752   validation 2024/25 n=1752   test 2025/26 n=1752   burn-in 2022/23 (solo descrittivo) n=1826 [5/6] dettaglio per lega [6/6] report scritto /home/user/SoccerMath2.0/audit/results/elo_weight_retune.md |
 | OK | `git status --porcelain -- SoccerMath/` | (vuoto) |
 | OK | `git diff --name-only origin/main...HEAD` finale | audit/elo_drift_triage.py audit/results/elo_drift_triage.md audit/test_elo_drift_triage.py |
 
@@ -379,7 +379,7 @@ Il verdetto MERGEABLE/NON MERGEABLE qui sotto riguarda la PR di audit, non un ca
 |---|---|---|
 | OK | `git status --porcelain -- SoccerMath/` | (vuoto) |
 | OK | `git diff --name-only origin/main...HEAD` | audit/elo_drift_triage.py audit/results/elo_drift_triage.md audit/test_elo_drift_triage.py |
-| OK | `git status --porcelain --branch` | ## arena/05412f92-soccermath2-0  M audit/elo_drift_triage.py  M audit/results/elo_drift_triage.md |
+| OK | `git status --porcelain --branch` | ## arena/05412f92-soccermath2-0 |
 
 **Verdetto PR: MERGEABLE.** Non e' stato eseguito alcun merge.
 
