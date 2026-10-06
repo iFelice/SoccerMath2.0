@@ -1,0 +1,90 @@
+
+========================================================================
+SERIE A — xG ROLLING (media ultime 5) vs xG STAGIONALE nel calcolo Elo
+========================================================================
+
+-- VALIDATION 2024/25  (N=380 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.5977   1.0040      373        21.7         -29.02
+                                 Elo rolling   0.5937   0.9981      370        23.8         -28.55
+           Ensemble stagionale (0.6P+0.4Elo)   0.5869   0.9845      357        25.5         -26.02
+                            Ensemble rolling   0.5847   0.9813      359        26.5         -24.84
+
+-- TEST 2025/26  (N=380 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.6024   1.0110      378        24.1          -9.95
+                                 Elo rolling   0.6015   1.0101      377        24.7         -15.33
+           Ensemble stagionale (0.6P+0.4Elo)   0.5943   0.9959      368        29.3          -7.82
+                            Ensemble rolling   0.5931   0.9944      366        27.0         -15.36
+
+========================================================================
+PREMIER LEAGUE — xG ROLLING (media ultime 5) vs xG STAGIONALE nel calcolo Elo
+========================================================================
+
+-- VALIDATION 2024/25  (N=380 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.5913   0.9932      336        23.5         -16.42
+                                 Elo rolling   0.5930   0.9968      337        30.6          -5.05
+           Ensemble stagionale (0.6P+0.4Elo)   0.5910   0.9896      336        30.4          -9.65
+                            Ensemble rolling   0.5902   0.9885      335        31.3          -6.82
+
+-- TEST 2025/26  (N=380 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.6164   1.0293      354        28.5          -7.24
+                                 Elo rolling   0.6210   1.0365      355        27.3         -15.94
+           Ensemble stagionale (0.6P+0.4Elo)   0.6153   1.0254      338        28.4         -13.57
+                            Ensemble rolling   0.6158   1.0260      334        30.2          -8.94
+
+========================================================================
+LA LIGA — xG ROLLING (media ultime 5) vs xG STAGIONALE nel calcolo Elo
+========================================================================
+
+-- VALIDATION 2024/25  (N=380 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.5804   0.9780      369        25.2          -7.61
+                                 Elo rolling   0.5872   0.9875      373        28.4          -3.83
+           Ensemble stagionale (0.6P+0.4Elo)   0.5760   0.9714      338        26.0         -12.60
+                            Ensemble rolling   0.5776   0.9733      338        26.0         -14.95
+
+-- TEST 2025/26  (N=380 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.5830   0.9811      359        25.6         -18.25
+                                 Elo rolling   0.5877   0.9873      365        28.2         -16.19
+           Ensemble stagionale (0.6P+0.4Elo)   0.5813   0.9786      325        30.2         -14.43
+                            Ensemble rolling   0.5818   0.9795      332        30.4         -16.32
+
+========================================================================
+BUNDESLIGA — xG ROLLING (media ultime 5) vs xG STAGIONALE nel calcolo Elo
+========================================================================
+
+-- VALIDATION 2024/25  (N=306 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.6196   1.0339      271        25.5         -14.22
+                                 Elo rolling   0.6140   1.0265      274        27.7         -13.97
+           Ensemble stagionale (0.6P+0.4Elo)   0.6124   1.0239      260        24.6         -30.60
+                            Ensemble rolling   0.6087   1.0194      262        24.8         -33.10
+
+-- TEST 2025/26  (N=306 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.5724   0.9691      271        30.6         -17.02
+                                 Elo rolling   0.5764   0.9748      273        34.1         -13.52
+           Ensemble stagionale (0.6P+0.4Elo)   0.5734   0.9701      259        33.2         -13.59
+                            Ensemble rolling   0.5734   0.9701      261        34.1         -17.52
+
+========================================================================
+LIGUE 1 — xG ROLLING (media ultime 5) vs xG STAGIONALE nel calcolo Elo
+========================================================================
+
+-- VALIDATION 2024/25  (N=306 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.5797   0.9782      281        28.5           0.28
+                                 Elo rolling   0.5793   0.9784      288        33.7           4.65
+           Ensemble stagionale (0.6P+0.4Elo)   0.5800   0.9773      264        29.5         -11.84
+                            Ensemble rolling   0.5789   0.9755      272        31.6         -10.99
+
+-- TEST 2025/26  (N=306 partite) --
+               Modello              Brier            LogLoss              N.bet         Win rate %    ROI % (vs B365)
+                              Elo stagionale   0.5948   0.9977      282        24.5         -15.52
+                                 Elo rolling   0.5931   0.9954      284        28.9          -7.04
+           Ensemble stagionale (0.6P+0.4Elo)   0.5946   0.9950      271        26.2         -12.90
+                            Ensemble rolling   0.5924   0.9921      265        28.3          -8.15

@@ -63,6 +63,7 @@ from datetime import datetime, timezone
 from collections import OrderedDict
 
 import numpy as np
+from economic_ev import select_positive_ev
 import pandas as pd
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -387,9 +388,11 @@ def clv_block(d, model_cols=("model_1", "model_X", "model_2"),
         close = np.array([r[f1c], r[fXc], r[f2c]], dtype=float)
         if np.isnan(pre).any() or np.isnan(close).any():
             continue
-        side = int(np.argmax(probs - pre))
-        if (probs[side] - pre[side]) <= EDGE_MIN:
+        raw_pre = np.array([r["PSH"], r["PSD"], r["PSA"]], dtype=float)
+        choice = select_positive_ev(probs, raw_pre)
+        if choice is None:
             continue
+        side = choice[0]
         rows.append({
             "side": side,
             "clv_model": float(probs[side] - close[side]),

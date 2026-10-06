@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/user/SoccerMath2.0/audit/generate_temporal_stability_report.py", line 6, in <module>
+    with open('audit/results/temp_stability_data.pkl', 'rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'audit/results/temp_stability_data.pkl'

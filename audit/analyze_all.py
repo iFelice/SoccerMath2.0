@@ -14,6 +14,8 @@ import sys
 import numpy as np
 import pandas as pd
 
+from economic_ev import select_positive_ev
+
 _AUDIT_DIR = __file__.rsplit("/", 1)[0]
 _REPO_ROOT = _AUDIT_DIR.rsplit("/", 1)[0]
 sys.path.insert(0, _AUDIT_DIR)
@@ -67,11 +69,10 @@ def simulate_roi_1x2(df, prob_cols, fair_cols, odd_cols, stake=STAKE, edge_min=E
             continue
         if any(pd.isna(v) for v in probs.values()):
             continue
-        edge_by_out = {k: probs[k] - fair[k] for k in outcomes}
-        best = max(edge_by_out, key=edge_by_out.get)
-        edge = edge_by_out[best]
-        if edge <= edge_min:
+        choice = select_positive_ev([probs[k] for k in outcomes], [odds[k] for k in outcomes])
+        if choice is None:
             continue
+        best, edge = outcomes[choice[0]], choice[1]
         n_bet += 1
         edges.append(edge)
         if row["real_1x2"] == best:
@@ -104,14 +105,11 @@ def simulate_roi_ou(df, prob_over_col, fair_over_col, fair_under_col,
         if any(pd.isna(v) for v in (f_over, f_under, o_over, o_under)):
             continue
         p_under = 1 - p_over
-        edge_over = p_over - f_over
-        edge_under = p_under - f_under
-        if edge_over >= edge_under:
-            side, edge, odd = "OVER", edge_over, o_over
-        else:
-            side, edge, odd = "UNDER", edge_under, o_under
-        if edge <= edge_min:
+        choice = select_positive_ev([p_over, p_under], [o_over, o_under])
+        if choice is None:
             continue
+        side, edge, odd = (("OVER", choice[1], o_over) if choice[0] == 0
+                           else ("UNDER", choice[1], o_under))
         n_bet += 1
         edges.append(edge)
         real = row["real_uo"]

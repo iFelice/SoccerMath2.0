@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-09-10T22:09:37+00:00",
+ "generated_at": "2026-10-06T21:27:06+00:00",
  "protocol": {
   "bookmaker_policy": "bet365 ('bet365', case-insensitive) se presente e usabile, altrimenti primo bookmaker usabile nell'ordine dell'array",
   "devig": "normalizzazione proporzionale 1/quota diviso overround (identica a backtest_experiment_all.devig_2way)",
@@ -577,17 +577,17 @@
    "roi": {
     "0.0": {
      "threshold": 0.0,
-     "n_bet": 1517,
-     "win_rate_pct": 47.52801582069875,
-     "roi_pct": -8.030982201713913,
-     "bankroll_units": -121.83
+     "n_bet": 742,
+     "win_rate_pct": 45.28301886792453,
+     "roi_pct": -10.021563342318057,
+     "bankroll_units": -74.36
     },
     "0.02": {
      "threshold": 0.02,
-     "n_bet": 1038,
-     "win_rate_pct": 46.24277456647399,
-     "roi_pct": -9.587668593448937,
-     "bankroll_units": -99.52
+     "n_bet": 742,
+     "win_rate_pct": 45.28301886792453,
+     "roi_pct": -10.021563342318057,
+     "bankroll_units": -74.36
     },
     "0.05": {
      "threshold": 0.05,
@@ -760,17 +760,17 @@
    "roi": {
     "0.0": {
      "threshold": 0.0,
-     "n_bet": 1520,
-     "win_rate_pct": 49.80263157894737,
-     "roi_pct": -5.409210526315774,
-     "bankroll_units": -82.22
+     "n_bet": 753,
+     "win_rate_pct": 49.136786188579016,
+     "roi_pct": -2.403718459495353,
+     "bankroll_units": -18.1
     },
     "0.02": {
      "threshold": 0.02,
-     "n_bet": 1045,
-     "win_rate_pct": 50.43062200956938,
-     "roi_pct": -3.4172248803827805,
-     "bankroll_units": -35.71
+     "n_bet": 753,
+     "win_rate_pct": 49.136786188579016,
+     "roi_pct": -2.403718459495353,
+     "bankroll_units": -18.1
     },
     "0.05": {
      "threshold": 0.05,
@@ -943,17 +943,17 @@
    "roi": {
     "0.0": {
      "threshold": 0.0,
-     "n_bet": 1519,
-     "win_rate_pct": 46.28044766293614,
-     "roi_pct": -9.398946675444368,
-     "bankroll_units": -142.77
+     "n_bet": 679,
+     "win_rate_pct": 41.973490427098675,
+     "roi_pct": -13.222385861561115,
+     "bankroll_units": -89.78
     },
     "0.02": {
      "threshold": 0.02,
-     "n_bet": 998,
-     "win_rate_pct": 43.587174348697395,
-     "roi_pct": -12.955911823647293,
-     "bankroll_units": -129.3
+     "n_bet": 679,
+     "win_rate_pct": 41.973490427098675,
+     "roi_pct": -13.222385861561115,
+     "bankroll_units": -89.78
     },
     "0.05": {
      "threshold": 0.05,
@@ -1126,17 +1126,17 @@
    "roi": {
     "0.0": {
      "threshold": 0.0,
-     "n_bet": 1221,
-     "win_rate_pct": 52.825552825552826,
-     "roi_pct": -4.520884520884516,
-     "bankroll_units": -55.2
+     "n_bet": 632,
+     "win_rate_pct": 51.42405063291139,
+     "roi_pct": -5.2958860759493716,
+     "bankroll_units": -33.47
     },
     "0.02": {
      "threshold": 0.02,
-     "n_bet": 877,
-     "win_rate_pct": 53.13568985176739,
-     "roi_pct": -5.06499429874573,
-     "bankroll_units": -44.42
+     "n_bet": 632,
+     "win_rate_pct": 51.42405063291139,
+     "roi_pct": -5.2958860759493716,
+     "bankroll_units": -33.47
     },
     "0.05": {
      "threshold": 0.05,
@@ -1309,17 +1309,17 @@
    "roi": {
     "0.0": {
      "threshold": 0.0,
-     "n_bet": 1296,
-     "win_rate_pct": 47.839506172839506,
-     "roi_pct": -9.079475308641968,
-     "bankroll_units": -117.67
+     "n_bet": 677,
+     "win_rate_pct": 48.005908419497786,
+     "roi_pct": -7.069423929098963,
+     "bankroll_units": -47.86
     },
     "0.02": {
      "threshold": 0.02,
-     "n_bet": 937,
-     "win_rate_pct": 48.34578441835646,
-     "roi_pct": -7.703308431163281,
-     "bankroll_units": -72.18
+     "n_bet": 677,
+     "win_rate_pct": 48.005908419497786,
+     "roi_pct": -7.069423929098963,
+     "bankroll_units": -47.86
     },
     "0.05": {
      "threshold": 0.05,
@@ -1427,17 +1427,17 @@
   "roi": {
    "0.0": {
     "threshold": 0.0,
-    "n_bet": 7073,
-    "win_rate_pct": 48.72048635656723,
-    "roi_pct": -7.347518733210845,
-    "bankroll_units": -519.69
+    "n_bet": 3483,
+    "win_rate_pct": 47.114556416881996,
+    "roi_pct": -7.567327016939446,
+    "bankroll_units": -263.57
    },
    "0.02": {
     "threshold": 0.02,
-    "n_bet": 4895,
-    "win_rate_pct": 48.232890704800816,
-    "roi_pct": -7.786108273748785,
-    "bankroll_units": -381.13
+    "n_bet": 3483,
+    "win_rate_pct": 47.114556416881996,
+    "roi_pct": -7.567327016939446,
+    "bankroll_units": -263.57
    },
    "0.05": {
     "threshold": 0.05,
@@ -1450,31 +1450,31 @@
   "roi_by_season": {
    "2022/23": {
     "threshold": 0.0,
-    "n_bet": 1824,
-    "win_rate_pct": 50.71271929824561,
-    "roi_pct": -4.569078947368399,
-    "bankroll_units": -83.34
+    "n_bet": 952,
+    "win_rate_pct": 49.47478991596639,
+    "roi_pct": -5.58298319327729,
+    "bankroll_units": -53.15
    },
    "2023/24": {
     "threshold": 0.0,
-    "n_bet": 1749,
-    "win_rate_pct": 47.39851343624928,
-    "roi_pct": -9.452830188679235,
-    "bankroll_units": -165.33
+    "n_bet": 854,
+    "win_rate_pct": 46.95550351288056,
+    "roi_pct": -6.68266978922717,
+    "bankroll_units": -57.07
    },
    "2024/25": {
     "threshold": 0.0,
-    "n_bet": 1749,
-    "win_rate_pct": 47.9702687249857,
-    "roi_pct": -8.525443110348753,
-    "bankroll_units": -149.11
+    "n_bet": 866,
+    "win_rate_pct": 45.03464203233256,
+    "roi_pct": -10.853348729792133,
+    "bankroll_units": -93.99
    },
    "2025/26": {
     "threshold": 0.0,
-    "n_bet": 1751,
-    "win_rate_pct": 48.71501998857796,
-    "roi_pct": -6.962307252998276,
-    "bankroll_units": -121.91
+    "n_bet": 811,
+    "win_rate_pct": 46.7324290998767,
+    "roi_pct": -7.319358816276199,
+    "bankroll_units": -59.36
    }
   },
   "calib_model": [

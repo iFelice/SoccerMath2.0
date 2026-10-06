@@ -272,8 +272,8 @@ class TestClvBootstrap(unittest.TestCase):
             {"model_1": 0.40, "model_X": 0.30, "model_2": 0.30,
              "pinpre_1": 0.40, "pinpre_X": 0.30, "pinpre_2": 0.30,
              "pinclose_1": 0.40, "pinclose_X": 0.30, "pinclose_2": 0.30,
-             "PSH": 2.20, "PSD": 3.20, "PSA": 4.15,
-             "PSCH": 2.20, "PSCD": 3.20, "PSA": 4.15, "real_1x2": "X"},
+             "PSH": 2.00, "PSD": 3.00, "PSA": 3.00,
+             "PSCH": 2.20, "PSCD": 3.20, "PSCA": 4.15, "real_1x2": "X"},
         ])
 
     def _d_big(self, n=60):
@@ -300,7 +300,7 @@ class TestClvBootstrap(unittest.TestCase):
     def test_clv_notevole(self):
         d = self._d()
         c = M.clv_block(d, n_boot=200, seed=1)
-        self.assertEqual(c["n_bet"], 2)                 # la terza non e' scommessa
+        self.assertEqual(c["n_bet"], 2)                 # la terza ha EV non positivo
         # scommessa 1: P_model 0.60 - close 0.50 = +0.10; classic: 0.4762 - 0.50 = -0.0238
         self.assertAlmostEqual(c["clv_model_mean"], (0.10 + (0.40 - 0.22)) / 2, places=9)
         self.assertAlmostEqual(c["clv_classic_mean"], ((0.4762 - 0.50) + (0.24 - 0.22)) / 2,
