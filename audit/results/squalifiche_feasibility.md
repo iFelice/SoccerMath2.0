@@ -14,6 +14,17 @@ Generato: `2026-10-06T13:17:55+00:00` UTC. Commit base script: `efb04cc4b8e9eae1
 | NON OK | python update_all_ppda_player_db.py ... (sandbox) | sandbox: GitHub release asset TLS client e understat.com chiudono TLS (SSL_ERROR_SYSCALL/EOF); acquisizione reale riuscita nel runner Actions del run 37461010400 |
 | OK | python audit/squalifiche_feasibility.py --player-match-dir ... | report generato su dati player_match recuperati dall'artifact fresco |
 
+### CI Audit/Replay disponibile al momento della generazione del report
+
+| Esito | Workflow | Evento | Run | Head | Evidenza |
+|---|---|---|---|---|---|
+| OK | Audit Top Mix (sola lettura) | push | 37468651537 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468651537 |
+| OK | Replay Top Mix legacy (walk-forward, no-leakage) | push | 37468652055 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468652055 |
+| OK | Audit Top Mix (sola lettura) | pull_request | 37468659523 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468659523 |
+| OK | Replay Top Mix legacy (walk-forward, no-leakage) | pull_request | 37468659528 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468659528 |
+
+Nota: la rimozione del workflow temporaneo e' un cleanup successivo; le run CI finali su quell'head sono riportate nella PR/final response.
+
 ## 1. Inventario fonte player_match
 | Percorso/script | Fonte | Evidenza |
 |---|---|---|
