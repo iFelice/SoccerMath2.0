@@ -128,21 +128,111 @@ class TestUnicaDifferenza(unittest.TestCase):
         "dr = r_h + engine.home_adv - r_a",
         '"elo_diff": round(dr, 1), "home_adv": engine.home_adv,',
     ]
-    #: righe presenti SOLO nell'attuale (docstring della funzione pura escluso)
+    #: righe presenti SOLO nell'attuale (docstring della funzione pura escluso).
+    #:
+    #: La lista e' stata aggiornata dalla PR che adotta il seeding S3 degli
+    #: ingressi in lega (media delle attive - 100). Le righe nuove sono
+    #: esattamente e soltanto quelle di QUELLA modifica: l'import di
+    #: ``season_start_year_of``, la costante ``PROMOTED_SEED_OFFSET`` con il
+    #: suo commento che cita la PR #35, i due attributi di stato degli ingressi,
+    #: i metodi ``_is_entry`` e ``promoted_seed``, i tre passaggi dentro
+    #: ``compute_ratings`` e i tre del ramo di predizione. Nessuna riga delle
+    #: precedenti (l'estrazione di ``elo_probs_from_ratings``) e' cambiata o
+    #: sparita, e nessuna riga NUOVA e' stata esclusa dalla lista: i docstring
+    #: dei due metodi nuovi sono pinnati come tutto il resto del codice.
     AGGIUNTE_ATTESE = [
-        "dr = r_h + self.home_adv - r_a",
-        "def elo_probs_from_ratings(r_h: float, r_a: float, home_adv: float) -> dict:",
-        "dr = r_h + home_adv - r_a",
+        'season_start_year_of,',
+        '',
+        '#: Distacco applicato al seeding delle squadre che ENTRANO in una lega.',
+        '#:',
+        '#: La PR #35 (audit ``audit/elo_drift_triage.py``, variante ``S3``) ha',
+        '#: misurato la deriva dei rating di ingresso: la produzione partiva da 1500',
+        '#: per le neopromosse mai viste e riprendeva il rating stantio per quelle di',
+        "#: ritorno, restando cosi' ~100 punti sopra la media delle squadre attive al",
+        "#: momento del loro esordio in lega. Il seeding S3 e' la media dei rating",
+        "#: delle squadre ATTIVE in quel momento (cioe' di quelle che hanno gia'",
+        "#: disputato almeno una partita in lega, nell'ordine di produzione) piu'",
+        '#: questo offset; il triage lo ha validato su 55 ingressi in 5 leghe',
+        '#: (DeltaLogLoss -0.018010 sulle prime 10 partite delle neopromosse).',
+        '#:',
+        "#: Non e' un parametro stimato: e' la costante dichiarata dalla variante S3",
+        "#: dell'audit, replicata qui senza modificarla. Nessun altro pezzo del motore",
+        "#: e' stato toccato: K, home advantage, moltiplicatore di scarto, draw e pesi",
+        '#: del blend restano quelli di prima.',
+        'PROMOTED_SEED_OFFSET = -100.0',
+        "# Seeding degli ingressi in lega (PR #35): stagione dell'ultima partita",
+        '# disputata da ciascuna squadra e stagione della prima partita del',
+        '# database, che resta il burn-in e non genera ingressi.',
+        'self.entry_season: Dict[str, int] = {}',
+        'self.first_season: int = None',
+        '',
+        'def _is_entry(self, team: str, season: int) -> bool:',
+        '"""La squadra ``team`` sta giocando la sua prima partita in lega?',
+        '',
+        'Ingresso = MAI VISTA (nessuna partita precedente in questa lega) oppure',
+        "DI RITORNO dopo una o piu' stagioni di assenza: nell'ordine di",
+        'produzione, ``season_start_year_of`` della partita corrente meno la',
+        'stagione della sua ultima partita supera 1.',
+        '',
+        "La prima stagione del database non genera ingressi: e' il burn-in,",
+        "l'unica condizione iniziale che il motore ha sempre avuto, e resta a",
+        '``DEFAULT_INITIAL_RATING`` come prima della PR #35.',
+        '"""',
+        'ultima = self.entry_season.get(team)',
+        'if ultima is None:',
+        'return season > self.first_season',
+        'return season - ultima > 1',
+        '',
+        'def promoted_seed(self) -> float:',
+        '"""Rating iniziale di una squadra che entra in lega (PR #35).',
+        '',
+        "Media dei rating correnti delle squadre ATTIVE — quelle che hanno gia'",
+        "disputato almeno una partita in lega, nell'ordine di produzione — piu'",
+        "``PROMOTED_SEED_OFFSET``. Se non c'e' nessuna squadra attiva (prima",
+        'partita mai giocata del database, o squadra assente dai CSV) il',
+        "fallback dichiarato e' ``DEFAULT_INITIAL_RATING``.",
+        '"""',
+        'attive = [self.ratings[t] for t in sorted(self.entry_season) if t in self.ratings]',
+        'if not attive:',
+        'return DEFAULT_INITIAL_RATING',
+        'return float(np.mean(attive)) + PROMOTED_SEED_OFFSET',
+        "# compute_ratings e' un ricalcolo completo: lo stato degli ingressi",
+        '# riparte da zero come i rating.',
+        'self.entry_season = {}',
+        'self.first_season = season_start_year_of(df["Date_Parsed"].iloc[0])',
+        'season = season_start_year_of(row["Date_Parsed"])',
+        "# Seeding d'ingresso (PR #35). Se due squadre esordiscono nella",
+        '# stessa partita i seed sono applicati in sequenza, in ordine',
+        "# alfabetico di nome: il secondo vede gia' il seed del primo nel",
+        "# calcolo della media attiva. E' l'ordine con cui _entry_records",
+        "# elenca gli ingressi e con cui la variante S3 dell'audit li assegna,",
+        "# ed e' cio' che rende i numeri bit-exact su quella partita. Nessuna",
+        "# squadra entra fra le attive finche' i due seed non sono calcolati.",
+        'for team in sorted((h_team, a_team)):',
+        'if self._is_entry(team, season):',
+        'self.ratings[team] = self.promoted_seed()',
+        'for team in (h_team, a_team):',
+        'self.entry_season[team] = season',
+        'dr = r_h + self.home_adv - r_a',
+        'def elo_probs_from_ratings(r_h: float, r_a: float, home_adv: float) -> dict:',
+        'dr = r_h + home_adv - r_a',
         '"elo_diff": round(dr, 1), "home_adv": home_adv,',
-        "",
-        "",
-        "def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:",
-        "engine = get_elo_engine(league_name)",
-        "h_cl = clean_name(home_team)",
-        "a_cl = clean_name(away_team)",
-        "r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)",
-        "r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)",
-        "return elo_probs_from_ratings(r_h, r_a, engine.home_adv)",
+        '',
+        '',
+        'def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:',
+        'engine = get_elo_engine(league_name)',
+        'h_cl = clean_name(home_team)',
+        'a_cl = clean_name(away_team)',
+        'r_h = engine.ratings.get(h_cl)',
+        'r_a = engine.ratings.get(a_cl)',
+        '# Squadra senza rating in questa lega = neopromossa alla prima partita e non',
+        '# ancora presente nei CSV: si applica lo stesso seeding di compute_ratings',
+        '# (media attiva - 100), non DEFAULT_INITIAL_RATING.',
+        'if r_h is None:',
+        'r_h = engine.promoted_seed()',
+        'if r_a is None:',
+        'r_a = engine.promoted_seed()',
+        'return elo_probs_from_ratings(r_h, r_a, engine.home_adv)',
     ]
 
     @classmethod
@@ -172,15 +262,31 @@ class TestUnicaDifferenza(unittest.TestCase):
                          self._fn(self.current, "get_elo_engine"))
 
     def test_predict_elo_probs_attuale_e_sola_delega(self):
-        """La versione attuale e' ESATTAMENTE la forma delegante attesa."""
+        """La versione attuale e' ESATTAMENTE la forma delegante attesa.
+
+        La lista di delegate ammesse e' cambiata dalla PR che adotta il seeding
+        S3 degli ingressi in lega: la funzione non puo' piu' delegare con
+        ``ratings.get(nome, DEFAULT_INITIAL_RATING)``, perche' una squadra alla
+        sua prima partita e non ancora presente nei CSV non ha rating e va
+        seminata come in ``compute_ratings`` (media delle attive - 100). Il
+        test resta percio' un confronto di testo ESATTO, non un "contains" e
+        non un "delegate": ogni riga della funzione resta pinnata. Il confronto
+        passa da ``ast.unparse``, che scarta i commenti, quindi i tre commenti
+        esplicativi del ramo di fallback non compaiono qui: sono pinnati riga per
+        riga in ``AGGIUNTE_ATTESE`` piu' sopra, che lavora sul sorgente grezzo.
+        """
         self.assertEqual(
             self._fn(self.current, "predict_elo_probs"),
             "def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:\n"
             "    engine = get_elo_engine(league_name)\n"
             "    h_cl = clean_name(home_team)\n"
             "    a_cl = clean_name(away_team)\n"
-            "    r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)\n"
-            "    r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)\n"
+            "    r_h = engine.ratings.get(h_cl)\n"
+            "    r_a = engine.ratings.get(a_cl)\n"
+            "    if r_h is None:\n"
+            "        r_h = engine.promoted_seed()\n"
+            "    if r_a is None:\n"
+            "        r_a = engine.promoted_seed()\n"
             "    return elo_probs_from_ratings(r_h, r_a, engine.home_adv)")
 
     def test_predict_elo_probs_identica_nei_due_motori_bit_exact(self):

@@ -6,8 +6,17 @@ test_elo_probs_from_ratings.py — Contratto PERMANENTE della funzione pura
 Contratti fissati da questo test:
 
 1. ``predict_elo_probs`` delega a ``elo_probs_from_ratings`` passando i
-   rating letti dal motore in cache (default ``DEFAULT_INITIAL_RATING``
-   = 1500.0 per le squadre sconosciute) e ``engine.home_adv``.
+   rating letti dal motore in cache e ``engine.home_adv``. Per una squadra
+   che non ha ancora rating in lega (neopromossa alla prima partita, non
+   ancora presente nei CSV) il valore passato e' il SEEDING D'INGRESSO del
+   motore, cioe' ``engine.promoted_seed()`` = media delle squadre attive
+   meno ``PROMOTED_SEED_OFFSET``, e non piu' ``DEFAULT_INITIAL_RATING``.
+   Il default 1500 resta il fallback dichiarato quando non c'e' nessuna
+   squadra attiva. La formula del seed non e' ricalcolata qui: e' pinningata
+   da ``SoccerMath/test_elo_promoted_seed.py`` (comportamento su database
+   sintetici) e da ``audit/test_elo_s3_parity.py`` (parita' bit-exact con la
+   variante S3 dell'audit su tutte le partite reali). Qui si verifica che la
+   funzione PASSI il valore del motore senza trasformarlo.
 2. L'output di ``predict_elo_probs`` e' BIT-IDENTICO a quello di
    ``elo_probs_from_ratings`` sugli stessi rating, su tutte le chiavi
    (confronto su ``repr(float)``, non ``assertAlmostEqual``).
@@ -43,11 +52,21 @@ LEGA = "__TEST_LEAGUE__"
 
 
 class _StubEngine:
-    """Superficie minima letta da predict_elo_probs: ratings + home_adv."""
+    """Superficie minima letta da predict_elo_probs: ratings, home_adv e
+    ``promoted_seed()``.
 
-    def __init__(self, ratings, home_adv):
+    Il seed e' un valore FORNITO dalla stub, non ricalcolato: questo test
+    verifica la DELega (che il valore del motore arrivi a
+    ``elo_probs_from_ratings`` invariato), non la formula del seed.
+    """
+
+    def __init__(self, ratings, home_adv, seed=DEFAULT_INITIAL_RATING):
         self.ratings = dict(ratings)
         self.home_adv = home_adv
+        self.seed = seed
+
+    def promoted_seed(self):
+        return self.seed
 
 
 class _CacheStub:
@@ -98,17 +117,38 @@ class TestDelega(unittest.TestCase):
                         self.assertEqual(repr(got[k]), repr(want[k]),
                                          f"chiave {k} r_h={r_h} r_a={r_a} ha={home_adv}")
 
-    def test_squadra_sconosciuta_usa_il_default_1500(self):
-        eng = _StubEngine({"CASA": 1700.0}, 60.0)
+    def test_squadra_sconosciuta_usa_il_seeding_di_ingresso(self):
+        """Prima partita di una neopromossa non ancora nei CSV: media attiva - 100.
+
+        Prima della PR che adotta il seeding S3 questo caso restava a 1500;
+        il test e' stato aggiornato perche' il ramo di predizione e' proprio
+        uno dei due punti che quella PR cambia. L'asserzione resta bit-exact
+        su TUTTE le chiavi, non diventa un "circa 1400".
+        """
+        seed = 1397.25
+        eng = _StubEngine({"CASA": 1700.0}, 60.0, seed=seed)
         with _CacheStub(eng):
             got = predict_elo_probs("CASA", "MAI_VISTA", LEGA)
-        want = elo_probs_from_ratings(1700.0, DEFAULT_INITIAL_RATING, 60.0)
+        want = elo_probs_from_ratings(1700.0, seed, 60.0)
         for k in KEYS:
             self.assertEqual(repr(got[k]), repr(want[k]), f"chiave {k}")
-        self.assertEqual(repr(got["elo_away"]), repr(round(DEFAULT_INITIAL_RATING, 1)))
+        self.assertEqual(repr(got["elo_away"]), repr(round(seed, 1)))
+        # il ramo di fallback e' realmente quello del seeding, non 1500
+        self.assertNotEqual(repr(got["elo_away"]),
+                            repr(round(DEFAULT_INITIAL_RATING, 1)))
 
-    def test_entrambe_sconosciute_usano_il_default(self):
-        eng = _StubEngine({}, 65.0)
+    def test_entrambe_sconosciute_usano_lo_stesso_seeding(self):
+        seed = 1382.5
+        eng = _StubEngine({}, 65.0, seed=seed)
+        with _CacheStub(eng):
+            got = predict_elo_probs("A", "B", LEGA)
+        want = elo_probs_from_ratings(seed, seed, 65.0)
+        for k in KEYS:
+            self.assertEqual(repr(got[k]), repr(want[k]), f"chiave {k}")
+
+    def test_nessuna_squadra_attiva_cade_sul_default_1500(self):
+        """Comportamento dichiarato del caso limite: nessuna attiva -> 1500."""
+        eng = _StubEngine({}, 65.0, seed=DEFAULT_INITIAL_RATING)
         with _CacheStub(eng):
             got = predict_elo_probs("A", "B", LEGA)
         want = elo_probs_from_ratings(DEFAULT_INITIAL_RATING,
