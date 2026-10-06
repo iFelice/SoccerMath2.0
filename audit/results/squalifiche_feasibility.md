@@ -1,8 +1,8 @@
 # Fattibilita' feature squalifiche — eventi certi, validazione, conteggi, potenza
 
-**STATO ARTIFACT PLAYER_MATCH:** id `11415875090`, nome `ppda-player-verify-37461010400` da run `37461010400`, dimensione compressa `10030865` byte, creato `2026-10-06T12:51:23Z`, scadenza `2026-10-20T12:51:20Z`, expired=`false`. Scade entro 30 giorni rispetto al 2026-10-06: **SI**. Proposta non applicata: promuovere lo zip (~10030865 byte compresso) ad asset di release GitHub o storage oggetto esterno versionato, lasciando fuori git i JSON raw.
+**STATO ARTIFACT PLAYER_MATCH:** id `11415875090`, nome `ppda-player-verify-37461010400` da run `37461010400`, dimensione compressa `10030865` byte, creato `2026-10-06T12:51:23Z`, scadenza `2026-10-20T12:51:20Z`, expired=`false`. Scade entro 30 giorni rispetto al 2026-10-06: **SI**. I JSON raw restano fuori git; le istruzioni riproducibili di rigenerazione sono nella sezione 1.
 
-Generato: `2026-10-06T13:17:55+00:00` UTC. Commit base script: `efb04cc4b8e9eae1c627fcb308129e9eca1c5799`.
+Generato: `2026-10-06T15:56:13+00:00` UTC. Commit base script: `95c9b59b8a73fbd2b55b4f018e9a5248c352a0f9`.
 
 ## 0. Evidenze comandi
 | Esito | Comando | Evidenza |
@@ -13,17 +13,6 @@ Generato: `2026-10-06T13:17:55+00:00` UTC. Commit base script: `efb04cc4b8e9eae1
 | NON OK | gh run download 37461010400 --name ppda-player-verify-37461010400 | sandbox: Azure blob productionresultssa1.blob.core.windows.net -> EOF; download riuscito dentro GitHub Actions per l'analisi |
 | NON OK | python update_all_ppda_player_db.py ... (sandbox) | sandbox: GitHub release asset TLS client e understat.com chiudono TLS (SSL_ERROR_SYSCALL/EOF); acquisizione reale riuscita nel runner Actions del run 37461010400 |
 | OK | python audit/squalifiche_feasibility.py --player-match-dir ... | report generato su dati player_match recuperati dall'artifact fresco |
-
-### CI Audit/Replay disponibile al momento della generazione del report
-
-| Esito | Workflow | Evento | Run | Head | Evidenza |
-|---|---|---|---|---|---|
-| OK | Audit Top Mix (sola lettura) | push | 37468651537 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468651537 |
-| OK | Replay Top Mix legacy (walk-forward, no-leakage) | push | 37468652055 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468652055 |
-| OK | Audit Top Mix (sola lettura) | pull_request | 37468659523 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468659523 |
-| OK | Replay Top Mix legacy (walk-forward, no-leakage) | pull_request | 37468659528 | efb04cc4b8e9eae1c627fcb308129e9eca1c5799 | https://github.com/iFelice/SoccerMath2.0/actions/runs/37468659528 |
-
-Nota: la rimozione del workflow temporaneo e' un cleanup successivo; le run CI finali su quell'head sono riportate nella PR/final response.
 
 ## 1. Inventario fonte player_match
 | Percorso/script | Fonte | Evidenza |
@@ -40,6 +29,10 @@ Nota: la rimozione del workflow temporaneo e' un cleanup successivo; le run CI f
 | La Liga | audit/output/ppda-player-verify-37461010400/database/player_match_la_liga.json | 21110374 | 49766 | 1589 | 2022, 2023, 2024, 2025, 2026 | OK |
 | Bundesliga | audit/output/ppda-player-verify-37461010400/database/player_match_bundesliga.json | 16943284 | 39192 | 1259 | 2022, 2023, 2024, 2025, 2026 | OK |
 | Ligue 1 | audit/output/ppda-player-verify-37461010400/database/player_match_ligue_1.json | 17385200 | 41175 | 1343 | 2022, 2023, 2024, 2025, 2026 | OK |
+
+### Rigenerazione, non conservazione permanente
+Usare il workflow versionato `.github/workflows/ppda_player_verify.yml` (`Verifica PPDA/deep/giocatore (sola lettura)`): GitHub → Actions → workflow → **Run workflow**, selezionare il branch e lasciare vuoti `seasons`, `player_seasons` e `sample_matches_per_league` per la finestra mobile completa; in alternativa `gh workflow run ppda_player_verify.yml --ref <branch>` con credenziali che autorizzino `workflow_dispatch`. Lo step `Acquisizione reale (Understat, 5 leghe)` esegue `update_all_ppda_player_db.py`; al termine scaricare l'artifact `ppda-player-verify-<run_id>` e usare `database/player_match_*.json`. Il run osservato 37461010400 e' durato 44m08s (12:07:18–12:51:26 UTC), artifact compresso 10,030,865 byte; durata e dimensione possono variare con la finestra mobile.
+Confronto PR #23: snapshot storico documentato **224902** righe (~225k); rigenerazione **226657** righe, differenza **+1755** (+0.78%). Copertura invariata nel perimetro: 5 leghe e 5 stagioni 2022–2026; il numero di partite/righe aggiornato e' nella tabella sopra.
 
 Regole applicate: Serie A: gialli cumulativi 5,9,13,16,18, poi ogni ammonizione; coppe separate; Premier League: 5 gialli entro 19a partita squadra -> 1; 10 entro 32a -> 2; 15 -> 3; La Liga: cicli da 5; esenzione ultima giornata; doppia ammonizione esclusa/ambigua; Bundesliga: 5a, 10a, 15a... ammonizione -> 1 turno; Ligue 1: 2023/24-2024/25: 3 gialli in 10 incontri ufficiali; 2025/26: 5 gialli; coppe nazionali mancanti nel dataset
 
@@ -76,6 +69,59 @@ Casi ambigui esclusi: **71**. Prime righe: Bundesliga 2023 Tuta red_cards>0 con 
 | Ligue 1 | 543 | 282 | 48.1% | NON VERIFICABILE (ground truth ufficiale non versionata) |
 Candidati esclusi dai conteggi principali per violazione di validazione (il player_match mostra minuti nella partita da saltare): **435**.
 
+### 3.1 Falsi positivi della ricostruzione
+Precisione operativa della regola pre-partita = confermati / (confermati + casi poi osservati in campo). Il termine 'confermato' indica qui soltanto la non-presenza nel player_match successivo, non una ground truth ufficiale.
+| Lega | Confermati | Osservati in campo | Precisione |
+|---|---|---|---|
+| Serie A | 501 | 66 | 88.4% |
+| Premier League | 256 | 18 | 93.4% |
+| La Liga | 612 | 56 | 91.6% |
+| Bundesliga | 396 | 13 | 96.8% |
+| Ligue 1 | 261 | 282 | 48.1% |
+
+Campione casuale semplice di 30/435, seed Python `random.Random(3300435)`, estratto dopo ordinamento stabile. La classificazione e' diagnostica: usa lega, regola e record player_match; senza provvedimenti ufficiali la causa individuale non e' verificabile in senso forense.
+| Causa | Conteggio nel campione |
+|---|---|
+| cartellino di coppa contato o non contato | 11 |
+| soglia o azzeramento di diffida sbagliato | 18 |
+| ricorso o condono | 1 |
+| errore di identità del giocatore | 0 |
+| altro | 0 |
+| Lega | Stagione | Giocatore | Match origine | Match previsto | Causa | Base classificazione |
+|---|---|---|---|---|---|---|
+| Serie A | 2023/24 | Amir Rrahmani | 22636 | 22654 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2025/26 | Marvin Senaya | 29747 | 29754 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| La Liga | 2024/25 | Isi Palazón | 27329 | 27336 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Serie A | 2023/24 | Remo Freuler | 22630 | 22642 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2023/24 | Frank Magri | 23459 | 23463 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| Ligue 1 | 2023/24 | Marvin Senaya | 23602 | 23605 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| La Liga | 2023/24 | Aitor Paredes | 22996 | 23011 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2024/25 | Neil El Aynaoui | 28289 | 28296 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| Ligue 1 | 2025/26 | Simon Ebonog | 29745 | 29755 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Serie A | 2024/25 | Nicolo Rovella | 27559 | 27566 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2025/26 | Tylel Tati | 29695 | 29706 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2025/26 | Pierre Lees-Melou | 29785 | 29796 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2024/25 | Mitchel Bakker | 28280 | 28289 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| La Liga | 2024/25 | Ladislav Krejcí | 27166 | 27173 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2023/24 | Formose Mendy | 23621 | 23635 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| Ligue 1 | 2024/25 | Guela Doué | 28093 | 28110 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| Ligue 1 | 2024/25 | Brendan Chardonnet | 28325 | 28333 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| La Liga | 2024/25 | Omar El Hilali | 27261 | 27262 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2024/25 | Alexsandro Ribeiro | 28111 | 28120 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| Serie A | 2024/25 | Armando Izzo | 27589 | 27601 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Serie A | 2025/26 | Fikayo Tomori | 30141 | 30149 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Premier League | 2024/25 | Christian Nørgaard | 26715 | 26722 | ricorso o condono | rosso osservato ma presenza successiva; senza giudice sportivo la distinzione da altra causa non e' verificabile |
+| Serie A | 2024/25 | Pedro Pereira | 27692 | 27708 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2023/24 | Thomas Foket | 23521 | 23526 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| Ligue 1 | 2025/26 | Florian Thauvin | 29704 | 29710 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2023/24 | Formose Mendy | 23500 | 23508 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| Bundesliga | 2024/25 | Magnus Knudsen | 27903 | 27910 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2024/25 | Cédric Kipré | 28223 | 28234 | cartellino di coppa contato o non contato | regola su incontri ufficiali, ma input disponibile solo per il campionato |
+| La Liga | 2025/26 | Lucien Agoume | 29480 | 29476 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+| Ligue 1 | 2025/26 | Dayann Methalie | 29727 | 29744 | soglia o azzeramento di diffida sbagliato | trigger da accumulo league-only seguito da presenza nella gara prevista |
+
+**Leakage esplicito:** il filtro `il giocatore ha giocato la partita saltata` usa informazioni successive al pronostico. Un eventuale modello futuro deve usare la lista pre-partita **NON filtrata**; la lista filtrata serve soltanto alla stima di fattibilita'/validazione retrospettiva.
+
 ## 4-5. Alto utilizzo e conteggi
 Alto utilizzo = minuti giocati >=60% dei 450 minuti disponibili nelle ultime 5 partite di campionato della squadra prima della partita saltata; sensibilita' 40% calcolata negli output macchina.
 | Lega | Stagione | Partite con >=1 squalificato | Partite con >=1 high60 | Partite con >=1 high40 | Ruoli eventi | Partite multi-assenti | Da entrambe le parti | Squadre | Giocatori |
@@ -103,7 +149,7 @@ A) 1X2: shock transitorio sul differenziale Elo `d_match=d+Δ_H−Δ_A`, qui Δ 
 | 15 | 26.2% |
 | 30 | 72.5% |
 | 50 | 100.0% |
-MDE 80% A: `50` punti Elo. Rapporto sd posterior/prior A: `0.317`.
+Potenza esatta alla prior centrale δ=30 Elo: **72.5%**. MDE 80% A: `50` punti Elo. Sd posterior: **9.50 punti Elo**; rapporto sd posterior/prior: `0.317`. Stima puntuale esplorativa sui risultati reali: **δ̂=16.5 Elo**.
 
 B) Totali: shock log-lambda: attaccante assente -> lambda propria; portiere/difensore assente -> lambda avversaria. Centrocampisti esclusi dallo shock B e conteggiati nei ruoli.
 | δ vero | Potenza α=5% |
@@ -111,7 +157,19 @@ B) Totali: shock log-lambda: attaccante assente -> lambda propria; portiere/dife
 | 0.05 | 10.0% |
 | 0.1 | 41.2% |
 | 0.15 | 80.0% |
-MDE 80% B: `0.15` log-lambda. Rapporto sd posterior/prior B: `0.433`.
+Potenza esatta alla prior centrale δ=0.10 log-lambda: **41.2%**. MDE 80% B: `0.15` log-lambda. Sd posterior: **0.0433 log-lambda**; rapporto sd posterior/prior: `0.433`. Stima puntuale esplorativa sui risultati reali: **δ̂=0.004 log-lambda**.
+
+### Sensibilita' sulla lista pre-partita non filtrata
+Il modello/test usa tutti i 2.461 candidati pre-partita come esposizione osservata; nella simulazione l'effetto vero e' imposto soltanto sui 2.026 eventi confermati. I 435 falsi positivi hanno effetto vero zero. Questa e' la specifica utilizzabile senza leakage al momento del pronostico.
+| Punto | δ vero | Potenza α=5% |
+|---|---|---|
+| A 1X2 | 15 | 25.0% |
+| A 1X2 | 30 | 63.7% |
+| A 1X2 | 50 | 98.8% |
+| B Totali | 0.05 | 7.5% |
+| B Totali | 0.1 | 26.2% |
+| B Totali | 0.15 | 70.0% |
+Sensibilita' A: MDE 80% `50` Elo. Sensibilita' B: MDE 80% `>0.15` log-lambda. Il verdetto formale sotto resta quello della regola fissata sull'analisi principale.
 
 ## 7-8. Prior e verdetto
 | Punto | Prior | Regola GO | MDE | posterior/prior | Verdetto |
