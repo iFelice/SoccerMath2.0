@@ -42,6 +42,7 @@ TODAY = dt.date(2026, 10, 6)
 ANALYSIS_SEASONS = [2023, 2024, 2025]
 ALL_SEASONS = [2022, 2023, 2024, 2025, 2026]
 BOOTSTRAP_SEED = 20261006
+FALSE_POSITIVE_SAMPLE_SEED = 3300435
 
 
 @dataclass(frozen=True)
@@ -608,7 +609,8 @@ def bootstrap_significant(diffs: np.ndarray, homes: Sequence[str], aways: Sequen
     return float(np.percentile(vals, 5)) > 0.0
 
 
-def power_1x2(elo_df: pd.DataFrame, mat: Dict[Tuple[str, int], Dict[str, Any]], matches_by_id) -> Tuple[List[dict], str, float]:
+def power_1x2(elo_df: pd.DataFrame, mat: Dict[Tuple[str, int], Dict[str, Any]], matches_by_id,
+               true_mat: Optional[Dict[Tuple[str, int], Dict[str, Any]]] = None) -> Tuple[List[dict], str, float, float, float]:
     rows = []
     for r in elo_df.itertuples(index=False):
         if str(r.season) not in {season_label(s) for s in ANALYSIS_SEASONS}:
@@ -630,13 +632,36 @@ def power_1x2(elo_df: pd.DataFrame, mat: Dict[Tuple[str, int], Dict[str, Any]], 
             continue
         rows.append({"league": league, "match_id": mid, "home": h, "away": a, "d": float(r.d_elo_diff), "p0": p0, "y": y,
                      "x": float(ev.get("away_high", 0) - ev.get("home_high", 0))})
-    return simulate_power_A(rows)
+    if true_mat is None:
+        return simulate_power_A(rows)
+    true_rows = []
+    for r in rows:
+        ev = true_mat.get((r["league"], r["match_id"]), {})
+        rr = dict(r)
+        rr["x"] = float(ev.get("away_high", 0) - ev.get("home_high", 0))
+        true_rows.append(rr)
+    return simulate_power_A(rows, true_rows)
 
 
-def simulate_power_A(rows: List[dict]) -> Tuple[List[dict], str, float]:
+def fit_delta_A(rows: List[dict], x_key: str = "x") -> float:
+    grid = np.linspace(-80, 80, 321)
+    return float(min(grid, key=lambda dg: sum(
+        logloss_multinomial(elo_probs_from_d(r["d"] + float(dg) * r[x_key]), r["y"])
+        for r in rows)))
+
+
+def simulate_power_A(rows: List[dict], true_rows: Optional[List[dict]] = None) -> Tuple[List[dict], str, float, float, float]:
+    """Power using rows as pre-match exposure; optional true_rows drive outcomes.
+
+    For false-positive sensitivity, model fitting uses the unfiltered candidate
+    exposure while simulated outcomes receive the imposed effect only through
+    the confirmed-event exposure in true_rows.
+    """
     rng = random.Random(BOOTSTRAP_SEED)
     if not rows or not any(abs(r["x"]) > 0 for r in rows):
-        return [], ">50", 1.0
+        return [], ">50", 1.0, 30.0, 0.0
+    truth = true_rows or rows
+    truth_by = {(r["league"], r["match_id"]): r for r in truth}
     homes = [r["home"] for r in rows]; aways = [r["away"] for r in rows]
     deltas = [15, 30, 50]
     est_grid = np.linspace(-80, 80, 33)
@@ -646,22 +671,29 @@ def simulate_power_A(rows: List[dict]) -> Tuple[List[dict], str, float]:
         for _ in range(sims):
             ys = []
             for r in rows:
-                p = elo_probs_from_d(r["d"] + true_delta * r["x"])
+                tr = truth_by.get((r["league"], r["match_id"]))
+                tx = float(tr["x"]) if tr else 0.0
+                p = elo_probs_from_d(r["d"] + true_delta * tx)
                 ys.append(int(rng.choices([0, 1, 2], weights=p, k=1)[0]))
             best_delta, best_ll = 0.0, float("inf")
             for dg in est_grid:
-                ll = 0.0
-                for r, y in zip(rows, ys):
-                    ll += logloss_multinomial(elo_probs_from_d(r["d"] + dg * r["x"]), y)
+                ll = sum(logloss_multinomial(
+                    elo_probs_from_d(r["d"] + float(dg) * r["x"]), y)
+                    for r, y in zip(rows, ys))
                 if ll < best_ll:
                     best_ll, best_delta = ll, float(dg)
-            diffs = np.array([logloss_multinomial(elo_probs_from_d(r["d"]), y) - logloss_multinomial(elo_probs_from_d(r["d"] + best_delta * r["x"]), y) for r, y in zip(rows, ys)])
+            diffs = np.array([
+                logloss_multinomial(elo_probs_from_d(r["d"]), y)
+                - logloss_multinomial(elo_probs_from_d(r["d"] + best_delta * r["x"]), y)
+                for r, y in zip(rows, ys)])
             if bootstrap_significant(diffs, homes, aways, rng):
                 sig += 1
         out.append({"delta": true_delta, "power": sig / sims})
     mde = next((str(x["delta"]) for x in out if x["power"] >= 0.80), ">50")
     ratio = posterior_prior_ratio_A(rows)
-    return out, mde, ratio
+    post_sd = 30.0 * ratio
+    estimate = fit_delta_A(rows)
+    return out, mde, ratio, post_sd, estimate
 
 
 def posterior_prior_ratio_A(rows: List[dict]) -> float:
@@ -705,11 +737,19 @@ def adjusted_over(row: dict, delta: float) -> float:
     return poisson_over_prob(lh, la)
 
 
-def simulate_power_B(rows: List[dict]) -> Tuple[List[dict], str, float]:
+def fit_delta_B(rows: List[dict]) -> float:
+    grid = np.linspace(-0.20, 0.20, 401)
+    return float(min(grid, key=lambda dg: sum(
+        logloss_binary(adjusted_over(r, float(dg)), r["y"]) for r in rows)))
+
+
+def simulate_power_B(rows: List[dict], true_rows: Optional[List[dict]] = None) -> Tuple[List[dict], str, float, float, float]:
     rng = random.Random(BOOTSTRAP_SEED + 1)
     active = [r for r in rows if any(r[k] for k in ("home_att", "away_att", "home_defgk", "away_defgk"))]
     if not active:
-        return [], ">0.15", 1.0
+        return [], ">0.15", 1.0, 0.10, 0.0
+    truth = true_rows or rows
+    truth_by = {(r["league"], r["match_id"]): r for r in truth}
     homes = [r["home"] for r in rows]; aways = [r["away"] for r in rows]
     deltas = [0.05, 0.10, 0.15]
     est_grid = np.linspace(-0.20, 0.20, 41)
@@ -717,7 +757,14 @@ def simulate_power_B(rows: List[dict]) -> Tuple[List[dict], str, float]:
     for true_delta in deltas:
         sig = 0; sims = 80
         for _ in range(sims):
-            ys = [int(rng.random() < adjusted_over(r, true_delta)) for r in rows]
+            ys = []
+            for r in rows:
+                tr = truth_by.get((r["league"], r["match_id"]))
+                if tr is None:
+                    tr = dict(r)
+                    for key in ("home_att", "away_att", "home_defgk", "away_defgk"):
+                        tr[key] = 0
+                ys.append(int(rng.random() < adjusted_over(tr, true_delta)))
             best_delta, best_ll = 0.0, float("inf")
             for dg in est_grid:
                 ll = sum(logloss_binary(adjusted_over(r, float(dg)), y) for r, y in zip(rows, ys))
@@ -729,7 +776,9 @@ def simulate_power_B(rows: List[dict]) -> Tuple[List[dict], str, float]:
         out.append({"delta": true_delta, "power": sig / sims})
     mde = next((f"{x['delta']:.2f}" for x in out if x["power"] >= 0.80), ">0.15")
     ratio = posterior_prior_ratio_B(rows)
-    return out, mde, ratio
+    post_sd = 0.10 * ratio
+    estimate = fit_delta_B(rows)
+    return out, mde, ratio, post_sd, estimate
 
 
 def posterior_prior_ratio_B(rows: List[dict]) -> float:
@@ -772,6 +821,42 @@ def summarize_counts(events: List[Event]) -> Tuple[List[List[Any]], Dict[str, An
     return rows, total
 
 
+def classify_false_positive_sample(events: List[Event], player_index) -> Tuple[List[List[Any]], List[List[Any]]]:
+    """Deterministic diagnostic classification, constrained to available data."""
+    failed = sorted((e for e in events if e.validation_played),
+                    key=lambda e: (e.league, e.season, e.skipped_match_id, str(e.player_id), e.rule))
+    rng = random.Random(FALSE_POSITIVE_SAMPLE_SEED)
+    sample = rng.sample(failed, min(30, len(failed)))
+    detail = []
+    counts = Counter()
+    for e in sample:
+        skipped_rec = player_index.get((e.league, e.skipped_match_id, e.player_id), {})
+        if skipped_rec and skipped_rec.get("team_canon") != e.team:
+            cause = "altro"
+            basis = "player_id presente nella partita successiva con squadra diversa (trasferimento/associazione squadra)"
+        elif e.league == "Ligue 1" and e.season <= 2024:
+            cause = "cartellino di coppa contato o non contato"
+            basis = "regola su incontri ufficiali, ma input disponibile solo per il campionato"
+        elif e.rule.startswith("rosso diretto"):
+            cause = "ricorso o condono"
+            basis = "rosso osservato ma presenza successiva; senza giudice sportivo la distinzione da altra causa non e' verificabile"
+        else:
+            cause = "soglia o azzeramento di diffida sbagliato"
+            basis = "trigger da accumulo league-only seguito da presenza nella gara prevista"
+        counts[cause] += 1
+        detail.append([e.league, season_label(e.season), e.player, e.source_match_id,
+                       e.skipped_match_id, cause, basis])
+    categories = [
+        "cartellino di coppa contato o non contato",
+        "soglia o azzeramento di diffida sbagliato",
+        "ricorso o condono",
+        "errore di identità del giocatore",
+        "altro",
+    ]
+    summary = [[c, counts.get(c, 0)] for c in categories]
+    return summary, detail
+
+
 def command_table(ctx: Dict[str, Any]) -> str:
     rows = [
         ["OK", "gh run list --workflow ppda_player_verify.yml", f"run recupero fresco {ctx.get('artifact_run_id')} workflow Verifica PPDA/deep/giocatore"],
@@ -790,7 +875,7 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
     artifact_expires = ctx.get("artifact_expires")
     ap("# Fattibilita' feature squalifiche — eventi certi, validazione, conteggi, potenza")
     ap("")
-    ap(f"**STATO ARTIFACT PLAYER_MATCH:** id `{ctx.get('artifact_id')}`, nome `{ctx.get('artifact_name')}` da run `{ctx.get('artifact_run_id')}`, dimensione compressa `{ctx.get('artifact_size')}` byte, creato `{ctx.get('artifact_created')}`, scadenza `{artifact_expires}`, expired=`{str(ctx.get('artifact_expired')).lower()}`. Scade entro 30 giorni rispetto al 2026-10-06: **SI**. Proposta non applicata: promuovere lo zip (~{ctx.get('artifact_size')} byte compresso) ad asset di release GitHub o storage oggetto esterno versionato, lasciando fuori git i JSON raw.")
+    ap(f"**STATO ARTIFACT PLAYER_MATCH:** id `{ctx.get('artifact_id')}`, nome `{ctx.get('artifact_name')}` da run `{ctx.get('artifact_run_id')}`, dimensione compressa `{ctx.get('artifact_size')}` byte, creato `{ctx.get('artifact_created')}`, scadenza `{artifact_expires}`, expired=`{str(ctx.get('artifact_expired')).lower()}`. Scade entro 30 giorni rispetto al 2026-10-06: **SI**. I JSON raw restano fuori git; le istruzioni riproducibili di rigenerazione sono nella sezione 1.")
     ap("")
     ap(f"Generato: `{dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()}` UTC. Commit base script: `{ctx.get('head')}`.")
     ap("")
@@ -807,6 +892,12 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
     ap("### Copertura file recuperati")
     ap(md_table(["Lega", "File", "Byte", "Righe", "Partite distinte", "Stagioni", "Cartellini/minuti/ruolo"], coverage_rows))
     ap("")
+    total_player_rows = sum(int(r[3]) for r in coverage_rows)
+    historical_rows = 224902
+    ap("### Rigenerazione, non conservazione permanente")
+    ap("Usare il workflow versionato `.github/workflows/ppda_player_verify.yml` (`Verifica PPDA/deep/giocatore (sola lettura)`): GitHub → Actions → workflow → **Run workflow**, selezionare il branch e lasciare vuoti `seasons`, `player_seasons` e `sample_matches_per_league` per la finestra mobile completa; in alternativa `gh workflow run ppda_player_verify.yml --ref <branch>` con credenziali che autorizzino `workflow_dispatch`. Lo step `Acquisizione reale (Understat, 5 leghe)` esegue `update_all_ppda_player_db.py`; al termine scaricare l'artifact `ppda-player-verify-<run_id>` e usare `database/player_match_*.json`. Il run osservato 37461010400 e' durato 44m08s (12:07:18–12:51:26 UTC), artifact compresso 10,030,865 byte; durata e dimensione possono variare con la finestra mobile.")
+    ap(f"Confronto PR #23: snapshot storico documentato **{historical_rows}** righe (~225k); rigenerazione **{total_player_rows}** righe, differenza **{total_player_rows-historical_rows:+d}** ({(total_player_rows-historical_rows)/historical_rows:+.2%}). Copertura invariata nel perimetro: 5 leghe e 5 stagioni 2022–2026; il numero di partite/righe aggiornato e' nella tabella sopra.")
+    ap("")
     ap("Regole applicate: " + "; ".join(f"{k}: {v}" for k, v in RULES.items()))
     ap("")
     ap("Limiti dichiarati: rosso diretto certo contato solo quando `red_cards>0` e `yellow_cards==0`; casi red+yellow esclusi come ambigui; Ligue 1 usa dato league-only e dichiara coppe nazionali mancanti; nessuna ground truth ufficiale versionata, validazione minima presenza/assenza su player_match.")
@@ -821,6 +912,16 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
     ap(md_table(["Lega", "Candidati ricostruiti", "Violazioni: giocatore risulta in campo", "Precision minima presenza", "Recall"], validation_rows))
     ap(f"Candidati esclusi dai conteggi principali per violazione di validazione (il player_match mostra minuti nella partita da saltare): **{ctx.get('validation_excluded', 0)}**.")
     ap("")
+    ap("### 3.1 Falsi positivi della ricostruzione")
+    ap("Precisione operativa della regola pre-partita = confermati / (confermati + casi poi osservati in campo). Il termine 'confermato' indica qui soltanto la non-presenza nel player_match successivo, non una ground truth ufficiale.")
+    ap(md_table(["Lega", "Confermati", "Osservati in campo", "Precisione"], ctx["precision_rows"]))
+    ap("")
+    ap(f"Campione casuale semplice di 30/435, seed Python `random.Random({FALSE_POSITIVE_SAMPLE_SEED})`, estratto dopo ordinamento stabile. La classificazione e' diagnostica: usa lega, regola e record player_match; senza provvedimenti ufficiali la causa individuale non e' verificabile in senso forense.")
+    ap(md_table(["Causa", "Conteggio nel campione"], ctx["fp_summary"]))
+    ap(md_table(["Lega", "Stagione", "Giocatore", "Match origine", "Match previsto", "Causa", "Base classificazione"], ctx["fp_detail"]))
+    ap("")
+    ap("**Leakage esplicito:** il filtro `il giocatore ha giocato la partita saltata` usa informazioni successive al pronostico. Un eventuale modello futuro deve usare la lista pre-partita **NON filtrata**; la lista filtrata serve soltanto alla stima di fattibilita'/validazione retrospettiva.")
+    ap("")
     ap("## 4-5. Alto utilizzo e conteggi")
     ap("Alto utilizzo = minuti giocati >=60% dei 450 minuti disponibili nelle ultime 5 partite di campionato della squadra prima della partita saltata; sensibilita' 40% calcolata negli output macchina.")
     ap(md_table(["Lega", "Stagione", "Partite con >=1 squalificato", "Partite con >=1 high60", "Partite con >=1 high40", "Ruoli eventi", "Partite multi-assenti", "Da entrambe le parti", "Squadre", "Giocatori"], count_rows))
@@ -828,11 +929,18 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
     ap("## 6. Potenza statistica")
     ap("A) 1X2: shock transitorio sul differenziale Elo `d_match=d+Δ_H−Δ_A`, qui Δ effettivo = `δ*(away_high-home_high)`. Stima δ via griglia e test ΔLogLoss appaiato con bootstrap a blocchi squadra.")
     ap(md_table(["δ vero", "Potenza α=5%"], [[x["delta"], fmt_pct(x["power"])] for x in powerA]))
-    ap(f"MDE 80% A: `{mdeA}` punti Elo. Rapporto sd posterior/prior A: `{ratioA:.3f}`.")
+    ap(f"Potenza esatta alla prior centrale δ=30 Elo: **{fmt_pct(next(x['power'] for x in powerA if x['delta']==30))}**. MDE 80% A: `{mdeA}` punti Elo. Sd posterior: **{ctx['post_sd_A']:.2f} punti Elo**; rapporto sd posterior/prior: `{ratioA:.3f}`. Stima puntuale esplorativa sui risultati reali: **δ̂={ctx['estimate_A']:.1f} Elo**.")
     ap("")
     ap("B) Totali: shock log-lambda: attaccante assente -> lambda propria; portiere/difensore assente -> lambda avversaria. Centrocampisti esclusi dallo shock B e conteggiati nei ruoli.")
     ap(md_table(["δ vero", "Potenza α=5%"], [[x["delta"], fmt_pct(x["power"])] for x in powerB]))
-    ap(f"MDE 80% B: `{mdeB}` log-lambda. Rapporto sd posterior/prior B: `{ratioB:.3f}`.")
+    ap(f"Potenza esatta alla prior centrale δ=0.10 log-lambda: **{fmt_pct(next(x['power'] for x in powerB if x['delta']==0.10))}**. MDE 80% B: `{mdeB}` log-lambda. Sd posterior: **{ctx['post_sd_B']:.4f} log-lambda**; rapporto sd posterior/prior: `{ratioB:.3f}`. Stima puntuale esplorativa sui risultati reali: **δ̂={ctx['estimate_B']:.3f} log-lambda**.")
+    ap("")
+    ap("### Sensibilita' sulla lista pre-partita non filtrata")
+    ap("Il modello/test usa tutti i 2.461 candidati pre-partita come esposizione osservata; nella simulazione l'effetto vero e' imposto soltanto sui 2.026 eventi confermati. I 435 falsi positivi hanno effetto vero zero. Questa e' la specifica utilizzabile senza leakage al momento del pronostico.")
+    ap(md_table(["Punto", "δ vero", "Potenza α=5%"],
+        [["A 1X2", x["delta"], fmt_pct(x["power"])] for x in ctx["sensitivity_A"]] +
+        [["B Totali", x["delta"], fmt_pct(x["power"])] for x in ctx["sensitivity_B"]]))
+    ap(f"Sensibilita' A: MDE 80% `{ctx['sensitivity_mde_A']}` Elo. Sensibilita' B: MDE 80% `{ctx['sensitivity_mde_B']}` log-lambda. Il verdetto formale sotto resta quello della regola fissata sull'analisi principale.")
     ap("")
     goA = (mdeA not in (">50", "n/d") and float(mdeA) <= 30 and ratioA <= 0.7)
     goB = (mdeB not in (">0.15", "n/d") and float(mdeB) <= 0.10 and ratioB <= 0.7)
@@ -886,19 +994,33 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     candidate_events, ambiguous = reconstruct_events(rows, matches_by_id, by_team_season, player_index)
     candidate_events = [e for e in candidate_events if e.season in ANALYSIS_SEASONS]
     validation_rows = []
+    precision_rows = []
     for lg in LEAGUES:
         ev = [e for e in candidate_events if e.league == lg.name]
         viol = sum(e.validation_played for e in ev)
-        validation_rows.append([lg.name, len(ev), viol, fmt_pct((len(ev)-viol)/len(ev) if ev else None), "NON VERIFICABILE (ground truth ufficiale non versionata)"])
+        confirmed = len(ev) - viol
+        precision = confirmed / (confirmed + viol) if ev else None
+        validation_rows.append([lg.name, len(ev), viol, fmt_pct(precision), "NON VERIFICABILE (ground truth ufficiale non versionata)"])
+        precision_rows.append([lg.name, confirmed, viol, fmt_pct(precision)])
     events = [e for e in candidate_events if not e.validation_played]
     ctx["validation_excluded"] = len(candidate_events) - len(events)
+    ctx["precision_rows"] = precision_rows
+    ctx["fp_summary"], ctx["fp_detail"] = classify_false_positive_sample(candidate_events, player_index)
     count_rows, totals = summarize_counts(events)
 
     mat = event_matrix(events, matches_by_id)
+    candidate_mat = event_matrix(candidate_events, matches_by_id)
     elo_df = ensure_elo_table(REPO_ROOT / "audit/output/elo_walker_per_match.parquet")
-    powerA, mdeA, ratioA = power_1x2(elo_df, mat, matches_by_id)
+    powerA, mdeA, ratioA, post_sd_A, estimate_A = power_1x2(elo_df, mat, matches_by_id)
+    sensA, sens_mdeA, _, _, _ = power_1x2(elo_df, candidate_mat, matches_by_id, true_mat=mat)
     ou_rows = build_ou_rows(matches_by_id, mat)
-    powerB, mdeB, ratioB = simulate_power_B(ou_rows)
+    candidate_ou_rows = build_ou_rows(matches_by_id, candidate_mat)
+    powerB, mdeB, ratioB, post_sd_B, estimate_B = simulate_power_B(ou_rows)
+    sensB, sens_mdeB, _, _, _ = simulate_power_B(candidate_ou_rows, ou_rows)
+    ctx.update({"post_sd_A": post_sd_A, "estimate_A": estimate_A,
+                "post_sd_B": post_sd_B, "estimate_B": estimate_B,
+                "sensitivity_A": sensA, "sensitivity_mde_A": sens_mdeA,
+                "sensitivity_B": sensB, "sensitivity_mde_B": sens_mdeB})
 
     source = {
         "coverage": coverage_rows,
@@ -907,7 +1029,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "validation": validation_rows,
         "counts": count_rows,
         "powerA": powerA, "mdeA": mdeA, "ratioA": ratioA,
+        "post_sd_A": post_sd_A, "estimate_A": estimate_A,
         "powerB": powerB, "mdeB": mdeB, "ratioB": ratioB,
+        "post_sd_B": post_sd_B, "estimate_B": estimate_B,
+        "sensitivity_A": sensA, "sensitivity_mde_A": sens_mdeA,
+        "sensitivity_B": sensB, "sensitivity_mde_B": sens_mdeB,
+        "false_positive_sample": {"seed": FALSE_POSITIVE_SAMPLE_SEED,
+                                  "summary": ctx["fp_summary"], "detail": ctx["fp_detail"]},
         "artifact": ctx,
     }
     out_json = REPO_ROOT / args.json
