@@ -757,6 +757,7 @@ def summarize_counts(events: List[Event]) -> Tuple[List[List[Any]], Dict[str, An
             ev = [e for e in events if e.league == league and e.season == season]
             matches = {(e.league, e.skipped_match_id) for e in ev}
             high_matches = {(e.league, e.skipped_match_id) for e in ev if e.high60}
+            high40_matches = {(e.league, e.skipped_match_id) for e in ev if e.high40}
             roles = Counter(e.role for e in ev)
             by_match = defaultdict(list)
             for e in ev: by_match[e.skipped_match_id].append(e)
@@ -766,18 +767,18 @@ def summarize_counts(events: List[Event]) -> Tuple[List[List[Any]], Dict[str, An
                 teams = {x.team for x in xs}
                 if len(teams) >= 2: both += 1
             teams = {e.team for e in ev}; players = {e.player_id for e in ev}
-            rows.append([league, season_label(season), len(matches), len(high_matches), ", ".join(f"{r}:{roles.get(r,0)}" for r in ROLE_LABELS), multi, both, len(teams), len(players)])
-            total["events"] += len(ev); total["matches"] += len(matches); total["high_matches"] += len(high_matches)
+            rows.append([league, season_label(season), len(matches), len(high_matches), len(high40_matches), ", ".join(f"{r}:{roles.get(r,0)}" for r in ROLE_LABELS), multi, both, len(teams), len(players)])
+            total["events"] += len(ev); total["matches"] += len(matches); total["high_matches"] += len(high_matches); total["high40_matches"] += len(high40_matches)
     return rows, total
 
 
 def command_table(ctx: Dict[str, Any]) -> str:
     rows = [
         ["OK", "gh run list --workflow ppda_player_verify.yml", f"run recupero fresco {ctx.get('artifact_run_id')} workflow Verifica PPDA/deep/giocatore"],
-        ["OK" if ctx.get("artifact_expired") is False else "NON OK", "gh api repos/iFelice/SoccerMath2.0/actions/runs/<run>/artifacts", f"artifact {ctx.get('artifact_name')} size={ctx.get('artifact_size')} created={ctx.get('artifact_created')} expires={ctx.get('artifact_expires')} expired={ctx.get('artifact_expired')}"] ,
+        ["OK" if ctx.get("artifact_expired") is False else "NON OK", "gh api repos/iFelice/SoccerMath2.0/actions/runs/<run>/artifacts", f"artifact id={ctx.get('artifact_id')} name={ctx.get('artifact_name')} size={ctx.get('artifact_size')} created={ctx.get('artifact_created')} expires={ctx.get('artifact_expires')} expired={str(ctx.get('artifact_expired')).lower()}"] ,
         ["NON OK", "gh run download 34992936842 --name ppda-player-verify-34992936842", "no valid artifacts found to download; API run artifacts total_count=0 (artifact PR#23 non piu' presente)"] ,
         ["NON OK", "gh run download 37461010400 --name ppda-player-verify-37461010400", "sandbox: Azure blob productionresultssa1.blob.core.windows.net -> EOF; download riuscito dentro GitHub Actions per l'analisi"],
-        ["NON OK", "python update_all_ppda_player_db.py ... (sandbox)", "sandbox: GitHub release asset TLS client e understat.com chiudono TLS (SSL_ERROR_SYSCALL/EOF); rigenerazione riuscita nel runner Actions"],
+        ["NON OK", "python update_all_ppda_player_db.py ... (sandbox)", "sandbox: GitHub release asset TLS client e understat.com chiudono TLS (SSL_ERROR_SYSCALL/EOF); acquisizione reale riuscita nel runner Actions del run 37461010400"],
         ["OK", "python audit/squalifiche_feasibility.py --player-match-dir ...", "report generato su dati player_match recuperati dall'artifact fresco"],
     ]
     return md_table(["Esito", "Comando", "Evidenza"], rows)
@@ -789,7 +790,7 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
     artifact_expires = ctx.get("artifact_expires")
     ap("# Fattibilita' feature squalifiche — eventi certi, validazione, conteggi, potenza")
     ap("")
-    ap(f"**STATO ARTIFACT PLAYER_MATCH:** `{ctx.get('artifact_name')}` da run `{ctx.get('artifact_run_id')}`, dimensione compressa `{ctx.get('artifact_size')}` byte, creato `{ctx.get('artifact_created')}`, scadenza `{artifact_expires}`, expired=`{ctx.get('artifact_expired')}`. Scade entro 30 giorni rispetto al 2026-10-06: **SI**. Proposta non applicata: promuovere lo zip (~{ctx.get('artifact_size')} byte compresso) ad asset di release GitHub o storage oggetto esterno versionato, lasciando fuori git i JSON raw.")
+    ap(f"**STATO ARTIFACT PLAYER_MATCH:** id `{ctx.get('artifact_id')}`, nome `{ctx.get('artifact_name')}` da run `{ctx.get('artifact_run_id')}`, dimensione compressa `{ctx.get('artifact_size')}` byte, creato `{ctx.get('artifact_created')}`, scadenza `{artifact_expires}`, expired=`{str(ctx.get('artifact_expired')).lower()}`. Scade entro 30 giorni rispetto al 2026-10-06: **SI**. Proposta non applicata: promuovere lo zip (~{ctx.get('artifact_size')} byte compresso) ad asset di release GitHub o storage oggetto esterno versionato, lasciando fuori git i JSON raw.")
     ap("")
     ap(f"Generato: `{dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()}` UTC. Commit base script: `{ctx.get('head')}`.")
     ap("")
@@ -812,7 +813,7 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
     ap("")
     ap("## 2. Eventi certi ricostruiti")
     ev_by = Counter((e.league, e.season) for e in events)
-    ap(md_table(["Lega", "Stagione", "Eventi certi", "High usage 60%", "Violazioni known_at<kickoff"], [[lg.name, season_label(s), ev_by.get((lg.name, s),0), sum(1 for e in events if e.league==lg.name and e.season==s and e.high60), sum(1 for e in events if e.league==lg.name and e.season==s and not (e.known_at < e.skipped_kickoff))] for lg in LEAGUES for s in ANALYSIS_SEASONS]))
+    ap(md_table(["Lega", "Stagione", "Eventi certi", "High usage 60%", "High usage 40%", "Violazioni known_at<kickoff"], [[lg.name, season_label(s), ev_by.get((lg.name, s),0), sum(1 for e in events if e.league==lg.name and e.season==s and e.high60), sum(1 for e in events if e.league==lg.name and e.season==s and e.high40), sum(1 for e in events if e.league==lg.name and e.season==s and not (e.known_at < e.skipped_kickoff))] for lg in LEAGUES for s in ANALYSIS_SEASONS]))
     ap("")
     ap(f"Casi ambigui esclusi: **{len(ambiguous)}**. Prime righe: " + "; ".join(f"{a.get('league')} {a.get('season')} {a.get('player')} {a.get('reason')}" for a in ambiguous[:8]))
     ap("")
@@ -822,7 +823,7 @@ def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambig
     ap("")
     ap("## 4-5. Alto utilizzo e conteggi")
     ap("Alto utilizzo = minuti giocati >=60% dei 450 minuti disponibili nelle ultime 5 partite di campionato della squadra prima della partita saltata; sensibilita' 40% calcolata negli output macchina.")
-    ap(md_table(["Lega", "Stagione", "Partite con >=1 squalificato", "Partite con >=1 high60", "Ruoli eventi", "Partite multi-assenti", "Da entrambe le parti", "Squadre", "Giocatori"], count_rows))
+    ap(md_table(["Lega", "Stagione", "Partite con >=1 squalificato", "Partite con >=1 high60", "Partite con >=1 high40", "Ruoli eventi", "Partite multi-assenti", "Da entrambe le parti", "Squadre", "Giocatori"], count_rows))
     ap("")
     ap("## 6. Potenza statistica")
     ap("A) 1X2: shock transitorio sul differenziale Elo `d_match=d+Δ_H−Δ_A`, qui Δ effettivo = `δ*(away_high-home_high)`. Stima δ via griglia e test ΔLogLoss appaiato con bootstrap a blocchi squadra.")
@@ -859,6 +860,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p.add_argument("--report", default="audit/results/squalifiche_feasibility.md")
     p.add_argument("--json", default="audit/output/squalifiche_feasibility_sources.json")
     p.add_argument("--artifact-run-id", default="37461010400")
+    p.add_argument("--artifact-id", default="11415875090")
     p.add_argument("--artifact-name", default="ppda-player-verify-37461010400")
     p.add_argument("--artifact-size", default="10030865")
     p.add_argument("--artifact-created", default="2026-10-06T12:51:23Z")
@@ -867,9 +869,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = p.parse_args(argv)
 
     head = run(["git", "rev-parse", "HEAD"])[1]
-    ctx = {"head": head, "artifact_run_id": args.artifact_run_id, "artifact_name": args.artifact_name,
-           "artifact_size": args.artifact_size, "artifact_created": args.artifact_created,
-           "artifact_expires": args.artifact_expires, "artifact_expired": args.artifact_expired.lower() == "true"}
+    ctx = {"head": head, "artifact_run_id": args.artifact_run_id, "artifact_id": args.artifact_id,
+           "artifact_name": args.artifact_name, "artifact_size": args.artifact_size,
+           "artifact_created": args.artifact_created, "artifact_expires": args.artifact_expires,
+           "artifact_expired": args.artifact_expired.lower() == "true"}
 
     player_dir = (REPO_ROOT / args.player_match_dir).resolve()
     matches_by_id, by_league_season, by_team_season = load_matches()

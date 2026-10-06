@@ -48,6 +48,7 @@ jobs:
             --report audit/results/squalifiche_feasibility.md \
             --json audit/output/squalifiche_feasibility_sources.json \
             --artifact-run-id 37461010400 \
+            --artifact-id 11415875090 \
             --artifact-name ppda-player-verify-37461010400 \
             --artifact-size 10030865 \
             --artifact-created 2026-10-06T12:51:23Z \
