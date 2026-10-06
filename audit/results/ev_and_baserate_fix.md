@@ -2,6 +2,12 @@
 
 Esecuzione 2026-10-06, clone completo. Nessun file in `SoccerMath/` modificato.
 
+## Riepilogo
+
+- Il ROI pooled di tutti i modelli resta compreso fra circa **−12% e −16%** prima e dopo la correzione EV: la soglia economica corregge l'esecuzione, ma non rende profittevoli i modelli.
+- I Totali sono **pari** al base rate train ed expanding con shrinkage: O/U 2.5 è pari; GG/NG è pari in Brier e peggiore in LogLoss contro il train.
+- I Totali non mostrano capacità discriminante dimostrata oltre il base rate nei confronti pooled con IC.
+
 ## Evidenze
 
 | Esito | Comando | Evidenza |
@@ -19,7 +25,7 @@ Esecuzione 2026-10-06, clone completo. Nessun file in `SoccerMath/` modificato.
 | Script | Funzione/riga corrente | Conclusione prodotta e report | Helper | Rilancio |
 |---|---|---|---|---|
 | `analyze.py` | `simulate_roi_1x2:30`, `simulate_roi_ou:78` | tabelle ROI Serie A, `calibration_results.txt`, `ou_gg_calibration_results.txt` | sì | coperto dal replay equivalente `analyze_all`; non rilanciato separatamente |
-| `analyze_all.py` | `simulate_roi_1x2:49`, `simulate_roi_ou:99` | ROI 5 leghe; `all_leagues_tables.txt`, `elo_fix_comparison.txt`, `dixon_coles_comparison.txt` | sì | **NON OK**: terminato dal limite locale di 240 s (exit 124); log `output/reruns/analyze_all.log`, aveva completato più leghe |
+| `analyze_all.py` | `simulate_roi_1x2:49`, `simulate_roi_ou:99` | ROI 5 leghe; `all_leagues_tables.txt`, `elo_fix_comparison.txt`, `dixon_coles_comparison.txt` | sì | exit 0 in 195 s, senza limite; log `output/analyze_all_full.log`. Le quantità economiche cambiano: per la prima cella, ad esempio, Poisson passa da 380 bet/ROI −17,41% a 326 bet/ROI −16,52%; lo script non codifica un verdetto qualitativo |
 | `calibration_check.py` | importa `simulate_roi_1x2` | confronto calibrato/non calibrato, `calibration_results.txt` | sì, via wrapper | non richiesto separatamente dal wrapper |
 | `draw_correction.py` | importa `simulate_roi_1x2` | confronto correzione pareggio, `draw_correction_results.txt` | sì, via wrapper | non richiesto separatamente dal wrapper |
 | `premier_deep_dive.py` | `collect_bets:28`; importa wrapper ROI | ROI/IC Dixon-Coles, `premier_league_deep_dive.txt` | sì | exit 0 |
@@ -93,3 +99,11 @@ git log --all -p -G'[Aa]stra' -- audit
 ```
 
 Le ricerche `-S` producono 0 righe. Le `-G` non trovano una costante base-rate/Astra; “Brier Totali” trova soltanto audit di modelli (`diagnose_elo_ensemble.py`), non una costante. **NON VERIFICABILE**: nessun commit/file/riga nella storia completa versionata contiene il calcolo attribuito ad Astra.
+
+## Limiti di riproducibilità
+
+Questi sono fatti preesistenti, non introdotti dalla PR #34, e non bloccano l'integrazione delle correzioni riproducibili contenute nella PR:
+
+1. Il premio ROI **+5,20 pp** della PR #24, con IC95% **[+0,36; +9,64]**, non è riproducibile: lo script produttore non è mai stato versionato e manca l'input `audit/results/temp_stability_data.pkl`. Il risultato storico va quindi trattato come **non verificato**.
+2. `generate_symmetric_decomposition_report.py` e `generate_temporal_stability_report.py` non sono rilanciabili per lo stesso input `audit/results/temp_stability_data.pkl` mancante.
+3. La conclusione storica “Brier dei Totali peggiore del base rate” non ha una fonte rintracciabile nella storia Git completa. È sostituita dai risultati pooled, con bootstrap a blocchi, prodotti da questa PR.
