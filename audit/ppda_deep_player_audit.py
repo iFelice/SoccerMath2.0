@@ -1114,3 +1114,5 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+# Arena temporary trigger for PPDA/player artifact regeneration (reverted before final report).
