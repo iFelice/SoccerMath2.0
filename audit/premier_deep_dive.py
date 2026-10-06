@@ -22,6 +22,7 @@ _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _AUDIT_DIR)
 from backtest_experiment_all import load_league, run_walkforward, STAKE, EDGE_MIN
 from analyze_all import simulate_roi_1x2
+from economic_ev import select_positive_ev
 
 
 def collect_bets(df, prob_cols, fair_cols, odd_cols, edge_min=EDGE_MIN):
@@ -42,11 +43,10 @@ def collect_bets(df, prob_cols, fair_cols, odd_cols, edge_min=EDGE_MIN):
             continue
         if any(pd_isna(v) for v in probs.values()):
             continue
-        edge_by_out = {k: probs[k] - fair[k] for k in outcomes}
-        best = max(edge_by_out, key=edge_by_out.get)
-        edge = edge_by_out[best]
-        if edge <= edge_min:
+        choice = select_positive_ev([probs[k] for k in outcomes], [odds[k] for k in outcomes], edge_min)
+        if choice is None:
             continue
+        best, edge = outcomes[choice[0]], choice[1]
         won = row["real_1x2"] == best
         profit = STAKE * (odds[best] - 1) if won else -STAKE
         bets.append({"profit": profit, "won": won, "odd": odds[best], "edge": edge})
@@ -129,6 +129,7 @@ def premier_deep_dive():
 
 def pd_table(rows):
     import pandas as pd
+
     return pd.DataFrame(rows).to_string(index=False)
 
 

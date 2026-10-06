@@ -1,0 +1,60 @@
+
+==============================================================================
+PREMIER LEAGUE — 2024/25 (validation)  (N=380 partite)
+==============================================================================
+
+-- Punto 1: Dixon-Coles — ROI / win rate / edge medio, B365 vs Average Market --
+       Mercato  Edge medio %  ROI %  N. bet  Win rate %
+          B365        16.810  1.410     325      34.800
+Average Market        16.990 -5.740     338      33.700
+
+-- Punto 2: Sweep soglia edge minimo — Dixon-Coles, vs B365 --
+Soglia edge  N. bet  Win rate %  ROI %
+         0%     325      34.800  1.410
+         2%     325      34.800  1.410
+         4%     325      34.800  1.410
+         6%     325      34.800  1.410
+         8%     325      34.800  1.410
+        10%     325      34.800  1.410
+
+-- Punto 2: Sweep soglia edge minimo — Dixon-Coles, vs Average Market --
+Soglia edge  N. bet  Win rate %  ROI %
+         0%     338      33.700 -5.740
+         2%     338      33.700 -5.740
+         4%     338      33.700 -5.740
+         6%     338      33.700 -5.740
+         8%     338      33.700 -5.740
+        10%     338      33.700 -5.740
+
+-- Punto 3: Bootstrap 95% ROI — Dixon-Coles vs B365 (edge_min=0), 2000 ricampionamenti --
+N. bet: 325   ROI osservato: 1.41%   IC 95%: [-16.29%, 19.67%]
+
+==============================================================================
+PREMIER LEAGUE — 2025/26 (test)  (N=380 partite)
+==============================================================================
+
+-- Punto 1: Dixon-Coles — ROI / win rate / edge medio, B365 vs Average Market --
+       Mercato  Edge medio %   ROI %  N. bet  Win rate %
+          B365        18.470  -9.240     313      27.200
+Average Market        18.870 -11.260     302      27.800
+
+-- Punto 2: Sweep soglia edge minimo — Dixon-Coles, vs B365 --
+Soglia edge  N. bet  Win rate %  ROI %
+         0%     313      27.200 -9.240
+         2%     313      27.200 -9.240
+         4%     313      27.200 -9.240
+         6%     313      27.200 -9.240
+         8%     313      27.200 -9.240
+        10%     313      27.200 -9.240
+
+-- Punto 2: Sweep soglia edge minimo — Dixon-Coles, vs Average Market --
+Soglia edge  N. bet  Win rate %   ROI %
+         0%     302      27.800 -11.260
+         2%     302      27.800 -11.260
+         4%     302      27.800 -11.260
+         6%     302      27.800 -11.260
+         8%     302      27.800 -11.260
+        10%     302      27.800 -11.260
+
+-- Punto 3: Bootstrap 95% ROI — Dixon-Coles vs B365 (edge_min=0), 2000 ricampionamenti --
+N. bet: 313   ROI osservato: -9.24%   IC 95%: [-28.20%, 9.44%]

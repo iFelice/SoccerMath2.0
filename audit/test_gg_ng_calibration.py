@@ -420,7 +420,8 @@ class TestMetricheRoi(unittest.TestCase):
                  "real_gg": True}]
         self.assertEqual(M.simulate_roi(rows, 0.0)["n_bet"], 1)
         self.assertEqual(M.simulate_roi(rows, 0.02)["n_bet"], 1)
-        self.assertEqual(M.simulate_roi(rows, 0.05)["n_bet"], 0)
+        self.assertEqual(M.simulate_roi(rows, 0.05)["n_bet"], 1)
+        self.assertEqual(M.simulate_roi(rows, 0.07)["n_bet"], 0)
         self.assertEqual(M.simulate_roi([], 0.0)["n_bet"], 0)
         self.assertIsNone(M.simulate_roi([], 0.0)["roi_pct"])
 

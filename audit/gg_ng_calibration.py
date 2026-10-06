@@ -82,6 +82,8 @@ from collections import Counter, OrderedDict, deque
 from datetime import datetime, timezone
 
 import numpy as np
+
+from economic_ev import select_positive_ev
 import pandas as pd
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -611,13 +613,11 @@ def simulate_roi(rows, threshold=EDGE_PRIMARY, stake=STAKE):
     n_bet = 0
     wins = 0
     for r in rows:
-        edge_gg = r["p_model"] - r["p_fair_gg"]
-        if edge_gg > threshold:
-            side, odd = "GG", r["o_yes"]
-        elif -edge_gg > threshold:
-            side, odd = "NG", r["o_no"]
-        else:
+        choice = select_positive_ev([r["p_model"], 1.0 - r["p_model"]],
+                                    [r["o_yes"], r["o_no"]], threshold)
+        if choice is None:
             continue
+        side, odd = (("GG", r["o_yes"]) if choice[0] == 0 else ("NG", r["o_no"]))
         n_bet += 1
         won = (side == "GG") == bool(r["real_gg"])
         wins += int(won)

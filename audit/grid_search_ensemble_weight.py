@@ -44,6 +44,7 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 
 import numpy as np
+from economic_ev import select_positive_ev
 import pandas as pd
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -132,9 +133,10 @@ def _roi_rows(d, w, fair_prefix, odds_cols):
     profit = np.zeros(n)
     selected = np.zeros(n, dtype=bool)
     for i in np.flatnonzero(ok):
-        side = int(np.argmax(probs[i] - fair[i]))
-        if probs[i][side] - fair[i][side] <= CLV.EDGE_MIN:
+        choice = select_positive_ev(probs[i], odds[i])
+        if choice is None:
             continue
+        side = choice[0]
         selected[i] = True
         won = d["real_1x2"].iloc[i] == ("1", "X", "2")[side]
         profit[i] = STAKE * (odds[i][side] - 1.0) if won else -STAKE

@@ -57,6 +57,7 @@ from collections import OrderedDict
 from datetime import date, datetime, timezone
 
 import numpy as np
+from economic_ev import select_positive_ev
 import pandas as pd
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -562,9 +563,9 @@ def _boot_deltas(d, n_boot=N_BOOT, seed=SEED):
     pnl, stake = {}, {}
     for t in tags:
         Pt = P[t][ok_idx]
-        edge = Pt - fair
-        best = np.argmax(edge, axis=1)
-        has_bet = edge[np.arange(len(ok_idx)), best] > 0.0
+        choices = [select_positive_ev(Pt[i], odds[i]) for i in range(len(ok_idx))]
+        has_bet = np.array([c is not None for c in choices])
+        best = np.array([c[0] if c is not None else 0 for c in choices])
         stake[t] = np.where(has_bet, STAKE, 0.0)
         won = yb == best
         pnl[t] = np.where(has_bet,

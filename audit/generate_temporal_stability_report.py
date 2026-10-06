@@ -1,5 +1,6 @@
 import pickle
 import numpy as np
+from economic_ev import select_positive_ev
 import pandas as pd
 
 with open('audit/results/temp_stability_data.pkl', 'rb') as f:
@@ -40,10 +41,9 @@ def eval_sub(sub):
     rel_n, res_n = calc_murphy(p_nob, y_oh) if 'p_nob' in locals() else calc_murphy(p_n, y_oh)
     
     def get_roi_wr(p):
-        edge = p - fair
-        c = np.argmax(edge, axis=1)
-        be = edge[np.arange(N), c]
-        has = (be > 0.0) & ~np.isnan(odds[np.arange(N), c])
+        choices = [select_positive_ev(p[i], odds[i]) for i in range(N)]
+        c = np.array([x[0] if x is not None else 0 for x in choices])
+        has = np.array([x is not None for x in choices])
         stk = 10.0
         pnl = np.where(has, np.where(y == c, stk * (odds[np.arange(N), c] - 1.0), -stk), 0.0)
         wins = np.where(has & (y == c), 1.0, 0.0)

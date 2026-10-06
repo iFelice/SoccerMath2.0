@@ -1,6 +1,6 @@
 # Audit calibrazione GG/NG — quote reali multi-bookmaker (audit/data)
 
-*Generato: 2026-09-10T22:09:37+00:00 — script sola lettura `audit/gg_ng_calibration.py`, nessuna modifica a SoccerMath/.*
+*Generato: 2026-10-06T21:27:06+00:00 — script sola lettura `audit/gg_ng_calibration.py`, nessuna modifica a SoccerMath/.*
 
 **Campione**: 20 file JSON (5 leghe x 4 stagioni 2022/23-2025/26), 7102 righe quote, **7073 partite incrociate** con quota BTTS e risultato CSV. Accordo punteggi JSON vs CSV: 7073/7073 (100.0%).
 
@@ -134,33 +134,33 @@ Il modello scommette il lato con edge positivo oltre la soglia; vincita a quota 
 
 | Campione | Soglia edge | Scommesse | Win rate | ROI | Bankroll (unita') |
 |---|---:|---:|---:|---:|---:|
-| **Serie A** | 0% | 1517 | 47.5% | -8.03% | -121.8 |
-| **Serie A** | 2% | 1038 | 46.2% | -9.59% | -99.5 |
+| **Serie A** | 0% | 742 | 45.3% | -10.02% | -74.4 |
+| **Serie A** | 2% | 742 | 45.3% | -10.02% | -74.4 |
 | **Serie A** | 5% | 485 | 46.8% | -6.32% | -30.6 |
-| **Premier League** | 0% | 1520 | 49.8% | -5.41% | -82.2 |
-| **Premier League** | 2% | 1045 | 50.4% | -3.42% | -35.7 |
+| **Premier League** | 0% | 753 | 49.1% | -2.40% | -18.1 |
+| **Premier League** | 2% | 753 | 49.1% | -2.40% | -18.1 |
 | **Premier League** | 5% | 493 | 47.5% | -6.63% | -32.7 |
-| **La Liga** | 0% | 1519 | 46.3% | -9.40% | -142.8 |
-| **La Liga** | 2% | 998 | 43.6% | -12.96% | -129.3 |
+| **La Liga** | 0% | 679 | 42.0% | -13.22% | -89.8 |
+| **La Liga** | 2% | 679 | 42.0% | -13.22% | -89.8 |
 | **La Liga** | 5% | 419 | 40.8% | -14.71% | -61.6 |
-| **Bundesliga** | 0% | 1221 | 52.8% | -4.52% | -55.2 |
-| **Bundesliga** | 2% | 877 | 53.1% | -5.06% | -44.4 |
+| **Bundesliga** | 0% | 632 | 51.4% | -5.30% | -33.5 |
+| **Bundesliga** | 2% | 632 | 51.4% | -5.30% | -33.5 |
 | **Bundesliga** | 5% | 461 | 52.3% | -6.52% | -30.1 |
-| **Ligue 1** | 0% | 1296 | 47.8% | -9.08% | -117.7 |
-| **Ligue 1** | 2% | 937 | 48.3% | -7.70% | -72.2 |
+| **Ligue 1** | 0% | 677 | 48.0% | -7.07% | -47.9 |
+| **Ligue 1** | 2% | 677 | 48.0% | -7.07% | -47.9 |
 | **Ligue 1** | 5% | 470 | 50.4% | -2.66% | -12.5 |
-| **AGGREGATO** | 0% | 7073 | 48.7% | -7.35% | -519.7 |
-| **AGGREGATO** | 2% | 4895 | 48.2% | -7.79% | -381.1 |
+| **AGGREGATO** | 0% | 3483 | 47.1% | -7.57% | -263.6 |
+| **AGGREGATO** | 2% | 3483 | 47.1% | -7.57% | -263.6 |
 | **AGGREGATO** | 5% | 2328 | 47.7% | -7.20% | -167.6 |
 
 ### ROI per stagione (soglia 0, aggregato)
 
 | Stagione | Scommesse | Win rate | ROI |
 |---|---:|---:|---:|
-| 2022/23 | 1824 | 50.7% | -4.57% |
-| 2023/24 | 1749 | 47.4% | -9.45% |
-| 2024/25 | 1749 | 48.0% | -8.53% |
-| 2025/26 | 1751 | 48.7% | -6.96% |
+| 2022/23 | 952 | 49.5% | -5.58% |
+| 2023/24 | 854 | 47.0% | -6.68% |
+| 2024/25 | 866 | 45.0% | -10.85% |
+| 2025/26 | 811 | 46.7% | -7.32% |
 
 ## Limiti dichiarati
 

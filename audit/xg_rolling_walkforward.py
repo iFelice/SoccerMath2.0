@@ -36,6 +36,8 @@ import math
 import numpy as np
 import pandas as pd
 
+from economic_ev import select_positive_ev
+
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_AUDIT_DIR)
 sys.path.insert(0, _AUDIT_DIR)
@@ -255,10 +257,10 @@ def roi_1x2(df, prob_cols, fair_cols, odd_cols, stake=10.0, edge_min=0.0):
         odds = {o: row[odd_cols[i]] for i, o in enumerate(outcomes)}
         if any(pd.isna(v) for v in fair.values()) or any(pd.isna(v) for v in probs.values()):
             continue
-        edge_by = {o: probs[o] - fair[o] for o in outcomes}
-        best = max(edge_by, key=edge_by.get)
-        if edge_by[best] <= edge_min:
+        choice = select_positive_ev([probs[o] for o in outcomes], [odds[o] for o in outcomes], edge_min)
+        if choice is None:
             continue
+        best = outcomes[choice[0]]
         n_bet += 1
         if row["real_1x2"] == best:
             bankroll += stake * (odds[best] - 1)

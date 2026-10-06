@@ -56,6 +56,8 @@ from collections import deque
 import numpy as np
 import pandas as pd
 
+from economic_ev import select_positive_ev
+
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_AUDIT_DIR)
 sys.path.insert(0, _AUDIT_DIR)
@@ -335,10 +337,10 @@ def roi_1x2(df, cols, fair_odds, odd_odds, stake=10.0):
         odds = {"1": r[o1c], "X": r[oXc], "2": r[o2c]}
         if any(pd.isna(v) for v in fair.values()) or any(pd.isna(v) for v in probs.values()):
             continue
-        edge = {o: probs[o] - fair[o] for o in outcomes}
-        best = max(edge, key=edge.get)
-        if edge[best] <= 0.0:
+        choice = select_positive_ev([probs[o] for o in outcomes], [odds[o] for o in outcomes])
+        if choice is None:
             continue
+        best = outcomes[choice[0]]
         n_bet += 1
         won = r["real_1x2"] == best
         profit = stake * (odds[best] - 1) if won else -stake
@@ -357,13 +359,10 @@ def roi_ou(df, pcol, fair_o, fair_u, odd_o, odd_u, stake=10.0):
         oo = r[odd_o]; ou_ = r[odd_u]
         if any(pd.isna(v) for v in (fo, fu, oo, ou_)):
             continue
-        edge_over = po - fo
-        if abs(edge_over) <= 0:
+        choice = select_positive_ev([po, 1.0 - po], [oo, ou_])
+        if choice is None:
             continue
-        if edge_over > 0:
-            side, odd = "OVER", oo
-        else:
-            side, odd = "UNDER", ou_
+        side, odd = (("OVER", oo) if choice[0] == 0 else ("UNDER", ou_))
         n_bet += 1
         won = (side == "OVER" and r["real_uo"] == "OVER") or \
               (side == "UNDER" and r["real_uo"] == "UNDER")

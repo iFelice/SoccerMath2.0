@@ -1,6 +1,6 @@
 # MARKET_VALUES versionato per stagione — impatto sul 1X2 (audit sola lettura)
 
-*Generato: 2026-09-11T23:03:59+00:00 — script `audit/market_values_versioned.py`, nessuna modifica a SoccerMath/. Dettaglio completo (n scommesse, CI, unmatched) in `market_values_versioned_detail.json`.*
+*Generato: 2026-10-06T21:31:42+00:00 — script `audit/market_values_versioned.py`, nessuna modifica a SoccerMath/. Dettaglio completo (n scommesse, CI, unmatched) in `market_values_versioned_detail.json`.*
 
 Sostituisce il fattore valore di mercato statico (`config.MARKET_VALUES`, scritto a mano e fermo a una data, applicato UGUALE a tutte le stagioni passate: leakage) con le rilevazioni reali per (lega, stagione, squadra) del CSV campionato, point-in-time: **Post-Estivo** (15/9) di default, **Post-Invernale** (15/2) per le partite dalla metà febbraio in poi, sempre della STESSA stagione della partita. La formula del fattore resta bit-fedele a produzione (`1+(log10(max(val,10))-2)/4`, clip [0.85,1.25]); cambia solo la fonte del valore. Confronto appaiato nella stessa passata walk-forward (stesso stato/Elo/xG): STATIC (prima), VERSIONED (dopo), NO_MKT (fattore 1, il riferimento «senza mercato»).
 
@@ -55,9 +55,9 @@ Nota dichiarata: le partite delle prime settimane (precedenti al 15/9) usano la 
 
 | Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | NB V | ROI B365 T | NB T | ROI Avg V | ROI Avg T |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| STATIC (config, prima) | 0.6740 | 1.1556 | 0.6322 | 1.1208 | -1.81 | 380 | 10.27 | 380 | -1.42 | 7.91 |
-| VERSIONED (point-in-time, dopo) | 0.6741 | 1.1534 | 0.6332 | 1.1193 | -3.81 | 380 | 5.96 | 380 | -2.21 | 5.94 |
-| NO_MKT (fattore 1, riferimento) | 0.6855 | 1.1690 | 0.6363 | 1.1159 | -5.38 | 380 | 8.56 | 380 | -6.07 | 5.93 |
+| STATIC (config, prima) | 0.6352 | 1.0605 | 0.6100 | 1.0467 | -8.63 | 371 | 9.94 | 359 | -8.03 | 8.83 |
+| VERSIONED (point-in-time, dopo) | 0.6344 | 1.0573 | 0.6103 | 1.0453 | -7.20 | 370 | 14.14 | 366 | -8.95 | 15.14 |
+| NO_MKT (fattore 1, riferimento) | 0.6411 | 1.0682 | 0.6099 | 1.0386 | -7.71 | 368 | 12.68 | 361 | -8.03 | 15.66 |
 
 (Brier/LogLoss su testa Poisson NORM-SUM pura; ROI a puntata fissa 10, selezione edge>0 sull'esito a edge massimo vs fair de-vigata del book, settle sullo stesso book — stessa convenzione di production_baseline_comparison.md. NB = n scommesse B365.)
 
@@ -65,9 +65,9 @@ Nota dichiarata: le partite delle prime settimane (precedenti al 15/9) usano la 
 
 | Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | NB V | ROI B365 T | NB T | ROI Avg V | ROI Avg T |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| STATIC (config, prima) | 0.6428 | 1.0910 | 0.6577 | 1.1033 | -5.01 | 380 | 7.66 | 380 | -4.79 | 6.78 |
-| VERSIONED (point-in-time, dopo) | 0.6426 | 1.0904 | 0.6565 | 1.1014 | -9.32 | 380 | 6.87 | 380 | -6.68 | 6.52 |
-| NO_MKT (fattore 1, riferimento) | 0.6432 | 1.0899 | 0.6541 | 1.0968 | -0.27 | 380 | 8.05 | 380 | 0.78 | 8.16 |
+| STATIC (config, prima) | 0.6158 | 1.0377 | 0.6451 | 1.0711 | -2.54 | 362 | 15.08 | 359 | -6.41 | 8.15 |
+| VERSIONED (point-in-time, dopo) | 0.6171 | 1.0402 | 0.6455 | 1.0729 | -6.10 | 357 | 7.85 | 357 | -5.78 | 5.36 |
+| NO_MKT (fattore 1, riferimento) | 0.6212 | 1.0465 | 0.6468 | 1.0751 | -6.17 | 357 | 8.28 | 363 | -6.92 | 6.80 |
 
 (Brier/LogLoss su testa Poisson NORM-SUM pura; ROI a puntata fissa 10, selezione edge>0 sull'esito a edge massimo vs fair de-vigata del book, settle sullo stesso book — stessa convenzione di production_baseline_comparison.md. NB = n scommesse B365.)
 
@@ -75,9 +75,9 @@ Nota dichiarata: le partite delle prime settimane (precedenti al 15/9) usano la 
 
 | Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | NB V | ROI B365 T | NB T | ROI Avg V | ROI Avg T |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| STATIC (config, prima) | 0.6237 | 1.0777 | 0.6350 | 1.1019 | -9.70 | 380 | -8.76 | 380 | -7.79 | -7.98 |
-| VERSIONED (point-in-time, dopo) | 0.6279 | 1.0847 | 0.6331 | 1.0999 | -8.71 | 380 | -7.19 | 380 | -8.97 | -7.86 |
-| NO_MKT (fattore 1, riferimento) | 0.6347 | 1.0838 | 0.6397 | 1.0984 | -4.46 | 380 | -8.49 | 380 | -4.57 | -13.24 |
+| STATIC (config, prima) | 0.5961 | 1.0210 | 0.6172 | 1.0629 | 1.94 | 370 | -12.14 | 367 | 2.08 | -13.49 |
+| VERSIONED (point-in-time, dopo) | 0.5990 | 1.0249 | 0.6138 | 1.0584 | 0.00 | 367 | -10.80 | 364 | -6.79 | -11.68 |
+| NO_MKT (fattore 1, riferimento) | 0.5970 | 1.0132 | 0.6086 | 1.0403 | -0.03 | 360 | -12.10 | 359 | -1.41 | -12.54 |
 
 (Brier/LogLoss su testa Poisson NORM-SUM pura; ROI a puntata fissa 10, selezione edge>0 sull'esito a edge massimo vs fair de-vigata del book, settle sullo stesso book — stessa convenzione di production_baseline_comparison.md. NB = n scommesse B365.)
 
@@ -85,9 +85,9 @@ Nota dichiarata: le partite delle prime settimane (precedenti al 15/9) usano la 
 
 | Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | NB V | ROI B365 T | NB T | ROI Avg V | ROI Avg T |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| STATIC (config, prima) | 0.6663 | 1.2347 | 0.6631 | 1.1603 | 12.09 | 306 | 0.39 | 306 | 14.53 | -3.48 |
-| VERSIONED (point-in-time, dopo) | 0.6656 | 1.2358 | 0.6629 | 1.1591 | 10.84 | 306 | -0.35 | 306 | 13.69 | -1.27 |
-| NO_MKT (fattore 1, riferimento) | 0.6679 | 1.2227 | 0.6677 | 1.1558 | 10.29 | 306 | -6.89 | 306 | 10.50 | -8.26 |
+| STATIC (config, prima) | 0.6558 | 1.1907 | 0.6221 | 1.0811 | 4.25 | 303 | 5.01 | 301 | 4.50 | 2.96 |
+| VERSIONED (point-in-time, dopo) | 0.6555 | 1.1915 | 0.6225 | 1.0804 | 5.15 | 301 | 5.89 | 305 | 5.24 | 2.03 |
+| NO_MKT (fattore 1, riferimento) | 0.6539 | 1.1719 | 0.6244 | 1.0721 | 1.50 | 299 | 0.93 | 302 | 1.71 | 1.57 |
 
 (Brier/LogLoss su testa Poisson NORM-SUM pura; ROI a puntata fissa 10, selezione edge>0 sull'esito a edge massimo vs fair de-vigata del book, settle sullo stesso book — stessa convenzione di production_baseline_comparison.md. NB = n scommesse B365.)
 
@@ -95,9 +95,9 @@ Nota dichiarata: le partite delle prime settimane (precedenti al 15/9) usano la 
 
 | Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | NB V | ROI B365 T | NB T | ROI Avg V | ROI Avg T |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| STATIC (config, prima) | 0.6580 | 1.1326 | 0.6513 | 1.0957 | 1.75 | 306 | -3.78 | 306 | -4.13 | -5.92 |
-| VERSIONED (point-in-time, dopo) | 0.6534 | 1.1262 | 0.6527 | 1.0983 | 0.64 | 306 | -3.26 | 306 | -4.72 | -4.89 |
-| NO_MKT (fattore 1, riferimento) | 0.6738 | 1.1492 | 0.6641 | 1.1155 | 2.09 | 306 | -5.59 | 306 | 2.72 | -5.89 |
+| STATIC (config, prima) | 0.6271 | 1.0649 | 0.6256 | 1.0432 | -2.99 | 293 | 10.77 | 290 | -2.78 | 9.42 |
+| VERSIONED (point-in-time, dopo) | 0.6228 | 1.0588 | 0.6266 | 1.0452 | 1.45 | 291 | 5.20 | 293 | 1.01 | -0.18 |
+| NO_MKT (fattore 1, riferimento) | 0.6435 | 1.0859 | 0.6394 | 1.0642 | -7.97 | 298 | 4.17 | 297 | -4.17 | 1.89 |
 
 (Brier/LogLoss su testa Poisson NORM-SUM pura; ROI a puntata fissa 10, selezione edge>0 sull'esito a edge massimo vs fair de-vigata del book, settle sullo stesso book — stessa convenzione di production_baseline_comparison.md. NB = n scommesse B365.)
 
@@ -105,9 +105,9 @@ Nota dichiarata: le partite delle prime settimane (precedenti al 15/9) usano la 
 
 | Variante | Brier V | LogLoss V | Brier T | LogLoss T | ROI B365 V | ROI B365 T | ROI Avg V | ROI Avg T |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| STATIC (config, prima) | 0.6522 | 1.1345 | 0.6471 | 1.1154 | -1.16 | 1752 | 1.40 | 1752 | -1.22 | -0.18 |
-| VERSIONED (point-in-time, dopo) | 0.6521 | 1.1345 | 0.6468 | 1.1145 | -2.73 | 1752 | 0.59 | 1752 | -2.31 | -0.08 |
-| NO_MKT (fattore 1, riferimento) | 0.6602 | 1.1393 | 0.6513 | 1.1149 | -0.03 | 1752 | -0.42 | 1752 | 0.17 | -2.29 |
+| STATIC (config, prima) | 0.6247 | 1.0705 | 0.6240 | 1.0609 | -1.76 | 1699 | 5.46 | 1676 | -2.34 | 2.81 |
+| VERSIONED (point-in-time, dopo) | 0.6246 | 1.0703 | 0.6237 | 1.0602 | -1.70 | 1686 | 4.37 | 1685 | -3.57 | 2.25 |
+| NO_MKT (fattore 1, riferimento) | 0.6299 | 1.0728 | 0.6253 | 1.0572 | -4.15 | 1682 | 2.83 | 1682 | -3.95 | 2.74 |
 
 ## Significatività delle differenze (bootstrap appaiato)
 
@@ -117,33 +117,33 @@ Nota dichiarata: le partite delle prime settimane (precedenti al 15/9) usano la 
 
 | Confronto | Metrica | Delta | CI 2.5% | CI 97.5% | sig |
 |---|---|---:|---:|---:|:---:|
-| VERSIONED − STATIC | Brier | -0.0000 | -0.0013 | +0.0012 | no |
-| VERSIONED − STATIC | LogLoss | -0.0000 | -0.0022 | +0.0022 | no |
-| VERSIONED − STATIC | ROI B365 | -1.5679 | -4.1632 | +0.8253 | no |
-| NO_MKT − STATIC | Brier | +0.0080 | +0.0043 | +0.0116 | **sì** |
-| NO_MKT − STATIC | LogLoss | +0.0048 | -0.0014 | +0.0112 | no |
-| NO_MKT − STATIC | ROI B365 | +1.1364 | -2.8482 | +5.1102 | no |
+| VERSIONED − STATIC | Brier | -0.0000 | -0.0013 | +0.0013 | no |
+| VERSIONED − STATIC | LogLoss | -0.0002 | -0.0024 | +0.0021 | no |
+| VERSIONED − STATIC | ROI B365 | +0.0606 | -1.9937 | +2.1522 | no |
+| NO_MKT − STATIC | Brier | +0.0052 | +0.0014 | +0.0089 | **sì** |
+| NO_MKT − STATIC | LogLoss | +0.0023 | -0.0038 | +0.0087 | no |
+| NO_MKT − STATIC | ROI B365 | -2.3900 | -6.3169 | +1.8006 | no |
 
 **TEST 2025/26** — confronto su Brier / LogLoss / ROI B365 (aggregato 5 leghe):
 
 | Confronto | Metrica | Delta | CI 2.5% | CI 97.5% | sig |
 |---|---|---:|---:|---:|:---:|
-| VERSIONED − STATIC | Brier | -0.0003 | -0.0020 | +0.0016 | no |
-| VERSIONED − STATIC | LogLoss | -0.0009 | -0.0039 | +0.0021 | no |
-| VERSIONED − STATIC | ROI B365 | -0.8042 | -3.0656 | +1.5040 | no |
-| NO_MKT − STATIC | Brier | +0.0042 | +0.0004 | +0.0079 | **sì** |
-| NO_MKT − STATIC | LogLoss | -0.0006 | -0.0070 | +0.0059 | no |
-| NO_MKT − STATIC | ROI B365 | -1.8162 | -5.2654 | +1.7968 | no |
+| VERSIONED − STATIC | Brier | -0.0004 | -0.0021 | +0.0015 | no |
+| VERSIONED − STATIC | LogLoss | -0.0007 | -0.0036 | +0.0023 | no |
+| VERSIONED − STATIC | ROI B365 | -1.0933 | -3.5388 | +1.2006 | no |
+| NO_MKT − STATIC | Brier | +0.0013 | -0.0025 | +0.0050 | no |
+| NO_MKT − STATIC | LogLoss | -0.0037 | -0.0100 | +0.0027 | no |
+| NO_MKT − STATIC | ROI B365 | -2.6342 | -6.8940 | +1.5210 | no |
 
 Divergenza effettiva fra le fonti: il |fattore versionato − fattore statico| medio per squadra-partita eval è 0.0312 (max 0.1893 su 7008 slot): i valori veri sono cambiati rispetto allo statico, ma la formula logaritmica con clip [0.85,1.25] comprime la differenza.
 
 ## Lettura
 
-1. **Calibrazione: il point-in-time non cambia nulla di misurabile.** Il Brier aggregato passa da 0.6522 (static) a 0.6521 (versioned) in validation (-0.0000, CI [-0.0013;+0.0012], NON significativo) e da 0.6471 a 0.6468 in test. Il fattore di produzione comprime qualsiasi valore in [0.85,1.25] (media |Δfactor| 0.0312): sostituire i valori odierni con quelli storici veri sposta le probabilità troppo poco perché il leakage del valore di mercato sia la leva che la calibrazione sente.
+1. **Calibrazione: il point-in-time non cambia nulla di misurabile.** Il Brier aggregato passa da 0.6247 (static) a 0.6246 (versioned) in validation (-0.0000, CI [-0.0013;+0.0013], NON significativo) e da 0.6240 a 0.6237 in test. Il fattore di produzione comprime qualsiasi valore in [0.85,1.25] (media |Δfactor| 0.0312): sostituire i valori odierni con quelli storici veri sposta le probabilità troppo poco perché il leakage del valore di mercato sia la leva che la calibrazione sente.
 
-2. **Il segnale «esiste un valore di mercato» conta, la sua data no.** Rimuovere del tutto il fattore (NO_MKT) peggiora il Brier di +0.0080 in validation (CI [+0.0043;+0.0116], significativo): la forza economica delle rose è informazione reale, anche datata e grezza. Ma tra «valore di oggi applicato al passato» (static, con leakage) e «valore vero della stagione» (versioned) la differenza è rumore: la correzione del leakage non era quella che cambiava i numeri.
+2. **Il segnale «esiste un valore di mercato» conta, la sua data no.** Rimuovere del tutto il fattore (NO_MKT) peggiora il Brier di +0.0052 in validation (CI [+0.0014;+0.0089], significativo): la forza economica delle rose è informazione reale, anche datata e grezza. Ma tra «valore di oggi applicato al passato» (static, con leakage) e «valore vero della stagione» (versioned) la differenza è rumore: la correzione del leakage non era quella che cambiava i numeri.
 
-3. **ROI: nessuna differenza significativa fra le fonti.** In validation il ROI B365 (testa Poisson) va da -1.16% (static) a -2.73% (versioned), delta -1.57 punti, CI [-4.16;+0.83]: dentro il rumore. Come nel grid search del peso Elo, differenze di ROI di questo ordine su ~1.5k partite/split non sono evidenza di nulla.
+3. **ROI: nessuna differenza significativa fra le fonti.** In validation il ROI B365 (testa Poisson) va da -1.76% (static) a -1.70% (versioned), delta +0.06 punti, CI [-1.99;+2.15]: dentro il rumore. Come nel grid search del peso Elo, differenze di ROI di questo ordine su ~1.5k partite/split non sono evidenza di nulla.
 
 4. **Riscontro della stima di `market_value_comparison.txt`.** La vecchia stima (−17,4% → −1,5% su Serie A validation) confrontava il Poisson SENZA fattore mercato contro il Poisson CON fattore statico: la direzione si conferma (il fattore mercato migliora la selezione value bet), ma quell'entità dipendeva dallo stato xG dell'epoca. E la parte «versionato» della proposta §5 di `margini_migliorabili_topmix.md` non aggiunge nulla di misurabile né in calibrazione né in ROI: il guadagno veniva (quando veniva) dall'avere UN fattore mercato, non dalla sua data.
 

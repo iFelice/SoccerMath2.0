@@ -1,5 +1,6 @@
 import pickle
 import numpy as np
+from economic_ev import select_positive_ev
 import pandas as pd
 from scipy.stats import binomtest
 
@@ -21,8 +22,9 @@ def get_match_diffs(sub):
         real = 0 if r['real_1x2'] == '1' else (1 if r['real_1x2'] == 'X' else 2)
         edge_l = [p_l[i] - f[i] for i in range(3)]
         edge_n = [p_n[i] - f[i] for i in range(3)]
-        c_l = int(np.argmax(edge_l)); c_n = int(np.argmax(edge_n))
-        bet_l = edge_l[c_l] > 0; bet_n = edge_n[c_n] > 0
+        pick_l = select_positive_ev(p_l, odds); pick_n = select_positive_ev(p_n, odds)
+        bet_l = pick_l is not None; bet_n = pick_n is not None
+        c_l = pick_l[0] if bet_l else 0; c_n = pick_n[0] if bet_n else 0
         stake = 10.0
         pnl_l = stake * (odds[c_l] - 1.0) if (bet_l and real == c_l) else (-stake if bet_l else 0.0)
         pnl_n = stake * (odds[c_n] - 1.0) if (bet_n and real == c_n) else (-stake if bet_n else 0.0)
@@ -164,8 +166,9 @@ def analyze_month_row(sub):
         real = 0 if r['real_1x2'] == '1' else (1 if r['real_1x2'] == 'X' else 2)
         edge_l = [p_l[i] - f[i] for i in range(3)]
         edge_n = [p_n[i] - f[i] for i in range(3)]
-        c_l = int(np.argmax(edge_l)); c_n = int(np.argmax(edge_n))
-        bet_l = edge_l[c_l] > 0; bet_n = edge_n[c_n] > 0
+        pick_l = select_positive_ev(p_l, odds); pick_n = select_positive_ev(p_n, odds)
+        bet_l = pick_l is not None; bet_n = pick_n is not None
+        c_l = pick_l[0] if bet_l else 0; c_n = pick_n[0] if bet_n else 0
         stake = 10.0
         pnl_l = stake * (odds[c_l] - 1.0) if (bet_l and real == c_l) else (-stake if bet_l else 0.0)
         pnl_n = stake * (odds[c_n] - 1.0) if (bet_n and real == c_n) else (-stake if bet_n else 0.0)
