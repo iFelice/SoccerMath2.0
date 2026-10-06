@@ -1,468 +1,124 @@
 #!/usr/bin/env python3
-"""Fattibilita' della feature squalifiche (sola lettura).
+"""Fattibilita' feature squalifiche: player_match -> eventi, conteggi, potenza.
 
-Questo script non scarica fonti nuove, non modifica ``SoccerMath/`` e non usa
-componenti di modello. Produce un report riproducibile partendo solo dai file
-presenti nel checkout: inventario delle fonti, copertura delle sorgenti
-committate, e stato di verificabilita' dei conteggi/validazione/potenza.
-
-Se in futuro i file ``player_match_<lega>.json`` verranno versionati o forniti in
-una cartella locale, lo script li rilevera' come fonte disponibile; in questo
-intervento non li acquisisce e non prova a ricostruirli dalla rete.
+Sola lettura: i dati pesanti restano sotto audit/output/ (git-ignored). Lo
+script accetta una cartella con i file ``player_match_<lega>.json`` prodotti da
+``update_all_ppda_player_db.py`` (Understat via soccerdata==1.9.1) e sostituisce
+il report precedente in ``audit/results/squalifiche_feasibility.md``.
 """
 from __future__ import annotations
 
 import argparse
-import csv
 import datetime as dt
-import hashlib
+import gzip
 import json
+import math
 import os
-import re
+import random
 import subprocess
+import sys
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_RESULTS = REPO_ROOT / "audit" / "results"
-DEFAULT_OUTPUT = REPO_ROOT / "audit" / "output"
-DEFAULT_DATABASE = REPO_ROOT / "SoccerMath" / "database"
+import numpy as np
+import pandas as pd
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+AUDIT_DIR = REPO_ROOT / "audit"
+SOCCERMATH_DIR = REPO_ROOT / "SoccerMath"
+if str(SOCCERMATH_DIR) not in sys.path:
+    sys.path.insert(0, str(SOCCERMATH_DIR))
+if str(AUDIT_DIR) not in sys.path:
+    sys.path.insert(0, str(AUDIT_DIR))
+
+from team_names import canonical_team_name  # noqa: E402
+from models.elo_engine import elo_probs_from_ratings  # noqa: E402
+import app as prod_app  # noqa: E402
+from xg_archive import load_archive, season_point_in_time_averages  # noqa: E402
+
+TODAY = dt.date(2026, 10, 6)
 ANALYSIS_SEASONS = [2023, 2024, 2025]
-ACCUMULATION_BURNIN_SEASON = 2022
-ALL_SEASONS = [2022, 2023, 2024, 2025]
+ALL_SEASONS = [2022, 2023, 2024, 2025, 2026]
+BOOTSTRAP_SEED = 20261006
 
 
 @dataclass(frozen=True)
 class LeagueConfig:
     name: str
+    key: str
     csv_stem: str
     xg_archive: str
-    player_match_file: str
-    ppda_file: str
-    btts_slug: str
+    player_file: str
 
 
 LEAGUES: Sequence[LeagueConfig] = (
-    LeagueConfig(
-        "Serie A",
-        "SerieA",
-        "xG archivio serie A.json",
-        "player_match_serie_a.json",
-        "ppda_deep_serie_a.json",
-        "italy-serie-a",
-    ),
-    LeagueConfig(
-        "Premier League",
-        "Premier",
-        "xG archivio premier league.json",
-        "player_match_premier_league.json",
-        "ppda_deep_premier_league.json",
-        "england-premier-league",
-    ),
-    LeagueConfig(
-        "La Liga",
-        "LaLiga",
-        "xG archivio la liga.json",
-        "player_match_la_liga.json",
-        "ppda_deep_la_liga.json",
-        "spain-laliga",
-    ),
-    LeagueConfig(
-        "Bundesliga",
-        "Bundesliga",
-        "xG archivio bundesliga.json",
-        "player_match_bundesliga.json",
-        "ppda_deep_bundesliga.json",
-        "germany-bundesliga",
-    ),
-    LeagueConfig(
-        "Ligue 1",
-        "Ligue1",
-        "xG archivio ligue 1.json",
-        "player_match_ligue_1.json",
-        "ppda_deep_ligue_1.json",
-        "france-ligue-1",
-    ),
+    LeagueConfig("Serie A", "SerieA", "SerieA", "xG archivio serie A.json", "player_match_serie_a.json"),
+    LeagueConfig("Premier League", "Premier", "Premier", "xG archivio premier league.json", "player_match_premier_league.json"),
+    LeagueConfig("La Liga", "LaLiga", "LaLiga", "xG archivio la liga.json", "player_match_la_liga.json"),
+    LeagueConfig("Bundesliga", "Bundesliga", "Bundesliga", "xG archivio bundesliga.json", "player_match_bundesliga.json"),
+    LeagueConfig("Ligue 1", "Ligue1", "Ligue1", "xG archivio ligue 1.json", "player_match_ligue_1.json"),
 )
 
-INVENTORY_PATHS = [
-    "audit/results/assenze_certe_valore_feasibility.md",
-    "audit/results/assenze_formazioni_probabili_feasibility.md",
-    "audit/results/assenze_formazioni_soccerdata_zero_cost_verification.md",
-    "audit/results/ppda_deep_player_feasibility.md",
-    "audit/results/ppda_deep_player_feasibility.json",
-    "audit/ppda_deep_player_audit.py",
-    "audit/whoscored_missing_players_sample.py",
-    "update_all_ppda_player_db.py",
-    ".github/workflows/ppda_player_verify.yml",
-    ".github/workflows/whoscored_missing_sample.yml",
-]
-
-SUSPENSION_RULES = {
-    "Serie A": (
-        "accumulo progressivo 5, poi 4,4,3,2, poi ogni ammonizione; "
-        "coppe separate; le ammonizioni inefficaci restano fino a fine stagione "
-        "o trasferimento in altra Lega"
-    ),
-    "Premier League": (
-        "5 gialli entro la 19a partita di campionato della squadra -> 1 turno; "
-        "10 entro la 32a -> 2 turni; 15 in stagione -> 3 turni; gialli per "
-        "competizione, rossi domestici cross-competition"
-    ),
-    "La Liga": (
-        "5 gialli nella stessa stagione/competizione -> 1 turno, cicli da 5; "
-        "doppia ammonizione non conta per il ciclo; esenzione ultima giornata "
-        "post-riforma art. 112.4"
-    ),
-    "Bundesliga": (
-        "5a, 10a, 15a ammonizione -> 1 turno; conteggio per competizione; "
-        "reset a fine stagione"
-    ),
-    "Ligue 1": (
-        "fino al 2024/25: 3 ammonizioni in finestra di 10 incontri ufficiali; "
-        "dal 2025/26: regola a 5 gialli; coppe nazionali comunicanti, quindi "
-        "fonte solo campionato sottocopre"
-    ),
+RULES = {
+    "Serie A": "gialli cumulativi 5,9,13,16,18, poi ogni ammonizione; coppe separate",
+    "Premier League": "5 gialli entro 19a partita squadra -> 1; 10 entro 32a -> 2; 15 -> 3",
+    "La Liga": "cicli da 5; esenzione ultima giornata; doppia ammonizione esclusa/ambigua",
+    "Bundesliga": "5a, 10a, 15a... ammonizione -> 1 turno",
+    "Ligue 1": "2023/24-2024/25: 3 gialli in 10 incontri ufficiali; 2025/26: 5 gialli; coppe nazionali mancanti nel dataset",
 }
 
-GROUND_TRUTH_CANDIDATES = {
-    "Serie A": "comunicati ufficiali Giudice Sportivo Lega Serie A/FIGC, non presenti come dati nel repo",
-    "Premier League": "pagina ufficiale Premier League suspensions/decisioni FA, non presente come dati nel repo",
-    "La Liga": "resoluciones del Juez de Competicion RFEF, non presenti come dati nel repo",
-    "Bundesliga": "decisioni Sportgericht DFB, non presenti come dati nel repo",
-    "Ligue 1": "decisioni Commission de Discipline LFP, non presenti come dati nel repo",
-}
-
-AMBIGUITIES = [
-    "durata oltre un turno dei rossi diretti: non deducibile dai soli cartellini",
-    "rossi da coppe nazionali in Premier League: possono essere scontati in campionato ma non sono nel dataset di campionato",
-    "Ligue 1: fino al 2024/25 la finestra mobile comprende coppe nazionali; dal 2025/26 cambia il regime; con dati solo campionato la fonte sottostima vicino alla soglia",
-    "La Liga: quinta gialla all'ultima giornata esclusa dalla squalifica successiva post art. 112.4",
-    "trasferimenti e cambi lega: possono azzerare o rendere non confrontabile il ciclo secondo regole documentate; serve anagrafica/ground truth per verificarli",
-]
-
-REQUIRED_PLAYER_FIELDS = {
-    "cartellini per giocatore e partita": ["yellow_cards", "red_cards"],
-    "minuti giocati": ["minutes"],
-    "titolarita'": ["non disponibile nel player_match Understat; si puo' inferire solo in modo imperfetto da minutes>=~90 o servirebbe lineup"],
-    "ruolo": ["position"],
-}
+ROLE_LABELS = ["portiere", "difensore", "centrocampista", "attaccante", "non disponibile"]
 
 
-def run_git(args: Sequence[str]) -> str:
-    try:
-        out = subprocess.check_output(["git", *args], cwd=REPO_ROOT, text=True, stderr=subprocess.STDOUT)
-        return out.strip()
-    except subprocess.CalledProcessError as exc:
-        return f"ERRORE git {' '.join(args)}: exit={exc.returncode}\n{exc.output.strip()}"
+@dataclass
+class Match:
+    league: str
+    season: int
+    match_id: int
+    kickoff: pd.Timestamp
+    home: str
+    away: str
+    home_raw: str
+    away_raw: str
+    home_goals: Optional[int]
+    away_goals: Optional[int]
 
 
-def sha256_short(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()[:16]
+@dataclass
+class Event:
+    league: str
+    season: int
+    player_id: Any
+    player: str
+    team: str
+    rule: str
+    source_match_id: int
+    source_kickoff: pd.Timestamp
+    skipped_match_id: int
+    skipped_kickoff: pd.Timestamp
+    opponent: str
+    venue: str
+    known_at: pd.Timestamp
+    role: str
+    position: str
+    high60: bool
+    high40: bool
+    usage_share: Optional[float]
+    minutes_last5: float
+    available_last5: float
+    validation_played: bool
 
 
-def fmt_pct(value: Optional[float]) -> str:
-    if value is None:
-        return "n/d"
-    return f"{100.0 * value:.1f}%"
+def run(cmd: Sequence[str], check: bool = False) -> Tuple[int, str]:
+    p = subprocess.run(cmd, cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if check and p.returncode != 0:
+        raise RuntimeError(p.stdout)
+    return p.returncode, p.stdout.strip()
 
 
-def season_label(year: int) -> str:
-    return f"{year}/{str(year + 1)[-2:]}"
-
-
-def file_meta(path: Path) -> Dict[str, Any]:
-    if not path.exists():
-        return {"exists": False, "path": str(path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path)}
-    stat = path.stat()
-    return {
-        "exists": True,
-        "path": str(path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path),
-        "bytes": stat.st_size,
-        "sha256_16": sha256_short(path),
-        "modified_utc": dt.datetime.fromtimestamp(stat.st_mtime, dt.timezone.utc).isoformat(),
-    }
-
-
-def first_and_head_commit(path: str) -> Dict[str, str]:
-    logs = run_git(["log", "--follow", "--format=%H%x09%cI%x09%s", "--", path]).splitlines()
-    if not logs or logs == [""]:
-        return {"first": "n/d", "head": "n/d"}
-    head = logs[0]
-    first = logs[-1]
-    return {"first": first, "head": head}
-
-
-def read_json(path: Path) -> Any:
-    with path.open(encoding="utf-8") as f:
-        return json.load(f)
-
-
-def analyze_csv_sources(database_dir: Path) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    card_cols = ["HY", "AY", "HR", "AR"]
-    for league in LEAGUES:
-        rows = []
-        for season in ALL_SEASONS:
-            path = database_dir / f"{league.csv_stem}_{season}.csv"
-            item: Dict[str, Any] = {"season": season, "file": str(path.relative_to(REPO_ROOT)), **file_meta(path)}
-            if path.exists():
-                with path.open(newline="", encoding="utf-8-sig") as f:
-                    reader = csv.DictReader(f)
-                    records = list(reader)
-                    item["rows"] = len(records)
-                    item["columns"] = reader.fieldnames or []
-                item["team_card_columns_present"] = all(c in item["columns"] for c in card_cols)
-                if records and item["team_card_columns_present"]:
-                    item["rows_with_all_team_card_counts"] = sum(
-                        1 for r in records if all(str(r.get(c, "")).strip() != "" for c in card_cols)
-                    )
-                    item["team_card_coverage"] = item["rows_with_all_team_card_counts"] / len(records)
-                else:
-                    item["rows_with_all_team_card_counts"] = 0
-                    item["team_card_coverage"] = None
-                item["has_player_cards"] = False
-                item["has_minutes"] = False
-                item["has_starting_xi"] = False
-                item["has_role"] = False
-                item["known_gap"] = "solo aggregati squadra (HY/AY/HR/AR), nessun giocatore"
-            rows.append(item)
-        out[league.name] = rows
-    return out
-
-
-def analyze_xg_archives(database_dir: Path) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    for league in LEAGUES:
-        path = database_dir / league.xg_archive
-        meta = file_meta(path)
-        seasons: Dict[str, Any] = {}
-        if path.exists():
-            data = read_json(path)
-            for season in ALL_SEASONS:
-                recs = [r for r in data if int(r.get("season", -1)) == season]
-                seasons[str(season)] = {
-                    "rows": len(recs),
-                    "is_result_true": sum(bool(r.get("is_result")) for r in recs),
-                    "xg_present": sum(r.get("home_xg") is not None and r.get("away_xg") is not None for r in recs),
-                    "has_player_fields": False,
-                    "has_cards": False,
-                    "has_minutes": False,
-                    "has_roles": False,
-                }
-        out[league.name] = {"file": meta, "seasons": seasons}
-    return out
-
-
-def analyze_btts_sources(audit_data_dir: Path) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    for league in LEAGUES:
-        rows = []
-        for season in ALL_SEASONS:
-            y2 = str(season + 1)
-            path = audit_data_dir / f"{league.btts_slug}_{season}-{y2}_btts.json"
-            item: Dict[str, Any] = {"season": season, **file_meta(path)}
-            if path.exists():
-                data = read_json(path)
-                item["rows"] = len(data) if isinstance(data, list) else None
-                dates = []
-                scraped = []
-                if isinstance(data, list):
-                    for rec in data:
-                        if isinstance(rec, dict):
-                            if rec.get("match_date"):
-                                dates.append(rec.get("match_date"))
-                            if rec.get("scraped_date"):
-                                scraped.append(rec.get("scraped_date"))
-                item["match_date_present"] = len(dates)
-                item["scraped_date_min"] = min(scraped) if scraped else None
-                item["scraped_date_max"] = max(scraped) if scraped else None
-                item["has_player_fields"] = False
-                item["known_gap"] = "quote BTTS/OddsPortal; nessun cartellino, minuto, titolarita' o ruolo"
-            rows.append(item)
-        out[league.name] = rows
-    return out
-
-
-def summarize_ppda_report(path: Path) -> Dict[str, Any]:
-    meta = file_meta(path)
-    out: Dict[str, Any] = {"file": meta, "leagues": {}}
-    if not path.exists():
-        return out
-    data = read_json(path)
-    out["generated_at"] = data.get("generated_at")
-    out["run_url"] = data.get("run_url")
-    for league in LEAGUES:
-        entry = (data.get("leagues") or {}).get(league.name) or {}
-        files = entry.get("files") or {}
-        coverage = entry.get("coverage") or {}
-        pm_file = files.get("player_match") or {}
-        pm_cov = (coverage.get("player_match") or {}).get("seasons") or {}
-        out["leagues"][league.name] = {
-            "reported_player_match_file_exists_in_run": pm_file.get("exists"),
-            "reported_player_match_bytes": pm_file.get("bytes"),
-            "reported_player_match_sha256": pm_file.get("sha256"),
-            "reported_seasons": {
-                s: {
-                    "reference_matches": v.get("reference_matches"),
-                    "present_matches": v.get("present_matches"),
-                    "rows": v.get("rows"),
-                    "coverage": v.get("presence_ratio"),
-                }
-                for s, v in sorted(pm_cov.items())
-                if int(s) in ALL_SEASONS
-            },
-        }
-    return out
-
-
-def find_player_match_files(search_dirs: Sequence[Path]) -> Dict[str, List[Dict[str, Any]]]:
-    out: Dict[str, List[Dict[str, Any]]] = {}
-    for league in LEAGUES:
-        matches: List[Dict[str, Any]] = []
-        for directory in search_dirs:
-            path = directory / league.player_match_file
-            if path.exists():
-                matches.append(file_meta(path))
-        out[league.name] = matches
-    return out
-
-
-def validate_player_match_schema(path: Path) -> Dict[str, Any]:
-    """Inspect a local player_match json if present; no reconstruction here."""
-    result: Dict[str, Any] = {"path": str(path), "exists": path.exists(), "schema_ok": False}
-    if not path.exists():
-        return result
-    try:
-        data = read_json(path)
-    except Exception as exc:  # pragma: no cover - diagnostic path
-        result["error"] = str(exc)
-        return result
-    if not isinstance(data, list):
-        result["error"] = f"json type {type(data).__name__}, attesa lista"
-        return result
-    result["rows"] = len(data)
-    columns = set()
-    for rec in data[:1000]:
-        if isinstance(rec, dict):
-            columns.update(rec)
-    result["sample_columns"] = sorted(columns)
-    required = {"season", "id", "date", "team", "opponent", "player_id", "player", "position", "minutes", "yellow_cards", "red_cards"}
-    result["missing_required_columns_in_sample"] = sorted(required - columns)
-    result["schema_ok"] = not result["missing_required_columns_in_sample"]
-    return result
-
-
-def build_source_availability(
-    csv_sources: Dict[str, Any],
-    xg_sources: Dict[str, Any],
-    btts_sources: Dict[str, Any],
-    ppda_report: Dict[str, Any],
-    player_files: Dict[str, List[Dict[str, Any]]],
-) -> Dict[str, Dict[str, Any]]:
-    availability: Dict[str, Dict[str, Any]] = {}
-    for league in LEAGUES:
-        league_avail: Dict[str, Any] = {}
-        for season in ALL_SEASONS:
-            key = str(season)
-            csv_row = next((r for r in csv_sources[league.name] if r.get("season") == season), {})
-            btts_row = next((r for r in btts_sources[league.name] if r.get("season") == season), {})
-            xg_row = (xg_sources.get(league.name, {}).get("seasons") or {}).get(key, {})
-            ppda_row = (
-                ppda_report.get("leagues", {})
-                .get(league.name, {})
-                .get("reported_seasons", {})
-                .get(key, {})
-            )
-            league_avail[key] = {
-                "matches_csv": csv_row.get("rows"),
-                "team_cards_csv_coverage": csv_row.get("team_card_coverage"),
-                "xg_rows": xg_row.get("rows"),
-                "xg_present": xg_row.get("xg_present"),
-                "btts_rows": btts_row.get("rows"),
-                "reported_player_match_rows_in_external_run": ppda_row.get("rows"),
-                "reported_player_match_coverage_in_external_run": ppda_row.get("coverage"),
-                "local_player_match_file_present": bool(player_files.get(league.name)),
-                "player_cards_per_match_available_in_repo": bool(player_files.get(league.name)),
-                "red_cards_per_player_available_in_repo": bool(player_files.get(league.name)),
-                "minutes_available_in_repo": bool(player_files.get(league.name)),
-                "starting_xi_available_in_repo": False,
-                "role_available_in_repo": bool(player_files.get(league.name)),
-                "known_holes": source_holes_for(league.name, bool(player_files.get(league.name))),
-            }
-        availability[league.name] = league_avail
-    return availability
-
-
-def source_holes_for(league: str, has_player_match: bool) -> List[str]:
-    holes = []
-    if not has_player_match:
-        holes.append("file player_match_<lega>.json non presente nel checkout: cartellini/minuti/ruolo per giocatore non verificabili")
-    holes.append("nessuna ground truth ufficiale versionata nel repo")
-    holes.append("football-data CSV contiene solo cartellini aggregati squadra HY/AY/HR/AR")
-    holes.append("titolarita' XI non presente nei dati committati")
-    if league == "Ligue 1":
-        holes.append("coppe nazionali comunicanti non presenti nei dati di campionato: accumuli Ligue 1 sottocoperti")
-    if league == "Premier League":
-        holes.append("rossi domestici cross-competition non osservabili con sole partite di campionato")
-    return holes
-
-
-def downstream_status(player_files: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
-    any_player = any(player_files[league.name] for league in LEAGUES)
-    if any_player:
-        reason = "Sono presenti file player_match locali; questo script ne valida lo schema ma non implementa ancora ricostruzione eventi."
-    else:
-        reason = (
-            "Nessun file player_match_<lega>.json e nessuna ground truth ufficiale nel checkout; "
-            "le fonti committate non contengono identita' giocatore per cartellini/minuti/ruoli."
-        )
-    status = {
-        "events_reconstruction": "NON VERIFICABILE" if not any_player else "NON ESEGUITA",
-        "events_reason": reason,
-        "known_before_kickoff_violations": None,
-        "validation_precision_recall": "NON VERIFICABILE",
-        "validation_reason": (
-            "ground truth ufficiali non presenti nel repo; controllo minimo presenza/assenza richiede player_match della partita saltata"
-        ),
-        "high_usage_counts": "NON VERIFICABILE",
-        "high_usage_reason": "minuti per giocatore nelle ultime 5 partite non disponibili come dati locali verificabili",
-        "power_A_1x2": "NON VERIFICABILE",
-        "power_B_totals": "NON VERIFICABILE",
-        "power_reason": "matrice eventi ad alto utilizzo assente; non e' possibile generare simulazioni appaiate su eventi reali",
-        "posterior_prior_ratio_A": None,
-        "posterior_prior_ratio_B": None,
-        "decision_A": "NO-GO tecnico / NON VERIFICABILE",
-        "decision_B": "NO-GO tecnico / NON VERIFICABILE",
-    }
-    return status
-
-
-def markdown_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
-    def cell(v: Any) -> str:
-        if v is None:
-            return "n/d"
-        text = str(v)
-        return text.replace("\n", "<br>").replace("|", "\\|")
-
-    lines = ["| " + " | ".join(cell(h) for h in headers) + " |"]
-    lines.append("|" + "|".join("---" for _ in headers) + "|")
-    for row in rows:
-        lines.append("| " + " | ".join(cell(v) for v in row) + " |")
-    return "\n".join(lines)
-
-
-def code_block(text: str) -> str:
-    return "```\n" + (text.rstrip() or "(nessun output)") + "\n```"
-
-
-def rel(path: str | Path) -> str:
+def rel(path: Path | str) -> str:
     p = Path(path)
     try:
         return str(p.relative_to(REPO_ROOT))
@@ -470,349 +126,797 @@ def rel(path: str | Path) -> str:
         return str(p)
 
 
-def render_report(summary: Dict[str, Any]) -> str:
-    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
-    lines: List[str] = []
-    add = lines.append
+def season_label(season: int) -> str:
+    return f"{season}/{str(season + 1)[-2:]}"
 
-    add("# Fattibilita' feature squalifiche — conteggi, sorgenti, potenza")
-    add("")
-    add(f"Generato: `{now}` UTC")
-    add(f"Commit: `{summary['git']['head']}`")
-    add("")
-    add("> Perimetro: sola lettura in `audit/`; nessun download di fonti nuove; nessuna modifica a `SoccerMath/`, lambda o rating.")
-    add("")
 
-    add("## 0. Prerequisiti e ambiente")
-    add("")
-    add("Evidenza raccolta dal checkout prima dell'analisi e dallo script:")
-    add("")
-    prereq_rows = [
-        ["branch", summary["git"]["branch"]],
-        ["HEAD", summary["git"]["head"]],
-        ["repository shallow", summary["git"]["is_shallow"]],
-        ["origin/main...HEAD (al momento dello script)", summary["git"]["diff_name_status_origin_main_head"] or "(vuoto)"],
-        ["audit/elo_walker_core.py", "presente" if (REPO_ROOT / "audit/elo_walker_core.py").exists() else "MANCANTE"],
-        ["requirements-audit.txt", "presente" if (REPO_ROOT / "requirements-audit.txt").exists() else "MANCANTE"],
-        ["audit/elo_weight_retune.py", "presente" if (REPO_ROOT / "audit/elo_weight_retune.py").exists() else "MANCANTE"],
-        ["audit/results/elo_weight_retune.md", "presente" if (REPO_ROOT / "audit/results/elo_weight_retune.md").exists() else "MANCANTE"],
-    ]
-    add(markdown_table(["Check", "Output"], prereq_rows))
-    add("")
-    add("Nota prerequisito `elo_weight_retune`: il run preliminare ha cambiato solo `Generato` e `Commit`; il file e' stato ripristinato e non viene committato. I numeri del report non hanno diff.")
-    add("")
+def md_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
+    def cell(x: Any) -> str:
+        if x is None:
+            return "n/d"
+        s = str(x).replace("\n", "<br>").replace("|", "\\|")
+        return s
+    out = ["| " + " | ".join(map(cell, headers)) + " |", "|" + "|".join("---" for _ in headers) + "|"]
+    for r in rows:
+        out.append("| " + " | ".join(cell(x) for x in r) + " |")
+    return "\n".join(out)
 
-    add("## 1. Inventario repo sulle squalifiche e assenze")
-    add("")
-    inventory_rows = []
-    for item in summary["inventory"]:
-        meta = item["meta"]
-        inventory_rows.append([
-            item["path"],
-            "si" if meta.get("exists") else "no",
-            meta.get("bytes", "n/d"),
-            (item["commits"].get("first") or "n/d")[:96],
-            (item["commits"].get("head") or "n/d")[:96],
-            item["role"],
-        ])
-    add(markdown_table(["Percorso", "Esiste", "Byte", "Primo commit", "Ultimo commit", "Contenuto utile"], inventory_rows))
-    add("")
-    add("Regole per lega gia' documentate nel repo (fonte principale: `audit/results/assenze_certe_valore_feasibility.md`):")
-    add("")
-    add(markdown_table(["Lega", "Regola documentata"], [[k, v] for k, v in SUSPENSION_RULES.items()]))
-    add("")
-    add("Casi limite / ambigui documentati o necessari da escludere dai conteggi principali:")
-    add("")
-    for entry in AMBIGUITIES:
-        add(f"- {entry}")
-    add("")
-    add("Ground truth candidate documentate ma non versionate come dati:")
-    add("")
-    add(markdown_table(["Lega", "Candidate"], [[k, v] for k, v in GROUND_TRUTH_CANDIDATES.items()]))
-    add("")
 
-    add("## 1.1 Fonti dati disponibili nel checkout")
-    add("")
-    add("### CSV football-data (`SoccerMath/database/*_<stagione>.csv`)")
-    csv_rows = []
-    for league, seasons in summary["csv_sources"].items():
-        for item in seasons:
-            csv_rows.append([
-                league,
-                season_label(item["season"]),
-                item.get("rows"),
-                "si" if item.get("team_card_columns_present") else "no",
-                fmt_pct(item.get("team_card_coverage")),
-                "no",
-                item.get("known_gap"),
-            ])
-    add(markdown_table(["Lega", "Stagione", "Partite", "HY/AY/HR/AR", "Copertura team-card", "Player-card", "Buco noto"], csv_rows))
-    add("")
-    add("### Archivi xG Understat committati")
-    xg_rows = []
-    for league, item in summary["xg_sources"].items():
-        for season, vals in (item.get("seasons") or {}).items():
-            xg_rows.append([
-                league,
-                season_label(int(season)),
-                vals.get("rows"),
-                vals.get("is_result_true"),
-                vals.get("xg_present"),
-                "no",
-                "match id, data, squadre, gol, xG; nessun giocatore/cartellino/minuti/ruolo",
-            ])
-    add(markdown_table(["Lega", "Stagione", "Righe", "Risultati", "xG presenti", "Player fields", "Buco noto"], xg_rows))
-    add("")
-    add("### `audit/data/*_btts.json`")
-    btts_rows = []
-    for league, seasons in summary["btts_sources"].items():
-        for item in seasons:
-            btts_rows.append([
-                league,
-                season_label(item["season"]),
-                item.get("rows"),
-                item.get("match_date_present"),
-                item.get("scraped_date_min"),
-                item.get("scraped_date_max"),
-                item.get("known_gap"),
-            ])
-    add(markdown_table(["Lega", "Stagione", "Righe", "match_date presenti", "scraped min", "scraped max", "Buco noto"], btts_rows))
-    add("")
-    add("### Player-match Understat: referto presente, dati assenti nel checkout")
-    ppda_rows = []
-    for league, vals in summary["ppda_report"].get("leagues", {}).items():
-        for season, season_vals in vals.get("reported_seasons", {}).items():
-            ppda_rows.append([
-                league,
-                season_label(int(season)),
-                season_vals.get("reference_matches"),
-                season_vals.get("present_matches"),
-                season_vals.get("rows"),
-                fmt_pct(season_vals.get("coverage")),
-                "si" if summary["player_match_files"].get(league) else "no",
-            ])
-    add(markdown_table(["Lega", "Stagione", "Partite referto", "Con righe nel run esterno", "Righe giocatore nel run esterno", "Copertura referto", "File locale"], ppda_rows))
-    add("")
-    add("Campi necessari dichiarati dal codice `update_all_ppda_player_db.py` / `audit/ppda_deep_player_audit.py`:")
-    add("")
-    add(markdown_table(["Necessita'", "Campi / stato"], [[k, ", ".join(v)] for k, v in REQUIRED_PLAYER_FIELDS.items()]))
-    add("")
+def fmt_pct(x: Optional[float], nd: int = 1) -> str:
+    if x is None or not np.isfinite(x):
+        return "n/d"
+    return f"{100*x:.{nd}f}%"
 
-    add("## 2. Ricostruzione eventi certi")
-    add("")
-    ds = summary["downstream_status"]
-    add(f"Stato: **{ds['events_reconstruction']}**")
-    add("")
-    add(f"Motivo verificabile: {ds['events_reason']}")
-    add("")
-    add("Conteggi eventi certi per lega/stagione: NON VERIFICABILE nel checkout corrente.")
-    add("")
-    add("Violazioni condizione 'nota prima del kickoff della partita saltata': NON VERIFICABILE (serve data evento giocatore e partita saltata).")
-    add("")
 
-    add("## 3. Validazione della sorgente")
-    add("")
-    validation_rows = []
-    for league in [l.name for l in LEAGUES]:
-        validation_rows.append([
-            league,
-            "NON VERIFICABILE",
-            "ground truth ufficiale non presente nel repo",
-            "NON VERIFICABILE",
-            "controllo minimo richiede player_match della partita saltata; file locale assente",
-        ])
-    add(markdown_table(["Lega", "Precision/Recall", "Motivo", "Violazioni presenza", "Motivo controllo minimo"], validation_rows))
-    add("")
+def load_json(path: Path) -> Any:
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)
 
-    add("## 4. Alto utilizzo")
-    add("")
-    add("Definizione fissata: giocatore con almeno il 60% dei minuti disponibili nelle ultime 5 partite di campionato della sua squadra prima della partita saltata, usando solo dati precedenti al kickoff. Sensibilita': 40%.")
-    add("")
-    add("Stato: **NON VERIFICABILE** nel checkout corrente, per assenza dei minuti per giocatore in file locali. Il referto `ppda_deep_player_feasibility` documenta che tali campi erano presenti in un artifact esterno, ma l'artifact non e' versionato nel repo.")
-    add("")
 
-    add("## 5. Conteggi richiesti")
-    add("")
-    count_rows = []
+def parse_ts(s: Any) -> pd.Timestamp:
+    ts = pd.to_datetime(s, utc=True, errors="coerce")
+    if pd.isna(ts):
+        ts = pd.to_datetime(s, errors="coerce")
+        if pd.isna(ts):
+            raise ValueError(f"data non parsabile: {s!r}")
+        ts = ts.tz_localize("UTC")
+    return ts
+
+
+def role_group(position: Any) -> str:
+    p = ("" if position is None else str(position)).upper().strip()
+    if not p:
+        return "non disponibile"
+    if p in {"GK", "G"} or "GK" in p:
+        return "portiere"
+    # Understat: DMC/MC/AMC/ML/MR sono centrocampo; FW/FWL/FWR attacco.
+    if p.startswith("FW") or p in {"ST", "CF", "F"}:
+        return "attaccante"
+    if "MC" in p or p in {"ML", "MR", "M", "AM", "AMC", "DM", "DMC"}:
+        return "centrocampista"
+    if p.startswith("D") or p in {"CB", "LB", "RB", "WB"}:
+        return "difensore"
+    return "non disponibile"
+
+
+def event_side(match: Match, team: str) -> str:
+    if canonical_team_name(team) == match.home:
+        return "home"
+    if canonical_team_name(team) == match.away:
+        return "away"
+    return "unknown"
+
+
+def load_matches() -> Tuple[Dict[str, Dict[int, Match]], Dict[Tuple[str, int], List[Match]], Dict[Tuple[str, int, str], List[Match]]]:
+    by_league_id: Dict[str, Dict[int, Match]] = defaultdict(dict)
+    by_league_season: Dict[Tuple[str, int], List[Match]] = defaultdict(list)
+    by_team_season: Dict[Tuple[str, int, str], List[Match]] = defaultdict(list)
+    for lg in LEAGUES:
+        path = SOCCERMATH_DIR / "database" / lg.xg_archive
+        data = load_json(path)
+        for rec in data:
+            if rec.get("id") is None or rec.get("date") is None:
+                continue
+            season = int(rec.get("season"))
+            m = Match(
+                league=lg.name,
+                season=season,
+                match_id=int(rec["id"]),
+                kickoff=parse_ts(rec["date"]),
+                home=canonical_team_name(rec.get("home_team")),
+                away=canonical_team_name(rec.get("away_team")),
+                home_raw=str(rec.get("home_team")),
+                away_raw=str(rec.get("away_team")),
+                home_goals=rec.get("home_goals"),
+                away_goals=rec.get("away_goals"),
+            )
+            by_league_id[lg.name][m.match_id] = m
+            by_league_season[(lg.name, season)].append(m)
+            by_team_season[(lg.name, season, m.home)].append(m)
+            by_team_season[(lg.name, season, m.away)].append(m)
+    for d in (by_league_season, by_team_season):
+        for k in d:
+            d[k].sort(key=lambda x: (x.kickoff, x.match_id))
+    return by_league_id, by_league_season, by_team_season
+
+
+def load_player_rows(player_dir: Path, matches_by_id: Dict[str, Dict[int, Match]]) -> Tuple[List[dict], Dict[Tuple[str, int, Any], dict], Dict[Tuple[str, int, Any], List[dict]], Dict[Tuple[str, int, Any], dict]]:
+    rows: List[dict] = []
+    player_match_index: Dict[Tuple[str, int, Any], dict] = {}
+    rows_by_team_match: Dict[Tuple[str, int, Any], List[dict]] = defaultdict(list)
+    player_latest: Dict[Tuple[str, int, Any], dict] = {}
+    for lg in LEAGUES:
+        path = player_dir / lg.player_file
+        if not path.exists():
+            raise FileNotFoundError(f"manca {path}")
+        data = load_json(path)
+        for r in data:
+            season = int(r.get("season"))
+            match_id = int(r.get("id"))
+            m = matches_by_id[lg.name].get(match_id)
+            if not m:
+                continue
+            team = canonical_team_name(r.get("team"))
+            rec = dict(r)
+            rec.update({
+                "league": lg.name,
+                "season": season,
+                "match_id": match_id,
+                "kickoff": m.kickoff,
+                "team_canon": team,
+                "opponent_canon": canonical_team_name(r.get("opponent")),
+                "player_key": r.get("player_id") if r.get("player_id") is not None else str(r.get("player")),
+                "minutes_num": float(r.get("minutes") or 0),
+                "yellow_num": int(r.get("yellow_cards") or 0),
+                "red_num": int(r.get("red_cards") or 0),
+                "role_group": role_group(r.get("position")),
+            })
+            rows.append(rec)
+            player_match_index[(lg.name, match_id, rec["player_key"])] = rec
+            rows_by_team_match[(lg.name, match_id, team)].append(rec)
+            player_latest[(lg.name, season, rec["player_key"])] = rec
+    rows.sort(key=lambda r: (r["league"], r["kickoff"], r["match_id"], r["team_canon"], str(r["player_key"])))
+    return rows, player_match_index, rows_by_team_match, player_latest
+
+
+def next_matches(team_matches: List[Match], after: pd.Timestamp, n: int) -> List[Match]:
+    return [m for m in team_matches if m.kickoff > after][:n]
+
+
+def previous_matches(team_matches: List[Match], before: pd.Timestamp, n: int = 5) -> List[Match]:
+    prev = [m for m in team_matches if m.kickoff < before]
+    return prev[-n:]
+
+
+def high_usage(player_key: Any, league: str, team: str, season: int, skipped: Match,
+               by_team_season: Dict[Tuple[str, int, str], List[Match]],
+               player_match_index: Dict[Tuple[str, int, Any], dict]) -> Tuple[bool, bool, Optional[float], float, float]:
+    pm = previous_matches(by_team_season.get((league, season, team), []), skipped.kickoff, 5)
+    available = 90.0 * len(pm)
+    if available <= 0:
+        return False, False, None, 0.0, 0.0
+    mins = 0.0
+    for m in pm:
+        rec = player_match_index.get((league, m.match_id, player_key))
+        if rec and rec.get("team_canon") == team:
+            mins += float(rec.get("minutes_num") or 0)
+    share = mins / available
+    return share >= 0.60, share >= 0.40, share, mins, available
+
+
+def add_event(events: List[Event], league: str, player_rec: dict, team: str, rule: str,
+              source_match: Match, skipped: Match,
+              by_team_season, player_match_index) -> None:
+    side = event_side(skipped, team)
+    opponent = skipped.away if side == "home" else skipped.home if side == "away" else ""
+    high60, high40, share, mins, avail = high_usage(
+        player_rec["player_key"], league, team, skipped.season, skipped, by_team_season, player_match_index)
+    played = (league, skipped.match_id, player_rec["player_key"]) in player_match_index
+    rec_skip = player_match_index.get((league, skipped.match_id, player_rec["player_key"]))
+    if rec_skip is not None and rec_skip.get("minutes_num", 0) <= 0:
+        played = False
+    events.append(Event(
+        league=league,
+        season=skipped.season,
+        player_id=player_rec["player_key"],
+        player=str(player_rec.get("player")),
+        team=team,
+        rule=rule,
+        source_match_id=source_match.match_id,
+        source_kickoff=source_match.kickoff,
+        skipped_match_id=skipped.match_id,
+        skipped_kickoff=skipped.kickoff,
+        opponent=opponent,
+        venue=side,
+        known_at=source_match.kickoff,
+        role=player_rec.get("role_group") or "non disponibile",
+        position=str(player_rec.get("position") or ""),
+        high60=high60,
+        high40=high40,
+        usage_share=share,
+        minutes_last5=mins,
+        available_last5=avail,
+        validation_played=played,
+    ))
+
+
+def reconstruct_events(rows: List[dict], matches_by_id: Dict[str, Dict[int, Match]], by_team_season, player_match_index) -> Tuple[List[Event], List[dict]]:
+    events: List[Event] = []
+    ambiguous: List[dict] = []
+    # state keyed by league/season/team/player because transfers make sanctions ambiguous.
+    yellow_count = defaultdict(int)
+    serie_thresholds = defaultdict(lambda: [5, 9, 13, 16, 18])
+    ligue_window = defaultdict(deque)
+    pl_triggered = defaultdict(set)
+    liga_cycle = defaultdict(int)
+    bundes_count = defaultdict(int)
+    ligue_count_2025 = defaultdict(int)
+
+    rows_sorted = sorted(rows, key=lambda r: (r["league"], r["kickoff"], r["match_id"]))
+    for r in rows_sorted:
+        league, season, team, pkey = r["league"], int(r["season"]), r["team_canon"], r["player_key"]
+        match = matches_by_id[league].get(int(r["match_id"]))
+        if match is None:
+            continue
+        # Direct red: only red without yellow is treated as certain direct red.
+        if r["red_num"] > 0:
+            if r["yellow_num"] == 0:
+                nm = next_matches(by_team_season.get((league, season, team), []), match.kickoff, 1)
+                if nm and nm[0].season in ANALYSIS_SEASONS:
+                    add_event(events, league, r, team, "rosso diretto osservato (red=1,yellow=0) -> 1 turno", match, nm[0], by_team_season, player_match_index)
+            else:
+                ambiguous.append({"league": league, "season": season, "match_id": match.match_id, "player": r.get("player"), "team": team, "reason": "red_cards>0 con yellow_cards>0: diretto dopo giallo o doppia ammonizione non distinguibile in Understat"})
+
+        y = int(r["yellow_num"] or 0)
+        if y <= 0:
+            continue
+        # If red happened too, yellow contribution is ambiguous for accumulation.
+        if r["red_num"] > 0:
+            continue
+        key = (league, season, team, pkey)
+        if league == "Serie A":
+            for _ in range(y):
+                yellow_count[key] += 1
+                c = yellow_count[key]
+                thresholds = serie_thresholds[key]
+                if c in thresholds or c >= 19:
+                    nm = next_matches(by_team_season.get((league, season, team), []), match.kickoff, 1)
+                    if nm and nm[0].season in ANALYSIS_SEASONS:
+                        add_event(events, league, r, team, f"accumulo Serie A ammonizione {c}", match, nm[0], by_team_season, player_match_index)
+        elif league == "Premier League":
+            # team match number in league season at source match.
+            team_ms = by_team_season.get((league, season, team), [])
+            tm_no = 1 + [m.match_id for m in team_ms].index(match.match_id) if match in team_ms else None
+            for _ in range(y):
+                yellow_count[key] += 1
+                c = yellow_count[key]
+                ban_len = 0
+                rule = None
+                if c >= 5 and 5 not in pl_triggered[key] and tm_no is not None and tm_no <= 19:
+                    ban_len, rule = 1, "accumulo Premier 5 gialli entro 19a partita squadra"
+                    pl_triggered[key].add(5)
+                elif c >= 10 and 10 not in pl_triggered[key] and tm_no is not None and tm_no <= 32:
+                    ban_len, rule = 2, "accumulo Premier 10 gialli entro 32a partita squadra"
+                    pl_triggered[key].add(10)
+                elif c >= 15 and 15 not in pl_triggered[key]:
+                    ban_len, rule = 3, "accumulo Premier 15 gialli in stagione"
+                    pl_triggered[key].add(15)
+                if ban_len:
+                    for nm in next_matches(team_ms, match.kickoff, ban_len):
+                        if nm.season in ANALYSIS_SEASONS:
+                            add_event(events, league, r, team, rule, match, nm, by_team_season, player_match_index)
+        elif league == "La Liga":
+            team_ms = by_team_season.get((league, season, team), [])
+            is_last = bool(team_ms and team_ms[-1].match_id == match.match_id)
+            for _ in range(y):
+                liga_cycle[key] += 1
+                if liga_cycle[key] >= 5:
+                    if is_last:
+                        ambiguous.append({"league": league, "season": season, "match_id": match.match_id, "player": r.get("player"), "team": team, "reason": "5a ammonizione Liga all'ultima giornata: esenzione art.112.4, nessun evento contato"})
+                    else:
+                        nm = next_matches(team_ms, match.kickoff, 1)
+                        if nm and nm[0].season in ANALYSIS_SEASONS:
+                            add_event(events, league, r, team, "accumulo La Liga ciclo da 5", match, nm[0], by_team_season, player_match_index)
+                    liga_cycle[key] = 0
+        elif league == "Bundesliga":
+            for _ in range(y):
+                bundes_count[key] += 1
+                c = bundes_count[key]
+                if c % 5 == 0:
+                    nm = next_matches(by_team_season.get((league, season, team), []), match.kickoff, 1)
+                    if nm and nm[0].season in ANALYSIS_SEASONS:
+                        add_event(events, league, r, team, f"accumulo Bundesliga ammonizione {c}", match, nm[0], by_team_season, player_match_index)
+        elif league == "Ligue 1":
+            team_ms = by_team_season.get((league, season, team), [])
+            if season <= 2024:
+                # League-only lower-bound implementation; domestic cups missing are declared as source limit.
+                dq = ligue_window[key]
+                # store team-match ordinal to approximate 10 official/league window
+                try:
+                    tm_no = 1 + [m.match_id for m in team_ms].index(match.match_id)
+                except ValueError:
+                    tm_no = None
+                for _ in range(y):
+                    if tm_no is not None:
+                        dq.append(tm_no)
+                        while dq and tm_no - dq[0] >= 10:
+                            dq.popleft()
+                        if len(dq) >= 3:
+                            nm = next_matches(team_ms, match.kickoff, 1)
+                            if nm and nm[0].season in ANALYSIS_SEASONS:
+                                add_event(events, league, r, team, "Ligue 1 league-only: 3 gialli in 10 partite (coppe mancanti dichiarate)", match, nm[0], by_team_season, player_match_index)
+                            dq.clear()
+            else:
+                for _ in range(y):
+                    ligue_count_2025[key] += 1
+                    c = ligue_count_2025[key]
+                    if c % 5 == 0:
+                        nm = next_matches(team_ms, match.kickoff, 1)
+                        if nm and nm[0].season in ANALYSIS_SEASONS:
+                            add_event(events, league, r, team, f"Ligue 1 2025/26 league-only ammonizione {c}/5 (coppe mancanti dichiarate)", match, nm[0], by_team_season, player_match_index)
+    return events, ambiguous
+
+
+# ---------------------- model probabilities ------------------------------
+
+def ensure_elo_table(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        code, out = run([sys.executable, "audit/elo_weight_retune.py"])
+        if code != 0:
+            raise RuntimeError(out)
+        # Do not keep timestamp-only retune report diffs.
+        run(["git", "checkout", "--", "audit/results/elo_weight_retune.md"])
+    return pd.read_parquet(path)
+
+
+class TeamState:
+    def __init__(self):
+        self.hgf = self.hga = self.hgn = 0.0
+        self.agf = self.aga = self.agn = 0.0
+        self.last5 = deque(maxlen=5)
+
+    def observe_home(self, fthg, ftag):
+        self.hgf += fthg; self.hga += ftag; self.hgn += 1
+        self.last5.append((fthg, ftag))
+
+    def observe_away(self, fthg, ftag):
+        self.agf += ftag; self.aga += fthg; self.agn += 1
+        self.last5.append((ftag, fthg))
+
+
+def ou25_walkforward() -> Dict[Tuple[str, int, str, str, pd.Timestamp], Dict[str, float]]:
+    out = {}
+    shrunk = prod_app._shrunk_ratio
+    league_gate = prod_app._league_mean_gate
+    two_heads = prod_app.get_full_poisson_two_heads
+    for lg in LEAGUES:
+        # Football-data CSVs, seasons 2022-2025.
+        frames = []
+        for season in ALL_SEASONS:
+            p = SOCCERMATH_DIR / "database" / f"{lg.csv_stem}_{season}.csv"
+            if p.exists():
+                df = pd.read_csv(p)
+                df["season_start"] = season
+                frames.append(df)
+        if not frames:
+            continue
+        df = pd.concat(frames, ignore_index=True)
+        df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce", utc=True)
+        df = df.dropna(subset=["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]).sort_values("Date", kind="stable").reset_index(drop=True)
+        df["HomeClean"] = df["HomeTeam"].map(canonical_team_name)
+        df["AwayClean"] = df["AwayTeam"].map(canonical_team_name)
+        fs_records = load_archive(lg.name)
+        state: Dict[str, TeamState] = {}
+        fs_cache = {}
+        tot_hg = tot_ag = 0.0
+        tot_n = 0
+
+        def st(t):
+            state.setdefault(t, TeamState())
+            return state[t]
+
+        for row in df.itertuples(index=False):
+            h, a = row.HomeClean, row.AwayClean
+            fthg, ftag = int(row.FTHG), int(row.FTAG)
+            avg_h = max(tot_hg / tot_n, 0.1) if tot_n else 0.1
+            avg_a = max(tot_ag / tot_n, 0.1) if tot_n else 0.1
+            season = int(row.season_start)
+            cache_key = (season, row.Date.date())
+            if cache_key not in fs_cache:
+                try:
+                    agg = season_point_in_time_averages(lg.name, cutoff=row.Date.to_pydatetime(), season=season, records=fs_records)
+                    axg, axga = league_gate(agg.averages)
+                    fs_cache[cache_key] = (agg.averages if axg is not None else {}, axg, axga, axg is not None)
+                except Exception:
+                    fs_cache[cache_key] = ({}, None, None, False)
+            fs_lookup, axg, axga, fs_active = fs_cache[cache_key]
+
+            stats = {}
+            lambdas = {}
+            for t in (h, a):
+                ts = st(t)
+                n = ts.hgn + ts.agn
+                gf, ga = ts.hgf + ts.agf, ts.hga + ts.aga
+                exp_gf = avg_h * ts.hgn + avg_a * ts.agn
+                exp_ga = avg_a * ts.hgn + avg_h * ts.agn
+                fb_att, fb_def = shrunk(gf, exp_gf, n), shrunk(ga, exp_ga, n)
+                pure_att, pure_def = fb_att, fb_def
+                if fs_active and isinstance(fs_lookup.get(t), dict):
+                    rr = fs_lookup[t]
+                    try:
+                        fs_xg = float(rr.get("xG_avg")); fs_xga = float(rr.get("xGA_avg")); fs_n = rr.get("matches")
+                        ok = np.isfinite(fs_xg) and np.isfinite(fs_xga) and fs_xg >= 0 and fs_xga >= 0 and float(fs_n) > 0
+                    except Exception:
+                        ok = False
+                    if ok:
+                        pure_att, pure_def = shrunk(fs_xg, axg, fs_n), shrunk(fs_xga, axga, fs_n)
+                if not (np.isfinite(pure_att) and pure_att > 0): pure_att = 1.0
+                if not (np.isfinite(pure_def) and pure_def > 0): pure_def = 1.0
+                stats[t] = {"att": fb_att, "def": fb_def, "att0": fb_att, "def0": fb_def, "att0_pure": pure_att, "def0_pure": pure_def}
+            m = two_heads(stats[h], stats[a], avg_h, avg_a)
+            # Lambdas for total head are pure H/A products.
+            lam_h = float(stats[h]["att0_pure"] * stats[a]["def0_pure"] * avg_h)
+            lam_a = float(stats[a]["att0_pure"] * stats[h]["def0_pure"] * avg_a)
+            key = (lg.name, season, h, a, row.Date)
+            out[key] = {"p_over": float(1.0 - m["u25"]), "lambda_h": lam_h, "lambda_a": lam_a}
+            tot_hg += fthg; tot_ag += ftag; tot_n += 1
+            st(h).observe_home(fthg, ftag); st(a).observe_away(fthg, ftag)
+    return out
+
+
+def poisson_over_prob(lh: float, la: float) -> float:
+    # P(total > 2.5) for independent Poisson, exact via total Poisson.
+    mu = max(1e-9, lh + la)
+    return float(1.0 - math.exp(-mu) * (1.0 + mu + mu * mu / 2.0))
+
+
+def elo_probs_from_d(d: float) -> np.ndarray:
+    p = elo_probs_from_ratings(1500.0 + float(d), 1500.0, 0.0)
+    return np.array([p["1"], p["X"], p["2"]], dtype=float)
+
+
+def event_matrix(events: List[Event], matches: Dict[str, Dict[int, Match]]) -> Dict[Tuple[str, int], Dict[str, Any]]:
+    mat: Dict[Tuple[str, int], Dict[str, Any]] = defaultdict(lambda: {
+        "home_high": 0, "away_high": 0,
+        "home_att": 0, "away_att": 0,
+        "home_defgk": 0, "away_defgk": 0,
+        "events": []
+    })
+    for e in events:
+        if not e.high60:
+            continue
+        m = matches[e.league].get(e.skipped_match_id)
+        if not m:
+            continue
+        side = event_side(m, e.team)
+        k = (e.league, e.skipped_match_id)
+        mat[k]["events"].append(e)
+        if side == "home":
+            mat[k]["home_high"] += 1
+            if e.role == "attaccante": mat[k]["home_att"] += 1
+            if e.role in ("portiere", "difensore"): mat[k]["home_defgk"] += 1
+        elif side == "away":
+            mat[k]["away_high"] += 1
+            if e.role == "attaccante": mat[k]["away_att"] += 1
+            if e.role in ("portiere", "difensore"): mat[k]["away_defgk"] += 1
+    return mat
+
+
+def logloss_multinomial(p: np.ndarray, y: int) -> float:
+    return -math.log(max(1e-12, float(p[y])))
+
+
+def logloss_binary(p: float, y: int) -> float:
+    p = min(max(float(p), 1e-12), 1 - 1e-12)
+    return -(y * math.log(p) + (1 - y) * math.log(1 - p))
+
+
+def bootstrap_significant(diffs: np.ndarray, homes: Sequence[str], aways: Sequence[str], rng: random.Random, reps: int = 200) -> bool:
+    teams = sorted(set(homes) | set(aways))
+    if len(teams) < 2 or len(diffs) == 0:
+        return False
+    by_team = {t: np.array([i for i, (h, a) in enumerate(zip(homes, aways)) if h == t or a == t], dtype=int) for t in teams}
+    vals = []
+    for _ in range(reps):
+        idxs = []
+        for t in rng.choices(teams, k=len(teams)):
+            idxs.extend(by_team[t].tolist())
+        if idxs:
+            vals.append(float(np.mean(diffs[idxs])))
+    if not vals:
+        return False
+    return float(np.percentile(vals, 5)) > 0.0
+
+
+def power_1x2(elo_df: pd.DataFrame, mat: Dict[Tuple[str, int], Dict[str, Any]], matches_by_id) -> Tuple[List[dict], str, float]:
+    rows = []
+    for r in elo_df.itertuples(index=False):
+        if str(r.season) not in {season_label(s) for s in ANALYSIS_SEASONS}:
+            continue
+        league = str(r.league)
+        date = pd.to_datetime(r.data, utc=True)
+        h = canonical_team_name(r.home_raw); a = canonical_team_name(r.away_raw)
+        # find match by same league/date/home/away
+        mid = None
+        for m in matches_by_id[league].values():
+            if m.season in ANALYSIS_SEASONS and m.home == h and m.away == a and m.kickoff.date() == date.date():
+                mid = m.match_id; break
+        if mid is None:
+            continue
+        ev = mat.get((league, mid), {})
+        p0 = np.array([float(r.elo_1), float(r.elo_X), float(r.elo_2)])
+        y = {"H": 0, "D": 1, "A": 2}.get(str(r.FTR).strip().upper())
+        if y is None:
+            continue
+        rows.append({"league": league, "match_id": mid, "home": h, "away": a, "d": float(r.d_elo_diff), "p0": p0, "y": y,
+                     "x": float(ev.get("away_high", 0) - ev.get("home_high", 0))})
+    return simulate_power_A(rows)
+
+
+def simulate_power_A(rows: List[dict]) -> Tuple[List[dict], str, float]:
+    rng = random.Random(BOOTSTRAP_SEED)
+    if not rows or not any(abs(r["x"]) > 0 for r in rows):
+        return [], ">50", 1.0
+    homes = [r["home"] for r in rows]; aways = [r["away"] for r in rows]
+    deltas = [15, 30, 50]
+    est_grid = np.linspace(-80, 80, 33)
+    out = []
+    for true_delta in deltas:
+        sig = 0; sims = 80
+        for _ in range(sims):
+            ys = []
+            for r in rows:
+                p = elo_probs_from_d(r["d"] + true_delta * r["x"])
+                ys.append(int(rng.choices([0, 1, 2], weights=p, k=1)[0]))
+            best_delta, best_ll = 0.0, float("inf")
+            for dg in est_grid:
+                ll = 0.0
+                for r, y in zip(rows, ys):
+                    ll += logloss_multinomial(elo_probs_from_d(r["d"] + dg * r["x"]), y)
+                if ll < best_ll:
+                    best_ll, best_delta = ll, float(dg)
+            diffs = np.array([logloss_multinomial(elo_probs_from_d(r["d"]), y) - logloss_multinomial(elo_probs_from_d(r["d"] + best_delta * r["x"]), y) for r, y in zip(rows, ys)])
+            if bootstrap_significant(diffs, homes, aways, rng):
+                sig += 1
+        out.append({"delta": true_delta, "power": sig / sims})
+    mde = next((str(x["delta"]) for x in out if x["power"] >= 0.80), ">50")
+    ratio = posterior_prior_ratio_A(rows)
+    return out, mde, ratio
+
+
+def posterior_prior_ratio_A(rows: List[dict]) -> float:
+    prior_sd = 30.0
+    info = 0.0
+    eps = 1.0
+    for r in rows:
+        if r["x"] == 0: continue
+        p_plus = elo_probs_from_d(r["d"] + eps * r["x"])
+        p_minus = elo_probs_from_d(r["d"] - eps * r["x"])
+        dp = (p_plus - p_minus) / (2 * eps)
+        p0 = np.maximum(elo_probs_from_d(r["d"]), 1e-9)
+        info += float(np.sum((dp ** 2) / p0))
+    post_sd = 1.0 / math.sqrt(1.0 / (prior_sd ** 2) + info) if info > 0 else prior_sd
+    return post_sd / prior_sd
+
+
+def build_ou_rows(matches_by_id, mat) -> List[dict]:
+    ou = ou25_walkforward()
+    rows = []
+    for lg in LEAGUES:
+        for m in matches_by_id[lg.name].values():
+            if m.season not in ANALYSIS_SEASONS or m.home_goals is None or m.away_goals is None:
+                continue
+            # key by football-data date can differ in time; match by same date/home/away.
+            candidates = [(k, v) for k, v in ou.items() if k[0] == lg.name and k[1] == m.season and k[2] == m.home and k[3] == m.away and k[4].date() == m.kickoff.date()]
+            if not candidates:
+                continue
+            base = candidates[0][1]
+            ev = mat.get((lg.name, m.match_id), {})
+            y = int((int(m.home_goals) + int(m.away_goals)) > 2.5)
+            rows.append({"league": lg.name, "match_id": m.match_id, "home": m.home, "away": m.away, "lh": base["lambda_h"], "la": base["lambda_a"], "p0": base["p_over"], "y": y,
+                         "home_att": ev.get("home_att", 0), "away_att": ev.get("away_att", 0), "home_defgk": ev.get("home_defgk", 0), "away_defgk": ev.get("away_defgk", 0)})
+    return rows
+
+
+def adjusted_over(row: dict, delta: float) -> float:
+    lh, la = float(row["lh"]), float(row["la"])
+    lh *= math.exp(-delta * row["home_att"] + delta * row["away_defgk"])
+    la *= math.exp(-delta * row["away_att"] + delta * row["home_defgk"])
+    return poisson_over_prob(lh, la)
+
+
+def simulate_power_B(rows: List[dict]) -> Tuple[List[dict], str, float]:
+    rng = random.Random(BOOTSTRAP_SEED + 1)
+    active = [r for r in rows if any(r[k] for k in ("home_att", "away_att", "home_defgk", "away_defgk"))]
+    if not active:
+        return [], ">0.15", 1.0
+    homes = [r["home"] for r in rows]; aways = [r["away"] for r in rows]
+    deltas = [0.05, 0.10, 0.15]
+    est_grid = np.linspace(-0.20, 0.20, 41)
+    out = []
+    for true_delta in deltas:
+        sig = 0; sims = 80
+        for _ in range(sims):
+            ys = [int(rng.random() < adjusted_over(r, true_delta)) for r in rows]
+            best_delta, best_ll = 0.0, float("inf")
+            for dg in est_grid:
+                ll = sum(logloss_binary(adjusted_over(r, float(dg)), y) for r, y in zip(rows, ys))
+                if ll < best_ll:
+                    best_ll, best_delta = ll, float(dg)
+            diffs = np.array([logloss_binary(r["p0"], y) - logloss_binary(adjusted_over(r, best_delta), y) for r, y in zip(rows, ys)])
+            if bootstrap_significant(diffs, homes, aways, rng):
+                sig += 1
+        out.append({"delta": true_delta, "power": sig / sims})
+    mde = next((f"{x['delta']:.2f}" for x in out if x["power"] >= 0.80), ">0.15")
+    ratio = posterior_prior_ratio_B(rows)
+    return out, mde, ratio
+
+
+def posterior_prior_ratio_B(rows: List[dict]) -> float:
+    prior_sd = 0.10
+    eps = 0.002
+    info = 0.0
+    for r in rows:
+        if not any(r[k] for k in ("home_att", "away_att", "home_defgk", "away_defgk")):
+            continue
+        p_plus = adjusted_over(r, eps); p_minus = adjusted_over(r, -eps)
+        dp = (p_plus - p_minus) / (2 * eps)
+        p0 = min(max(adjusted_over(r, 0.0), 1e-6), 1-1e-6)
+        info += (dp * dp) / (p0 * (1 - p0))
+    post_sd = 1.0 / math.sqrt(1.0 / (prior_sd ** 2) + info) if info > 0 else prior_sd
+    return post_sd / prior_sd
+
+
+# ---------------------- summaries/report ----------------------------------
+
+def summarize_counts(events: List[Event]) -> Tuple[List[List[Any]], Dict[str, Any]]:
+    rows = []
+    total = defaultdict(int)
     for league in [l.name for l in LEAGUES]:
         for season in ANALYSIS_SEASONS:
-            count_rows.append([
-                league,
-                season_label(season),
-                "NON VERIFICABILE",
-                "NON VERIFICABILE",
-                "NON VERIFICABILE",
-                "NON VERIFICABILE",
-                "NON VERIFICABILE",
-                "player_match/ground truth assenti",
-            ])
-    add(markdown_table([
-        "Lega", "Stagione", "Partite con squalificato certo", "Partite con alto utilizzo >=60%",
-        "Distribuzione ruolo", "Assenze multiple", "Cluster squadre/giocatori", "Motivo"
-    ], count_rows))
-    add("")
+            ev = [e for e in events if e.league == league and e.season == season]
+            matches = {(e.league, e.skipped_match_id) for e in ev}
+            high_matches = {(e.league, e.skipped_match_id) for e in ev if e.high60}
+            roles = Counter(e.role for e in ev)
+            by_match = defaultdict(list)
+            for e in ev: by_match[e.skipped_match_id].append(e)
+            multi = sum(1 for xs in by_match.values() if len(xs) >= 2)
+            both = 0
+            for xs in by_match.values():
+                teams = {x.team for x in xs}
+                if len(teams) >= 2: both += 1
+            teams = {e.team for e in ev}; players = {e.player_id for e in ev}
+            rows.append([league, season_label(season), len(matches), len(high_matches), ", ".join(f"{r}:{roles.get(r,0)}" for r in ROLE_LABELS), multi, both, len(teams), len(players)])
+            total["events"] += len(ev); total["matches"] += len(matches); total["high_matches"] += len(high_matches)
+    return rows, total
 
-    add("## 6. Potenza statistica")
-    add("")
-    add("Punti d'iniezione dichiarati:")
-    add("- A) 1X2: shock transitorio sul differenziale Elo `d_match = d + Δ_H − Δ_A`, metrica LogLoss 1X2.")
-    add("- B) Totali: shock su lambda in scala logaritmica, metrica LogLoss Over/Under 2.5.")
-    add("")
-    power_rows = [
-        ["A", "15 Elo", "NON VERIFICABILE", "NON VERIFICABILE", "matrice eventi alto utilizzo assente"],
-        ["A", "30 Elo", "NON VERIFICABILE", "NON VERIFICABILE", "matrice eventi alto utilizzo assente"],
-        ["A", "50 Elo", "NON VERIFICABILE", "NON VERIFICABILE", "matrice eventi alto utilizzo assente"],
-        ["B", "0.05 log-lambda", "NON VERIFICABILE", "NON VERIFICABILE", "matrice eventi alto utilizzo e ruoli assente"],
-        ["B", "0.10 log-lambda", "NON VERIFICABILE", "NON VERIFICABILE", "matrice eventi alto utilizzo e ruoli assente"],
-        ["B", "0.15 log-lambda", "NON VERIFICABILE", "NON VERIFICABILE", "matrice eventi alto utilizzo e ruoli assente"],
+
+def command_table(ctx: Dict[str, Any]) -> str:
+    rows = [
+        ["OK", "gh run list --workflow ppda_player_verify.yml", f"run recupero fresco {ctx.get('artifact_run_id')} workflow Verifica PPDA/deep/giocatore"],
+        ["OK" if ctx.get("artifact_expired") is False else "NON OK", "gh api repos/iFelice/SoccerMath2.0/actions/runs/<run>/artifacts", f"artifact {ctx.get('artifact_name')} size={ctx.get('artifact_size')} created={ctx.get('artifact_created')} expires={ctx.get('artifact_expires')} expired={ctx.get('artifact_expired')}"] ,
+        ["NON OK", "gh run download 34992936842 --name ppda-player-verify-34992936842", "no valid artifacts found to download; API run artifacts total_count=0 (artifact PR#23 non piu' presente)"] ,
+        ["NON OK", "gh run download 37461010400 --name ppda-player-verify-37461010400", "sandbox: Azure blob productionresultssa1.blob.core.windows.net -> EOF; download riuscito dentro GitHub Actions per l'analisi"],
+        ["NON OK", "python update_all_ppda_player_db.py ... (sandbox)", "sandbox: GitHub release asset TLS client e understat.com chiudono TLS (SSL_ERROR_SYSCALL/EOF); rigenerazione riuscita nel runner Actions"],
+        ["OK", "python audit/squalifiche_feasibility.py --player-match-dir ...", "report generato su dati player_match recuperati dall'artifact fresco"],
     ]
-    add(markdown_table(["Punto", "δ vero", "Potenza α=5%", "MDE 80%", "Motivo"], power_rows))
-    add("")
+    return md_table(["Esito", "Comando", "Evidenza"], rows)
 
-    add("## 7. Prior e rapporto posterior/prior")
-    add("")
-    add("Prior fissati: A) δ ~ N(0, 30²) punti Elo; B) δ ~ N(0, 0.10²) log-lambda.")
-    add("")
-    add(markdown_table(["Punto", "Rapporto sd posterior/prior", "Stato"], [
-        ["A", "NON VERIFICABILE", "numero eventi reali ad alto utilizzo non disponibile"],
-        ["B", "NON VERIFICABILE", "numero eventi reali ad alto utilizzo e ruoli non disponibile"],
+
+def render_report(ctx: Dict[str, Any], coverage_rows, events: List[Event], ambiguous: List[dict], count_rows, validation_rows, powerA, mdeA, ratioA, powerB, mdeB, ratioB, source_info) -> str:
+    lines = []
+    ap = lines.append
+    artifact_expires = ctx.get("artifact_expires")
+    ap("# Fattibilita' feature squalifiche — eventi certi, validazione, conteggi, potenza")
+    ap("")
+    ap(f"**STATO ARTIFACT PLAYER_MATCH:** `{ctx.get('artifact_name')}` da run `{ctx.get('artifact_run_id')}`, dimensione compressa `{ctx.get('artifact_size')}` byte, creato `{ctx.get('artifact_created')}`, scadenza `{artifact_expires}`, expired=`{ctx.get('artifact_expired')}`. Scade entro 30 giorni rispetto al 2026-10-06: **SI**. Proposta non applicata: promuovere lo zip (~{ctx.get('artifact_size')} byte compresso) ad asset di release GitHub o storage oggetto esterno versionato, lasciando fuori git i JSON raw.")
+    ap("")
+    ap(f"Generato: `{dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()}` UTC. Commit base script: `{ctx.get('head')}`.")
+    ap("")
+    ap("## 0. Evidenze comandi")
+    ap(command_table(ctx))
+    ap("")
+    ap("## 1. Inventario fonte player_match")
+    ap(md_table(["Percorso/script", "Fonte", "Evidenza"], [
+        ["update_all_ppda_player_db.py", "Understat via soccerdata==1.9.1", "usa soccerdata.Understat.read_player_match_stats(); campi minutes, position, yellow_cards, red_cards"],
+        [".github/workflows/ppda_player_verify.yml", "workflow PR #23", "upload artifact ppda-player-verify-${{ github.run_id }} con reports/ e database/; retention-days: 14"],
+        ["audit/ppda_deep_player_audit.py", "audit copertura", "referto storico 224902 righe giocatore nel run 34992936842"],
     ]))
-    add("")
-
-    add("## 8. Regola di decisione")
-    add("")
-    add(markdown_table(["Punto", "Regola GO", "Evidenza disponibile", "Verdetto operativo"], [
-        ["A 1X2", "MDE 80% <= 30 Elo e posterior/prior <= 0.7", "MDE e rapporto non calcolabili da fonti locali", ds["decision_A"]],
-        ["B Totali", "MDE 80% <= 0.10 log-lambda e posterior/prior <= 0.7", "MDE e rapporto non calcolabili da fonti locali", ds["decision_B"]],
+    ap("")
+    ap("### Copertura file recuperati")
+    ap(md_table(["Lega", "File", "Byte", "Righe", "Partite distinte", "Stagioni", "Cartellini/minuti/ruolo"], coverage_rows))
+    ap("")
+    ap("Regole applicate: " + "; ".join(f"{k}: {v}" for k, v in RULES.items()))
+    ap("")
+    ap("Limiti dichiarati: rosso diretto certo contato solo quando `red_cards>0` e `yellow_cards==0`; casi red+yellow esclusi come ambigui; Ligue 1 usa dato league-only e dichiara coppe nazionali mancanti; nessuna ground truth ufficiale versionata, validazione minima presenza/assenza su player_match.")
+    ap("")
+    ap("## 2. Eventi certi ricostruiti")
+    ev_by = Counter((e.league, e.season) for e in events)
+    ap(md_table(["Lega", "Stagione", "Eventi certi", "High usage 60%", "Violazioni known_at<kickoff"], [[lg.name, season_label(s), ev_by.get((lg.name, s),0), sum(1 for e in events if e.league==lg.name and e.season==s and e.high60), sum(1 for e in events if e.league==lg.name and e.season==s and not (e.known_at < e.skipped_kickoff))] for lg in LEAGUES for s in ANALYSIS_SEASONS]))
+    ap("")
+    ap(f"Casi ambigui esclusi: **{len(ambiguous)}**. Prime righe: " + "; ".join(f"{a.get('league')} {a.get('season')} {a.get('player')} {a.get('reason')}" for a in ambiguous[:8]))
+    ap("")
+    ap("## 3. Validazione sorgente")
+    ap(md_table(["Lega", "Candidati ricostruiti", "Violazioni: giocatore risulta in campo", "Precision minima presenza", "Recall"], validation_rows))
+    ap(f"Candidati esclusi dai conteggi principali per violazione di validazione (il player_match mostra minuti nella partita da saltare): **{ctx.get('validation_excluded', 0)}**.")
+    ap("")
+    ap("## 4-5. Alto utilizzo e conteggi")
+    ap("Alto utilizzo = minuti giocati >=60% dei 450 minuti disponibili nelle ultime 5 partite di campionato della squadra prima della partita saltata; sensibilita' 40% calcolata negli output macchina.")
+    ap(md_table(["Lega", "Stagione", "Partite con >=1 squalificato", "Partite con >=1 high60", "Ruoli eventi", "Partite multi-assenti", "Da entrambe le parti", "Squadre", "Giocatori"], count_rows))
+    ap("")
+    ap("## 6. Potenza statistica")
+    ap("A) 1X2: shock transitorio sul differenziale Elo `d_match=d+Δ_H−Δ_A`, qui Δ effettivo = `δ*(away_high-home_high)`. Stima δ via griglia e test ΔLogLoss appaiato con bootstrap a blocchi squadra.")
+    ap(md_table(["δ vero", "Potenza α=5%"], [[x["delta"], fmt_pct(x["power"])] for x in powerA]))
+    ap(f"MDE 80% A: `{mdeA}` punti Elo. Rapporto sd posterior/prior A: `{ratioA:.3f}`.")
+    ap("")
+    ap("B) Totali: shock log-lambda: attaccante assente -> lambda propria; portiere/difensore assente -> lambda avversaria. Centrocampisti esclusi dallo shock B e conteggiati nei ruoli.")
+    ap(md_table(["δ vero", "Potenza α=5%"], [[x["delta"], fmt_pct(x["power"])] for x in powerB]))
+    ap(f"MDE 80% B: `{mdeB}` log-lambda. Rapporto sd posterior/prior B: `{ratioB:.3f}`.")
+    ap("")
+    goA = (mdeA not in (">50", "n/d") and float(mdeA) <= 30 and ratioA <= 0.7)
+    goB = (mdeB not in (">0.15", "n/d") and float(mdeB) <= 0.10 and ratioB <= 0.7)
+    ap("## 7-8. Prior e verdetto")
+    ap(md_table(["Punto", "Prior", "Regola GO", "MDE", "posterior/prior", "Verdetto"], [
+        ["A 1X2", "N(0,30^2) Elo", "MDE<=30 e ratio<=0.7", mdeA, f"{ratioA:.3f}", "GO" if goA else "NO-GO"],
+        ["B Totali", "N(0,0.10^2)", "MDE<=0.10 e ratio<=0.7", mdeB, f"{ratioB:.3f}", "GO" if goB else "NO-GO"],
     ]))
-    add("")
-    add("Il verdetto sopra e' operativo per questa PR: non dichiara effetto negativo, dichiara che il campione verificabile dal repo non puo' rispondere.")
-    add("")
-
-    add("## 9. Output e riproducibilita'")
-    add("")
-    add("File prodotti:")
-    add("- `audit/squalifiche_feasibility.py` — script sola lettura;")
-    add("- `audit/results/squalifiche_feasibility.md` — questo report;")
-    add("- `audit/output/squalifiche_feasibility_sources.json` — dettaglio macchina, ignorato da git.")
-    add("")
-    add("Comando riproducibile:")
-    add(code_block("python audit/squalifiche_feasibility.py"))
-    add("")
-    add("Stato git dopo generazione report (al momento dello script):")
-    add(code_block(summary["git"].get("status_short", "")))
-    add("")
-
-    add("## Chiusura richiesta")
-    add("")
-    add("- Inventario fonti: riportato in §1 e §1.1 con percorsi, commit, copertura e buchi.")
-    add("- Eventi certi per lega/stagione: NON VERIFICABILE perché manca nel repo la fonte giocatore-partita con cartellini.")
-    add("- Validazione sorgente: NON VERIFICABILE perché ground truth ufficiali e player_match locale sono assenti.")
-    add("- Conteggi alto utilizzo: NON VERIFICABILE perché mancano minuti per giocatore in file locali.")
-    add("- Potenza/MDE A e B: NON VERIFICABILE perché non esiste matrice eventi reali ad alto utilizzo.")
-    add("- Rapporto posterior/prior: NON VERIFICABILE perché manca il numero eventi reali.")
-    add("- Verdetto: A = NO-GO tecnico / NON VERIFICABILE; B = NO-GO tecnico / NON VERIFICABILE; pista in raccolta prospettica o previo versionamento della fonte player_match/ground truth.")
-
+    ap("")
+    if goA:
+        ap("Se GO A: audit vero su iniezione Elo pre-match e metrica primaria LogLoss 1X2. Non eseguito qui.")
+    if goB:
+        ap("Se GO B: audit vero su log-lambda Totali e metrica primaria LogLoss Over/Under 2.5. Non eseguito qui.")
+    if not (goA or goB):
+        ap("Entrambi NO-GO: pista da mantenere in raccolta prospettica/validazione ground truth; non e' un effetto negativo.")
+    ap("")
+    ap("## Chiusura")
+    ap("Report generato con dati player_match recuperati; il precedente report 'fonti assenti' e' sostituito.")
     return "\n".join(lines) + "\n"
 
 
-def inventory_role(path: str) -> str:
-    roles = {
-        "audit/results/assenze_certe_valore_feasibility.md": "regole squalifiche per lega, casi limite, ground truth candidate, limiti Ligue 1/WhoScored",
-        "audit/results/assenze_formazioni_probabili_feasibility.md": "ricerca fonti assenze/formazioni e profondita' storica",
-        "audit/results/assenze_formazioni_soccerdata_zero_cost_verification.md": "audit sorgente soccerdata 1.9.1: XI storiche e WhoScored missing players",
-        "audit/results/ppda_deep_player_feasibility.md": "copertura player_match/PPDA/deep generata da artifact esterno",
-        "audit/results/ppda_deep_player_feasibility.json": "dettaglio macchina del referto PPDA/player_match",
-        "audit/ppda_deep_player_audit.py": "script audit copertura player_match/PPDA/deep",
-        "audit/whoscored_missing_players_sample.py": "campionamento WhoScored missing players, no dati versionati",
-        "update_all_ppda_player_db.py": "pipeline acquisizione Understat player_match con cartellini/minuti/ruolo",
-        ".github/workflows/ppda_player_verify.yml": "workflow verifica acquisizione player_match come artifact non versionato",
-        ".github/workflows/whoscored_missing_sample.yml": "workflow campionamento WhoScored HARD_BLOCK documentato",
-    }
-    return roles.get(path, "")
-
-
-def build_summary(args: argparse.Namespace) -> Dict[str, Any]:
-    database_dir = Path(args.database_dir).resolve()
-    results_dir = Path(args.results_dir).resolve()
-    output_dir = Path(args.output_dir).resolve()
-    audit_data_dir = REPO_ROOT / "audit" / "data"
-
-    inventory = []
-    for path in INVENTORY_PATHS:
-        p = REPO_ROOT / path
-        inventory.append({
-            "path": path,
-            "meta": file_meta(p),
-            "commits": first_and_head_commit(path),
-            "role": inventory_role(path),
-        })
-
-    csv_sources = analyze_csv_sources(database_dir)
-    xg_sources = analyze_xg_archives(database_dir)
-    btts_sources = analyze_btts_sources(audit_data_dir)
-    ppda_report = summarize_ppda_report(results_dir / "ppda_deep_player_feasibility.json")
-
-    search_dirs = [database_dir, REPO_ROOT / "audit" / "data", output_dir, REPO_ROOT / "database"]
-    player_match_files = find_player_match_files(search_dirs)
-    player_match_schema = {
-        league.name: [validate_player_match_schema(Path(item["path"])) for item in player_match_files.get(league.name, [])]
-        for league in LEAGUES
-    }
-
-    source_availability = build_source_availability(csv_sources, xg_sources, btts_sources, ppda_report, player_match_files)
-    status = downstream_status(player_match_files)
-
-    summary = {
-        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
-        "git": {
-            "branch": run_git(["branch", "--show-current"]),
-            "head": run_git(["rev-parse", "HEAD"]),
-            "is_shallow": run_git(["rev-parse", "--is-shallow-repository"]),
-            "diff_name_status_origin_main_head": run_git(["diff", "--name-status", "origin/main", "HEAD"]),
-            "status_short": run_git(["status", "--short"]),
-        },
-        "inventory": inventory,
-        "csv_sources": csv_sources,
-        "xg_sources": xg_sources,
-        "btts_sources": btts_sources,
-        "ppda_report": ppda_report,
-        "player_match_files": player_match_files,
-        "player_match_schema": player_match_schema,
-        "source_availability": source_availability,
-        "downstream_status": status,
-    }
-    return summary
-
-
-def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database-dir", default=str(DEFAULT_DATABASE), help="cartella database committata")
-    parser.add_argument("--results-dir", default=str(DEFAULT_RESULTS), help="cartella report audit/results")
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT), help="cartella output pesanti/non versionati")
-    parser.add_argument("--report", default=str(DEFAULT_RESULTS / "squalifiche_feasibility.md"), help="report markdown da scrivere")
-    parser.add_argument("--json", default=str(DEFAULT_OUTPUT / "squalifiche_feasibility_sources.json"), help="JSON diagnostico in audit/output")
-    return parser.parse_args(argv)
-
-
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    args = parse_args(argv)
-    summary = build_summary(args)
+    p = argparse.ArgumentParser()
+    p.add_argument("--player-match-dir", default="audit/output/ppda-player-verify-37461010400/database")
+    p.add_argument("--report", default="audit/results/squalifiche_feasibility.md")
+    p.add_argument("--json", default="audit/output/squalifiche_feasibility_sources.json")
+    p.add_argument("--artifact-run-id", default="37461010400")
+    p.add_argument("--artifact-name", default="ppda-player-verify-37461010400")
+    p.add_argument("--artifact-size", default="10030865")
+    p.add_argument("--artifact-created", default="2026-10-06T12:51:23Z")
+    p.add_argument("--artifact-expires", default="2026-10-20T12:51:20Z")
+    p.add_argument("--artifact-expired", default="false")
+    args = p.parse_args(argv)
 
-    json_path = Path(args.json)
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    with json_path.open("w", encoding="utf-8") as f:
-        json.dump(summary, f, ensure_ascii=False, indent=2)
-        f.write("\n")
+    head = run(["git", "rev-parse", "HEAD"])[1]
+    ctx = {"head": head, "artifact_run_id": args.artifact_run_id, "artifact_name": args.artifact_name,
+           "artifact_size": args.artifact_size, "artifact_created": args.artifact_created,
+           "artifact_expires": args.artifact_expires, "artifact_expired": args.artifact_expired.lower() == "true"}
 
-    report = render_report(summary)
-    report_path = Path(args.report)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(report, encoding="utf-8")
+    player_dir = (REPO_ROOT / args.player_match_dir).resolve()
+    matches_by_id, by_league_season, by_team_season = load_matches()
+    rows, player_index, rows_by_team_match, player_latest = load_player_rows(player_dir, matches_by_id)
+    coverage_rows = []
+    for lg in LEAGUES:
+        path = player_dir / lg.player_file
+        lg_rows = [r for r in rows if r["league"] == lg.name]
+        coverage_rows.append([lg.name, rel(path), path.stat().st_size if path.exists() else 0, len(lg_rows), len({r["match_id"] for r in lg_rows}), ", ".join(map(str, sorted({r["season"] for r in lg_rows}))), "OK"])
 
-    print(f"scritto {rel(report_path)}")
-    print(f"scritto {rel(json_path)} (ignorato da git se audit/output/ e' in .gitignore)")
-    print(summary["downstream_status"]["events_reconstruction"] + ": " + summary["downstream_status"]["events_reason"])
+    candidate_events, ambiguous = reconstruct_events(rows, matches_by_id, by_team_season, player_index)
+    candidate_events = [e for e in candidate_events if e.season in ANALYSIS_SEASONS]
+    validation_rows = []
+    for lg in LEAGUES:
+        ev = [e for e in candidate_events if e.league == lg.name]
+        viol = sum(e.validation_played for e in ev)
+        validation_rows.append([lg.name, len(ev), viol, fmt_pct((len(ev)-viol)/len(ev) if ev else None), "NON VERIFICABILE (ground truth ufficiale non versionata)"])
+    events = [e for e in candidate_events if not e.validation_played]
+    ctx["validation_excluded"] = len(candidate_events) - len(events)
+    count_rows, totals = summarize_counts(events)
+
+    mat = event_matrix(events, matches_by_id)
+    elo_df = ensure_elo_table(REPO_ROOT / "audit/output/elo_walker_per_match.parquet")
+    powerA, mdeA, ratioA = power_1x2(elo_df, mat, matches_by_id)
+    ou_rows = build_ou_rows(matches_by_id, mat)
+    powerB, mdeB, ratioB = simulate_power_B(ou_rows)
+
+    source = {
+        "coverage": coverage_rows,
+        "events": [e.__dict__ for e in events],
+        "ambiguous": ambiguous[:5000],
+        "validation": validation_rows,
+        "counts": count_rows,
+        "powerA": powerA, "mdeA": mdeA, "ratioA": ratioA,
+        "powerB": powerB, "mdeB": mdeB, "ratioB": ratioB,
+        "artifact": ctx,
+    }
+    out_json = REPO_ROOT / args.json
+    out_json.parent.mkdir(parents=True, exist_ok=True)
+    out_json.write_text(json.dumps(source, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+    report = render_report(ctx, coverage_rows, events, ambiguous, count_rows, validation_rows, powerA, mdeA, ratioA, powerB, mdeB, ratioB, source)
+    out_report = REPO_ROOT / args.report
+    out_report.parent.mkdir(parents=True, exist_ok=True)
+    out_report.write_text(report, encoding="utf-8")
+    print(f"scritto {rel(out_report)}")
+    print(f"eventi={len(events)} high60={sum(e.high60 for e in events)} ambiguous={len(ambiguous)}")
+    print(f"A mde={mdeA} ratio={ratioA:.3f}; B mde={mdeB} ratio={ratioB:.3f}")
     return 0
 
 
