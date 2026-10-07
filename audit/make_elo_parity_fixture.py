@@ -55,6 +55,10 @@ OUT_PATH_USED: list = []
 #: date di cutoff per lega: si scelgono i QUANTILI dell'indice di produzione,
 #: spostati alla PRIMA partita della sua data (vedi nota sul tie-order).
 CUTOFF_QUANTILES = (0.25, 0.50, 0.75, 0.95)
+#: cutoff aggiuntivi che cadono sulla PRIMA giornata di una stagione con
+#: neopromosse: e' il caso in cui l'insieme attivo e' piu' corto e in cui la
+#: definizione del seed e' quella che decide il rating dell'ingresso.
+CUTOFF_PRIMA_GIORNATA = ("2024-08-17", "2025-08-15", "2026-08-21")
 N_NOW_FIXTURES = 10
 
 
@@ -199,6 +203,7 @@ def main():
     for q in CUTOFF_QUANTILES:
         i = int(q * (len(ref) - 1))
         cutoffs.append(pd.Timestamp(ref["Date_Parsed"].iloc[i]).normalize())
+    cutoffs += [pd.Timestamp(s) for s in CUTOFF_PRIMA_GIORNATA]
     cutoffs = sorted(set(cutoffs))
 
     for cutoff in cutoffs:

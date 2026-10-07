@@ -133,7 +133,6 @@ def _senza_docstring(src: str, nome_funzione: str) -> str:
 class TestUnicaDifferenza(unittest.TestCase):
     #: righe presenti SOLO nel legacy (boost xG) o spostate dal refactor PR #30
     RIMOSSE_ATTESE = [
-        # --- PR #35: seed d'ingresso, differenza di COMPORTAMENTO ---
         'from typing import Dict, List',
         'from scraper_xg import get_understat_xg',
         'xg_data = get_understat_xg(self.league_name) or {}',
@@ -155,7 +154,6 @@ class TestUnicaDifferenza(unittest.TestCase):
         'r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)',
         'dr = r_h + engine.home_adv - r_a',
         '"elo_diff": round(dr, 1), "home_adv": engine.home_adv,',
-
     ]
     #: righe presenti SOLO nell'attuale (docstring della funzione pura escluso).
     #:
@@ -170,7 +168,6 @@ class TestUnicaDifferenza(unittest.TestCase):
     #: sparita, e nessuna riga NUOVA e' stata esclusa dalla lista: i docstring
     #: dei due metodi nuovi sono pinnati come tutto il resto del codice.
     AGGIUNTE_ATTESE = [
-        # --- PR #35: stato degli ingressi in lega ---
         'from typing import Dict, List, Optional',
         'season_start_year_of,',
         '',
@@ -200,7 +197,9 @@ class TestUnicaDifferenza(unittest.TestCase):
         '#: processed, taken before any match of that day. The seed of an entry',
         '#: reads this and nothing else, so it cannot depend on the order of the',
         '#: matches of the same date nor on results not yet available at kickoff.',
+        '#: Season the snapshot belongs to, and the rule that defines ``active``.',
         'self._day_start_state: Dict[str, float] = {}',
+        'self._day_start_season: Optional[int] = None',
         '',
         'def _is_entry(self, team: str, season: int) -> bool:',
         '"""La squadra ``team`` sta giocando la sua prima partita in lega?',
@@ -219,19 +218,38 @@ class TestUnicaDifferenza(unittest.TestCase):
         'return season > self.first_season',
         'return season - ultima > 1',
         '',
-        'def _snapshot_day_start(self) -> None:',
-        '"""Fotografa lo stato delle squadre attive PRIMA della giornata."""',
+        'def _snapshot_day_start(self, season: Optional[int] = None) -> None:',
+        '"""Fotografa lo stato delle squadre attive PRIMA della giornata.',
+        '',
+        "``season`` e' la stagione della giornata che sta per essere processata.",
+        "Sono ATTIVE le squadre che hanno gia' disputato una partita in questa",
+        'lega **nella stagione corrente**: una squadra che ha lasciato la lega',
+        "nella stagione precedente (retrocessa) ha un rating, ma non fa piu'",
+        'parte del campionato di cui si sta calcolando la media, e mediarla',
+        'abbasserebbe il riferimento verso il fondo di classifica delle altre',
+        "leghe. Le entranti stesse non sono nell'insieme per costruzione: non",
+        'hanno ancora un rating a inizio giornata.',
+        '"""',
+        'if season is None:',
+        'season = self._day_start_season',
+        'self._day_start_season = season',
         'self._day_start_state = {',
-        't: self.ratings[t] for t in self.entry_season if t in self.ratings',
+        't: self.ratings[t]',
+        'for t in self.entry_season',
+        'if t in self.ratings',
+        'and (season is None or self.entry_season[t] == season)',
         '}',
         '',
         'def promoted_seed(self) -> float:',
         '"""Rating iniziale di una squadra che entra in lega (PR #35).',
         '',
         'Media dei rating delle squadre ATTIVE al **inizio della data della',
-        "partita** — cioe' di quelle che avevano gia' disputato almeno una",
-        "partita quando la giornata e' iniziata, con i rating che avevano in",
-        "quel momento — piu' ``PROMOTED_SEED_OFFSET``.",
+        "partita** — cioe' di quelle che hanno gia' disputato almeno una",
+        "partita **nella stagione corrente** quando la giornata e' iniziata,",
+        "con i rating che avevano in quel momento — piu'",
+        '``PROMOTED_SEED_OFFSET``. Una squadra retrocessa nella stagione',
+        "precedente non e' nel campionato corrente e quindi non conta, anche",
+        'se ha ancora un rating.',
         '',
         "Lo snapshot e' preso una volta per giornata, prima di qualunque",
         "partita di quella giornata: per questo il seed non dipende dall'ordine",
@@ -240,9 +258,10 @@ class TestUnicaDifferenza(unittest.TestCase):
         "database, cioe' l'inizio della prossima giornata ancora da giocare:",
         'stessa regola, stesso codice.',
         '',
-        "Se non c'e' nessuna squadra attiva (prima partita mai giocata del",
-        "database, o squadra assente dai CSV) il fallback dichiarato e'",
-        '``DEFAULT_INITIAL_RATING``.',
+        "Se non c'e' nessuna squadra attiva il fallback dichiarato e'",
+        "``DEFAULT_INITIAL_RATING``. Questo accade — ed e' il caso normale —",
+        'nel DB troncato al primo giorno di una stagione, in cui nessuna',
+        'squadra ha ancora disputato una partita nella stagione corrente.',
         '"""',
         'stato = self._day_start_state',
         'if not stato:',
@@ -252,6 +271,7 @@ class TestUnicaDifferenza(unittest.TestCase):
         '# riparte da zero come i rating.',
         'self.entry_season = {}',
         'self._day_start_state = {}',
+        'self._day_start_season = None',
         'self.first_season = season_start_year_of(df["Date_Parsed"].iloc[0])',
         'giorno_corrente = None',
         'season = season_start_year_of(row["Date_Parsed"])',
@@ -261,7 +281,7 @@ class TestUnicaDifferenza(unittest.TestCase):
         "# in cui congelarlo; dentro la giornata non si tocca piu'.",
         'if pd.Timestamp(row["Date_Parsed"]).normalize() != giorno_corrente:',
         'giorno_corrente = pd.Timestamp(row["Date_Parsed"]).normalize()',
-        'self._snapshot_day_start()',
+        'self._snapshot_day_start(season)',
         "# Seeding d'ingresso (PR #35). Se due squadre esordiscono nella",
         '# stessa partita i seed sono applicati in sequenza, in ordine',
         "# alfabetico di nome: e' l'ordine con cui _entry_records elenca gli",
@@ -298,7 +318,6 @@ class TestUnicaDifferenza(unittest.TestCase):
         'if r_a is None:',
         'r_a = engine.promoted_seed()',
         'return elo_probs_from_ratings(r_h, r_a, engine.home_adv)',
-
     ]
 
     @classmethod
@@ -471,18 +490,21 @@ class TestDifferenzaAttesa(unittest.TestCase):
             {"HomeTeam": "Gamma", "AwayTeam": "Delta", "FTHG": 3, "FTAG": 0, "FTR": "H",
              "Date": "18/08/2022"},
         ],
-        # 2023/24: Beta e Delta assenti, Epsilon non e' mai stata vista
+        # 2023/24: Beta e Delta assenti, Epsilon non e' mai stata vista.
+        # L'ingresso e' il SECONDO giorno di stagione: il primo giorno l'insieme
+        # attivo (squadre che hanno gia' giocato nella stagione corrente) e'
+        # vuoto e il seed cadrebbe sul fallback dichiarato.
         "2023": [
-            {"HomeTeam": "Epsilon", "AwayTeam": "Alfa", "FTHG": 1, "FTAG": 2, "FTR": "A",
-             "Date": "18/08/2023"},
             {"HomeTeam": "Alfa", "AwayTeam": "Gamma", "FTHG": 1, "FTAG": 1, "FTR": "D",
+             "Date": "18/08/2023"},
+            {"HomeTeam": "Epsilon", "AwayTeam": "Alfa", "FTHG": 1, "FTAG": 2, "FTR": "A",
              "Date": "19/08/2023"},
         ],
-        # 2024/25: Beta e Delta ritornano, nella stessa partita
+        # 2024/25: Beta e Delta ritornano, nella stessa partita, secondo giorno
         "2024": [
-            {"HomeTeam": "Delta", "AwayTeam": "Beta", "FTHG": 0, "FTAG": 3, "FTR": "A",
-             "Date": "18/08/2024"},
             {"HomeTeam": "Alfa", "AwayTeam": "Gamma", "FTHG": 2, "FTAG": 1, "FTR": "H",
+             "Date": "18/08/2024"},
+            {"HomeTeam": "Delta", "AwayTeam": "Beta", "FTHG": 0, "FTAG": 3, "FTR": "A",
              "Date": "19/08/2024"},
         ],
     }
@@ -566,27 +588,30 @@ class TestDifferenzaAttesa(unittest.TestCase):
 
         # Epsilon: MAI VISTA -> legacy 1500, attuale media di inizio giornata - 100
         self.assertEqual(repr(legacy.history["Epsilon"][0]["elo_before"]), "1500.0")
-        stato = self._stato_a_inizio_giornata(legacy, "2023-08-18", attivi_2022)
-        self.assertEqual(set(stato), set(attivi_2022))
+        # ATTIVE = chi ha gia' giocato NEL 2023/24: solo Alfa e Gamma.
+        # Beta e Delta hanno un rating (stagione 2022/23) ma non fanno piu'
+        # parte del campionato: sono fuori dal riferimento.
+        stato = self._stato_a_inizio_giornata(legacy, "2023-08-19", ["Alfa", "Gamma"])
+        self.assertEqual(set(stato), {"Alfa", "Gamma"})
         seed = float(np.mean([stato[t] for t in sorted(stato)])) + PROMOTED_SEED_OFFSET
         self.assertEqual(self._stato_prima(attuale, "Epsilon", 1), repr(seed))
         self.assertNotEqual(repr(seed), "1500.0")
         # nel giorno dell'ingresso le altre squadre sono ancora IDENTICHE: il seed
         # guarda l'inizio della giornata, non ruba niente al suo corso
-        self.assertEqual(self._stato_prima(attuale, "Alfa", 3),
-                         self._stato_prima(legacy, "Alfa", 3))
+        self.assertEqual(self._stato_prima(attuale, "Alfa", 4),
+                         self._stato_prima(legacy, "Alfa", 4))
 
         # Delta e Beta, DI RITORNO dopo una stagione di assenza: il legacy
         # riparte dal rating STANTIO, l'attuale dal seed di inizio giornata
         for squadra in ("Delta", "Beta"):
             storico = legacy.history[squadra]
             self.assertEqual(str(pd.Timestamp(storico[-1]["date"]).date()),
-                             "2024-08-18")
+                             "2024-08-19")
             self.assertEqual(repr(storico[-1]["elo_before"]),
                              repr(storico[-2]["elo_after"]),
                              f"{squadra}: il legacy riparte dallo stantio")
         stato_2024 = self._stato_a_inizio_giornata(
-            attuale, "2024-08-18", attivi_2022 + ["Epsilon"])
+            attuale, "2024-08-19", ["Alfa", "Gamma"])
         seed_ritorno = (float(np.mean([stato_2024[t] for t in sorted(stato_2024)]))
                         + PROMOTED_SEED_OFFSET)
         for squadra in ("Delta", "Beta"):

@@ -279,11 +279,12 @@ def _entry_records(frame: pd.DataFrame) -> list[dict]:
     """Classifica gli ingressi usando solo la partecipazione nei CSV.
 
     ``active_teams`` e' l'insieme delle squadre che hanno gia' una partita
-    precedente nel medesimo ordine di produzione; l'active_mean e' il rating S0
-    dopo l'ultima loro partita precedente. E' quindi una definizione
-    riproducibile di "attive prima del primo match" che include eventuali
-    partite della nuova stagione gia' processate prima dell'ingresso. Non usa
-    classifiche ufficiali o fonti esterne.
+    precedente **nella stagione corrente** nel medesimo ordine di produzione;
+    l'active_mean e' il rating S0 dopo l'ultima loro partita precedente. Una
+    squadra retrocessa dalla stagione precedente resta esclusa anche se ha un
+    rating. E' quindi una definizione riproducibile di "attive nel campionato
+    corrente prima del primo match". Non usa classifiche ufficiali o fonti
+    esterne.
     """
     d = frame.sort_values("prod_order", kind="mergesort").reset_index(drop=False)
     # state a INIZIO GIORNATA: la fotografia dei rating delle squadre che
@@ -292,15 +293,18 @@ def _entry_records(frame: pd.DataFrame) -> list[dict]:
     # dipende dall'ordine delle partite della stessa data e non usa risultati
     # non disponibili prima del kickoff.
     state: dict[str, float] = {}
+    state_season: dict[str, object] = {}
     day_start: dict = {}
     giorno_corrente = None
     for _, row in d.iterrows():
         giorno = pd.Timestamp(row["date"]).normalize()
         if giorno != giorno_corrente:
             giorno_corrente = giorno
-            day_start[giorno] = dict(state)
+            day_start[giorno] = (dict(state), dict(state_season))
         state[row["home"]] = float(row["elo_home_post"])
         state[row["away"]] = float(row["elo_away_post"])
+        state_season[row["home"]] = row["season"]
+        state_season[row["away"]] = row["season"]
 
     season_teams = {
         season: set(d.loc[d["season"] == season, ["home", "away"]].stack().astype(str))
@@ -331,8 +335,14 @@ def _entry_records(frame: pd.DataFrame) -> list[dict]:
             # neopromosse/ritorni.
             if not never and not returning:
                 continue
-            before = day_start[pd.Timestamp(d.loc[d["prod_order"] == order, "date"].iloc[0]).normalize()]
-            active_teams = sorted(before)
+            before, before_season = day_start[
+                pd.Timestamp(d.loc[d["prod_order"] == order, "date"].iloc[0]).normalize()]
+            # ATTIVE = squadre che hanno gia' disputato una partita in questa
+            # lega NELLA STAGIONE CORRENTE. Una retrocessa dalla stagione
+            # precedente ha un rating ma non fa piu' parte del campionato:
+            # mediarla abbasserebbe il riferimento. Stessa definizione di
+            # `EloEngine._snapshot_day_start`.
+            active_teams = sorted(t for t in before if before_season.get(t) == season)
             active_mean = float(np.mean([before[t] for t in active_teams])) if active_teams else np.nan
             stale = float(before.get(team, DEFAULT_INITIAL_RATING))
             s0_seed = DEFAULT_INITIAL_RATING if never else stale

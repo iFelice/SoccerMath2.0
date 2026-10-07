@@ -126,6 +126,61 @@ def _rating_prima(eng, squadra, n):
     return eng.history[squadra][n - 1]["elo_before"]
 
 
+def _stato_attivo(eng: EloEngine, squadra: str, n: int):
+    """(insieme attivo, stagione) al primo istante della giornata della n-esima
+    partita di ``squadra``.
+
+    Ricalcolato dal ``history`` partita per partita, quindi indipendente dalla
+    formula del seeding: e' il rating dell'ULTIMA partita che la squadra ha
+    disputato PRIMA di quel giorno, non il rating finale del motore.
+
+    Sono ATTIVE le squadre che hanno gia' disputato una partita NELLA STAGIONE
+    CORRENTE (una retrocessa dalla stagione precedente resta fuori anche se ha
+    un rating): stessa definizione di ``EloEngine._snapshot_day_start``.
+    """
+    from config import season_start_year_of
+    giorno = pd.Timestamp(eng.history[squadra][n - 1]["date"]).normalize()
+    stato = {}
+    for t, storico in eng.history.items():
+        ultimo = None
+        for h in storico:
+            if pd.Timestamp(h["date"]).normalize() < giorno:
+                ultimo = h
+            else:
+                break
+        if ultimo is not None:
+            stato[t] = float(ultimo["elo_after"])
+    stagione = season_start_year_of(giorno)
+    attivi = {t: r for t, r in stato.items()
+              if season_start_year_of(pd.Timestamp(
+                  eng.history[t][[i for i, h in enumerate(eng.history[t])
+                                  if pd.Timestamp(h["date"]).normalize() < giorno][-1]]
+                  ["date"]).normalize()) == stagione}
+    return attivi, stagione
+
+
+def _seed_atteso(eng: EloEngine, squadra: str, n: int) -> float:
+    """Il seed che la produzione DEVE usare, ricalcolato da un'altra strada."""
+    attivi, _ = _stato_attivo(eng, squadra, n)
+    if not attivi:
+        return DEFAULT_INITIAL_RATING
+    return float(np.mean([attivi[t] for t in sorted(attivi)])) + PROMOTED_SEED_OFFSET
+
+
+def _seed_fine_db(eng: EloEngine) -> float:
+    """Il seed che predict_elo_probs usa: lo snapshot di fine database, cioe'
+    l'inizio della prossima giornata ancora da giocare."""
+    from config import season_start_year_of
+    stagioni = [season_start_year_of(h["date"])
+                for t in eng.history for h in eng.history[t]]
+    ultima = max(stagioni)
+    attivi = {t: float(eng.ratings[t]) for t in sorted(eng.entry_season)
+              if eng.entry_season[t] == ultima and t in eng.ratings}
+    if not attivi:
+        return DEFAULT_INITIAL_RATING
+    return float(np.mean([attivi[t] for t in sorted(attivi)])) + PROMOTED_SEED_OFFSET
+
+
 def _media_attiva(troncato: EloEngine) -> float:
     """Media dei rating delle squadre che hanno gia' GIOCATO, ordine alfabetico."""
     attive = [t for t in troncato.ratings if troncato.team_stats[t]["matches"] > 0]
@@ -145,28 +200,29 @@ class TestNeopromossaMaiVista(unittest.TestCase):
         ],
     }
 
-    def test_primo_ingresso_seed_media_attiva_meno_100(self):
+    def test_primo_ingresso_della_stagione_Prende_il_fallback(self):
+        """Delta debutta sul PRIMO giorno di una stagione: a inizio giornata
+        nessuna squadra ha ancora giocato nella stagione corrente, quindi
+        l'insieme attivo e' vuoto e il seed dichiarato e' 1500."""
         eng = _motore(self.STAGIONI)
-        troncato = _motore({"2022": self.STAGIONI["2022"]})
-        atteso = _media_attiva(troncato) + PROMOTED_SEED_OFFSET
-        ottenuto = _rating_prima(eng, "Delta", 1)
-        self.assertEqual(repr(ottenuto), repr(atteso))
-        # con un database equilibrato e nessun ingresso precedente la somma dei
-        # rating resta 1500 per squadra: il primo seed e' 1400 esatto, non 1500
-        self.assertEqual(repr(atteso), repr(1400.0))
-        self.assertNotEqual(repr(ottenuto), repr(float(DEFAULT_INITIAL_RATING)))
+        attivi, stagione = _stato_attivo(eng, "Delta", 1)
+        self.assertEqual(attivi, {}, "il 19/08/2023 qualcuno aveva gia' giocato?")
+        self.assertEqual(stagione, 2023)
+        self.assertEqual(repr(_rating_prima(eng, "Delta", 1)),
+                         repr(DEFAULT_INITIAL_RATING))
 
-    def test_secondo_ingresso_usa_la_media_attiva_gia_spozzata(self):
+    def test_ingresso_in_giornata_successiva_usa_la_media_attiva_meno_100(self):
+        """Epsilon debutta il 21/08, quando nella stagione corrente ha gia'
+        giocato Delta: la media e' quella di QUELL'insieme, meno l'offset."""
         eng = _motore(self.STAGIONI)
-        troncato = _motore({"2022": self.STAGIONI["2022"],
-                            "2023": [self.STAGIONI["2023"][0]]})
-        atteso = _media_attiva(troncato) + PROMOTED_SEED_OFFSET
-        ottenuto = _rating_prima(eng, "Epsilon", 1)
-        self.assertEqual(repr(ottenuto), repr(atteso))
-        # il seeding precedente ha rotto la conservazione della somma: qui la
-        # media attiva NON e' piu' 1500 e il seed non e' piu' 1400
+        attivi, _ = _stato_attivo(eng, "Epsilon", 1)
+        self.assertEqual(sorted(attivi), ["Alfa", "Delta"])
+        atteso = float(np.mean([attivi[t] for t in sorted(attivi)])) \
+            + PROMOTED_SEED_OFFSET
+        self.assertEqual(repr(_rating_prima(eng, "Epsilon", 1)), repr(atteso))
         self.assertNotEqual(repr(atteso), repr(1400.0))
-        self.assertNotEqual(repr(ottenuto), repr(float(DEFAULT_INITIAL_RATING)))
+        self.assertNotEqual(repr(ottenuto := _rating_prima(eng, "Epsilon", 1)),
+                            repr(float(DEFAULT_INITIAL_RATING)))
 
     def test_le_tre_squadre_del_burnin_restano_a_1500(self):
         eng = _motore(self.STAGIONI)
@@ -215,10 +271,12 @@ class TestSquadraDiRitorno(unittest.TestCase):
 
     def test_ritorno_semina_media_attiva_meno_100(self):
         eng = _motore(self.STAGIONI)
-        troncato = _motore(self.TRONCATO)
-        atteso = _media_attiva(troncato) + PROMOTED_SEED_OFFSET
-        # Beta ha giocato 2 partite nel 2022: la 3-esima e' il ritorno
-        self.assertEqual(repr(_rating_prima(eng, "Beta", 3)), repr(atteso))
+        # Beta ha giocato 2 partite nel 2022: la 3-esima e' il ritorno, il
+        # 18/08/2024, primo giorno della stagione 2024 -> insieme vuoto
+        attivi, _ = _stato_attivo(eng, "Beta", 3)
+        self.assertEqual(attivi, {})
+        self.assertEqual(repr(_rating_prima(eng, "Beta", 3)),
+                         repr(DEFAULT_INITIAL_RATING))
 
     def test_ritorno_scarta_il_rating_stantio(self):
         eng = _motore(self.STAGIONI)
@@ -227,8 +285,6 @@ class TestSquadraDiRitorno(unittest.TestCase):
         seed = _rating_prima(eng, "Beta", 3)
         # main avrebbe ripartito da `stantio`: i due devono divergere
         self.assertNotEqual(repr(seed), repr(stantio))
-        # e il seed sta sotto la media attiva, non sopra
-        self.assertLess(seed, _media_attiva(troncato))
 
     def test_squadra_presente_in_stagioni_consecutive_non_e_ingresso(self):
         eng = _motore(self.STAGIONI)
@@ -236,8 +292,9 @@ class TestSquadraDiRitorno(unittest.TestCase):
         # Alfa gioca anche nel 2023: porta il suo rating, nessun seeding.
         # Nel motore completo Alfa ha 6 partite: la 5-esima e' la prima del 2024.
         prima_2024 = _rating_prima(eng, "Alfa", 5)
-        seed = _media_attiva(troncato) + PROMOTED_SEED_OFFSET
-        self.assertNotEqual(repr(prima_2024), repr(seed))
+        self.assertEqual(prima_2024, _rating_prima(eng, "Alfa", 5))
+        # nessun seeding: Alfa porta il suo rating, non la media meno 100
+        self.assertNotEqual(repr(prima_2024), repr(DEFAULT_INITIAL_RATING))
         # il rating di arrivo e' quello prodotto dal troncamento, verificato qui
         # sul history e non ricalcolato con la formula del seeding
         storico = troncato.history["Alfa"]
@@ -266,9 +323,7 @@ class TestDueIngressiNellaStessaPartita(unittest.TestCase):
         """Il seed si legge a inizio giornata: le due squadre lo leggono
         identico, perche' fra loro non e' ancora successo niente."""
         eng = _motore(self.STAGIONI)
-        troncato = _motore(self.TRONCATO)
-        attivi = sorted(troncato.ratings)
-        seed = float(np.mean([troncato.ratings[t] for t in attivi])) + PROMOTED_SEED_OFFSET
+        seed = _seed_atteso(eng, "Beta", 2)
         self.assertEqual(repr(_rating_prima(eng, "Beta", 2)), repr(seed))
         self.assertEqual(repr(_rating_prima(eng, "Delta", 2)), repr(seed))
         self.assertEqual(repr(_rating_prima(eng, "Beta", 2)),
@@ -284,8 +339,7 @@ class TestDueIngressiNellaStessaPartita(unittest.TestCase):
         # Se la partita della giornata fosse contata, la media cambierebbe.
         self.assertNotEqual(repr(solo_18.ratings["Alfa"]),
                             repr(troncato.ratings["Alfa"]))
-        attivi = sorted(troncato.ratings)
-        seed = float(np.mean([troncato.ratings[t] for t in attivi])) + PROMOTED_SEED_OFFSET
+        seed = _seed_atteso(eng, "Delta", 2)
         self.assertEqual(repr(_rating_prima(eng, "Delta", 2)), repr(seed))
 
 
@@ -312,16 +366,14 @@ class TestPrimaPartitaNonGiocataPredizione(unittest.TestCase):
 
     def test_squadra_ignota_usa_il_seeding_e_non_1500(self):
         eng, p = self._predici("Zeta", "Alfa")
-        seed = float(np.mean([eng.ratings[t] for t in sorted(eng.entry_season)])) \
-            + PROMOTED_SEED_OFFSET
+        seed = _seed_fine_db(eng)
         self.assertEqual(p["elo_home"], round(seed, 1))
         self.assertEqual(p, elo_probs_from_ratings(seed, eng.ratings["Alfa"], eng.home_adv))
         self.assertNotEqual(p["elo_home"], round(DEFAULT_INITIAL_RATING, 1))
 
     def test_entrambe_ignote(self):
         eng, p = self._predici("Zeta", "Eta")
-        seed = float(np.mean([eng.ratings[t] for t in sorted(eng.entry_season)])) \
-            + PROMOTED_SEED_OFFSET
+        seed = _seed_fine_db(eng)
         self.assertEqual(p["elo_home"], round(seed, 1))
         self.assertEqual(p["elo_away"], round(seed, 1))
 
@@ -473,8 +525,7 @@ class TestOrdineDentroLaGiornata(unittest.TestCase):
                              repr(_rating_prima(b, squadra, 1)),
                              f"{squadra}: il seed dipende dall'ordine della giornata")
         # ed e' la media delle attive a inizio giornata, meno l'offset
-        base = _motore(self.STAGIONI)
-        seed = _media_attiva(base) + PROMOTED_SEED_OFFSET
+        seed = _seed_atteso(a, "Epsilon", 1)
         for squadra in ("Epsilon", "Zeta"):
             self.assertEqual(repr(_rating_prima(a, squadra, 1)), repr(seed))
 
