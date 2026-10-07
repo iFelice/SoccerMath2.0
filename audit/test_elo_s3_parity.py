@@ -38,6 +38,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 _AUDIT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _AUDIT_DIR.parent
@@ -88,6 +89,7 @@ def _produzione(league: str) -> list:
         p = elo_probs_from_ratings(rh, ra, engine.home_adv)
         righe.append({
             "prod_order": int(i),
+            "date": str(pd.Timestamp(df["Date_Parsed"].iloc[i]).date()),
             "home": df["HomeClean"].iloc[i],
             "away": df["AwayClean"].iloc[i],
             "elo_home_pre": repr(rh),
@@ -105,11 +107,11 @@ def _produzione(league: str) -> list:
 
 
 def _stato_prima(righe: list, i: int) -> dict:
-    """Rating delle squadre che hanno GIA' GIOCATO, subito prima della riga ``i``.
+    """Rating delle squadre ATTIVE AL INIZIO della giornata della riga ``i``.
 
     Stessa definizione dell'audit (``active_teams``: le squadre con almeno una
-    partita precedente nell'ordine di produzione), ricavata dai rating
-    post-partita della produzione.
+    partita anteriore alla giornata, nell'ordine di produzione), ricavata dai
+    rating post-partita della produzione.
     """
     stato: dict = {}
     for j in range(i):
@@ -124,18 +126,49 @@ def _fixture():
 
 
 class TestProvenienza(unittest.TestCase):
-    def test_V1_commit_dichiarato_esiste(self):
-        sha = _fixture()["provenance"]["commit"]
-        self.assertTrue(len(sha) == 40 and all(c in "0123456789abcdef" for c in sha), sha)
-        self.assertIsNotNone(_git("cat-file", "-t", sha), "commit non presente nel clone")
+    """La fixture dichiara DUE commit e i test li controllano entrambi.
 
-    def test_V2_oid_degli_input_corrispondono_al_commit_dichiarato(self):
-        sha = _fixture()["provenance"]["commit"]
-        for gruppo in ("production_input_oids", "audit_input_oids"):
-            for path, oid in _fixture()["provenance"][gruppo].items():
+    * ``reference_production_commit``: la produzione da cui vengono gli update
+      Elo e la conversione 1X2. Deve essere un commit ANCORA SENZA il seeding,
+      altrimenti la reference non sarebbe indipendente dalla produzione che
+      si sta validando;
+    * ``audit_logic_commit``: la logica del seeding (quella che definisce
+      «ingresso» e «media attiva»).
+    """
+
+    def _hex(self, sha, cosa):
+        self.assertTrue(len(sha) == 40 and all(c in "0123456789abcdef" for c in sha),
+                        f"{cosa}: sha non valido: {sha}")
+
+    def test_V1_commit_dichiarati_esistono(self):
+        prov = _fixture()["provenance"]
+        for chiave in ("commit", "reference_production_commit", "audit_logic_commit"):
+            sha = prov[chiave]
+            self._hex(sha, chiave)
+            self.assertIsNotNone(_git("cat-file", "-t", sha),
+                                 f"{chiave}={sha} non presente nel clone")
+
+    def test_V2_oid_degli_input_corrispondono_ai_commit_dichiarati(self):
+        prov = _fixture()["provenance"]
+        gruppi = {"production_input_oids": prov["reference_production_commit"],
+                  "audit_input_oids": prov["audit_logic_commit"]}
+        for gruppo, sha in gruppi.items():
+            for path, oid in prov[gruppo].items():
                 atteso = _git("rev-parse", f"{sha}:{path}")
-                self.assertIsNotNone(atteso, f"{path} assente al commit dichiarato")
+                self.assertIsNotNone(atteso, f"{path} assente al commit {sha}")
                 self.assertEqual(atteso, oid, f"{path}: manifest e commit non coincidono")
+
+    def test_V3_la_reference_non_ha_il_seeding(self):
+        """Il motore di produzione da cui viene la reference deve essere quello
+        PRIMA della modifica: senza seeding, quindi senza la costante."""
+        sha = _fixture()["provenance"]["reference_production_commit"]
+        sorgente = _git("cat-file", "-p", f"{sha}:SoccerMath/models/elo_engine.py")
+        self.assertIsNotNone(sorgente)
+        self.assertNotIn("PROMOTED_SEED_OFFSET", sorgente,
+                         "la reference non e' piu' indipendente dalla produzione")
+        attuale = _git("cat-file", "-p",
+                       "HEAD:SoccerMath/models/elo_engine.py")
+        self.assertIn("PROMOTED_SEED_OFFSET", attuale)
 
 
 class TestParitaBitExact(unittest.TestCase):
@@ -159,17 +192,24 @@ class TestParitaBitExact(unittest.TestCase):
         stato della produzione (i rating post-partita, riga per riga), quindi il
         test non riusa la formula del motore: la ricalcola e la confronta.
 
-        Le partite con due ingressi contemporanei sono trattate nello stesso
-        ordine documentato dalla produzione e dall'audit: alfabetico di nome,
-        con il secondo seed che vede gia' il primo.
+        Lo stato e' quello a INIZIO GIORNATA: la prima riga di ogni data
+        fotografa le squadre che avevano gia' giocato, e le partite successive
+        della stessa giornata non lo modificano. Due ingressi nella stessa
+        giornata leggono quindi lo stesso stato e prendono lo stesso seed.
         """
         for league, blk in self.fx["leagues"].items():
             righe = _produzione(league)
             per_partita: dict = {}
+            giornata: dict = {}      # stato cumulato della stagione in corso
             for e in blk["entries"].values():
                 per_partita.setdefault(e["prod_order"], []).append(e)
-            stato: dict = {}          # squadra -> rating corrente (produzione)
+            stato: dict = {}          # squadra -> rating a inizio giornata
+            giorno_corrente = None
             for i, r in enumerate(righe):
+                giorno = r["date"]
+                if giorno != giorno_corrente:
+                    giorno_corrente = giorno
+                    stato = dict(giornata)      # snapshot: la giornata non lo tocca
                 for e in sorted(per_partita.get(i, []), key=lambda z: z["team"]):
                     media = float(np.mean([stato[t] for t in sorted(stato)]))
                     seed = media + PROMOTED_SEED_OFFSET
@@ -183,9 +223,8 @@ class TestParitaBitExact(unittest.TestCase):
                            else float(r["elo_away_pre"]))
                     self.assertEqual(repr(pre), e["seed"],
                                      f"{league} {e['team']}@{i}: seed produzione != seed S3")
-                    stato[e["team"]] = seed
-                stato[r["home"]] = float(r["elo_home_post"])
-                stato[r["away"]] = float(r["elo_away_post"])
+                giornata[r["home"]] = float(r["elo_home_post"])
+                giornata[r["away"]] = float(r["elo_away_post"])
 
     def test_parita_per_partita_bit_exact(self):
         diffs = []
