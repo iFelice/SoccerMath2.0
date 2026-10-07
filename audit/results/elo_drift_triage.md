@@ -567,6 +567,157 @@ Tre colonne in §5.1 (originale con retrocessioni `123b942`, gia' giocate `df23d
 
 **Verdetto PR #36: MERGEABLE**, sulla base di tutti i controlli sopra. Non e' stato eseguito alcun merge.
 
+### 8.6 Chiusura PR #36 bis: `season=None` e roster a inizio stagione
+
+Due verifiche richieste esplicitamente dopo il referto di §8.5. La prima ha
+prodotto una **correzione di codice**; la seconda ha prodotto una **scoperta**
+e si ferma senza implementare, come richiesto.
+
+#### 8.6.1 `promoted_seed` con `season=None`
+
+Prima della correzione (`elo_engine.py`, ramo di `promoted_seed`):
+
+```python
+if season is None:
+    stato = self._day_start_state          # snapshot di FINE DATABASE
+else:
+    stato = {t: self.ratings[t] for t in self._incumbent(season)
+             if t in self.ratings}
+if not stato:
+    return DEFAULT_INITIAL_RATING          # <- fallback silenzioso a 1500
+```
+
+`season=None` leggeva `_day_start_state`, cioe' lo snapshot congelato
+dell'**ultima stagione processata**, e se era vuoto restituiva `1500`. Non
+dice niente a chi chiama e produceva un numero plausibile con un riferimento
+inventato.
+
+Dopo la correzione (`SoccerMath/models/elo_engine.py`):
+
+| riga | guardia | quando scatta |
+|---|---|---|
+| 48 | `class EloSeedError(RuntimeError)` | eccezione dedicata, non silenziabile per caso |
+| 234-242 | `if season is None: raise EloSeedError(...)` | stagione non dichiarata |
+| 243-249 | `if season not in self.season_rosters: raise` | roster sconosciuto per quella stagione |
+| 250-256 | `if not roster: raise` | **roster vuoto**: il caso reale a inizio stagione |
+| 257-269 | nessuna stagione precedente | `1500` **solo** se `season == self.first_season` (burn-in), altrimenti `raise` |
+| 270-276 | `I(s)` = intersezione vuota | `raise` |
+| 293-302 | nessun incumbent con rating | `raise` |
+| 296 | `if self._day_start_season == season:` | legge lo snapshot **congelato** di inizio giornata, non i rating correnti: e' cio' che rende il seed indipendente dall'ordine dentro la giornata |
+| 388 | `self.ratings[team] = self.promoted_seed(season)` | `compute_ratings` passa **esplicitamente** la stagione della giornata |
+| 622-631 | `predict_elo_probs`: `season is None` e serve il seed | `raise EloSeedError` |
+
+`DEFAULT_INITIAL_RATING` resta in un solo punto: la prima stagione del
+database, che non ha stagione precedente ed e' il burn-in dichiarato.
+
+#### 8.6.2 Tutti i punti di produzione
+
+`grep -rn "promoted_seed\|predict_elo_probs\|compute_ratings\|EloEngine(" SoccerMath/app.py SoccerMath/models/ SoccerMath/update_*.py SoccerMath/season_rollover.py SoccerMath/db_snapshot.py`
+
+| punto di produzione | chiama | stagione | roster | esito dopo la correzione |
+|---|---|---|---|---|
+| `app.py:675` `blend_elo_into_1x2` | `predict_elo_probs(home, away, league)` | **no** | no | in `try/except`: se serve il seed marca `elo_disponibile=False` e lascia il WARNING, **non** usa 1500 |
+| `app.py:1566` Top Mix | `predict_elo_probs(h, a, league)` | **no** | no | idem: `elo_disponibile` resta `False` con `logging.warning("Elo non disponibile...")` |
+| `app.py:1820` prompt Billy | `predict_elo_probs(h, a, camp_sel)` | **no** | no | in `try/except`, fallback al Poisson gia' presente |
+| `app.py:2278` tab Elo | `predict_elo_probs(sh, sa, camp_sel)` | **no** | no | **non raggiunge mai il seed**: `sh`/`sa` vengono dalla classifica, quindi hanno gia' un rating. Test dedicato |
+| `models/elo_engine.py:388` `compute_ratings` | `promoted_seed(season)` | **si'** | derivato dal DB | esplicito dopo la correzione |
+| `models/elo_engine.py:508-509` `get_elo_engine` | `EloEngine(league)` + `compute_ratings()` | n/a | derivato dal DB | ok |
+| `models/elo_engine.py:633-635` `predict_elo_probs` | `promoted_seed(season)` | dal chiamante | idem | `raise` se manca |
+| `models/elo_engine_legacy.py:228-229` | `EloEngine(league)` + `compute_ratings()` | n/a | nessun roster | `elo_engine_legacy` e' il motore pre-PR#24, non ha il seeding: non toccato |
+| `models/dixon_coles.py:77` | `EloEngine(self.league_name)` | n/a | no | usa solo `load_and_preprocess_matches`, **non** chiama `compute_ratings`: nessun seed coinvolto |
+| `update_db.py` | — | — | — | **0 riferimenti Elo**: scrive i CSV e basta |
+| `update_xg.py` | — | — | — | **0 riferimenti Elo** |
+| `season_rollover.py` | — | — | — | **0 riferimenti Elo** |
+| `db_snapshot.py` | solo docstring | — | — | nessuna chiamata |
+
+I due punti che potevano arrivare a `season=None` **e** servirne il seed sono
+`app.py:675`, `app.py:1566` e `app.py:1820`. Prima della correzione producevano
+un seed letto sull'ultima stagione processata o, se vuoto, `1500`; ora
+sollevano e il chiamante degrada in modo dichiarato. Il quarto, `app.py:2278`,
+non ci arriva per costruzione.
+
+#### 8.6.3 Il roster 2026/27 a inizio stagione: **NON e' completo**
+
+Da dove viene in produzione: `get_league_db_files(<lega>)` restituisce
+`<prefix>_2022..2025.csv` + `<prefix>_Live.csv`
+(`SoccerMath/config.py:261-291`), e `EloEngine.compute_ratings()` chiama
+`season_rosters_from_matches(df)` su quel dataframe.
+
+I `*_Live.csv` **contengono solo partite giocate**:
+
+| file | righe | righe senza `FTR` (in programma) |
+|---|---|---|
+| `SerieA_Live.csv` | 50 | **0** |
+| `Premier_Live.csv` | 50 | **0** |
+| `LaLiga_Live.csv` | 71 | **0** |
+| `Bundesliga_Live.csv` | 36 | **0** |
+| `Ligue1_Live.csv` | 45 | **0** |
+
+Il calendario completo non arriva nel file per due filtri successivi:
+
+1. `SoccerMath/update_db.py:76-77`, in `matches_to_df`:
+   ```python
+   fthg = m["score"]["fullTime"]["home"]
+   ftag = m["score"]["fullTime"]["away"]
+   if fthg is None or ftag is None:
+       continue          # scarta le partite in programma
+   ```
+2. `SoccerMath/models/elo_engine.py`, in `load_and_preprocess_matches`:
+   `df.dropna(subset=["HomeTeam", "AwayTeam", "FTR"])`.
+
+Simulazione (`/home/user/scratch/roster_inizio_stagione.py`): si copia
+l'intero database di lega in una cartella temporanea, si tronca il solo
+`*_Live.csv` al giorno **prima** della prima giornata 2026/27 e si ricalcola
+`EloEngine.compute_ratings()` senza toccare il codice di produzione.
+
+| lega | prima giornata 2026/27 | squadre trovate | attese | esito |
+|---|---|---|---|---|
+| Serie A | 2026-08-22 | **0** | 20 | **INCOMPLETO** |
+| Premier League | 2026-08-21 | **0** | 20 | **INCOMPLETO** |
+| La Liga | 2026-08-15 | **0** | 20 | **INCOMPLETO** |
+| Bundesliga | 2026-08-28 | **0** | 18 | **INCOMPLETO** |
+| Ligue 1 | 2026-08-21 | **0** | 18 | **INCOMPLETO** |
+
+`|R(2026)| = 0` e `|I(2026)| = 0` in tutte e cinque. Il gate 20/20, 18/18 della
+§3.2 passa solo perche' a oggi (07/10/2026) le partite della stagione corrente
+sono **gia' state giocate** e le loro righe riempiono il roster retroattivamente.
+A inizio stagione il roster e' vuoto e `promoted_seed` avrebbe restituito 1500 a
+tutta la prima giornata, che e' esattamente il difetto che questa sezione
+chiude: ora solleva.
+
+**Da dove si potrebbe prendere il calendario completo — e qui ci si ferma.**
+La stessa sorgente delle partite in programma dell'app e' gia' chiamata in due
+punti, e in entrambi le righe del calendario arrivano gia' pronte:
+
+- `SoccerMath/app.py:1631` (Top Mix, cioe' le partite su cui l'app prevede):
+  `GET https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[league]}/matches`
+  con `params={"status": "TIMED,SCHEDULED"}`. Togliendo quel filtro
+  l'endpoint restituisce **tutta** la stagione, conclusa e non.
+- `SoccerMath/update_db.py:44-48`: la stessa URL con `params={"season": YYYY}`
+  e **nessun** filtro di stato, quindi il calendario completo arriva gia' in
+  `matches_to_df` — e viene buttato li' per la guardia `fthg is None` di cui
+  sopra. I campi `m["homeTeam"]["shortName"]` e `m["awayTeam"]["shortName"]`
+  passano gia' da `clean_name`, quindi i nomi sono gia' nella forma attesa da
+  `season_rosters_from_matches`.
+
+Non si implementa niente: la fonte va decisa e validata a parte, perche' un
+roster letto da una rete non puo' entrare nel percorso di `compute_ratings` che
+deve restare deterministico e offline. Il guard `EloSeedError` resta il
+comportamento dichiarato finche' quella fonte non esiste.
+
+#### 8.6.4 Test aggiunti
+
+`SoccerMath/test_elo_promoted_seed.py`, classe `TestNessunFallbackSilenzioso`:
+`season=None` con roster pieno, stagione fuori roster, roster vuoto, `I(s)`
+vuota, incumbent senza rating, `1500` solo per il burn-in, `1500` rifiutato se
+la stagione senza precedente non e' la prima del database, `predict_elo_probs`
+che accetta l'assenza di stagione quando il seed non serve e che solleva quando
+serve, `compute_ratings` che passa `season`, e i call site di `app.py` che
+degradano. Aggiornati anche `test_elo_probs_from_ratings.py`,
+`test_legacy_elo_engine.py` (liste di righe pinnate rigenerate dal diff reale,
+`rimosse` invariate: 22) e `test_basic.py`, che usava due squadre inesistenti e
+si reggeva sul fallback a 1500.
+
 ## 9. Impatto 2026/27 e Top Mix A/B main-vs-branch
 
 Ricalcolato da zero su questo ramo, contro il main `9957f41` (il merge di PR #35), con gli stessi comandi e la stessa finestra.

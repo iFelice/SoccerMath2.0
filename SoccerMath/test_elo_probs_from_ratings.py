@@ -40,7 +40,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
 import models.elo_engine as EE  # noqa: E402
-from models.elo_engine import (  # noqa: E402
+from models.elo_engine import (
+    EloSeedError,  # noqa: E402
     DEFAULT_INITIAL_RATING,
     elo_probs_from_ratings,
     predict_elo_probs,
@@ -52,8 +53,8 @@ LEGA = "__TEST_LEAGUE__"
 
 
 class _StubEngine:
-    """Superficie minima letta da predict_elo_probs: ratings, home_adv e
-    ``promoted_seed()``.
+    """Superficie minima letta da predict_elo_probs: ratings, home_adv,
+    ``promoted_seed()`` e ``_day_start_season`` (solo nel messaggio d'errore).
 
     Il seed e' un valore FORNITO dalla stub, non ricalcolato: questo test
     verifica la DELega (che il valore del motore arrivi a
@@ -64,8 +65,11 @@ class _StubEngine:
         self.ratings = dict(ratings)
         self.home_adv = home_adv
         self.seed = seed
+        self._day_start_season = None
 
     def promoted_seed(self, season=None):
+        if season is None:
+            raise EloSeedError("stub: season=None non ammesso")
         return self.seed
 
 
@@ -128,7 +132,7 @@ class TestDelega(unittest.TestCase):
         seed = 1397.25
         eng = _StubEngine({"CASA": 1700.0}, 60.0, seed=seed)
         with _CacheStub(eng):
-            got = predict_elo_probs("CASA", "MAI_VISTA", LEGA)
+            got = predict_elo_probs("CASA", "MAI_VISTA", LEGA, season=2026)
         want = elo_probs_from_ratings(1700.0, seed, 60.0)
         for k in KEYS:
             self.assertEqual(repr(got[k]), repr(want[k]), f"chiave {k}")
@@ -141,20 +145,39 @@ class TestDelega(unittest.TestCase):
         seed = 1382.5
         eng = _StubEngine({}, 65.0, seed=seed)
         with _CacheStub(eng):
-            got = predict_elo_probs("A", "B", LEGA)
+            got = predict_elo_probs("A", "B", LEGA, season=2026)
         want = elo_probs_from_ratings(seed, seed, 65.0)
         for k in KEYS:
             self.assertEqual(repr(got[k]), repr(want[k]), f"chiave {k}")
 
-    def test_nessuna_squadra_attiva_cade_sul_default_1500(self):
-        """Comportamento dichiarato del caso limite: nessuna attiva -> 1500."""
+    def test_nessuna_squadra_attiva_usa_il_seed_fornito(self):
+        """Il seed arriva dal motore, anche se vale 1500: la delega non
+        distingue i due casi, e non deve farlo."""
         eng = _StubEngine({}, 65.0, seed=DEFAULT_INITIAL_RATING)
         with _CacheStub(eng):
-            got = predict_elo_probs("A", "B", LEGA)
+            got = predict_elo_probs("A", "B", LEGA, season=2026)
         want = elo_probs_from_ratings(DEFAULT_INITIAL_RATING,
                                       DEFAULT_INITIAL_RATING, 65.0)
         for k in KEYS:
             self.assertEqual(repr(got[k]), repr(want[k]), f"chiave {k}")
+
+    def test_senza_sezione_e_senza_rating_solleva_anziche_fare_1500(self):
+        """Chiusura PR #36: se serve il seed e la stagione non e' dichiarata
+        si solleva, non si ricade su 1500."""
+        eng = _StubEngine({}, 65.0, seed=1390.0)
+        with _CacheStub(eng):
+            with self.assertRaises(EloSeedError):
+                predict_elo_probs("A", "B", LEGA)
+            with self.assertRaises(EloSeedError):
+                predict_elo_probs("CASA", "FUORI", LEGA)
+
+    def test_entrambe_con_rating_nessuna_stagione_non_e_problema(self):
+        """Senza il seed la stagione non serve: risultato identico."""
+        eng = _StubEngine({"CASA": 1700.0, "FUORI": 1600.0}, 60.0)
+        with _CacheStub(eng):
+            senza = predict_elo_probs("CASA", "FUORI", LEGA)
+            con = predict_elo_probs("CASA", "FUORI", LEGA, season=2026)
+        self.assertEqual(senza, con)
 
 
 class TestProprietaFormula(unittest.TestCase):

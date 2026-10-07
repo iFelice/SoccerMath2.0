@@ -53,6 +53,7 @@ from models.elo_engine import (                                # noqa: E402
     DEFAULT_INITIAL_RATING,
     PROMOTED_SEED_OFFSET,
     EloEngine,
+    EloSeedError,
     elo_probs_from_ratings,
     predict_elo_probs,
 )
@@ -119,6 +120,16 @@ def _motore(stagioni, file_per_riga=None):
         eng = EloEngine(LEGA)
         eng.compute_ratings()
         return eng
+
+
+#: Due stagioni complete con un ingresso in 2023: serve ai casi in cui il
+#: motore e' gia' calcolato e si verifica che ``promoted_seed`` non abbia piu'
+#: un percorso silenzioso.
+STAGIONI_2 = {
+    "2022": [_partita("13/08/2022", "Alfa", "Beta", 2, 0),
+             _partita("20/08/2022", "Beta", "Alfa", 1, 0)],
+    "2023": [_partita("19/08/2023", "Gamma", "Alfa", 1, 0)],
+}
 
 
 def _rating_prima(eng, squadra, n):
@@ -321,6 +332,7 @@ class TestDueIngressiNellaStessaPartita(unittest.TestCase):
             _partita("20/08/2023", "Gamma", "Alfa", 2, 2),
         ],
         "2024": [
+            _partita("11/08/2024", "Alfa", "Gamma", 2, 1),  # giornata precedente
             _partita("18/08/2024", "Delta", "Beta", 2, 1),  # due ingressi insieme
         ],
     }
@@ -359,14 +371,14 @@ class TestPrimaPartitaNonGiocataPredizione(unittest.TestCase):
         "2023": [_partita("19/08/2023", "Alfa", "Beta", 1, 1)],
     }
 
-    def _predici(self, casa, fuori):
+    def _predici(self, casa, fuori, season=2023):
         import time
         import models.elo_engine as E
         eng = _motore(self.STAGIONI)
         E._ELO_ENGINES_CACHE[LEGA] = eng
         E._ELO_ENGINES_STAMP[LEGA] = time.monotonic()
         try:
-            return eng, predict_elo_probs(casa, fuori, LEGA)
+            return eng, predict_elo_probs(casa, fuori, LEGA, season=season)
         finally:
             E._ELO_ENGINES_CACHE.pop(LEGA, None)
             E._ELO_ENGINES_STAMP.pop(LEGA, None)
@@ -400,20 +412,29 @@ class TestPrimaPartitaNonGiocataPredizione(unittest.TestCase):
 
 
 class TestLegaSenzaSquadreAttive(unittest.TestCase):
-    """Caso limite dichiarato: nessuna squadra attiva -> DEFAULT_INITIAL_RATING."""
+    """Nessuna squadra attiva: il fallback a 1500 NON e' piu' silenzioso.
+
+    PR #36 chiusura: `promoted_seed` senza stagione, senza roster o con roster
+    vuoto solleva `EloSeedError`. L'unico 1500 rimasto e' il burn-in della
+    prima stagione del database. Qui si asserisce esattamente questo.
+    """
 
     def test_motore_mai_calcolato(self):
         eng = EloEngine(LEGA)
         self.assertEqual(eng.entry_season, {})
         self.assertIsNone(eng.first_season)
-        self.assertEqual(eng.promoted_seed(), DEFAULT_INITIAL_RATING)
+        self.assertEqual(eng.season_rosters, {})
+        with self.assertRaises(EloSeedError):
+            eng.promoted_seed()
 
     def test_database_vuoto(self):
         eng = EloEngine(LEGA)
         with _DBTemp({}):
             eng.compute_ratings()
         self.assertEqual(eng.ratings, {})
-        self.assertEqual(eng.promoted_seed(), DEFAULT_INITIAL_RATING)
+        self.assertEqual(eng.season_rosters, {})
+        with self.assertRaises(EloSeedError):
+            eng.promoted_seed()
 
     def test_una_sola_stagione_non_genera_ingressi(self):
         """Il burn-in resta a 1500 anche per una squadra che debutta a meta'."""
@@ -425,18 +446,159 @@ class TestLegaSenzaSquadreAttive(unittest.TestCase):
         self.assertEqual(eng.entry_season["Gamma"], 2022)
 
     def test_predizione_senza_squadre_attive(self):
+        """Senza rating E senza season la previsione non puo' essere inventata."""
         import models.elo_engine as E
         eng = EloEngine(LEGA)
-        self.assertEqual(eng.promoted_seed(), DEFAULT_INITIAL_RATING)
         E._ELO_ENGINES_CACHE[LEGA] = eng
         E._ELO_ENGINES_STAMP[LEGA] = 1e18
         try:
-            p = predict_elo_probs("Zeta", "Eta", LEGA)
+            with self.assertRaises(EloSeedError):
+                predict_elo_probs("Zeta", "Eta", LEGA)
+            with self.assertRaises(EloSeedError):
+                eng.promoted_seed()
         finally:
             E._ELO_ENGINES_CACHE.pop(LEGA, None)
             E._ELO_ENGINES_STAMP.pop(LEGA, None)
-        self.assertEqual(p, elo_probs_from_ratings(DEFAULT_INITIAL_RATING,
-                                                   DEFAULT_INITIAL_RATING, HOME_ADV))
+
+
+class TestNessunFallbackSilenzioso(unittest.TestCase):
+    """Chiusura PR #36: i buchi che ricadevano su 1500 sollevano.
+
+    Ogni caso qui sotto era un percorso DI PRODUZIONE che poteva arrivare a
+    `season=None` o a un roster vuoto e restituire 1500 senza dire niente.
+    """
+
+    def test_season_none_solleva_anche_con_roster_pieno(self):
+        """Il caso di produzione: season=None su un motore gia' calcolato."""
+        eng = _motore(STAGIONI_2)
+        self.assertTrue(eng.season_rosters)
+        with self.assertRaises(EloSeedError) as ctx:
+            eng.promoted_seed()
+        self.assertIn("season=None", str(ctx.exception))
+        self.assertIn(LEGA, str(ctx.exception))
+
+    def test_stagione_fuora_dai_roster_solleva(self):
+        eng = _motore(STAGIONI_2)
+        with self.assertRaises(EloSeedError) as ctx:
+            eng.promoted_seed(2099)
+        self.assertIn("2099", str(ctx.exception))
+
+    def test_roster_vuoto_solleva(self):
+        """Il caso reale a inizio stagione: R(s) ricavata dalle partite giocate
+        e quindi vuota finche' nessuna partita e' stata disputata."""
+        roster = {2022: {"Alfa", "Beta"}, 2023: set(), 2024: {"Alfa", "Beta"}}
+        with _DBTemp({}):
+            eng = EloEngine(LEGA, season_rosters=roster)
+            eng.season_rosters = {k: set(v) for k, v in roster.items()}
+            eng.first_season = 2022
+            eng.ratings = {"Alfa": 1600.0, "Beta": 1550.0}
+            with self.assertRaises(EloSeedError) as ctx:
+                eng.promoted_seed(2023)
+        self.assertIn("VUOTO", str(ctx.exception))
+        self.assertIn("2023", str(ctx.exception))
+
+    def test_incumbent_vuoto_solleva(self):
+        """R(s) pieno ma R(s−1) disgiunto: I(s) = intersezione vuota."""
+        roster = {2022: {"Alfa", "Beta"}, 2023: {"Gamma", "Delta"}}
+        with _DBTemp({}):
+            eng = EloEngine(LEGA, season_rosters=roster)
+            eng.season_rosters = {k: set(v) for k, v in roster.items()}
+            eng.first_season = 2022
+            eng.ratings = {"Gamma": 1600.0, "Delta": 1550.0}
+            with self.assertRaises(EloSeedError) as ctx:
+                eng.promoted_seed(2023)
+        self.assertIn("vuota", str(ctx.exception))
+
+    def test_incumbent_senza_rating_solleva(self):
+        roster = {2022: {"Alfa", "Beta"}, 2023: {"Alfa", "Beta", "Gamma"}}
+        with _DBTemp({}):
+            eng = EloEngine(LEGA, season_rosters=roster)
+            eng.season_rosters = {k: set(v) for k, v in roster.items()}
+            eng.first_season = 2022
+            eng.ratings = {"Gamma": 1600.0}
+            with self.assertRaises(EloSeedError) as ctx:
+                eng.promoted_seed(2023)
+        self.assertIn("nessuno dei 2 incumbent", str(ctx.exception))
+
+    def test_burn_in_1500_e_l_unico_fallback(self):
+        """Prima stagione del database: nessuna stagione precedente -> 1500."""
+        roster = {2022: {"Alfa", "Beta"}}
+        with _DBTemp({}):
+            eng = EloEngine(LEGA, season_rosters=roster)
+            eng.season_rosters = {k: set(v) for k, v in roster.items()}
+            eng.first_season = 2022
+            eng.ratings = {"Alfa": 1600.0, "Beta": 1550.0}
+            self.assertEqual(eng.promoted_seed(2022), DEFAULT_INITIAL_RATING)
+
+    def test_burn_in_1500_solo_se_e_la_prima_stagione_del_database(self):
+        """Stagione senza precedente ma NON prima del database: solleva."""
+        roster = {2025: {"Alfa", "Beta"}}
+        with _DBTemp({}):
+            eng = EloEngine(LEGA, season_rosters=roster)
+            eng.season_rosters = {k: set(v) for k, v in roster.items()}
+            eng.first_season = 2022
+            eng.ratings = {"Alfa": 1600.0, "Beta": 1550.0}
+            with self.assertRaises(EloSeedError) as ctx:
+                eng.promoted_seed(2025)
+        self.assertIn("burn-in", str(ctx.exception))
+
+    def test_predict_elo_probs_esige_season_solo_se_serve_il_seed(self):
+        """Entrambe le squadre con rating: season=None e' innocuo e il
+        risultato e' bit-identico a season esplicita."""
+        import models.elo_engine as E
+        ing = _motore({"2022": [_partita("13/08/2022", "Alfa", "Beta", 2, 0)]})
+        E._ELO_ENGINES_CACHE[LEGA] = ing
+        E._ELO_ENGINES_STAMP[LEGA] = 1e18
+        try:
+            senza = predict_elo_probs("Alfa", "Beta", LEGA)
+            con = predict_elo_probs("Alfa", "Beta", LEGA, season=2022)
+        finally:
+            E._ELO_ENGINES_CACHE.pop(LEGA, None)
+            E._ELO_ENGINES_STAMP.pop(LEGA, None)
+        self.assertEqual(senza, con)
+
+    def test_predict_elo_probs_senza_season_su_ingresso_solleva(self):
+        import models.elo_engine as E
+        eng = EloEngine(LEGA)
+        E._ELO_ENGINES_CACHE[LEGA] = eng
+        E._ELO_ENGINES_STAMP[LEGA] = 1e18
+        try:
+            with self.assertRaises(EloSeedError) as ctx:
+                predict_elo_probs("Alfa", "Beta", LEGA)
+        finally:
+            E._ELO_ENGINES_CACHE.pop(LEGA, None)
+            E._ELO_ENGINES_STAMP.pop(LEGA, None)
+        self.assertIn("rating in lega", str(ctx.exception))
+
+    def test_compute_ratings_passa_la_stagione_esplicitamente(self):
+        """Il ramo storico non usa piu' season=None: la sorgente del file
+        contiene il riferimento con `self.promoted_seed(season)`."""
+        import inspect
+        src = inspect.getsource(EloEngine.compute_ratings)
+        self.assertIn("self.promoted_seed(season)", src)
+        self.assertNotIn("self.promoted_seed()", src)
+
+    def test_app_degrada_a_elo_non_disponibile_invece_di_1500(self):
+        """I call site di app.py che stanno in try/except segnano il fallback
+        invece di usare un numero inventato."""
+        src = Path(HERE, "app.py").read_text(encoding="utf-8")
+        for blocco in ("elo_probs = predict_elo_probs(h, a, league)",):
+            i = src.index(blocco)
+            intorno = src[max(0, i - 260):i + 320]
+            self.assertIn("elo_disponibile = True", intorno)
+            self.assertIn("except Exception", intorno)
+            self.assertIn("Elo non disponibile", intorno)
+        # Gli altri due chiamano senza stagione dentro try/except espliciti.
+        for chiamata in ("elo_p = predict_elo_probs(h, a, camp_sel)",
+                         "elo_p = predict_elo_probs(home, away, league)"):
+            i = src.index(chiamata)
+            intorno = src[max(0, i - 200):i + 400]
+            self.assertIn("except Exception", intorno)
+        # Nessun chiamante di produzione deve passare season=None a caso:
+        # tutti i predict_elo_probs di app.py sono a tre argomenti.
+        for riga in src.splitlines():
+            if "predict_elo_probs(" in riga and "legacy" not in riga:
+                self.assertNotIn("season=", riga, riga)
 
 
 class TestNessunAltroCambiamento(unittest.TestCase):
