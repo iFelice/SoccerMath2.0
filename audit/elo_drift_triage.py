@@ -396,10 +396,20 @@ class _CarryRatings(dict):
 
 
 def _seed_for_variant(name: str, rec: dict, carry: _CarryRatings) -> tuple[float, float, float, float | None]:
-    """(seed, active_mean_current, stale_current, weight_stale)."""
+    """(seed, active_mean_current, stale_current, weight_stale).
+
+    Se l'insieme attivo e' vuoto — caso normale sul PRIMO giorno di una
+    stagione, quando nessuna squadra ha ancora disputato una partita nella
+    stagione corrente — il fallback dichiarato e' DEFAULT_INITIAL_RATING, come
+    in ``EloEngine.promoted_seed``. Tutte le varianti S1-S4 lo applicano: un
+    riferimento che non esiste non genera una media.
+    """
     active = [float(carry[t]) for t in rec["active_teams"] if t in carry]
     active_mean = float(np.mean(active)) if active else np.nan
     stale = float(carry.get(rec["team"], DEFAULT_INITIAL_RATING))
+    if not active:
+        # nessuna squadra attiva: nessun riferimento, nessuna variante
+        return (DEFAULT_INITIAL_RATING, active_mean, stale, None)
     if name == "S0":
         return (DEFAULT_INITIAL_RATING if rec["never_seen"] else stale,
                 active_mean, stale, None)
