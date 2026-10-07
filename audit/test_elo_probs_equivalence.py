@@ -60,7 +60,7 @@ FIX_MANIFEST = os.path.join(_AUDIT_DIR, "fixtures",
                             "elo_probs_equivalence_main.manifest.json")
 #: commit che dichiara il manifest della fixture (la fixture e' rigenerata da
 #: quel commit, non da "main": vedi il docstring del modulo)
-FIXTURE_COMMIT = "2e706c6904d459c1305439aeb99630334fe5e3d6"
+FIXTURE_COMMIT = "5a6243255b2eb06429ae9ecdd772461376c46fb9"
 
 
 def _carica_fixture():
