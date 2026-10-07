@@ -36,7 +36,7 @@ La CI gia' versionata contiene workflow separati di Audit e Replay; la verifica 
 |---|---|---|
 | OK | .github/workflows/topmix_audit.yml | push + pull_request; installazione requirements + pytest audit; esecuzione audit; controllo diff su SoccerMath/audit/results; artifact |
 | OK | .github/workflows/replay_legacy_topmix.yml | push + pull_request; installazione requirements; test no-leakage; replay dry-run/write esplicito; controllo nessuna modifica; artifact |
-| OK | Vincolo diff del mandato | il diff finale contiene solo audit/; nessuna modifica a SoccerMath/ |
+| OK | Vincolo diff del mandato (aggiornato) | il diff di questa PR tocca `SoccerMath/models/elo_engine.py` e i suoi test: e' la **correzione di produzione** del seed, autorizzata esplicitamente dal mandato corrente. `.github/` resta assente dal diff (`git diff --check` exit 0) |
 
 ### Limiti verificabili del dato
 
@@ -503,15 +503,69 @@ APRIRE audit completo solo se almeno una variante ha `delta_logloss < 0` nella p
 
 Il verdetto MERGEABLE/NON MERGEABLE qui sotto riguarda la PR di audit, non un cambio produzione: la richiesta vieta modifiche a `SoccerMath/` e vieta il merge automatico.
 
-## 8. Esito PR
+## 8. Esito PR #36
+
+Chiusura della correzione della definizione del seed: da "chi ha gia' giocato nella stagione corrente" al **roster di stagione** `R(s) ∩ R(s−1)`, identico in produzione e in audit. PR #36 aperta su `main`, **non merged**.
+
+### 8.1 Definizione e implementazione
 
 | Esito | Comando | Evidenza/output |
 |---|---|---|
-| OK | `git status --porcelain -- SoccerMath/` | (vuoto) |
-| NON OK | `git diff --name-only origin/main...HEAD` | SoccerMath/models/elo_engine.py SoccerMath/test_elo_probs_from_ratings.py SoccerMath/test_elo_promoted_seed.py SoccerMath/test_legacy_elo_engine.py audit/elo_drift_triage.py audit/elo_weight_retune.py audit/fixtures/elo_probs_equivalence_main.jsonl.gz audit/fixtures/elo_probs_equivalence_main.manifest.json audit/fixtures/elo_s3_parity.json audit/fixtures/elo_walker_parity.json audit/make_elo_parity_fixture.py audit/make_elo_s3_parity_fixture.py audit/results/elo_drift_triage.md audit/results/elo_weight_retune.md audit/test_elo_probs_equivalence.py audit/test_elo_s3_parity.py audit/test_elo_walker_parity.py |
-| OK | `git status --porcelain --branch` | ## arena/c2604760-soccermath2-0 |
+| OK | `grep -n "season_rosters\|_incumbent\|promoted_seed" SoccerMath/models/elo_engine.py` | `season_rosters` e' input esplicito del costruttore (riga 88), `_incumbent` calcola `R(s) ∩ R(s−1)` (riga 142), `promoted_seed(season=None)` (riga 186) |
+| OK | `audit/elo_drift_triage.py` | stessa definizione di incumbent, ricavata dal calendario di stagione |
+| OK | `audit/make_elo_parity_fixture.py` | helper `_roster_completo()`: il roster completo passa identico al walker troncato e alla produzione |
+| OK | `grep -n "season" SoccerMath/models/elo_engine.py` (ramo di predizione) | `predict_elo_probs(..., season=None)` accetta la stagione e chiama `promoted_seed(season)` con la stessa funzione |
+| OK | fallback 1500 | e' il burn-in della prima stagione del database (2022/23): **0 ingressi** su 55 in cui `I` risulti vuota |
 
-**Verdetto PR: NON MERGEABLE.** Non e' stato eseguito alcun merge.
+### 8.2 Tabella ingressi (55 + 14)
+
+| Esito | Comando | Evidenza/output |
+|---|---|---|
+| OK | `/home/user/scratch/entries_roster.py` | **55** ingressi storici, tabella completa in §3.1 |
+| OK | `dump_ingressi.py` sul ramo | **14** ingressi 2026/27, tabella in §3.2 |
+| OK | `\|I\|` sui 55 | min **15**, max **17**; 17 in Serie A/Premier League/La Liga, 15–16 in Bundesliga e Ligue 1 (18 squadre) |
+| OK | ispezione di `I` su tutti i 55 | **0** ingressi dentro `I`, **0** squadre fuori roster dentro `I` |
+| OK | `seed = media I − 100` | esatto in 55/55 |
+| OK | gate roster 2026/27 sui CSV `*_Live.csv` | Serie A 20/20, Premier League 20/20, La Liga 20/20, Bundesliga 18/18, Ligue 1 18/18 |
+
+### 8.3 Parita', invarianza e troncamento
+
+| Esito | Comando | Evidenza/output |
+|---|---|---|
+| OK | `pytest audit/test_elo_s3_parity.py` | **7334/7334** match bit-exatti produzione vs audit S3 |
+| OK | `pytest audit/test_elo_s3_parity.py` (suite) | 6 passed |
+| OK | `/home/user/scratch/ordine_invarianza.py` | 5 semi di permutazione (20261007, 42, 1337, 99991, 7): **0** differenze di rating finale, **0** differenze di 1X2 per partita; `ESITO: OK` |
+| OK | `/home/user/scratch/p3_cutoff.py` | **33/33** casi bit-exact sui 8 cutoff, di cui i 5 primi-giorni-di-stagione 2023-08-19, 2024-08-17, 2025-08-15, 2026-08-21, 2026-08-22; **11/11** casi entranti |
+| OK | `pytest -k p3_walk_forward_vs_produzione_troncata` | 1 passed |
+
+### 8.4 Triage sulle tre definizioni
+
+Tre colonne in §5.1 (originale con retrocessioni `123b942`, gia' giocate `df23df5`, roster). Regola di decisione invariata, nessuna variante nuova, nessun offset nuovo.
+
+| variante | primaria roster (IC95) | tutte le partite roster (IC95) | regola |
+|---|---|---|---|
+| S1 | -0.0045 (include 0) | +0.0003 (include 0) | non passa |
+| S2 | -0.0081 (include 0) | +0.0001 (include 0) | non passa |
+| **S3** | **-0.0183** `[-0.028576; -0.007930]` | **-0.0009** `[-0.001801; -0.000034]` | **passa** |
+| S4 | -0.0186 `[-0.027877; -0.009881]` | -0.0011 `[-0.001866; -0.000440]` | passa ma non dichiarata |
+
+**S3 resta la variante dichiarata**: sulla primaria l'IC e' tutto negativo e su tutte le partite il delta e' negativo, quindi non peggiora oltre +0.0005. S4 e' migliore di ~0.0003 sulla primaria, molto meno della larghezza degli IC: non viene promossa e non viene aggiunto alcun offset.
+
+### 8.5 Chiusura tecnica
+
+| Esito | Comando | Evidenza/output |
+|---|---|---|
+| OK | `.venv/bin/python -m pytest -q -rs --ignore=SoccerMath/test_theme_toggle.py` | **1177 passed**, 1006 subtests passed, **0 failed, 0 skipped, 0 error**, 1 warning |
+| OK | `.venv/bin/python -W ignore SoccerMath/test_theme_toggle.py` | "TUTTI I TEST PASSATI"; e' uno **script**, non un modulo pytest: chiama `sys.exit(0)` a fine file e non e' collezionabile. Comportamento identico su `9957f41`, file non toccato da questa PR (`git diff 9957f41 HEAD -- SoccerMath/test_theme_toggle.py` vuoto) |
+| OK | `pytest audit/test_elo_s3_parity.py audit/test_elo_walker_parity.py audit/test_elo_probs_equivalence.py SoccerMath/test_elo_promoted_seed.py SoccerMath/test_legacy_elo_engine.py SoccerMath/test_elo_probs_from_ratings.py` | **67 passed**, 0 skipped (i 2 skip di `test_legacy_elo_engine.py` sono stati riscritti e ora asseriscono la differenza attesa esatta) |
+| OK | `git diff --check` | exit 0, nessun output |
+| OK | `git diff --name-only origin/main...HEAD \| grep -c '^\.github/'` | **0**: `.github/` non e' nel diff |
+| OK | `git diff --name-only origin/main...HEAD` | 16 file: `SoccerMath/models/elo_engine.py`, 3 test di produzione, 9 file `audit/`, 2 fixture, questo referto |
+| OK | `git status --porcelain --branch` | `## arena/c2604760-soccermath2-0` pulito |
+| OK | `gh run list --branch arena/c2604760-soccermath2-0` | 4 run su `4e00ae0`, tutti `success`: Audit `push` 37644124749, Audit `pull_request` 37644129871, Replay `push` 37644124746, Replay `pull_request` 37644129909 |
+| **NON VERIFICABILE in CI** | workflow `topmix_audit.yml` / `replay_legacy_topmix.yml` | La CI **non esegue i test Elo di audit**: `test_elo_s3_parity.py`, `test_elo_walker_parity.py`, `test_elo_probs_equivalence.py` e `test_elo_promoted_seed.py` non compaiono in nessuna delle due liste. Il loro esito e' solo locale (67 passed sopra) e va riportato esplicitamente; i test Elo aggiunti alla CI Audit appartengono a una PR separata. |
+
+**Verdetto PR #36: MERGEABLE**, sulla base di tutti i controlli sopra. Non e' stato eseguito alcun merge.
 
 ## 9. Impatto 2026/27 e Top Mix A/B main-vs-branch
 
