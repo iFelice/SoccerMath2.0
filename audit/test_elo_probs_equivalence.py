@@ -8,11 +8,22 @@ Fixture
 ``audit/fixtures/elo_probs_equivalence_main.jsonl.gz``
 ``audit/fixtures/elo_probs_equivalence_main.manifest.json``
 
-Generata da ``audit/make_elo_probs_equivalence_fixture.py`` eseguito su un
-worktree a ``3f9f04278096aba2bc96fc5335a45ccd0d219094`` (= ``origin/main``,
-merge della PR #29) con ``git status --porcelain -- SoccerMath/`` vuoto.
-Il commit di generazione e lo stato pulito della produzione sono registrati
-dentro il manifest e ri-asseriti da questo test.
+Generata da ``audit/make_elo_probs_equivalence_fixture.py`` sul commit
+``6ccbc69db2992117fa6122d02dce65f64897c905`` con
+``git status --porcelain -- SoccerMath/`` vuoto: il generatore registra dentro
+il manifest sia il commit sia lo stato pulito, e questo test li ri-asserisce.
+
+Perche' il commit e' cambiato. La fixture congela i NUMERI della produzione,
+quindi qualunque modifica di comportamento della produzione la invalida: era
+pinned al commit della PR #30 (``3f9f042``, estrazione di
+``elo_probs_from_ratings``) e la prima modifica numerica del motore Elo dopo
+quella — il seeding S3 degli ingressi in lega, PR #35 — la ri-genera sul
+proprio commit. Le asserzioni NON sono state allentate: restano il confronto
+``repr(float)`` chiave per chiave su tutti i 32539 casi e il controllo dello
+sha256 del payload, oltre ai conteggi e alla provenienza. Quello che il
+blocco (b) misura — i 7334 stati point-in-time del motore — e' coperto
+stabilmente dalla parita' bit-exact con la variante S3 dell'audit in
+``audit/test_elo_s3_parity.py``, che non dipende da main.
 
 Contenuto (32539 casi):
   (a) 25205 casi di griglia: rating 1200..1900 passo 10 (71 x 71) per
@@ -33,6 +44,7 @@ import gzip
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import unittest
 
@@ -46,7 +58,9 @@ import make_elo_probs_equivalence_fixture as GEN  # noqa: E402
 FIX_JSONL = os.path.join(_AUDIT_DIR, "fixtures", "elo_probs_equivalence_main.jsonl.gz")
 FIX_MANIFEST = os.path.join(_AUDIT_DIR, "fixtures",
                             "elo_probs_equivalence_main.manifest.json")
-MAIN_COMMIT = "3f9f04278096aba2bc96fc5335a45ccd0d219094"
+#: commit che dichiara il manifest della fixture (la fixture e' rigenerata da
+#: quel commit, non da "main": vedi il docstring del modulo)
+FIXTURE_COMMIT = "6ccbc69db2992117fa6122d02dce65f64897c905"
 
 
 def _carica_fixture():
@@ -75,12 +89,20 @@ class TestEquivalenzaBitExact(unittest.TestCase):
         cls.pay_now, cls.righe_now, cls.na, cls.nb = _rigenera()
 
     def test_provenienza_fixture(self):
-        self.assertEqual(self.manifest["repo_head_commit"], MAIN_COMMIT)
+        self.assertEqual(self.manifest["repo_head_commit"], FIXTURE_COMMIT)
         self.assertEqual(self.manifest["produzione_sporca_rispetto_al_commit"],
                          "(pulita)")
         self.assertEqual(
             hashlib.sha256(self.pay_fix.encode("utf-8")).hexdigest(),
             self.manifest["sha256_payload_non_compresso"])
+
+    def test_commit_dichiarato_esiste_nel_clone(self):
+        """Il manifest non puo' dichiarare un commit che questo repo non ha."""
+        r = subprocess.run(
+            ["git", "-C", _REPO_ROOT, "cat-file", "-t", FIXTURE_COMMIT],
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), "commit")
 
     def test_conteggi(self):
         self.assertEqual(self.na, self.manifest["n_grid"])
