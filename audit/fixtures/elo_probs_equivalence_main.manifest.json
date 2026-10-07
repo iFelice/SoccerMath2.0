@@ -1,7 +1,7 @@
 {
  "_schema": "elo_probs_equivalence/1",
- "generated_at_utc": "2026-10-05T14:56:10+00:00",
- "repo_head_commit": "3f9f04278096aba2bc96fc5335a45ccd0d219094",
+ "generated_at_utc": "2026-10-07T14:51:12+00:00",
+ "repo_head_commit": "5a6243255b2eb06429ae9ecdd772461376c46fb9",
  "produzione_sporca_rispetto_al_commit": "(pulita)",
  "generator": "audit/make_elo_probs_equivalence_fixture.py",
  "grid": {
@@ -26,5 +26,5 @@
  "n_grid": 25205,
  "n_match": 7334,
  "n_total": 32539,
- "sha256_payload_non_compresso": "f38ded073159ed3ef4e34d904a46a5b0c040084e22a029d2c0526ae0e0e779e7"
+ "sha256_payload_non_compresso": "b91cb3e064568d315c83d9e9ca3c0780f2678062e9e7c62036a5c2f8214c3413"
 }

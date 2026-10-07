@@ -49,8 +49,14 @@ class TestElo(unittest.TestCase):
         self.assertGreater(LEAGUE_HOME_ADVANTAGE["Serie A"], 0)
 
     def test_predict_sum(self):
-        # 1500 vs 1500 + HA
-        probs = predict_elo_probs("TeamA", "TeamB", "Serie A")
+        # Due squadre REALI della lega: una squadra mai vista in lega non ha
+        # rating e il suo seed di ingresso richiede la stagione della partita,
+        # quindi questo test non puo' piu' passare per "1500 vs 1500 + HA" senza
+        # dichiarare la stagione (vedi EloSeedError).
+        from models.elo_engine import get_current_elo
+        squadre = sorted(get_current_elo("Serie A"))
+        self.assertGreaterEqual(len(squadre), 2)
+        probs = predict_elo_probs(squadre[0], squadre[1], "Serie A")
         total = probs["1"] + probs["X"] + probs["2"]
         self.assertAlmostEqual(total, 1.0, places=3)
 

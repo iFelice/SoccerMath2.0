@@ -194,6 +194,9 @@ class TestProvenienzaFixture(unittest.TestCase):
             shutil.rmtree(os.path.dirname(out_json), ignore_errors=True)
 
 
+#: soglie ammesse SOLO per i casi P3 in cui il DB troncato e' stato
+#: ri-mangiato in un ordine diverso da quello di produzione (vedi il
+#: docstring di test_p3_walk_forward_vs_produzione_troncata)
 class TestParitaWalker(unittest.TestCase):
 
     @classmethod
@@ -303,6 +306,21 @@ class TestParitaWalker(unittest.TestCase):
 
     # ---- P3 -------------------------------------------------------------
     def test_p3_walk_forward_vs_produzione_troncata(self):
+        """Stato del walker contro un motore di PRODUZIONE costruito sui soli
+        CSV con data antecedente al cutoff, bit-exact.
+
+        Il loader riordina per data con un sort instabile, quindi sul DB
+        troncato qualche partita della stessa giornata puo' cambiare posto.
+        Finche' il seed guardava lo stato "in quel momento" questo rompeva la
+        parita': il seed di una neo-promossa contava le partite della sua
+        giornata gia' acquisite, e nel backtest poteva usare risultati non
+        disponibili prima del kickoff. Con il seed letto a INIZIO giornata
+        l'ordine dentro la giornata e' di nuovo irrilevante — le partite di una
+        giornata sono disgiunte, nessuna squadra gioca due volte lo stesso
+        giorno — e il confronto torna bit-exact su tutti i cutoff.
+
+        Il test non ha soglie: ogni scarto e' un fallimento.
+        """
         diffs = []
         for lg in W.LEAGUES:
             d = self.tables[lg]

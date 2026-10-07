@@ -5,7 +5,7 @@ models/elo_engine.py - Motore di Calcolo Elo Rating Dinamico per M4-analist
 import math
 import time
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -19,11 +19,70 @@ from config import (
     clean_name,
     get_league_db_files,
     get_market_values,
+    season_start_year_of,
 )
 
 DEFAULT_INITIAL_RATING = 1500.0
 HOME_ADVANTAGE = 65.0
 BASE_K_FACTOR = 24.0
+
+#: Distacco applicato al seeding delle squadre che ENTRANO in una lega.
+#:
+#: La PR #35 (audit ``audit/elo_drift_triage.py``, variante ``S3``) ha
+#: misurato la deriva dei rating di ingresso: la produzione partiva da 1500
+#: per le neopromosse mai viste e riprendeva il rating stantio per quelle di
+#: ritorno, restando cosi' ~100 punti sopra la media delle squadre attive al
+#: momento del loro esordio in lega. Il seeding S3 e' la media dei rating
+#: delle squadre ATTIVE in quel momento (cioe' di quelle che hanno gia'
+#: disputato almeno una partita in lega, nell'ordine di produzione) piu'
+#: questo offset; il triage lo ha validato su 55 ingressi in 5 leghe
+#: (DeltaLogLoss -0.018010 sulle prime 10 partite delle neopromosse).
+#:
+#: Non e' un parametro stimato: e' la costante dichiarata dalla variante S3
+#: dell'audit, replicata qui senza modificarla. Nessun altro pezzo del motore
+#: e' stato toccato: K, home advantage, moltiplicatore di scarto, draw e pesi
+#: del blend restano quelli di prima.
+PROMOTED_SEED_OFFSET = -100.0
+
+
+class EloSeedError(RuntimeError):
+    """Il seed di un ingresso non e' ricavabile senza guardare il futuro.
+
+    Non e' un'eccezione da silenziare: ogni percorso di produzione che la
+    intercetta deve degradare in modo DICHIARATO (``elo_disponibile = False``
+    piu' un WARNING nel log) e non ripiegare su ``DEFAULT_INITIAL_RATING``.
+    Il fallback silenzioso e' il difetto che questa eccezione sostituisce:
+    1500 e' un numero plausibile, quindi un roster assente o una stagione non
+    dichiarata Sparirebbero dentro il risultato senza lasciare traccia, e la
+    previsione sembrerebbe normale mentre il riferimento e' inventato.
+
+    Unico fallback ammesso: ``DEFAULT_INITIAL_RATING`` per la PRIMA stagione
+    del database, che non ha stagione precedente ed e' il burn-in dichiarato.
+    """
+
+
+def season_rosters_from_matches(df: pd.DataFrame) -> Dict[int, set]:
+    """R(lega, stagione) = le squadre che compongono la lega in quella stagione.
+
+    FONTE: il calendario della stagione, cioe' l'insieme delle squadre che
+    compaiono nelle partite di quell'anno nei CSV di questa lega. Non e' un
+    risultato: promozioni e retrocessioni sono decise e pubblicate prima del
+    via, e il calendario della stagione e' pubblicato prima del via. Per la
+    stagione in corso la stessa fonte e' il file ``*_Live.csv``, che l'app usa
+    anche per le partite in programma.
+
+    ``season_rosters`` puo' essere passato al costruttore quando il database
+    non contiene il calendario completo (per esempio un backtest su CSV
+    troncati): il caller passa allora il roster della stagione integrale,
+    cosi' il riferimento del seed non dipende da quanto DB e' stato tagliato.
+    """
+    out: Dict[int, set] = {}
+    stagioni = df["Date_Parsed"].map(season_start_year_of)
+    for season, blocco in df.groupby(stagioni.to_numpy()):
+        squadre = set(blocco["HomeClean"].unique()).union(
+            set(blocco["AwayClean"].unique()))
+        out[int(season)] = {str(t) for t in squadre}
+    return out
 
 
 def calculate_goal_margin_multiplier(goal_diff: int) -> float:
@@ -40,7 +99,9 @@ def calculate_goal_margin_multiplier(goal_diff: int) -> float:
 
 class EloEngine:
 
-    def __init__(self, league_name: str, home_adv: float = None, base_k: float = BASE_K_FACTOR):
+    def __init__(self, league_name: str, home_adv: float = None,
+                 base_k: float = BASE_K_FACTOR,
+                 season_rosters: Dict[int, set] | None = None):
         self.league_name = league_name
         self.home_adv = home_adv if home_adv is not None else LEAGUE_HOME_ADVANTAGE.get(league_name, HOME_ADVANTAGE)
         self.base_k = base_k
@@ -49,11 +110,200 @@ class EloEngine:
         self.team_stats: Dict[str, dict] = {}
         self.is_computed = False
         self.matches_df = pd.DataFrame()
+        # Seeding degli ingressi in lega (PR #35): stagione dell'ultima partita
+        # disputata da ciascuna squadra e stagione della prima partita del
+        # database, che resta il burn-in e non genera ingressi.
+        self.entry_season: Dict[str, int] = {}
+        self.first_season: Optional[int] = None
+        #: Stato dei rating degli INCUMBENT al BEGINNING of the day being
+        #: processed, taken before any match of that day. The seed of an entry
+        #: reads this and nothing else, so it cannot depend on the order of the
+        #: matches of the same date nor on results not yet available at kickoff.
+        #: Season the snapshot belongs to, and the rule that defines the set.
+        self._day_start_state: Dict[str, float] = {}
+        self._day_start_season: Optional[int] = None
+        #: R(lega, stagione): composizione del campionato, dal calendario.
+        #: Se non passata viene ricavata dal database caricato.
+        self.season_rosters: Dict[int, set] = {}
+        #: Roster passato esplicitamente dal chiamante (backtest su DB
+        #: troncati): se None si ricava dal database caricato.
+        self._season_rosters_input = season_rosters
+        #: I(lega, stagione): le squadre di R che hanno giocato in questa lega
+        #: anche nella stagione precedente. E' l'insieme di riferimento del
+        #: seed ed e' FISSO per tutta la stagione.
+        self.incumbents: Dict[int, tuple] = {}
 
     def _get_league_files(self) -> List[str]:
         # Risoluzione centralizzata in config: include anche i file il cui nome non
         # deriva dal db_prefix (es. PremierLeague.csv con prefisso 'Premier').
         return get_league_db_files(self.league_name)
+
+    def _is_entry(self, team: str, season: int) -> bool:
+        """La squadra ``team`` sta giocando la sua prima partita in lega?
+
+        Ingresso = MAI VISTA (nessuna partita precedente in questa lega) oppure
+        DI RITORNO dopo una o piu' stagioni di assenza: nell'ordine di
+        produzione, ``season_start_year_of`` della partita corrente meno la
+        stagione della sua ultima partita supera 1.
+
+        La prima stagione del database non genera ingressi: e' il burn-in,
+        l'unica condizione iniziale che il motore ha sempre avuto, e resta a
+        ``DEFAULT_INITIAL_RATING`` come prima della PR #35.
+        """
+        ultima = self.entry_season.get(team)
+        if ultima is None:
+            return season > self.first_season
+        return season - ultima > 1
+
+    def _incumbent(self, season: int) -> tuple:
+        """I(lega, stagione): R(s) ∩ R(s−1), in ordine alfabetico.
+
+        Vuota per la prima stagione del database (nessuna stagione
+        precedente): e' il burn-in, che resta a DEFAULT_INITIAL_RATING.
+        """
+        if season not in self.incumbents:
+            roster = self.season_rosters.get(season, set())
+            stagioni = sorted(self.season_rosters)
+            precedente = [s for s in stagioni if s < season]
+            prima = set(self.season_rosters[precedente[-1]]) if precedente else set()
+            self.incumbents[season] = tuple(sorted(roster & prima))
+        return self.incumbents[season]
+
+    def _snapshot_day_start(self, season: Optional[int] = None) -> None:
+        """Fotografa lo stato delle squadre attive PRIMA della giornata.
+
+        ``season`` e' la stagione della giornata che sta per essere processata.
+        Il riferimento del seed e' I(lega, stagione) = R(s) ∩ R(s−1): le
+        squadre che compongono il campionato in quella stagione e c'erano gia'
+        nella stagione precedente. Sono una COMPOSIZIONE DEL CALENDARIO, nota
+        prima del via, non un risultato: vedi ``season_rosters_from_matches``.
+        Una retrocessa non e' in R(s) e una neo-promossa non e' in R(s−1), per
+        costruzione nessuna delle due entra nel riferimento. L'insieme e'
+        fisso per tutta la stagione, i rating dentro cambiano giorno per
+        giorno: e' per questo che il seed resta indipendente dall'ordine delle
+        partite della stessa data.
+        """
+        if season is None:
+            season = self._day_start_season
+        self._day_start_season = season
+        # Solo gli INCUMBENT della stagione: sono le squadre che fanno parte
+        # del campionato e c'erano gia' nella stagione precedente. Una
+        # neo-promossa o una retrocessa non ci sono per costruzione, e una
+        # squadra che non ha ancora giocato in stagione porta qui il suo
+        # rating di fine stagione precedente, senza dover aspettare la sua
+        # prima partita. L'insieme e' fisso per tutta la stagione: cambia solo
+        # il rating che in esso si legge.
+        self._day_start_state = {
+            t: self.ratings[t]
+            for t in self._incumbent(season)
+            if t in self.ratings
+        } if season is not None else {}
+
+    def promoted_seed(self, season: Optional[int] = None) -> float:
+        """Rating iniziale di una squadra che entra in lega (PR #35).
+
+        ``season`` e' la stagione della partita da prevedere. E' informazione
+        di CALENDARIO, nota prima del via, quindi non e' look-ahead. **Non e'
+        opzionale**: con ``season=None`` non si puo' sapere a quale stagione
+        appartiene la partita successiva, perche' a fine database l'ultimo
+        giorno processato puo' essere l'ultimo della stagione o un giorno
+        qualunque in mezzo. Leggere in quel caso lo snapshot di fine database
+        significa leggere gli incumbent dell'ULTIMA stagione processata: se la
+        partita e' della stagione dopo il riferimento e' sbagliato, e se il
+        roster non e' noto il risultato e' un numero inventato che sembra
+        plausibile. Quindi ``season=None`` solleva ``EloSeedError``.
+
+        Media dei rating delle squadre INCUMBENT al **inizio della data della
+        partita** — cioe' di quelle che compongono il campionato nella stagione
+        corrente e c'erano gia' nella stagione precedente, con i rating che
+        avevano in quel momento (per chi non ha ancora giocato in stagione
+        quello di fine stagione precedente) — piu' ``PROMOTED_SEED_OFFSET``.
+
+        Il riferimento si legge da ``self.ratings``, che a quel punto e' gia'
+        lo stato di inizio della giornata: le partite ancora da giocare non
+        hanno cambiato nessun rating, quindi nessuna modifica e' necessaria e il
+        risultato non dipende dall'ordine delle partite della stessa data.
+
+        Anche ``R(s)`` assente o vuoto e ``I(s)`` vuoto sono ``EloSeedError``:
+        il roster e' la composizione del campionato e non si puo' ricavare
+        dalle partite giocate, quindi a inizio stagione (nessuna partita
+        ancora disputata) non e' disponibile. L'unico fallback ammesso e'
+        ``DEFAULT_INITIAL_RATING`` per la prima stagione del database, che non
+        ha stagione precedente: e' il burn-in dichiarato.
+        """
+        if season is None:
+            raise EloSeedError(
+                f"promoted_seed(): season=None non e' ammesso in "
+                f"{self.league_name}. Lo snapshot di fine database "
+                f"(_day_start_state, stagione "
+                f"{self._day_start_season}) appartiene all'ULTIMA stagione "
+                f"processata e non dice a quale stagione appartiene la "
+                f"partita successiva: passare season esplicitamente."
+            )
+        if season not in self.season_rosters:
+            raise EloSeedError(
+                f"promoted_seed(): nessun roster per la stagione {season} in "
+                f"{self.league_name}. Roster conosciuti: "
+                f"{sorted(self.season_rosters)}."
+            )
+        roster = self.season_rosters[season]
+        if not roster:
+            raise EloSeedError(
+                f"promoted_seed(): roster VUOTO per la stagione {season} in "
+                f"{self.league_name}. R(s) e' la composizione del campionato: "
+                f"si ricava dal CALENDARIO, non dalle partite giocate, quindi "
+                f"a inizio stagione non e' disponibile da questa fonte."
+            )
+        if not [s for s in sorted(self.season_rosters) if s < season]:
+            if season == self.first_season:
+                # Prima stagione del database: non ha stagione precedente.
+                # E' il burn-in dichiarato, l'unica condizione iniziale che il
+                # motore ha sempre avuto (PR #35 e seguenti).
+                return DEFAULT_INITIAL_RATING
+            raise EloSeedError(
+                f"promoted_seed(): la stagione {season} in "
+                f"{self.league_name} non ha stagione precedente nel roster e "
+                f"non e' la prima stagione del database ({self.first_season}): "
+                f"il fallback a {DEFAULT_INITIAL_RATING:.0f} e' dichiarato "
+                f"solo per il burn-in."
+            )
+        incumbent = self._incumbent(season)
+        if not incumbent:
+            raise EloSeedError(
+                f"promoted_seed(): I({season}) = R({season}) ∩ "
+                f"R(stagione precedente) e' vuota in {self.league_name}, "
+                f"|R({season})|={len(roster)}. Il roster della stagione "
+                f"precedente e' assente o non e' quello dell'anno prima."
+            )
+        # Lo stato da cui si legge la media dipende da DOVE siamo:
+        #
+        # * ramo storico (``compute_ratings``): lo snapshot congelato di inizio
+        #   giornata, NON i rating correnti. Se si leggessero i rating correnti
+        #   il seed cambierebbe a seconda di quante partite della stessa data
+        #   sono gia' state elaborate, e l'ordine dentro la giornata
+        #   riporterebbe dentro il seed. Lo snapshot e' della stessa stagione
+        #   per costruzione: `_snapshot_day_start(season)` viene chiamata al
+        #   cambio di data, subito prima di qualsiasi partita di quella data.
+        # * ramo di predizione (``predict_elo_probs``): i rating di fine
+        #   database, che sono gia' lo stato di inizio della prossima
+        #   giornata, ristretti a I della stagione richiesta. Se la stagione
+        #   richiesta e' proprio l'ultima elaborata, il congelato e i rating
+        #   coincidono; se e' una stagione successiva il congelato non parla
+        #   di lei e va ricostruito.
+        if self._day_start_season == season:
+            stato = self._day_start_state
+        else:
+            stato = {t: self.ratings[t] for t in incumbent if t in self.ratings}
+        if not stato:
+            raise EloSeedError(
+                f"promoted_seed(): nessuno dei {len(incumbent)} incumbent di "
+                f"{self.league_name} nella stagione {season} ha un rating "
+                f"(snapshot congelato: {len(self._day_start_state)} voci "
+                f"per la stagione {self._day_start_season}). Non si puo' "
+                f"ricavare la media: ripiegare su "
+                f"{DEFAULT_INITIAL_RATING:.0f} maschererebbe un dato mancante."
+            )
+        return float(np.mean([stato[t] for t in sorted(stato)])) + PROMOTED_SEED_OFFSET
 
     def load_and_preprocess_matches(self) -> pd.DataFrame:
         files = self._get_league_files()
@@ -89,6 +339,19 @@ class EloEngine:
             self.is_computed = True
             return self.ratings
         all_teams = set(df["HomeClean"].unique()).union(set(df["AwayClean"].unique()))
+        # compute_ratings e' un ricalcolo completo: lo stato degli ingressi
+        # riparte da zero come i rating.
+        self.entry_season = {}
+        self._day_start_state = {}
+        self._day_start_season = None
+        self.incumbents = {}
+        roster = self._season_rosters_input
+        if roster:
+            self.season_rosters = {int(k): {str(t) for t in v}
+                                   for k, v in roster.items()}
+        else:
+            self.season_rosters = season_rosters_from_matches(df)
+        self.first_season = season_start_year_of(df["Date_Parsed"].iloc[0])
         for team in all_teams:
             self.ratings[team] = DEFAULT_INITIAL_RATING
             self.history[team] = []
@@ -97,10 +360,34 @@ class EloEngine:
                 "goals_for": 0, "goals_against": 0,
                 "peak_elo": DEFAULT_INITIAL_RATING, "min_elo": DEFAULT_INITIAL_RATING,
             }
+        giorno_corrente = None
         for idx, row in df.iterrows():
             h_team = row["HomeClean"]
             a_team = row["AwayClean"]
             ftr = str(row["FTR"]).strip().upper()
+            season = season_start_year_of(row["Date_Parsed"])
+            # UN solo snapshot per giornata, preso PRIMA di qualunque sua
+            # partita: e' lo stato che il seed deve vedere. Le righe sono
+            # ordinate per data, quindi il cambio di data e' il momento esatto
+            # in cui congelarlo; dentro la giornata non si tocca piu'.
+            if pd.Timestamp(row["Date_Parsed"]).normalize() != giorno_corrente:
+                giorno_corrente = pd.Timestamp(row["Date_Parsed"]).normalize()
+                self._snapshot_day_start(season)
+            # Seeding d'ingresso (PR #35). `season` e' passata esplicitamente:
+            # il riferimento e' I(lega, stagione) della giornata che sta per
+            # essere processata, non "l'ultima processata". Se due squadre
+            # esbordiscono nella stessa partita i seed sono applicati in
+            # sequenza, in ordine alfabetico di nome: e' l'ordine con cui
+            # _entry_records elenca gli ingressi e con cui la variante S3
+            # dell'audit li assegna. Il riferimento letto e' I della stagione e
+            # non contiene gli ingressi (un ingresso non e' incumbent per
+            # costruzione), quindi l'ordine serve solo a rendere deterministico
+            # il risultato float, non a scegliere chi vede chi.
+            for team in sorted((h_team, a_team)):
+                if self._is_entry(team, season):
+                    self.ratings[team] = self.promoted_seed(season)
+            for team in (h_team, a_team):
+                self.entry_season[team] = season
             fthg = row.get("FTHG")
             ftag = row.get("FTAG")
             try:
@@ -169,6 +456,10 @@ class EloEngine:
                 "result": "V" if s_a == 1.0 else ("P" if s_a == 0.0 else "X"),
                 "elo_before": r_a, "elo_after": new_r_a, "delta": delta_a
             })
+        # Fine database: lo snapshot diventa lo stato di inizio della PROSSIMA
+        # giornata, cioe' quello che predict_elo_probs usa per una squadra che
+        # non ha ancora rating in lega. Stessa definizione del ramo storico.
+        self._snapshot_day_start()
         self.is_computed = True
         return self.ratings
 
@@ -302,12 +593,46 @@ def elo_probs_from_ratings(r_h: float, r_a: float, home_adv: float) -> dict:
     }
 
 
-def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:
+def predict_elo_probs(home_team: str, away_team: str, league_name: str,
+                      season: Optional[int] = None) -> dict:
+    """1X2 da Elo. ``season`` e' obbligatoria SOLO se serve il seed.
+
+    Se entrambe le squadre hanno gia' un rating in lega il valore di ``season``
+    non viene letto: il risultato non dipende dal seed e resta identico a
+    prima. Se invece una squadra non ha ancora rating (neopromossa non ancora
+    presente nei CSV, quindi alla sua prima partita) il seed serve, e allora
+    ``season=None`` solleva ``EloSeedError`` invece di ricadere su 1500: il
+    chiamante di produzione gira dentro un ``try/except`` che segna
+    ``elo_disponibile = False`` e lascia un WARNING, quindi il degrado e'
+    dichiarato e nessuna previsione viene inventata.
+    """
     engine = get_elo_engine(league_name)
     h_cl = clean_name(home_team)
     a_cl = clean_name(away_team)
-    r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)
-    r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)
+    r_h = engine.ratings.get(h_cl)
+    r_a = engine.ratings.get(a_cl)
+    # Squadra senza rating in questa lega = neopromossa alla prima partita e non
+    # ancora presente nei CSV: si applica lo stesso seeding di compute_ratings
+    # (media degli incumbent - 100), non DEFAULT_INITIAL_RATING. `season` e' la
+    # stagione della partita da prevedere (dato di calendario, noto prima del
+    # via): senza di lei l'ultimo giorno del database non direbbe a quale
+    # stagione appartiene la partita successiva, e il riferimento letto sarebbe
+    # quello dell'ultima stagione processata invece di quello giusto.
+    if r_h is None or r_a is None:
+        if season is None:
+            raise EloSeedError(
+                f"predict_elo_probs({home_team!r}, {away_team!r}, "
+                f"{league_name!r}): {'h' if r_h is None else 'a'} non ha un "
+                f"rating in lega, quindi serve il seed di ingresso, che "
+                f"richiede la stagione della partita. Passare season="
+                f"esplicitamente: senza, il riferimento sarebbe quello "
+                f"dell'ultima stagione processata "
+                f"({engine._day_start_season}) invece di quello giusto."
+            )
+    if r_h is None:
+        r_h = engine.promoted_seed(season)
+    if r_a is None:
+        r_a = engine.promoted_seed(season)
     return elo_probs_from_ratings(r_h, r_a, engine.home_adv)
 
 

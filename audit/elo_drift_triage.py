@@ -187,6 +187,24 @@ def regenerate_match_table() -> str:
     return "\n".join(clean_lines)
 
 
+class NoSeedEngine(EloEngine):
+    """Motore di produzione con il seeding degli ingressi DISATTIVATO.
+
+    E' la produzione PRIMA della PR che adotta il seeding S3, che e' il
+    riferimento storico di S0 e su cui sono misurate S1-S4. Dopo l'adozione il
+    motore di produzione applica il seeding, quindi il rerun di controllo
+    dell'audit non puo' piu' confrontarsi con la baseline Costruita dal motore
+    cosi' com'e': serve questo sottoinsieme.
+
+    Solo l'ingresso e' disattivato. Update Elo, moltiplicatore di scarto, xG e
+    ``elo_probs_from_ratings`` restano quelli di produzione, e la riga dei CSV
+    resta la stessa: nessuna modifica a ``models/elo_engine.py``.
+    """
+
+    def _is_entry(self, team: str, season: int) -> bool:   # noqa: D401
+        return False
+
+
 def _load_league_baseline(league: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
     """Ritorna (tabella walker con produzione, raw df, log di join) per lega."""
     baseline = pd.read_csv(BASELINE_OUTPUT)
@@ -201,7 +219,8 @@ def _load_league_baseline(league: str) -> tuple[pd.DataFrame, pd.DataFrame, str]
         raise AssertionError(f"chiavi duplicate nella tabella rigenerata: {league}")
 
     # Il motore e il walker esistenti sono la fonte dell'ordine e dello stato S0.
-    engine = EloEngine(league)
+    # S0 e' la produzione PRIMA del seeding degli ingressi (vedi NoSeedEngine).
+    engine = NoSeedEngine(league)
     engine.compute_ratings()
     raw = engine.matches_df.copy().reset_index(drop=True)
     walker = WALKER.build_walker_table(league, engine=engine).reset_index(drop=True)
@@ -259,22 +278,35 @@ def load_dataset() -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame], li
 def _entry_records(frame: pd.DataFrame) -> list[dict]:
     """Classifica gli ingressi usando solo la partecipazione nei CSV.
 
-    ``active_teams`` e' l'insieme delle squadre che hanno gia' una partita
-    precedente nel medesimo ordine di produzione; l'active_mean e' il rating S0
-    dopo l'ultima loro partita precedente. E' quindi una definizione
-    riproducibile di "attive prima del primo match" che include eventuali
-    partite della nuova stagione gia' processate prima dell'ingresso. Non usa
-    classifiche ufficiali o fonti esterne.
+    ``active_teams`` e' I(lega, stagione) = R(s) ∩ R(s−1), dove R e' l'insieme
+    delle squadre che compaiono nelle partite di quella stagione nei CSV: la
+    COMPOSIZIONE DEL CALENDARIO, nota prima del via (promozioni e retrocessioni
+    decise, calendario pubblicato), non un risultato futuro. E' quindi una
+    definizione riproducibile del riferimento del seed, identica a quella di
+    `EloEngine._snapshot_day_start`. Non usa classifiche ufficiali o fonti
+    esterne. L'active_mean e' letto sullo STATO DI INIZIO GIORNATA della
+    variante, quindi i rating sono quelli che le squadre avevano in quel
+    momento, anche se non hanno ancora giocato in stagione.
     """
     d = frame.sort_values("prod_order", kind="mergesort").reset_index(drop=False)
-    # state prima della riga, ottenuto da elo_after della tabella S0.
+    # state a INIZIO GIORNATA: la fotografia dei rating delle squadre che
+    # avevano gia' giocato quando la giornata e' iniziata. E' questo — non lo
+    # stato "in quel momento" — il riferimento del seed: cosi' il seed non
+    # dipende dall'ordine delle partite della stessa data e non usa risultati
+    # non disponibili prima del kickoff.
     state: dict[str, float] = {}
-    state_before: dict[int, dict[str, float]] = {}
+    state_season: dict[str, object] = {}
+    day_start: dict = {}
+    giorno_corrente = None
     for _, row in d.iterrows():
-        order = int(row["prod_order"])
-        state_before[order] = dict(state)
+        giorno = pd.Timestamp(row["date"]).normalize()
+        if giorno != giorno_corrente:
+            giorno_corrente = giorno
+            day_start[giorno] = (dict(state), dict(state_season))
         state[row["home"]] = float(row["elo_home_post"])
         state[row["away"]] = float(row["elo_away_post"])
+        state_season[row["home"]] = row["season"]
+        state_season[row["away"]] = row["season"]
 
     season_teams = {
         season: set(d.loc[d["season"] == season, ["home", "away"]].stack().astype(str))
@@ -305,8 +337,20 @@ def _entry_records(frame: pd.DataFrame) -> list[dict]:
             # neopromosse/ritorni.
             if not never and not returning:
                 continue
-            before = state_before[order]
-            active_teams = sorted(before)
+            before, before_season = day_start[
+                pd.Timestamp(d.loc[d["prod_order"] == order, "date"].iloc[0]).normalize()]
+            # I(lega, stagione) = R(s) ∩ R(s−1): le squadre che compongono
+            # il campionato nella stagione s e c'erano gia' nella precedente.
+            # R e' la COMPOSIZIONE DEL CALENDARIO (le partite di quella
+            # stagione nei CSV), nota prima del via, non un risultato.
+            # Stessa definizione di `EloEngine._snapshot_day_start`: gli
+            # incumbent sono un insieme fisso per tutta la stagione e il seed
+            # ne legge i rating allo stato di inizio della data d'ingresso,
+            # anche per chi non ha ancora giocato in stagione.
+            precedenti = [x for x in SEASONS if x < season]
+            prec = set(d.loc[d["season"] == precedenti[-1], ["home", "away"]]
+                       .stack().astype(str)) if precedenti else set()
+            active_teams = sorted(set(season_teams.get(season, set())) & prec)
             active_mean = float(np.mean([before[t] for t in active_teams])) if active_teams else np.nan
             stale = float(before.get(team, DEFAULT_INITIAL_RATING))
             s0_seed = DEFAULT_INITIAL_RATING if never else stale
@@ -360,13 +404,26 @@ class _CarryRatings(dict):
 
 
 def _seed_for_variant(name: str, rec: dict, carry: _CarryRatings) -> tuple[float, float, float, float | None]:
-    """(seed, active_mean_current, stale_current, weight_stale)."""
-    active = [float(carry[t]) for t in rec["active_teams"] if t in carry]
+    """(seed, active_mean_current, stale_current, weight_stale).
+
+    Il riferimento e' I(lega, stagione) = R(s) ∩ R(s−1), letto dallo stato di
+    inizio giornata della variante: chi non ha ancora giocato in stagione
+    porta il rating di fine stagione precedente, esattamente come in
+    ``EloEngine._snapshot_day_start``. Se I e' vuota — solo la prima stagione
+    del database, che non ha stagione precedente — il fallback dichiarato e'
+    DEFAULT_INITIAL_RATING e vale per tutte le varianti che seminano.
+    """
+    active = [float(carry[t]) for t in rec["active_teams"]]
     active_mean = float(np.mean(active)) if active else np.nan
     stale = float(carry.get(rec["team"], DEFAULT_INITIAL_RATING))
     if name == "S0":
+        # S0 non semina: il ritorno riparte dal rating stantio anche quando
+        # l'insieme attivo e' vuoto. Il fallback dichiarato vale solo per le
+        # varianti che semINANO dalla media attiva.
         return (DEFAULT_INITIAL_RATING if rec["never_seen"] else stale,
                 active_mean, stale, None)
+    if not active:
+        return (DEFAULT_INITIAL_RATING, active_mean, stale, None)
     if name == "S1":
         return (DEFAULT_INITIAL_RATING, active_mean, stale, None)
     if name == "S2":
@@ -400,20 +457,43 @@ def run_variant(
 
     all_teams = set(raw["HomeClean"]).union(set(raw["AwayClean"]))
     carry = _CarryRatings({t: float(DEFAULT_INITIAL_RATING) for t in all_teams})
-    engine = EloEngine(league)
+    # L'ingresso e' sempre assegnato dall'audit (S0 = nessun seed, S1-S4 =
+    # seed della variante): il motore di produzione non deve applicarne uno
+    # per conto proprio, altrimenti il confronto tra varianti non sarebbe
+    # quello dichiarato. Vedi NoSeedEngine.
+    engine = NoSeedEngine(league)
     engine.ratings = carry
     by_order: dict[int, list[dict]] = defaultdict(list)
     for rec in records:
         by_order[int(rec["prod_order"])].append(rec)
-    boundaries = sorted(set([0, len(raw)] + list(by_order)))
+    # I segmenti cominciano alla PRIMA riga di ogni giornata che contiene un
+    # ingresso: `carry` a quel punto e' esattamente lo stato di inizio
+    # giornata della variante, che e' il riferimento del seed. Tutti gli
+    # ingressi di quella giornata stanno dentro lo stesso segmento (e quindi
+    # leggono lo stesso snapshot); i confini NON sono le posizioni dei singoli
+    # ingressi, altrimenti il secondo della giornata leggerebbe lo stato
+    # modificato dal primo.
+    giorni = pd.to_datetime(d["date"], errors="coerce").dt.normalize()
+    prima_riga_del_giorno: dict = {}
+    for i, g in enumerate(giorni):
+        prima_riga_del_giorno.setdefault(g, i)
+    day_starts = {prima_riga_del_giorno[giorni.iloc[int(o)]] for o in by_order}
+    boundaries = sorted({0, len(raw)} | day_starts)
     output: list[dict] = []
     used_entries: dict[str, dict] = {}
 
     for start, end in zip(boundaries[:-1], boundaries[1:]):
         if start == end:
             continue
-        for rec in by_order.get(start, []):
-            seed, active_mean, stale, weight = _seed_for_variant(name, rec, carry)
+        # Tutti gli ingressi del segmento, non solo quelli sulla prima riga:
+        # condividono la giornata e quindi lo stesso snapshot di inizio. I seed
+        # si calcolano TUTTI prima di assegnarne uno qualsiasi, cosi' nessuno
+        # puo' vedere lo stato modificato da un altro.
+        ingressi = [r for o, rs in by_order.items() if start <= o < end
+                    for r in rs]
+        calcolati = [(rec,) + _seed_for_variant(name, rec, carry)
+                     for rec in ingressi]
+        for rec, seed, active_mean, stale, weight in calcolati:
             # S0 is a control: assigning the same value is harmless and makes
             # the entry evidence explicit; S1-S4 are the only altered seeds.
             carry[rec["team"]] = float(seed)
@@ -923,8 +1003,12 @@ def write_report(
 
     ap("## 3. Ingressi in lega")
     ap("")
-    ap("Media attiva prima del primo match = media dei rating S0 delle squadre "
-       "gia' apparse in una riga precedente nell'ordine del walker. `s0_seed` "
+    ap("Media attiva = media dei rating delle squadre ATTIVE AL INIZIO DELLA "
+       "GIORNATA della partita d'ingresso: sono quelle che avevano gia' "
+       "disputato una partita quando la giornata e' iniziata, con i rating di "
+       "quel momento. L'ordine delle partite della stessa data non influenza "
+       "il risultato e nel backtest il seed non usa risultati non ancora "
+       "disponibili al kickoff. `s0_seed` "
        "e' 1500 per mai viste e il rating stantio per ritorni; `s0_diff` e' "
        "s0_seed − media attiva. Per S1-S4 `*_active_mean`, `*_seed`, `*_diff` "
        "sono quelli effettivamente usati nella relativa rilanciata; quindi S2 "
@@ -953,11 +1037,14 @@ def write_report(
 
     ap("## 4. Varianti di seeding")
     ap("")
-    ap("S0 = produzione corrente. S1 = 1500 per tutti gli ingressi. S2 = media "
-       "attiva −50. S3 = media attiva −100. S4 = ritorni con `0.5^anni_assenza` "
-       "sul rating stantio verso media−100, mai viste a media−100. Nessun "
-       "parametro e' stimato. Le rilanciate partono dalla prima partita e "
-       "cambiano solo il seed prima della prima partita dell'ingresso.")
+    ap("S0 = produzione SENZA il seeding degli ingressi, cioe' la produzione "
+       "pre-adozione di S3 (`NoSeedEngine`: stesso motore, `_is_entry` sempre "
+       "falso, cosi' l'unica differenza rispetto alle altre varianti e' il "
+       "seed). S1 = 1500 per tutti gli ingressi. S2 = media attiva −50. "
+       "S3 = media attiva −100. S4 = ritorni con `0.5^anni_assenza` sul rating "
+       "stantio verso media−100, mai viste a media−100. Nessun parametro e' "
+       "stimato. Le rilanciate partono dalla prima partita e cambiano solo il "
+       "seed prima della prima partita dell'ingresso.")
     ap("")
     ap("L'evidenza dell'ordine usato e' nel file pesante per-partita; l'esecuzione "
        "ha prodotto anche `audit/output/elo_drift_triage_per_match.csv.gz` con "

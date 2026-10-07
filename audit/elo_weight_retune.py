@@ -371,7 +371,9 @@ def _md(df: pd.DataFrame, floatfmt="{:.6f}") -> str:
 def write_report(head, d, join_stats, art, parquet_ok, mism_all, mism_split,
                  splits, results, eqtabs, wstars, per_lg, w_star_train):
     L = []
-    ap = L.append
+    # nessuno spazio finale: `git diff --check` deve restare pulito
+    def ap(testo):
+        L.append(str(testo).rstrip())
     ap("# Ritaratura del peso w del blend 1X2 — walker Elo fedele alla produzione")
     ap("")
     ap(f"Generato: {datetime.now(timezone.utc).isoformat(timespec='seconds')} UTC  ")
