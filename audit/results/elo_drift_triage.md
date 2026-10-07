@@ -1,6 +1,6 @@
 # Triage deriva Elo e seeding delle neopromosse
 
-Generato sul commit `f6acf34343658b1a8fbadc029bb7dceb4ef6281e`. Data di esecuzione UTC: 2026-10-07T08:34:37.608085+00:00
+Generato sul commit `9acb02cc0e911272a8cbe1da822e860358198a21`. Data di esecuzione UTC: 2026-10-07T08:38:18.467219+00:00
 
 > **Audit di sola lettura. Nessuna modifica a `SoccerMath/`; nessuna variante e' stata applicata alla produzione.** S0 e' la produzione corrente; S1-S4 vivono esclusivamente in questo script di audit.
 
@@ -16,10 +16,10 @@ Le verifiche del punto 0 sono state eseguite prima di scrivere i nuovi file audi
 | OK | `git rev-parse --is-shallow-repository` dopo `git fetch --unshallow origin` | false |
 | OK | `.venv/bin/pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest` | exit 0; installazione completata |
 | OK | `.venv/bin/pip check` | No broken requirements found. |
-| OK | `.venv/bin/pytest -q audit/test_elo_walker_parity.py audit/test_elo_drift_triage.py SoccerMath/test_elo_probs_from_ratings.py` | 21 passed in 10.81s |
-| OK | `.venv/bin/python audit/elo_weight_retune.py` | 2026-10-07 08:33:56.791   [1/6] costruzione campione   Serie A          elo= 1570 poisson= 1570 join= 1570   Premier League   elo= 1570 poisson= 1570 join= 1570   La Liga          elo= 1591 poisson= 1591 join= 1591   Bundesliga       elo= 1260 poisson= 1260 join= 1260   Ligue 1          elo= 1343 poisson= 1343 join= 1343   totale righe: 7334 [2/6] artefatto per-partita   parquet=True righe=7334 [3/6] mismatch vecchia replica [4/6] griglia + bootstrap a blocchi   train (post burn-in) n=1752   validation 2024/25 n=1752   test 2025/26 n=1752   burn-in 2022/23 (solo descrittivo) n=1826 [5/6] dettaglio per lega [6/6] report scritto /home/user/SoccerMath2.0/audit/results/elo_weight_retune.md |
+| OK | `.venv/bin/pytest -q audit/test_elo_walker_parity.py audit/test_elo_drift_triage.py SoccerMath/test_elo_probs_from_ratings.py` | 21 passed in 11.63s |
+| OK | `.venv/bin/python audit/elo_weight_retune.py` | 2026-10-07 08:37:36.993   [1/6] costruzione campione   Serie A          elo= 1570 poisson= 1570 join= 1570   Premier League   elo= 1570 poisson= 1570 join= 1570   La Liga          elo= 1591 poisson= 1591 join= 1591   Bundesliga       elo= 1260 poisson= 1260 join= 1260   Ligue 1          elo= 1343 poisson= 1343 join= 1343   totale righe: 7334 [2/6] artefatto per-partita   parquet=True righe=7334 [3/6] mismatch vecchia replica [4/6] griglia + bootstrap a blocchi   train (post burn-in) n=1752   validation 2024/25 n=1752   test 2025/26 n=1752   burn-in 2022/23 (solo descrittivo) n=1826 [5/6] dettaglio per lega [6/6] report scritto /home/user/SoccerMath2.0/audit/results/elo_weight_retune.md |
 | OK | `git status --porcelain -- SoccerMath/` | (vuoto) |
-| OK | `git diff --name-only origin/main...HEAD` finale | .github/workflows/topmix_audit.yml SoccerMath/models/elo_engine.py SoccerMath/test_elo_probs_from_ratings.py SoccerMath/test_elo_promoted_seed.py SoccerMath/test_legacy_elo_engine.py audit/elo_drift_triage.py audit/fixtures/elo_probs_equivalence_main.jsonl.gz audit/fixtures/elo_probs_equivalence_main.manifest.json audit/fixtures/elo_s3_parity.json audit/fixtures/elo_walker_parity.json audit/make_elo_parity_fixture.py audit/make_elo_s3_parity_fixture.py audit/test_elo_probs_equivalence.py audit/test_elo_s3_parity.py audit/test_elo_walker_parity.py |
+| OK | `git diff --name-only origin/main...HEAD` finale | .github/workflows/topmix_audit.yml SoccerMath/models/elo_engine.py SoccerMath/test_elo_probs_from_ratings.py SoccerMath/test_elo_promoted_seed.py SoccerMath/test_legacy_elo_engine.py audit/elo_drift_triage.py audit/fixtures/elo_probs_equivalence_main.jsonl.gz audit/fixtures/elo_probs_equivalence_main.manifest.json audit/fixtures/elo_s3_parity.json audit/fixtures/elo_walker_parity.json audit/make_elo_parity_fixture.py audit/make_elo_s3_parity_fixture.py audit/results/elo_drift_triage.md audit/results/elo_weight_retune.md audit/test_elo_probs_equivalence.py audit/test_elo_s3_parity.py audit/test_elo_walker_parity.py |
 
 ### Ambiente e CI esistente
 
@@ -112,7 +112,7 @@ Output pesante corrispondente: `audit/output/elo_drift_triage_drift.csv`. Non vi
 
 ## 3. Ingressi in lega
 
-Media attiva prima del primo match = media dei rating S0 delle squadre gia' apparse in una riga precedente nell'ordine del walker. `s0_seed` e' 1500 per mai viste e il rating stantio per ritorni; `s0_diff` e' s0_seed − media attiva. Per S1-S4 `*_active_mean`, `*_seed`, `*_diff` sono quelli effettivamente usati nella relativa rilanciata; quindi S2 e S3 riportano anche la media attiva di quella rilanciata, non un valore ricalcolato a posteriori.
+Media attiva = media dei rating delle squadre ATTIVE AL INIZIO DELLA GIORNATA della partita d'ingresso: sono quelle che avevano gia' disputato una partita quando la giornata e' iniziata, con i rating di quel momento. L'ordine delle partite della stessa data non influenza il risultato e nel backtest il seed non usa risultati non ancora disponibili al kickoff. `s0_seed` e' 1500 per mai viste e il rating stantio per ritorni; `s0_diff` e' s0_seed − media attiva. Per S1-S4 `*_active_mean`, `*_seed`, `*_diff` sono quelli effettivamente usati nella relativa rilanciata; quindi S2 e S3 riportano anche la media attiva di quella rilanciata, non un valore ricalcolato a posteriori.
 
 | entry_id | league | season | team | type | last_seen_season | anni_assenza | n_active_before | active_mean_s0 | stale_s0 | s0_seed | s0_diff | S1_active_mean | S1_seed | S1_diff | S2_active_mean | S2_seed | S2_diff | S3_active_mean | S3_seed | S3_diff | S4_active_mean | S4_seed | S4_diff |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -293,7 +293,7 @@ Media attiva prima del primo match = media dei rating S0 delle squadre gia' appa
 
 ## 4. Varianti di seeding
 
-S0 = produzione corrente. S1 = 1500 per tutti gli ingressi. S2 = media attiva −50. S3 = media attiva −100. S4 = ritorni con `0.5^anni_assenza` sul rating stantio verso media−100, mai viste a media−100. Nessun parametro e' stimato. Le rilanciate partono dalla prima partita e cambiano solo il seed prima della prima partita dell'ingresso.
+S0 = produzione SENZA il seeding degli ingressi, cioe' la produzione pre-adozione di S3 (`NoSeedEngine`: stesso motore, `_is_entry` sempre falso, cosi' l'unica differenza rispetto alle altre varianti e' il seed). S1 = 1500 per tutti gli ingressi. S2 = media attiva −50. S3 = media attiva −100. S4 = ritorni con `0.5^anni_assenza` sul rating stantio verso media−100, mai viste a media−100. Nessun parametro e' stimato. Le rilanciate partono dalla prima partita e cambiano solo il seed prima della prima partita dell'ingresso.
 
 L'evidenza dell'ordine usato e' nel file pesante per-partita; l'esecuzione ha prodotto anche `audit/output/elo_drift_triage_per_match.csv.gz` con pre/post rating e probabilita' per S0-S4.
 
@@ -378,8 +378,8 @@ Il verdetto MERGEABLE/NON MERGEABLE qui sotto riguarda la PR di audit, non un ca
 | Esito | Comando | Evidenza/output |
 |---|---|---|
 | OK | `git status --porcelain -- SoccerMath/` | (vuoto) |
-| NON OK | `git diff --name-only origin/main...HEAD` | .github/workflows/topmix_audit.yml SoccerMath/models/elo_engine.py SoccerMath/test_elo_probs_from_ratings.py SoccerMath/test_elo_promoted_seed.py SoccerMath/test_legacy_elo_engine.py audit/elo_drift_triage.py audit/fixtures/elo_probs_equivalence_main.jsonl.gz audit/fixtures/elo_probs_equivalence_main.manifest.json audit/fixtures/elo_s3_parity.json audit/fixtures/elo_walker_parity.json audit/make_elo_parity_fixture.py audit/make_elo_s3_parity_fixture.py audit/test_elo_probs_equivalence.py audit/test_elo_s3_parity.py audit/test_elo_walker_parity.py |
-| OK | `git status --porcelain --branch` | ## arena/c2604760-soccermath2-0  M audit/elo_drift_triage.py  M audit/fixtures/elo_probs_equivalence_main.jsonl.gz  M audit/fixtures/elo_probs_equivalence_main.manifest.json  M audit/fixtures/elo_walker_parity.json  M audit/results/elo_weight_retune.md  M audit/test_elo_probs_equivalence.py |
+| NON OK | `git diff --name-only origin/main...HEAD` | .github/workflows/topmix_audit.yml SoccerMath/models/elo_engine.py SoccerMath/test_elo_probs_from_ratings.py SoccerMath/test_elo_promoted_seed.py SoccerMath/test_legacy_elo_engine.py audit/elo_drift_triage.py audit/fixtures/elo_probs_equivalence_main.jsonl.gz audit/fixtures/elo_probs_equivalence_main.manifest.json audit/fixtures/elo_s3_parity.json audit/fixtures/elo_walker_parity.json audit/make_elo_parity_fixture.py audit/make_elo_s3_parity_fixture.py audit/results/elo_drift_triage.md audit/results/elo_weight_retune.md audit/test_elo_probs_equivalence.py audit/test_elo_s3_parity.py audit/test_elo_walker_parity.py |
+| OK | `git status --porcelain --branch` | ## arena/c2604760-soccermath2-0 |
 
 **Verdetto PR: NON MERGEABLE.** Non e' stato eseguito alcun merge.
 
