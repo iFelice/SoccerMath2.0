@@ -407,12 +407,14 @@ def _seed_for_variant(name: str, rec: dict, carry: _CarryRatings) -> tuple[float
     active = [float(carry[t]) for t in rec["active_teams"] if t in carry]
     active_mean = float(np.mean(active)) if active else np.nan
     stale = float(carry.get(rec["team"], DEFAULT_INITIAL_RATING))
-    if not active:
-        # nessuna squadra attiva: nessun riferimento, nessuna variante
-        return (DEFAULT_INITIAL_RATING, active_mean, stale, None)
     if name == "S0":
+        # S0 non semina: il ritorno riparte dal rating stantio anche quando
+        # l'insieme attivo e' vuoto. Il fallback dichiarato vale solo per le
+        # varianti che semINANO dalla media attiva.
         return (DEFAULT_INITIAL_RATING if rec["never_seen"] else stale,
                 active_mean, stale, None)
+    if not active:
+        return (DEFAULT_INITIAL_RATING, active_mean, stale, None)
     if name == "S1":
         return (DEFAULT_INITIAL_RATING, active_mean, stale, None)
     if name == "S2":
