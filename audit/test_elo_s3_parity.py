@@ -202,25 +202,32 @@ class TestParitaBitExact(unittest.TestCase):
         for league, blk in self.fx["leagues"].items():
             righe = _produzione(league)
             per_partita: dict = {}
-            giornata: dict = {}      # stato cumulato della stagione in corso
             for e in blk["entries"].values():
                 per_partita.setdefault(e["prod_order"], []).append(e)
+            # R(lega, stagione): composizione DEL CALENDARIO, cioe' le squadre
+            # che compaiono nelle partite di quella stagione. Non e' un
+            # risultato futuro.
+            roster: dict = {}
+            for i2, r2 in enumerate(righe):
+                st2 = season_start_year_of(pd.Timestamp(r2["date"]))
+                roster.setdefault(st2, set()).update((r2["home"], r2["away"]))
+            # ultimo rating noto PRIMA della giornata in esame, per ogni squadra
+            ultimo: dict = {}        # squadra -> (indice, elo_post)
             stato: dict = {}          # squadra -> rating a inizio giornata
             giorno_corrente = None
-            stagione_corrente = None
             for i, r in enumerate(righe):
                 giorno = r["date"]
                 stagione = season_start_year_of(pd.Timestamp(giorno))
                 if giorno != giorno_corrente:
                     giorno_corrente = giorno
-                    # snapshot: la giornata non lo tocca. ATTIVE = chi ha gia'
-                    # giocato nella STAGIONE CORRENTE: quando la stagione
-                    # cambia, l'insieme riparte vuoto (e il seed cadrebbe sul
-                    # fallback dichiarato, 1500).
-                    if stagione != stagione_corrente:
-                        stagione_corrente = stagione
-                        giornata = {}
-                    stato = dict(giornata)
+                    # snapshot: la giornata non lo tocca. Il riferimento e'
+                    # I = R(s) ∩ R(s−1), fisso per tutta la stagione; per chi
+                    # non ha ancora giocato in stagione il rating e' quello di
+                    # fine stagione precedente.
+                    prec = max((x for x in roster if x < stagione), default=None)
+                    incumbent = (roster[stagione] & roster[prec]) if prec else set()
+                    stato = {t: ultimo[t][1] for t in sorted(incumbent)
+                             if t in ultimo}
                 for e in sorted(per_partita.get(i, []), key=lambda z: z["team"]):
                     self.assertEqual(len(stato), e["n_active_before"],
                                      f"{league} {e['team']}: squadre attive")
@@ -239,8 +246,8 @@ class TestParitaBitExact(unittest.TestCase):
                            else float(r["elo_away_pre"]))
                     self.assertEqual(repr(pre), e["seed"],
                                      f"{league} {e['team']}@{i}: seed produzione != seed S3")
-                giornata[r["home"]] = float(r["elo_home_post"])
-                giornata[r["away"]] = float(r["elo_away_post"])
+                ultimo[r["home"]] = (i, float(r["elo_home_post"]))
+                ultimo[r["away"]] = (i, float(r["elo_away_post"]))
 
     def test_parita_per_partita_bit_exact(self):
         diffs = []
