@@ -77,10 +77,10 @@ jobs:
         if: steps.salta.outputs.skip != 'true'
         run: mkdir -p "$AUDIT_OUT"
 
-      # `test_topmix_selector_parity.py` ha bisogno di `fetch-depth: 0` solo per il
-      # test di provenienza del fixture (confronto col blob): gli altri girano con
-      # la sola stdlib. Il check finale `git diff` resta l'unico guard di non-scrittura.
-      - name: Test diagnostici (nessuna scrittura registro)
+      # `fetch-depth: 0` serve ai test di provenienza (blob/commit e worktree)
+      # sia del selettore Top Mix sia dell'audit Elo: non ridurlo a un clone shallow.
+      # Il check finale `git diff` resta l'unico guard di non-scrittura.
+      - name: Test diagnostici Top Mix ed Elo (nessuna scrittura registro)
         if: steps.salta.outputs.skip != 'true'
         run: |
           python -m pytest \
@@ -93,6 +93,14 @@ jobs:
             audit/test_topmix_margins.py \
             SoccerMath/test_topmix_selector_parity.py \
             SoccerMath/test_topmix_shadow_gate.py \
+            audit/test_elo_s3_parity.py \
+            audit/test_elo_walker_parity.py \
+            audit/test_elo_probs_equivalence.py \
+            SoccerMath/test_elo_promoted_seed.py \
+            SoccerMath/test_elo_probs_from_ratings.py \
+            SoccerMath/test_legacy_elo_engine.py \
+            audit/test_elo_drift_triage.py \
+            audit/test_elo_conversion_audit.py \
             -q --tb=short
 
       - name: GET JSONBin Schalke–Bayern (sola lettura, mai PUT)
