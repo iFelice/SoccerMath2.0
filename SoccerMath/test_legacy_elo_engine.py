@@ -105,6 +105,8 @@ def _senza_docstring(src: str, nome_funzione: str) -> str:
 class TestUnicaDifferenza(unittest.TestCase):
     #: righe presenti SOLO nel legacy (boost xG) o spostate dal refactor PR #30
     RIMOSSE_ATTESE = [
+        # --- PR #35: first_season puo' essere None prima del primo ricalcolo ---
+        "from typing import Dict, List",
         # --- boost xG retroattivo, unica differenza di COMPORTAMENTO ---
         "from scraper_xg import get_understat_xg",
         "xg_data = get_understat_xg(self.league_name) or {}",
@@ -141,6 +143,8 @@ class TestUnicaDifferenza(unittest.TestCase):
     #: sparita, e nessuna riga NUOVA e' stata esclusa dalla lista: i docstring
     #: dei due metodi nuovi sono pinnati come tutto il resto del codice.
     AGGIUNTE_ATTESE = [
+        # --- PR #35: stato degli ingressi in lega (una sola riga di import) ---
+        'from typing import Dict, List, Optional',
         'season_start_year_of,',
         '',
         '#: Distacco applicato al seeding delle squadre che ENTRANO in una lega.',
@@ -164,7 +168,7 @@ class TestUnicaDifferenza(unittest.TestCase):
         '# disputata da ciascuna squadra e stagione della prima partita del',
         '# database, che resta il burn-in e non genera ingressi.',
         'self.entry_season: Dict[str, int] = {}',
-        'self.first_season: int = None',
+        'self.first_season: Optional[int] = None',
         '',
         'def _is_entry(self, team: str, season: int) -> bool:',
         '"""La squadra ``team`` sta giocando la sua prima partita in lega?',

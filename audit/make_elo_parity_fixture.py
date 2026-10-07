@@ -221,16 +221,39 @@ def main():
                     n_trunc = int(len(eng_t.matches_df))
                     probs = _probs_via_production(
                         lg, eng_t, [(row["HomeTeam"], row["AwayTeam"])])[0]
+                    # Il loader di produzione riordina per data con un sort
+                    # instabile: sul DB troncato le partite della stessa
+                    # giornata possono quindi NON essere nello stesso ordine
+                    # del walker. Senza il seeding l'ordine dentro la giornata
+                    # e' irrilevante (le partite di una giornata sono
+                    # disgiunte: nessuna squadra gioca due volte lo stesso
+                    # giorno, verificato su tutti i 2445 blocchi); col seeding
+                    # non lo e' piu', perche' il seed di una neo-promossa
+                    # dipende da quali partite della giornata sono state
+                    # gia' processate. Si registra quindi anche se i due
+                    # motori hanno mangiato le righe nello stesso ordine:
+                    # il test asserisce la parita' bit-exact esattamente li'.
+                    ordine_walker = list(zip(full.iloc[:n_trunc]["HomeClean"],
+                                            full.iloc[:n_trunc]["AwayClean"]))
+                    ordine_troncato = list(zip(eng_t.matches_df["HomeClean"],
+                                               eng_t.matches_df["AwayClean"]))
+                    # Rating realmente usati dalla produzione: se la squadra
+                    # non e' ancora nel DB troncato predict_elo_probs passa
+                    # engine.promoted_seed(), non DEFAULT_INITIAL_RATING.
+                    def _rating_usato(team):
+                        r = eng_t.ratings.get(team)
+                        return float(r if r is not None else eng_t.promoted_seed())
                     fixture["leagues"][lg]["cutoff_cases"].append({
                         "cutoff": str(cutoff.date()),
                         "n_matches_nel_motore_troncato": n_trunc,
                         "prod_pos_nel_db_completo": first_pos,
+                        "ordine_uguale_alla_produzione": ordine_walker == ordine_troncato,
                         "home_raw": row["HomeTeam"], "away_raw": row["AwayTeam"],
                         "home": row["HomeClean"], "away": row["AwayClean"],
                         "probs": probs["probs"],
                         "ratings_troncati": {
-                            row["HomeClean"]: repr(float(eng_t.ratings.get(row["HomeClean"], 1500.0))),
-                            row["AwayClean"]: repr(float(eng_t.ratings.get(row["AwayClean"], 1500.0))),
+                            row["HomeClean"]: repr(_rating_usato(row["HomeClean"])),
+                            row["AwayClean"]: repr(_rating_usato(row["AwayClean"])),
                         },
                     })
         finally:

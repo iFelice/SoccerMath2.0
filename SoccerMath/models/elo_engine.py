@@ -5,7 +5,7 @@ models/elo_engine.py - Motore di Calcolo Elo Rating Dinamico per M4-analist
 import math
 import time
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -72,7 +72,7 @@ class EloEngine:
         # disputata da ciascuna squadra e stagione della prima partita del
         # database, che resta il burn-in e non genera ingressi.
         self.entry_season: Dict[str, int] = {}
-        self.first_season: int = None
+        self.first_season: Optional[int] = None
 
     def _get_league_files(self) -> List[str]:
         # Risoluzione centralizzata in config: include anche i file il cui nome non
