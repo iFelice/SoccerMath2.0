@@ -47,7 +47,9 @@ for _p in (str(_AUDIT_DIR), str(_REPO_ROOT / "SoccerMath")):
         sys.path.insert(0, _p)
 
 import elo_walker_core as WALKER                        # noqa: E402
+from config import season_start_year_of                  # noqa: E402
 from models.elo_engine import (                          # noqa: E402
+    DEFAULT_INITIAL_RATING,
     EloEngine,
     PROMOTED_SEED_OFFSET,
     elo_probs_from_ratings,
@@ -205,16 +207,30 @@ class TestParitaBitExact(unittest.TestCase):
                 per_partita.setdefault(e["prod_order"], []).append(e)
             stato: dict = {}          # squadra -> rating a inizio giornata
             giorno_corrente = None
+            stagione_corrente = None
             for i, r in enumerate(righe):
                 giorno = r["date"]
+                stagione = season_start_year_of(pd.Timestamp(giorno))
                 if giorno != giorno_corrente:
                     giorno_corrente = giorno
-                    stato = dict(giornata)      # snapshot: la giornata non lo tocca
+                    # snapshot: la giornata non lo tocca. ATTIVE = chi ha gia'
+                    # giocato nella STAGIONE CORRENTE: quando la stagione
+                    # cambia, l'insieme riparte vuoto (e il seed cadrebbe sul
+                    # fallback dichiarato, 1500).
+                    if stagione != stagione_corrente:
+                        stagione_corrente = stagione
+                        giornata = {}
+                    stato = dict(giornata)
                 for e in sorted(per_partita.get(i, []), key=lambda z: z["team"]):
-                    media = float(np.mean([stato[t] for t in sorted(stato)]))
-                    seed = media + PROMOTED_SEED_OFFSET
                     self.assertEqual(len(stato), e["n_active_before"],
-                                     f"{league} {e['team']}: numero di squadre attive")
+                                     f"{league} {e['team']}: squadre attive")
+                    if not stato:
+                        # nessuna squadra attiva: fallback dichiarato
+                        media = float(np.nan)
+                        seed = float(DEFAULT_INITIAL_RATING)
+                    else:
+                        media = float(np.mean([stato[t] for t in sorted(stato)]))
+                        seed = media + PROMOTED_SEED_OFFSET
                     self.assertEqual(repr(media), e["active_mean"],
                                      f"{league} {e['team']}@{i}: media attiva != S3")
                     self.assertEqual(repr(seed), e["seed"],
