@@ -156,12 +156,16 @@ def _genera_in_ref(ref: str, out_path: Path, head: str) -> int:
 
 def main() -> int:
     head = _git("rev-parse", "HEAD")
-    dirty = _git("status", "--porcelain", "--", *PRODUCTION_INPUTS, *AUDIT_INPUTS)
-    if dirty:
-        raise SystemExit(
-            "RIFIUTO DI GENERARE: gli input di produzione/audit hanno modifiche non "
-            "committate, il commit dichiarato nel manifest non le descriverebbe.\n" + dirty
-        )
+    if "--interno" not in sys.argv:
+        # Fuori dal worktree i file devono essere gia' committati: e' il controllo
+        # che rende il manifest onesto. Dentro, i file di audit sono stati
+        # copiati da questo branch e sono per definizione quelli dichiarati.
+        dirty = _git("status", "--porcelain", "--", *PRODUCTION_INPUTS, *AUDIT_INPUTS)
+        if dirty:
+            raise SystemExit(
+                "RIFIUTO DI GENERARE: gli input di produzione/audit hanno modifiche non "
+                "committate, il commit dichiarato nel manifest non le descriverebbe.\n"
+                + dirty)
     out_path = Path(_arg("--out", str(OUT_PATH)))
     prod_commit = _arg("--prod-commit")
     audit_commit = _arg("--audit-commit")
