@@ -54,6 +54,7 @@ Esecuzione:
 """
 
 import contextlib
+import hashlib
 import inspect
 import json
 import os
@@ -421,6 +422,125 @@ class TestShowDetailsSelezionePuraProbabilitaBlendata(unittest.TestCase):
         self.assertAlmostEqual(prob, 70.0, places=6,
                                msg="con Elo ko la probabilita' salvata deve "
                                    "essere il Poisson puro")
+
+
+class TestPromptAnalisiRapidaElo(unittest.TestCase):
+    """Il fallback del prompt non spaccia il Poisson per Elo.
+
+    Gli hash sono stati catturati byte per byte da ``origin/main`` al commit
+    ``cea6a064bf5c55a0ee225f52489326af24a0fa81`` (merge PR #39), prima della
+    correzione. Coprono due partite e fissano il percorso con Elo disponibile.
+    """
+
+    CASI = (
+        {
+            "h": "Inter", "a": "Roma", "league": "Serie A",
+            "utc": "2026-10-18T18:45:00Z", "h_pos": 2, "a_pos": 7,
+            "h_ris": ["V 2-0", "N 1-1", "V 3-1", "P 0-1", "V 2-1", "V 1-0"],
+            "a_ris": ["P 0-2", "V 1-0", "N 2-2"],
+            "poisson": {"1": 0.512, "X": 0.247, "2": 0.241,
+                        "u25": 0.48, "gg": 0.54},
+            "elo": {"1": 0.601, "X": 0.233, "2": 0.166,
+                    "elo_diff": 137.4},
+            "main_bytes": 887,
+            "main_sha256": "ecc5bd054360309e11592f2f35cfa2a00df7a4d9396ee7ec7b35a872c5b84dd2",
+        },
+        {
+            "h": "Arsenal", "a": "Chelsea", "league": "Premier League",
+            "utc": "2027-02-06T12:30:00Z", "h_pos": "N/D", "a_pos": 4,
+            "h_ris": [],
+            "a_ris": ["N 0-0", "P 1-2", "V 4-0", "N 1-1", "V 2-0"],
+            "poisson": {"1": 0.4444, "X": 0.3001, "2": 0.2555,
+                        "u25": 0.51, "gg": 0.49},
+            "elo": {"1": 0.399, "X": 0.281, "2": 0.320,
+                    "elo_diff": -42.6},
+            "main_bytes": 895,
+            "main_sha256": "f689fc5e1b57a56aa0c76bc05d1aa30fcced944dccb6678147924d917e4e2371",
+        },
+    )
+
+    def _cattura_prompt(self, caso, *, elo_ko=False):
+        h, a, league = caso["h"], caso["a"], caso["league"]
+        stato = {
+            "live_data": [{
+                "homeTeam": {"shortName": h, "name": h},
+                "awayTeam": {"shortName": a, "name": a},
+                "id": 99001,
+                "utcDate": caso["utc"],
+            }],
+            "classifica": {
+                prod_app.clean_name(h): {"pos": caso["h_pos"]},
+                prod_app.clean_name(a): {"pos": caso["a_pos"]},
+            },
+        }
+        contesto = {
+            "h_risultati": list(caso["h_ris"]),
+            "a_risultati": list(caso["a_ris"]),
+            "h_infraset": [], "h_infraset_prog": [],
+            "a_infraset": [], "a_infraset_prog": [],
+        }
+        groq = mock.MagicMock()
+        risposta = mock.Mock()
+        risposta.choices = [mock.Mock(message=mock.Mock(
+            content='PRONOSTICO SICURO: "Pareggio - 25% - fixture"'))]
+        groq.chat.completions.create.return_value = risposta
+        m = dict(caso["poisson"], u15=0.30, u35=0.70)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(prod_app.st, "session_state", stato))
+            stack.enter_context(mock.patch.object(prod_app, "groq_client", groq))
+            stack.enter_context(mock.patch.object(
+                prod_app, "get_contesto_partita", return_value=(contesto, None)))
+            stack.enter_context(mock.patch.object(
+                prod_app, "calcola_segnali", return_value=(1.0, 1.0, None)))
+            stack.enter_context(mock.patch.object(
+                prod_app, "get_league_engine", return_value=None))
+            stack.enter_context(mock.patch.object(
+                prod_app, "get_full_poisson", return_value=dict(caso["poisson"])))
+            predittore = stack.enter_context(mock.patch.object(
+                prod_app, "predict_elo_probs",
+                side_effect=RuntimeError("Elo ko") if elo_ko else None,
+                return_value=None if elo_ko else dict(caso["elo"])))
+            stack.enter_context(mock.patch.object(
+                prod_app, "save_prediction_entry"))
+            stack.enter_context(mock.patch.object(
+                prod_app.st, "spinner", return_value=contextlib.nullcontext()))
+            for nome in ("markdown", "divider", "subheader", "metric",
+                         "success", "info", "error"):
+                stack.enter_context(mock.patch.object(prod_app.st, nome))
+            stack.enter_context(mock.patch.object(
+                prod_app.st, "columns",
+                return_value=(contextlib.nullcontext(), contextlib.nullcontext())))
+            stack.enter_context(mock.patch.object(
+                prod_app.st, "number_input", return_value=2.0))
+            avviso_ui = stack.enter_context(mock.patch.object(prod_app.st, "warning"))
+
+            inspect.unwrap(prod_app.show_details)(h, a, m, m, league, 8)
+
+        self.assertEqual(groq.chat.completions.create.call_count, 1)
+        predittore.assert_called_once()
+        prompt = groq.chat.completions.create.call_args.kwargs["messages"][0]["content"]
+        return prompt, avviso_ui
+
+    def test_elo_non_disponibile_e_dichiarato_senza_numeri_elo(self):
+        prompt, avviso_ui = self._cattura_prompt(self.CASI[0], elo_ko=True)
+        avviso = "Elo non disponibile per questa partita"
+        self.assertIn(f"- {avviso}", prompt)
+        self.assertIn("- Poisson: 1=51.2% | X=24.7% | 2=24.1%", prompt)
+        self.assertNotIn("- Elo:", prompt)
+        self.assertNotIn("diff Elo", prompt)
+        self.assertNotIn("elo_diff", prompt)
+        avviso_ui.assert_called_once_with(avviso)
+
+    def test_con_elo_il_prompt_resta_byte_identico_a_main(self):
+        for caso in self.CASI:
+            with self.subTest(partita=f"{caso['h']}-{caso['a']}"):
+                prompt, avviso_ui = self._cattura_prompt(caso)
+                dati = prompt.encode("utf-8")
+                self.assertEqual(len(dati), caso["main_bytes"])
+                self.assertEqual(hashlib.sha256(dati).hexdigest(),
+                                 caso["main_sha256"])
+                avviso_ui.assert_not_called()
 
 
 class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
