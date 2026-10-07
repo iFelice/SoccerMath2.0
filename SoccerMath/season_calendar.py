@@ -41,6 +41,11 @@ Qui vive anche il TERMINE della tolleranza pre-stagione (15 settembre
 dell'anno di inizio stagione): il limite temporale oltre il quale l'assenza
 della stagione nuova dai dati smette di essere un ritardo fisiologico e
 diventa un guasto da segnalare (vedi ``pre_season_deadline``).
+
+E il TERMINE della tolleranza per il roster (15 luglio dell'anno di inizio
+stagione): il limite oltre il quale l'assenza del roster della stagione nuova
+da ``database/season_rosters.json`` smette di essere \"calendario non ancora
+pubblicato\" e diventa un guasto (vedi ``roster_deadline``).
 """
 
 from __future__ import annotations
@@ -70,6 +75,31 @@ SEASON_WINDOW = 5
 # fallire in modo visibile invece di tollerare in silenzio.
 PRE_SEASON_TOLERANCE_MONTH = 9
 PRE_SEASON_TOLERANCE_DAY = 15
+
+# Termine della tolleranza per il ROSTER della stagione nuova (mese e giorno):
+# ultimo giorno in cui l'assenza del roster Y/Y+1 da
+# ``database/season_rosters.json`` e' considerata innocua (\"calendario non
+# ancora pubblicato\") invece che un guasto di acquisizione.
+#
+# Stessa logica della tolleranza pre-stagione della PR #27, ma con un termine
+# ANTERIORE al via: il roster serve fin da PRIMA della prima giornata (e' il
+# riferimento del seed Elo), quindi non puo' aspettare settembre. Valore
+# scelto SUI DATI, non per assunzione:
+#
+# * i calendari 2026/27 sono stati pubblicati a GIUGNO (Serie A: sorteggio al
+#   Teatro Regio di Parma il 05/06/2026; Premier League: fixture list alle
+#   10:00 BST del 19/06/2026): al 15/7 ogni lega ha avuto almeno 4 settimane
+#   per pubblicare;
+# * il primo kickoff piu' ANTICIPATO osservato sulle 25 combinazioni lega x
+#   stagione 2022/23 -> 2026/27 e' il 05/08 (2022/23: Bundesliga, Premier
+#   League, Ligue 1, stagione compressa dal Mondiale invernale): il 15/7 e'
+#   21 giorni prima di qualunque prima giornata mai osservata, quindi un
+#   roster assente al 15/7 non e' mai \"la stagione non e' ancora iniziata\"
+#   (quella inizia ad agosto) ma o un guasto (fetch rotto, salvataggio
+#   mancato) o un calendario eccezionale, e in entrambi i casi la catena deve
+#   fallire in modo visibile invece di tollerare fino al via senza seed.
+ROSTER_TOLERANCE_MONTH = 7
+ROSTER_TOLERANCE_DAY = 15
 
 DateLike = Union[datetime, date]
 
@@ -158,3 +188,28 @@ def within_pre_season_tolerance(season_start_year: int,
     if isinstance(when, datetime):
         when = when.date()
     return when <= pre_season_deadline(season_start_year)
+
+
+def roster_deadline(season_start_year: int) -> date:
+    """Ultimo giorno in cui l'assenza del roster della stagione indicata e'
+    tollerata: ``2026 -> 15/07/2026`` (vedi ``ROSTER_TOLERANCE_*`` per la
+    motivazione sui dati)."""
+    return date(int(season_start_year), ROSTER_TOLERANCE_MONTH,
+                ROSTER_TOLERANCE_DAY)
+
+
+def within_roster_tolerance(season_start_year: int,
+                            when: Optional[DateLike] = None) -> bool:
+    """True se ``when`` (default: adesso, data UTC) e' ancora entro la
+    finestra in cui l'assenza del roster della stagione ``season_start_year``
+    e' innocua, cioe' ``when`` <= 15 luglio dell'anno di inizio stagione.
+
+    Stesse convenzioni di ``within_pre_season_tolerance``: confronto a livello
+    di DATA, ``when`` accetta date, datetime o None (= oggi), limite solo
+    SUPERIORE (prima del 1° luglio la stagione non esiste ancora e l'assenza
+    resta ovviamente innocua)."""
+    if when is None:
+        when = datetime.now(timezone.utc)
+    if isinstance(when, datetime):
+        when = when.date()
+    return when <= roster_deadline(season_start_year)

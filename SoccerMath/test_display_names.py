@@ -435,23 +435,23 @@ class TestGuardiaSorgente(unittest.TestCase):
         self.assertIn("seleziona_riga_top_mix(m_poisson, elo_probs, elo_disponibile, h_disp, a_disp)",
                       self.src)
         self.assertIn('"home": h_disp, "away": a_disp', self.src)
-        # ...ma le chiavi restano sul grezzo
+        # ...ma le chiavi restano sul grezzo (la stagione esplicita non cambia i nomi)
         self.assertIn('h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})', self.src)
-        self.assertIn("predict_elo_probs(h, a, league)", self.src)
+        self.assertIn("predict_elo_probs(h, a, league, season=", self.src)
 
     def test_punto_analisi_rapida(self):
         self.assertIn('mercati = {f"Vittoria {h_disp}": m["1"]', self.src)
         self.assertIn("save_prediction_entry(m_id, h_disp, a_disp,", self.src)
-        # chiavi sul grezzo
+        # chiavi sul grezzo (la stagione esplicita non cambia i nomi)
         self.assertIn('team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0}), team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})',
                       self.src)
-        self.assertIn("blend_elo_into_1x2(m, h, a, camp_sel)", self.src)
+        self.assertIn("blend_elo_into_1x2(m, h, a, camp_sel, season=", self.src)
 
     def test_punto_card_partite(self):
         self.assertIn("{display_name(h_api)}<br>{display_name(a_api)}", self.src)
-        # chiavi sul grezzo
+        # chiavi sul grezzo (la stagione esplicita non cambia i nomi)
         self.assertIn('h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})', self.src)
-        self.assertIn("blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel)", self.src)
+        self.assertIn("blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel, season=", self.src)
         # show_details riceve il grezzo: dentro fa matching su live_data/classifica
         self.assertIn("args=(h_api, a_api, m, m_poisson, camp_sel, g_sel)", self.src)
 

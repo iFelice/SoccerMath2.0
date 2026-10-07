@@ -168,9 +168,23 @@ class TestUnicaDifferenza(unittest.TestCase):
     #: precedenti (l'estrazione di ``elo_probs_from_ratings``) e' cambiata o
     #: sparita, e nessuna riga NUOVA e' stata esclusa dalla lista: i docstring
     #: dei due metodi nuovi sono pinnati come tutto il resto del codice.
+    #:
+    #: La lista e' stata aggiornata una seconda volta dalla PR che rende il
+    #: roster disponibile fin da prima della prima giornata
+    #: (``season_rosters_with_file``): le righe nuove sono esattamente e
+    #: soltanto quelle di QUELLA modifica (import di
+    #: ``get_current_season_start_year`` e ``load_league_rosters``, funzione
+    #: ``season_rosters_with_file`` col suo docstring, e in ``compute_ratings``
+    #: la chiamata a ``season_rosters_with_file`` al posto di
+    #: ``season_rosters_from_matches``). Nessuna riga precedente e' cambiata o
+    #: sparita: ``predict_elo_probs``, il seeding, K, home advantage e la
+    #: conversione 1X2 restano quelli pinnati sopra.
     AGGIUNTE_ATTESE = [
         'from typing import Dict, List, Optional',
+        'get_current_season_start_year,',
         'season_start_year_of,',
+        '',
+        'from season_rosters import load_league_rosters',
         '',
         '#: Distacco applicato al seeding delle squadre che ENTRANO in una lega.',
         '#:',
@@ -228,6 +242,31 @@ class TestUnicaDifferenza(unittest.TestCase):
         'squadre = set(blocco["HomeClean"].unique()).union(',
         'set(blocco["AwayClean"].unique()))',
         'out[int(season)] = {str(t) for t in squadre}',
+        'return out',
+        '',
+        '',
+        'def season_rosters_with_file(league_name: str, df: pd.DataFrame) -> Dict[int, set]:',
+        '"""R(lega, stagione) dal file roster dove presente, altrimenti dalle giocate.',
+        '',
+        'Precedenza, stagione per stagione: il file versionato',
+        '``database/season_rosters.json`` (input offline e deterministico, salvato',
+        "da ``update_db.py`` dal calendario COMPLETO dell'API prima dello scarto",
+        'delle non giocate) vince sempre dove ha una voce; dove non ne ha, le',
+        'stagioni concluse ricadono sulle partite giocate come prima, mentre la',
+        'stagione CORRENTE resta senza roster e il seed solleva ``EloSeedError``',
+        'come oggi. La corrente non si ricava mai dalle giocate: a inizio stagione,',
+        "con poche partite disputate, l'insieme delle squadre viste sarebbe un",
+        'sottoinsieme del campionato e il riferimento del seed sarebbe sbagliato.',
+        '"""',
+        'giocate = season_rosters_from_matches(df)',
+        'try:',
+        'schedario = load_league_rosters(league_name)',
+        'except Exception:',
+        'schedario = {}',
+        'corrente = get_current_season_start_year()',
+        'out = {s: set(t) for s, t in giocate.items() if s != corrente}',
+        'for stagione, squadre in schedario.items():',
+        'out[int(stagione)] = {str(t) for t in squadre}',
         'return out',
         'def __init__(self, league_name: str, home_adv: float = None,',
         'base_k: float = BASE_K_FACTOR,',
@@ -432,7 +471,7 @@ class TestUnicaDifferenza(unittest.TestCase):
         'self.season_rosters = {int(k): {str(t) for t in v}',
         'for k, v in roster.items()}',
         'else:',
-        'self.season_rosters = season_rosters_from_matches(df)',
+        'self.season_rosters = season_rosters_with_file(self.league_name, df)',
         'self.first_season = season_start_year_of(df["Date_Parsed"].iloc[0])',
         'giorno_corrente = None',
         'season = season_start_year_of(row["Date_Parsed"])',

@@ -71,8 +71,8 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
             return app.calcola_righe_top_mix("Serie A", self.matches, _engine(self.stats))
 
     def test_due_liste_e_poisson_identico_per_partita(self):
-        cur_elo = lambda h, a, l: {"1": 0.70, "X": 0.18, "2": 0.12}
-        leg_elo = lambda h, a, l: {"1": 0.55, "X": 0.25, "2": 0.20}
+        cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
+        leg_elo = lambda h, a, l, season=None: {"1": 0.55, "X": 0.25, "2": 0.20}
         righe = self._righe(cur_elo, leg_elo)
         self.assertEqual({MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY}, set(righe))
         cur = {r["match_id"]: r for r in righe[MODEL_VARIANT_CURRENT]}
@@ -93,8 +93,8 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
     def test_tabelle_possono_contenere_partite_diverse(self):
         """Con l'Elo legacy in disaccordo (veto |P-E| >= 0.25) Inter-Roma sparisce
         SOLO dalla tabella legacy: nessuna coincidenza forzata fra le due."""
-        cur_elo = lambda h, a, l: {"1": 0.70, "X": 0.18, "2": 0.12}
-        leg_elo = lambda h, a, l: {"1": 0.20, "X": 0.30, "2": 0.50}
+        cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
+        leg_elo = lambda h, a, l, season=None: {"1": 0.20, "X": 0.30, "2": 0.50}
         righe = self._righe(cur_elo, leg_elo)
         cur_ids = {r["match_id"] for r in righe[MODEL_VARIANT_CURRENT]}
         leg_ids = {r["match_id"] for r in righe[MODEL_VARIANT_LEGACY]}
@@ -106,8 +106,8 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
         (< 0.55) la riga NON esiste per il legacy. E' la spiegazione misurata
         delle partite coperte solo dal modello attuale (vedi
         audit/results/replay_sym_offline/diagnosi_differenze.md)."""
-        cur_elo = lambda h, a, l: {"1": 0.70, "X": 0.18, "2": 0.12}
-        leg_elo = lambda h, a, l: {"1": 0.48, "X": 0.28, "2": 0.24}
+        cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
+        leg_elo = lambda h, a, l, season=None: {"1": 0.48, "X": 0.28, "2": 0.24}
         righe = self._righe(cur_elo, leg_elo)
         cur = {r["match_id"] for r in righe[MODEL_VARIANT_CURRENT]}
         leg = {r["match_id"] for r in righe[MODEL_VARIANT_LEGACY]}
@@ -117,7 +117,7 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
     def test_totali_identici_e_legacy_in_errore_isolato(self):
         """Elo legacy che solleva: la riga legacy resta Poisson puro (soglia 0,60),
         quella current non ne risente; sui Totali le due righe coincidono."""
-        cur_elo = lambda h, a, l: {"1": 0.70, "X": 0.18, "2": 0.12}
+        cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
 
         def leg_elo(h, a, l):
             raise RuntimeError("legacy rotto")
@@ -155,7 +155,7 @@ class TestNessunTetto(unittest.TestCase):
             def json(self):
                 return {"matches": matches}
 
-        elo = lambda h, a, l: {"1": 0.70, "X": 0.18, "2": 0.12}
+        elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
         with mock.patch.object(app.requests, "get", return_value=_Resp()), \
              mock.patch.object(app, "get_league_engine", return_value=_engine(stats)), \
              mock.patch.object(app, "predict_elo_probs", side_effect=elo), \

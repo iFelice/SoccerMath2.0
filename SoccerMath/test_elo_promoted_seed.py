@@ -580,25 +580,30 @@ class TestNessunFallbackSilenzioso(unittest.TestCase):
 
     def test_app_degrada_a_elo_non_disponibile_invece_di_1500(self):
         """I call site di app.py che stanno in try/except segnano il fallback
-        invece di usare un numero inventato."""
+        invece di usare un numero inventato, e passano la stagione esplicita
+        (da season_calendar) a predict_elo_probs."""
         src = Path(HERE, "app.py").read_text(encoding="utf-8")
-        for blocco in ("elo_probs = predict_elo_probs(h, a, league)",):
+        for blocco in ("elo_probs = predict_elo_probs(h, a, league, season=",):
             i = src.index(blocco)
             intorno = src[max(0, i - 260):i + 320]
             self.assertIn("elo_disponibile = True", intorno)
             self.assertIn("except Exception", intorno)
             self.assertIn("Elo non disponibile", intorno)
-        # Gli altri due chiamano senza stagione dentro try/except espliciti.
-        for chiamata in ("elo_p = predict_elo_probs(h, a, camp_sel)",
-                         "elo_p = predict_elo_probs(home, away, league)"):
+        # Gli altri due chiamano con stagione esplicita dentro try/except.
+        for chiamata in ("elo_p = predict_elo_probs(h, a, camp_sel, season=",
+                         "elo_p = predict_elo_probs(home, away, league, season="):
             i = src.index(chiamata)
             intorno = src[max(0, i - 200):i + 400]
             self.assertIn("except Exception", intorno)
-        # Nessun chiamante di produzione deve passare season=None a caso:
-        # tutti i predict_elo_probs di app.py sono a tre argomenti.
+        # Il selettore Elo del tab3 passa la stagione corrente esplicita (le
+        # due squadre vengono dalla classifica Elo, quindi hanno sempre un
+        # rating e il seed non serve: nessun try/except, come prima).
+        self.assertIn("sp = predict_elo_probs(sh, sa, camp_sel, season=", src)
+        # Ogni predict_elo_probs di produzione passa season esplicitamente
+        # (ricavata da season_calendar, mai None a caso nel codice app).
         for riga in src.splitlines():
             if "predict_elo_probs(" in riga and "legacy" not in riga:
-                self.assertNotIn("season=", riga, riga)
+                self.assertIn("season=", riga, riga)
 
 
 class TestNessunAltroCambiamento(unittest.TestCase):
