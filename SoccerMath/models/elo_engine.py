@@ -17,10 +17,13 @@ from config import (
     LEAGUE_PREFIX_MAP,
     LEAGUE_HOME_ADVANTAGE,
     clean_name,
+    get_current_season_start_year,
     get_league_db_files,
     get_market_values,
     season_start_year_of,
 )
+
+from season_rosters import load_league_rosters
 
 DEFAULT_INITIAL_RATING = 1500.0
 HOME_ADVANTAGE = 65.0
@@ -82,6 +85,31 @@ def season_rosters_from_matches(df: pd.DataFrame) -> Dict[int, set]:
         squadre = set(blocco["HomeClean"].unique()).union(
             set(blocco["AwayClean"].unique()))
         out[int(season)] = {str(t) for t in squadre}
+    return out
+
+
+def season_rosters_with_file(league_name: str, df: pd.DataFrame) -> Dict[int, set]:
+    """R(lega, stagione) dal file roster dove presente, altrimenti dalle giocate.
+
+    Precedenza, stagione per stagione: il file versionato
+    ``database/season_rosters.json`` (input offline e deterministico, salvato
+    da ``update_db.py`` dal calendario COMPLETO dell'API prima dello scarto
+    delle non giocate) vince sempre dove ha una voce; dove non ne ha, le
+    stagioni concluse ricadono sulle partite giocate come prima, mentre la
+    stagione CORRENTE resta senza roster e il seed solleva ``EloSeedError``
+    come oggi. La corrente non si ricava mai dalle giocate: a inizio stagione,
+    con poche partite disputate, l'insieme delle squadre viste sarebbe un
+    sottoinsieme del campionato e il riferimento del seed sarebbe sbagliato.
+    """
+    giocate = season_rosters_from_matches(df)
+    try:
+        schedario = load_league_rosters(league_name)
+    except Exception:
+        schedario = {}
+    corrente = get_current_season_start_year()
+    out = {s: set(t) for s, t in giocate.items() if s != corrente}
+    for stagione, squadre in schedario.items():
+        out[int(stagione)] = {str(t) for t in squadre}
     return out
 
 
@@ -350,7 +378,7 @@ class EloEngine:
             self.season_rosters = {int(k): {str(t) for t in v}
                                    for k, v in roster.items()}
         else:
-            self.season_rosters = season_rosters_from_matches(df)
+            self.season_rosters = season_rosters_with_file(self.league_name, df)
         self.first_season = season_start_year_of(df["Date_Parsed"].iloc[0])
         for team in all_teams:
             self.ratings[team] = DEFAULT_INITIAL_RATING

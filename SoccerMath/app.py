@@ -39,6 +39,7 @@ from config import (
     FOOTBALL_DATA_API_KEY, GROQ_API_KEY, ODDS_API_KEY, JSONBIN_API_KEY, JSONBIN_BIN_ID,
     PREDICTIONS_FILE, LEAGUES_CONFIG, LEAGUE_CODE_MAP, LEAGUE_PREFIX_MAP, CURRENT_SEASON, clean_name, DATABASE_DIR,
     LEAGUE_HOME_ADVANTAGE, get_league_db_files, season_label, season_start_year,
+    season_start_year_of, get_current_season_start_year,
 )
 from prediction_registry import (
     origin_of,
@@ -108,6 +109,21 @@ def format_date_italy(utc_date_str, fmt="%d/%m | %H:%M"):
         return dt.astimezone(ITALY_TZ).strftime(fmt)
     except Exception:
         return "Data N/D"
+
+def _stagione_da_utcdate(utc_date_str):
+    """Anno di inizio stagione del calcio d'inizio (confine unico 1° luglio).
+
+    Serve a ``predict_elo_probs``: il seed di una squadra senza rating ha
+    bisogno della stagione della partita da prevedere (dato di calendario,
+    noto prima del via). Se la data manca o e' illeggibile si ricade sulla
+    stagione corrente: non deve mai alzare, altrimenti una ``utcDate`` rotta
+    cancellerebbe l'intera partita invece di degradare l'Elo.
+    """
+    try:
+        dt = datetime.fromisoformat(str(utc_date_str).replace("Z", "+00:00"))
+        return season_start_year_of(dt)
+    except Exception:
+        return get_current_season_start_year()
 
 def calcola_stagione_calcolo(data_str):
     """Etichetta di stagione ("2026/2027") della data di una partita.
@@ -652,7 +668,7 @@ POISSON_1X2_WEIGHT = 0.25
 ELO_ENSEMBLE_W = POISSON_1X2_WEIGHT
 
 
-def blend_elo_into_1x2(m, home, away, league, w=POISSON_1X2_WEIGHT, elo_probs=None, elo_disponibile=True):
+def blend_elo_into_1x2(m, home, away, league, w=POISSON_1X2_WEIGHT, elo_probs=None, elo_disponibile=True, season=None):
     """Ritorna una COPIA del dizionario Poisson con l'1X2 nella forma
     ``w*Poisson + (1-w)*Elo`` (peso Poisson = ``POISSON_1X2_WEIGHT``, valore
     attualmente in produzione). I Totali (u15/u25/u35/gg) e ogni
@@ -667,12 +683,16 @@ def blend_elo_into_1x2(m, home, away, league, w=POISSON_1X2_WEIGHT, elo_probs=No
     ritorna il Poisson puro invece di ricadere sull'Elo dell'altro motore.
     Senza questa distinzione la riga "legacy" senza Elo legacy verrebbe
     calcolata con l'Elo ATTUALE e sembrerebbe un risultato del motore legacy.
+
+    ``season`` e' la stagione della partita (anno di inizio, da
+    ``season_calendar``): viene passata a ``predict_elo_probs`` quando serve
+    il seed. I chiamanti di produzione la passano sempre esplicitamente.
     """
     out = dict(m)
     if not elo_disponibile:
         return out
     try:
-        elo_p = predict_elo_probs(home, away, league) if elo_probs is None else elo_probs
+        elo_p = predict_elo_probs(home, away, league, season=season) if elo_probs is None else elo_probs
     except Exception:
         return out
     for k in ("1", "X", "2"):
@@ -1563,7 +1583,7 @@ def calcola_righe_top_mix(league, matches, engine):
         # decisione resta nella funzione pura.
         elo_probs, elo_disponibile = None, False
         try:
-            elo_probs = predict_elo_probs(h, a, league)
+            elo_probs = predict_elo_probs(h, a, league, season=_stagione_da_utcdate(match.get('utcDate')))
             elo_disponibile = True
         except Exception as e:
             logging.warning(f"Elo non disponibile per {h} vs {a} ({league}): {e}")
@@ -1729,9 +1749,10 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             # l'Elo del motore) e la variante scritta nel Registro. Cosi' anche
             # l'Analisi Rapida si legge come i due modelli del Top Mix invece di
             # essere un'unica riga non confrontabile.
+            stagione_partita = _stagione_da_utcdate(match.get('utcDate'))
             for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
                 if variante == MODEL_VARIANT_CURRENT:
-                    m_blend = blend_elo_into_1x2(m, h, a, camp_sel)
+                    m_blend = blend_elo_into_1x2(m, h, a, camp_sel, season=stagione_partita)
                     elo_disp = True
                 else:
                     m_blend = blend_elo_into_1x2(m, h, a, camp_sel, elo_probs=elo_legacy,
@@ -1754,10 +1775,10 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
 
 @st.dialog("STRATEGIC ANALYSIS", width="large")
 def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
-    match_id, match_date_str = None, ""
+    match_id, match_date_str, match_utc = None, "", None
     for mx in st.session_state.get("live_data", []):
         if clean_name(h) in clean_name(mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name","")):
-            match_id = mx.get("id"); match_date_str = format_date_italy(mx["utcDate"], "%d/%m/%Y %H:%M"); break
+            match_id = mx.get("id"); match_date_str = format_date_italy(mx["utcDate"], "%d/%m/%Y %H:%M"); match_utc = mx.get("utcDate"); break
     # Selezione (argmax) sui 7 mercati POISSON PURO (m_poisson calcolato in
     # tab1 PRIMA del blend): il blend 1X2 dentro l'argmax sposta le scelte
     # verso i Totali e peggiora la qualita' della selezione
@@ -1817,7 +1838,7 @@ def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
             # Il prompt ragionato ha bisogno di questi dati: senza di essi un
             # NameError verrebbe inghiottito dal try/except e Billy non risponderebbe.
             try:
-                elo_p = predict_elo_probs(h, a, camp_sel)
+                elo_p = predict_elo_probs(h, a, camp_sel, season=_stagione_da_utcdate(match_utc))
             except Exception as e:
                 logging.warning(f"Elo non disponibile per {h} vs {a}: {e}")
                 elo_p = {'1': p1, 'X': pX, '2': p2, 'elo_diff': 0.0}
@@ -2098,7 +2119,7 @@ with tab1:
             # (u25/gg) restano Poisson puro. m_poisson (puro)
             # viene passato a show_details per la selezione (argmax): il blend
             # deve restare fuori dall'argmax, come in analisi_rapida_giornata().
-            m = blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel)
+            m = blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel, season=_stagione_da_utcdate(match.get('utcDate')))
             with st.container():
                 st.markdown('<div class="match-card">', unsafe_allow_html=True)
                 c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])
@@ -2275,7 +2296,7 @@ with tab3:
         with c1: sh = st.selectbox("Casa", teams, key="sh")
         with c2: sa = st.selectbox("Trasf.", teams, index=1 if len(teams)>1 else 0, key="sa")
         if sh and sa:
-            sp = predict_elo_probs(sh, sa, camp_sel)
+            sp = predict_elo_probs(sh, sa, camp_sel, season=get_current_season_start_year())
             st.markdown(f"<div style='background:#30363d; height:24px; display:flex; overflow:hidden; margin-top:10px; border-radius:8px;'><div style='width:{sp['1']*100}%; background:#28a745; text-align:center; color:white; font-size:12px; font-weight:700; line-height:24px;'>1: {sp['1']:.0%}</div><div style='width:{sp['X']*100}%; background:#ffc107; text-align:center; color:black; font-size:12px; font-weight:700; line-height:24px;'>X: {sp['X']:.0%}</div><div style='width:{sp['2']*100}%; background:#dc3545; text-align:center; color:white; font-size:12px; font-weight:700; line-height:24px;'>2: {sp['2']:.0%}</div></div>", unsafe_allow_html=True)
 
 with tab4:

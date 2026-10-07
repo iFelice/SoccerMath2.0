@@ -207,7 +207,7 @@ class TestFetchAndCalcTopMix(unittest.TestCase):
             body = payload_sa if code == "SA" else {"matches": []}
             return mock.Mock(status_code=200, json=lambda: body)
 
-        fake_elo = lambda h, a, league: {"1": 0.62, "X": 0.22, "2": 0.16, "elo_diff": 80}
+        fake_elo = lambda h, a, league, season=None: {"1": 0.62, "X": 0.22, "2": 0.16, "elo_diff": 80}
         engine = (self._team_stats(), 1.45, 1.15, None)
 
         with mock.patch.object(app.requests, "get", side_effect=fake_get), \

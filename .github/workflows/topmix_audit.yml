@@ -98,6 +98,7 @@ jobs:
             audit/test_elo_probs_equivalence.py \
             SoccerMath/test_elo_promoted_seed.py \
             SoccerMath/test_elo_probs_from_ratings.py \
+            SoccerMath/test_season_rosters.py \
             SoccerMath/test_legacy_elo_engine.py \
             audit/test_elo_drift_triage.py \
             audit/test_elo_conversion_audit.py \

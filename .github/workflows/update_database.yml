@@ -51,7 +51,19 @@ jobs:
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
         run: python update_db.py
-      
+
+      # Roster della stagione corrente (season_rosters.json, salvato da
+      # update_db.py dal calendario API prima dello scarto delle non giocate):
+      # dopo il 15 luglio deve esserci ed essere completo (20 squadre, 18 per
+      # Bundesliga e Ligue 1), altrimenti il job fallisce con errore esplicito
+      # invece di girare senza seed Elo. Prima del termine l'assenza e'
+      # ammessa (calendario non ancora pubblicato: stessa logica della
+      # tolleranza pre-stagione della PR #27; calendari 2026/27 pubblicati a
+      # giugno, primo kickoff mai prima del 05/08). Il controllo e' anche
+      # dentro update_db.py: questo passo lo rende esplicito nel workflow.
+      - name: Verifica roster stagione corrente
+        run: python season_rosters.py --check
+
       # Lo scraping xG NON avviene piu' qui: l'unica acquisizione Understat e'
       # .github/workflows/update_xg.yml (update_all_xg_db.py + update_xg.py).
       # Lasciarlo qui significava un secondo download, con uno snapshot diverso
@@ -64,7 +76,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           git config --global user.name "M4 Bot"
           git config --global user.email "action@github.com"
-          git add -A -- 'SoccerMath/database/*.csv'
+          git add -A -- 'SoccerMath/database/*.csv' 'SoccerMath/database/season_rosters.json'
           if git diff --cached --quiet; then
             echo "Nessun cambiamento: niente da committare."
             exit 0

@@ -63,6 +63,10 @@ sys.path.insert(0, HERE)
 # fixture PRE resta significativa: se il layer display toccasse un numero,
 # questo test continuerebbe a vederlo.
 from display_names import display_name  # noqa: E402
+# Il percorso nuovo deriva la stagione della partita da ``utcDate`` con
+# l'helper reale di app.py: servono le due funzioni di stagione nel namespace.
+from season_calendar import season_start_year_of  # noqa: E402
+from config import get_current_season_start_year  # noqa: E402
 
 
 def _carica_fixture():
@@ -339,6 +343,8 @@ def _esegui(vecchio: bool, elemi):
         "get_full_poisson_two_heads": _poisson_stub(mondo),
         "predict_elo_probs": _elo_stub(mondo),
         "requests": _Requests(mondo),
+        "season_start_year_of": season_start_year_of,
+        "get_current_season_start_year": get_current_season_start_year,
     }
     # La scelta della giornata e' la STESSA funzione reale di app.py in entrambi i
     # namespace: il refactor non la tocca, e condividerla garantisce che le due
@@ -356,8 +362,8 @@ def _esegui(vecchio: bool, elemi):
         ns["MODEL_VARIANT_CURRENT"] = "current"
         ns["MODEL_VARIANT_LEGACY"] = "legacy"
         ns["predict_elo_probs_legacy"] = _elo_legacy_stub(mondo)
-        for nome in ("seleziona_riga_top_mix", "_riga_top_mix", "calcola_righe_top_mix",
-                     "classifica_top_mix", "fetch_and_calc_top_mix"):
+        for nome in ("_stagione_da_utcdate", "seleziona_riga_top_mix", "_riga_top_mix",
+                     "calcola_righe_top_mix", "classifica_top_mix", "fetch_and_calc_top_mix"):
             exec(_blocco(SRC, nome), ns)
         top_current, top_legacy, missing = ns["fetch_and_calc_top_mix"]()
         completo = {"top_current": top_current, "top_legacy": top_legacy, "missing": missing}
@@ -377,7 +383,7 @@ def _poisson_stub(mondo):
 
 
 def _elo_stub(mondo):
-    def stub(h, a, league):
+    def stub(h, a, league, season=None):
         spec = mondo["elo"][mondo["nomi"][_clean_name(h)]]
         if isinstance(spec, Exception):
             raise spec
