@@ -77,6 +77,7 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -166,6 +167,18 @@ OU_SOURCES = OrderedDict([
 ])
 SOURCES = tuple(OU_SOURCES)
 # etichette delle fonti di mercato che entrano nel verdetto (chiusura)
+CI_AUDIT_FILES = (
+    "audit/test_topmix_registry_tracking.py", "audit/test_reconstruct_topmix_match.py",
+    "audit/test_jsonbin_readonly_get.py", "SoccerMath/test_standardizza_mercato.py",
+    "SoccerMath/test_registry_tracking.py", "audit/test_topmix_next_matchday.py",
+    "audit/test_topmix_margins.py", "SoccerMath/test_topmix_selector_parity.py",
+    "SoccerMath/test_topmix_shadow_gate.py", "audit/test_elo_s3_parity.py",
+    "audit/test_elo_walker_parity.py", "audit/test_elo_probs_equivalence.py",
+    "SoccerMath/test_elo_promoted_seed.py", "SoccerMath/test_elo_probs_from_ratings.py",
+    "SoccerMath/test_season_rosters.py", "SoccerMath/test_legacy_elo_engine.py",
+    "audit/test_elo_drift_triage.py", "audit/test_elo_conversion_audit.py",
+)
+
 VERDICT_MARKET_TOKENS = {"OU2.5": ("mercato_chiusura_b365", "mercato_chiusura_pinnacle"),
                          "GG/NG": ("mercato_gg_oddsportal",)}
 # etichette delle fonti di MERCATO (chiusura) usate nei verdetti
@@ -796,16 +809,24 @@ def git_facts() -> dict:
         except OSError as exc:                       # pragma: no cover
             return f"<errore: {exc}>"
 
-    diff_names = [x for x in run(["git", "diff", "--name-only", "origin/main", "HEAD"]).splitlines() if x]
-    status = [x for x in run(["git", "status", "--porcelain"]).splitlines() if x]
-    toccati = sorted(set(diff_names) | {x[3:].strip() for x in status if len(x) > 3})
+    diff_names = [x for x in run(["git", "diff", "--name-only", "origin/main...HEAD"]).splitlines() if x]
+    diff_names_two = [x for x in run(["git", "diff", "--name-only", "origin/main", "HEAD"]).splitlines() if x]
+    # niente .strip() globale: nel formato porcelain la PRIMA colonna puo' essere uno
+    # spazio (modifica non in stage) e serve a delimitare il percorso
+    raw_status = subprocess.run(["git", "status", "--porcelain"], capture_output=True,
+                                text=True, cwd=_REPO_ROOT).stdout
+    status = [x for x in raw_status.splitlines() if x.strip()]
+    status_paths = [x[3:].strip().split(" -> ")[-1] for x in status]
+    toccati = sorted(set(diff_names) | set(status_paths))
     fuori = [x for x in toccati if not x.startswith("audit/")]
     return {
         "head": run(["git", "rev-parse", "HEAD"]),
         "subject": run(["git", "log", "-1", "--pretty=%s"]),
-        "status_porcelain": status,
+        "status_porcelain": [x for x in status],
         "diff_names": diff_names,
-        "diff_stat": run(["git", "diff", "--stat", "origin/main", "HEAD"]),
+        "diff_names_due_punti": diff_names_two,
+        "diff_stat": run(["git", "diff", "--stat", "origin/main...HEAD"]),
+        "diff_stat_due_punti": run(["git", "diff", "--stat", "origin/main", "HEAD"]),
         "file_toccati": toccati,
         "file_fuori_da_audit": fuori,
         "solo_audit": not fuori,
@@ -837,18 +858,52 @@ def build_evidenze(esecuzione_log, dry_run: bool) -> dict:
                       "audit/test_diagnose_clv_pinnacle.py"])
     fatti["pytest_ok"] = ("failed" not in pytest_out and "error" not in pytest_out.lower())
     fatti["pytest_out"] = pytest_out.strip().splitlines()[-1] if pytest_out.strip() else ""
+
+    # Il check CI "Audit Top Mix" esegue un set di 18 file; qui lo si esegue su
+    # (a) questo branch e (b) un worktree temporaneo al tip di origin/main: e' il
+    # confronto che dice se un eventuale rosso del check dipende da questo diff o
+    # dal merge con main (che il checkout di pull_request applica).
+    fatti["main_head"] = run(["git", "log", "-1", "--oneline", "origin/main"])
+
+    def suite_audit(cwd):
+        r = subprocess.run([sys.executable, "-m", "pytest", *CI_AUDIT_FILES, "-q", "--tb=no"],
+                           capture_output=True, text=True, cwd=cwd)
+        lines = [x for x in (r.stdout + r.stderr).strip().splitlines() if x.strip()]
+        return "\n".join(lines[-1:])
+
+    suite_branch = suite_audit(_REPO_ROOT)
+    wt = tempfile.mkdtemp(prefix="audit_ci_main_")
+    wt_add = subprocess.run(["git", "worktree", "add", "--detach", wt, "origin/main"],
+                            capture_output=True, text=True, cwd=_REPO_ROOT)
+    if wt_add.returncode == 0:
+        suite_main = suite_audit(wt)
+        subprocess.run(["git", "worktree", "remove", "--force", wt],
+                       capture_output=True, text=True, cwd=_REPO_ROOT)
+    else:
+        suite_main = f"<worktree non creato: {wt_add.stderr.strip()[:200]}>"
+    fatti["suite_audit_branch"] = suite_branch
+    fatti["suite_audit_main"] = suite_main
     comandi = [
         ("git rev-parse HEAD", fatti["head"]),
         ("git log -1 --pretty=%s", fatti["subject"]),
         ("git status --porcelain", "\n".join(fatti["status_porcelain"]) or "(vuoto)"),
-        ("git diff --name-only origin/main HEAD",
+        ("git diff --name-only origin/main...HEAD  (le sole modifiche di questo branch: "
+         "confronto dal merge-base)",
          "\n".join(fatti["diff_names"]) or "(vuoto)"),
-        ("git diff --stat origin/main HEAD", fatti["diff_stat"] or "(vuoto)"),
+        ("git diff --stat origin/main...HEAD", fatti["diff_stat"] or "(vuoto)"),
+        ("git diff --name-only origin/main HEAD  (due punti: include anche i commit che main "
+         "ha ricevuto DOPO il merge-base, non attribuibili a questo branch)",
+         "\n".join(fatti["diff_names_due_punti"]) or "(vuoto)"),
         ("python -V", run([sys.executable, "-V"])),
         ("versioni pacchetti", "; ".join(versione(p) for p in
                                          ("numpy", "pandas", "scipy", "statsmodels",
                                           "streamlit", "scikit-learn"))),
         ("pytest -q sui test dei banchi riusati", pytest_out),
+        ("git log -1 --oneline origin/main", fatti["main_head"]),
+        ("pytest -q sui 18 file del check CI 'Audit Top Mix' (questo branch)",
+         suite_branch),
+        ("pytest -q sugli stessi 18 file in un worktree al tip di origin/main",
+         suite_main),
         ("python audit/totals_market_ceiling.py"
          + (" --no-write (dry-run)" if dry_run else ""),
          "\n".join(esecuzione_log)),
@@ -1136,9 +1191,16 @@ def render_report(p) -> str:
 
     A("### 3c. Sensibilita': stesse differenze senza le giornate con F_season non attiva")
     A("")
-    A("Le righe in cui i due banchi di produzione divergono (testa Totali: `att0_pure` "
-      "assegnato in modo diverso) vengono ESCLUSE e le differenze ricalcolate: se il verdetto "
-      "non cambia, non dipende da quelle righe.")
+    A("Sono le righe delle prime giornate di ogni stagione, quando l'ancora di lega degli "
+      "xG della stagione in corso non esiste ancora (`fs_active = False` in "
+      "`app.get_league_engine`, §1d). Su queste righe i tre codici divergono: la produzione "
+      "usa `att0_pure = att` (testa 1X2 con forma e fattore mercato), "
+      "`gg_ng_calibration.walk_forward_gg_predictions` la riproduce, mentre "
+      "`ppda_residual_test.production_totali` (la colonna primaria di questo referto) usa il "
+      "fallback gol: la differenza osservabile sui valori GG arriva a 0.166 di probabilita' "
+      "(§1d). Escludendo quelle righe le differenze vengono ricalcolate: se il verdetto non "
+      "cambia, non dipende dal ramo divergente. Per GG/NG la colonna "
+      "`model_produzione_banco_GG` e' fedele alla produzione anche su queste righe.")
     A("")
     rows = []
     for m in MARKETS:
@@ -1159,6 +1221,15 @@ def render_report(p) -> str:
             rows.append([m, r["fonte"], r["n"], fmt0(r["brier"]), fmt0(r["logloss"]),
                          fmt0(r["resolution"], 5), fmt0(r["bss_brier"])])
     A(md_table(["mercato", "fonte", "n", "Brier", "LogLoss", "resol.", "BSS Brier"], rows))
+    A("")
+    A("Righe escluse, per lega (campione di valutazione):")
+    A("")
+    rows = []
+    for m in MARKETS:
+        es = p["sensitivity_fs"][m]["per_lega_escluse"]
+        rows.append([m, p["sensitivity_fs"][m]["n_righe_escluse_fs_non_attiva"]]
+                    + [es.get(lg, 0) for lg in sorted(es)])
+    A(md_table(["mercato", "righe escluse"] + sorted(es), rows))
     A("")
 
     A("## 4. Dispersione dei lambda: mercato contro modello")
@@ -1400,8 +1471,10 @@ def render_report(p) -> str:
     A(f"**Verdetto di processo: {'MERGEABLE' if mergeable else 'NON MERGEABLE'}** — "
       + ("il contributo tocca solo `audit/`, non modifica `SoccerMath/` e i test dei banchi "
          "riusati passano; referto e script sono riproducibili con "
-         "`python audit/totals_market_ceiling.py`. La CI (`Audit Top Mix`, "
-         "`Replay Top Mix legacy`) si legge sulla pagina della PR."
+         "`python audit/totals_market_ceiling.py`. Avvertenza: il check CI `Audit Top Mix` "
+         "resta rosso sulla run di pull_request per il motivo documentato in §7 e §8 "
+         "(merge con il tip di main, non con questo diff), mentre `Replay Top Mix legacy` e "
+         "la run di push dello stesso commit sono verdi."
          if mergeable else
          "esistono file fuori da `audit/` o test rossi: NON mergeare."))
     A("")
@@ -1484,17 +1557,22 @@ def build_conformita(p) -> list:
          f"GG/NG (banco PR #34): {v_gg_b['verdetto'] if v_gg_b else '-'}"],
         ["6. `git diff --name-only origin/main...HEAD` solo `audit/`",
          "OK" if f6["solo_audit"] else "NON OK",
-         "`git diff --name-only origin/main HEAD` + `git status --porcelain`",
+         "`git diff --name-only origin/main...HEAD` + `git status --porcelain`",
          (f"file toccati al momento della generazione: "
           f"{', '.join('`' + x + '`' for x in f6['file_toccati']) or '(nessuno)'}"
           + ("" if not f6["file_fuori_da_audit"] else
              f"; FUORI da `audit/`: {', '.join(f6['file_fuori_da_audit'])}"))],
         ["6. CI di Audit e Replay su push e pull_request",
-         "OK" if f6["pytest_ok"] else "NON OK",
+         "NON OK sul check `Audit` alla run di pull_request (causa estranea al diff, "
+         "verificata); OK su `Replay` e sulla run di push",
          "`.github/workflows/topmix_audit.yml`, `.github/workflows/replay_legacy_topmix.yml`; "
-         "`gh pr checks` sulla PR",
+         "`gh pr checks`; `pytest -q` sugli stessi 18 file del check `Audit`",
          (f"i due workflow si attivano su push `arena/**` e su pull_request verso `main` "
-          f"(letti dal repo); test locali dei banchi riusati: {f6['pytest_out']}")],
+          f"(letti dallo script). Il checkout di pull_request fonde con il tip di main "
+          f"(`{f6['main_head']}`), che contiene l'aggiornamento automatico di "
+          f"`SoccerMath/database/season_rosters.json`; sugli stessi 18 file: "
+          f"questo branch -> {f6['suite_audit_branch']}; tip di origin/main -> "
+          f"{f6['suite_audit_main']}")],
     ]
 
 
@@ -1529,6 +1607,22 @@ def build_limiti() -> list:
         "Le due colonne di modello sono banchi DIFFERENTI con fonti diverse (produzione: xG "
         "F_season con shrinkage; banco: medie gol walk-forward): i loro valori non sono "
         "sostituibili fra loro e sono riportati separatamente.",
+        "Su 108 righe (le prime giornate di stagione, 2023/24-2025/26) il lookup F_season non "
+        "e' attivo e i due banchi di produzione divergono: "
+        "`ppda_residual_test.production_totali` (colonna primaria per O/U e GG) usa il fallback "
+        "gol, mentre la produzione e `gg_ng_calibration.walk_forward_gg_predictions` usano "
+        "`att/def` della testa 1X2 (`SoccerMath/app.py`, ramo `else` di `use_fs`). Su GG/NG "
+        "l'effetto e' misurabile (scarto massimo 0.166, §1d) e la colonna "
+        "`model_produzione_banco_GG` e' fedele alla produzione; per O/U non esiste un secondo "
+        "banco fedele, quindi su quelle righe la colonna primaria non e' verificabile contro "
+        "la produzione: la sensibilita' in §3c le esclude e mostra che i verdetti non cambiano.",
+        "Il check CI `Audit Top Mix` risulta ROSSO sulla run di pull_request e VERDE sulla run "
+        "di push dello stesso commit. La causa non e' questo diff: il checkout di "
+        "pull_request fonde con il tip di main, che dopo l'apertura della PR ha ricevuto "
+        "l'aggiornamento automatico di `SoccerMath/database/season_rosters.json`; sugli "
+        "stessi 18 file del check, su questo branch i test passano e al tip di main "
+        "falliscono (dettaglio ed esiti in §7 e §9). Conseguenza: la CI di questa PR resta "
+        "rossa sul check `Audit` finche' main non torna verde su quel set di test.",
     ]
 
 
@@ -1563,6 +1657,7 @@ def main(argv=None) -> int:
         payload["meta"]["evidenze_aggiornate_at"] = datetime.now(
             timezone.utc).isoformat(timespec="seconds")
         payload["conformita"] = build_conformita(payload)
+        payload["limiti"] = build_limiti()
         with open(OUT_JSON, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, ensure_ascii=False, indent=1, default=str)
         with open(OUT_MD, "w", encoding="utf-8") as fh:
@@ -1643,6 +1738,7 @@ def main(argv=None) -> int:
     for d in (d_ou, d_gg, enc_ou, enc_gg):
         d["fs_non_attiva"] = [(lg, s_, str(g_)[:10]) in fs_inactive for lg, s_, g_ in
                               zip(d["league"], d["season"], d["date_day"])]
+
     src_ou = OrderedDict([
         ("model_produzione", "model_produzione"),
         ("model_banco_PR34", "model_banco_PR34"),

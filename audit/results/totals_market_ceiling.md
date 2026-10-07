@@ -363,7 +363,7 @@ Scomposizione di Murphy a 10 bin con la stessa funzione della PR #34 (`baserate_
 
 ### 3c. Sensibilita': stesse differenze senza le giornate con F_season non attiva
 
-Le righe in cui i due banchi di produzione divergono (testa Totali: `att0_pure` assegnato in modo diverso) vengono ESCLUSE e le differenze ricalcolate: se il verdetto non cambia, non dipende da quelle righe.
+Sono le righe delle prime giornate di ogni stagione, quando l'ancora di lega degli xG della stagione in corso non esiste ancora (`fs_active = False` in `app.get_league_engine`, §1d). Su queste righe i tre codici divergono: la produzione usa `att0_pure = att` (testa 1X2 con forma e fattore mercato), `gg_ng_calibration.walk_forward_gg_predictions` la riproduce, mentre `ppda_residual_test.production_totali` (la colonna primaria di questo referto) usa il fallback gol: la differenza osservabile sui valori GG arriva a 0.166 di probabilita' (§1d). Escludendo quelle righe le differenze vengono ricalcolate: se il verdetto non cambia, non dipende dal ramo divergente. Per GG/NG la colonna `model_produzione_banco_GG` e' fedele alla produzione anche su queste righe.
 
 | mercato | righe | escluse | righe ridotte | Δ resolution | IC 95% | Δ LogLoss | IC 95% |
 |---|---|---|---|---|---|---|---|
@@ -383,6 +383,13 @@ Metriche sulla stessa finestra ridotta:
 | GG/NG | model_produzione_banco_GG | 3428 | 0.2474 | 0.6879 | 0.00155 | -0.0005 |
 | GG/NG | model_banco_PR34 | 3428 | 0.2491 | 0.7022 | 0.00213 | -0.0076 |
 | GG/NG | mercato_btts_oddsportal | 3428 | 0.2441 | 0.6813 | 0.00355 | 0.0127 |
+
+Righe escluse, per lega (campione di valutazione):
+
+| mercato | righe escluse | Bundesliga | La Liga | Ligue 1 | Premier League | Serie A |
+|---|---|---|---|---|---|---|
+| OU2.5 | 72 | 14 | 11 | 18 | 13 | 16 |
+| GG/NG | 72 | 14 | 11 | 18 | 13 | 16 |
 
 ## 4. Dispersione dei lambda: mercato contro modello
 
@@ -541,8 +548,8 @@ Per GG/NG la ripartizione apertura/chiusura e' NON VERIFICABILE: i file BTTS han
 | 4. Encompassing rolling-origin con IC e ΔLogLoss fuori campione | OK | `python audit/totals_market_ceiling.py` | §5: due fold per entrambe le colonne di modello, coefficienti con IC 95% |
 | 4. Colonna del banco PR #34 stimata anche sul 2023/24 | OK | `run_market_value_old` (train = sola 2022/23) | il banco primario parte da 2024/25: per la stima su 2023/24 si usa la variante del banco, dichiarata in §5 e nei limiti |
 | 5. Lettura fissata a priori applicata dal codice | OK | `CEILING_EPS = 0.002` + funzione `verdict()` | O/U 2.5 (produzione): MARGINE ESISTENTE; O/U 2.5 (banco PR #34): MARGINE ESISTENTE; GG/NG (produzione): TETTO RAGGIUNTO; GG/NG (banco PR #34): TETTO RAGGIUNTO |
-| 6. `git diff --name-only origin/main...HEAD` solo `audit/` | OK | `git diff --name-only origin/main HEAD` + `git status --porcelain` | file toccati al momento della generazione: `audit/results/totals_market_ceiling.md`, `audit/totals_market_ceiling.py` |
-| 6. CI di Audit e Replay su push e pull_request | OK | `.github/workflows/topmix_audit.yml`, `.github/workflows/replay_legacy_topmix.yml`; `gh pr checks` sulla PR | i due workflow si attivano su push `arena/**` e su pull_request verso `main` (letti dal repo); test locali dei banchi riusati: 70 passed in 4.62s |
+| 6. `git diff --name-only origin/main...HEAD` solo `audit/` | OK | `git diff --name-only origin/main...HEAD` + `git status --porcelain` | file toccati al momento della generazione: `audit/results/totals_market_ceiling.md`, `audit/totals_market_ceiling.py` |
+| 6. CI di Audit e Replay su push e pull_request | NON OK sul check `Audit` alla run di pull_request (causa estranea al diff, verificata); OK su `Replay` e sulla run di push | `.github/workflows/topmix_audit.yml`, `.github/workflows/replay_legacy_topmix.yml`; `gh pr checks`; `pytest -q` sugli stessi 18 file del check `Audit` | i due workflow si attivano su push `arena/**` e su pull_request verso `main` (letti dallo script). Il checkout di pull_request fonde con il tip di main (`55b7039 Auto-update live data 2026-10-07T22:20Z`), che contiene l'aggiornamento automatico di `SoccerMath/database/season_rosters.json`; sugli stessi 18 file: questo branch -> 329 passed in 45.89s; tip di origin/main -> 10 failed, 319 passed in 43.96s |
 
 ## 8. Limiti e cose non verificabili
 
@@ -555,13 +562,15 @@ Per GG/NG la ripartizione apertura/chiusura e' NON VERIFICABILE: i file BTTS han
 - La regressione encompassing ha due regressori: non esplora interazioni, non contiene il fattore campo ne' altre fonti, e la combinazione e' stimata senza vincoli (i coefficienti possono essere entrambi positivi per collinearita' fra modello e mercato).
 - Il banco PR #34 (`run_walkforward`) non produce previsioni per il 2023/24, stagione richiesta dal protocollo di stima: per quella colonna l'encompassing usa `run_market_value_old` (train = sola 2022/23), dichiarato in §5. La colonna di produzione non ha questo problema: `production_totali` copre tutte le stagioni.
 - Le due colonne di modello sono banchi DIFFERENTI con fonti diverse (produzione: xG F_season con shrinkage; banco: medie gol walk-forward): i loro valori non sono sostituibili fra loro e sono riportati separatamente.
+- Su 108 righe (le prime giornate di stagione, 2023/24-2025/26) il lookup F_season non e' attivo e i due banchi di produzione divergono: `ppda_residual_test.production_totali` (colonna primaria per O/U e GG) usa il fallback gol, mentre la produzione e `gg_ng_calibration.walk_forward_gg_predictions` usano `att/def` della testa 1X2 (`SoccerMath/app.py`, ramo `else` di `use_fs`). Su GG/NG l'effetto e' misurabile (scarto massimo 0.166, §1d) e la colonna `model_produzione_banco_GG` e' fedele alla produzione; per O/U non esiste un secondo banco fedele, quindi su quelle righe la colonna primaria non e' verificabile contro la produzione: la sensibilita' in §3c le esclude e mostra che i verdetti non cambiano.
+- Il check CI `Audit Top Mix` risulta ROSSO sulla run di pull_request e VERDE sulla run di push dello stesso commit. La causa non e' questo diff: il checkout di pull_request fonde con il tip di main, che dopo l'apertura della PR ha ricevuto l'aggiornamento automatico di `SoccerMath/database/season_rosters.json`; sugli stessi 18 file del check, su questo branch i test passano e al tip di main falliscono (dettaglio ed esiti in §7 e §9). Conseguenza: la CI di questa PR resta rossa sul check `Audit` finche' main non torna verde su quel set di test.
 
 ## 9. Evidenze: comandi eseguiti e loro output
 
 `git rev-parse HEAD`
 
 ```text
-10bcef58406fdacac6c4fa39efa4de109425059a
+db3290d4e5c256a911113dcbda233fba934fbff7
 ```
 
 `git log -1 --pretty=%s`
@@ -573,22 +582,31 @@ audit: referto del confronto Totali modello vs mercato (2000 repliche, seed 2026
 `git status --porcelain`
 
 ```text
-(vuoto)
+ M audit/results/totals_market_ceiling.md
+ M audit/totals_market_ceiling.py
 ```
 
-`git diff --name-only origin/main HEAD`
+`git diff --name-only origin/main...HEAD  (le sole modifiche di questo branch: confronto dal merge-base)`
 
 ```text
 audit/results/totals_market_ceiling.md
 audit/totals_market_ceiling.py
 ```
 
-`git diff --stat origin/main HEAD`
+`git diff --stat origin/main...HEAD`
 
 ```text
-audit/results/totals_market_ceiling.md |  700 ++++++++++++
+audit/results/totals_market_ceiling.md |  703 ++++++++++++
  audit/totals_market_ceiling.py         | 1907 ++++++++++++++++++++++++++++++++
- 2 files changed, 2607 insertions(+)
+ 2 files changed, 2610 insertions(+)
+```
+
+`git diff --name-only origin/main HEAD  (due punti: include anche i commit che main ha ricevuto DOPO il merge-base, non attribuibili a questo branch)`
+
+```text
+SoccerMath/database/season_rosters.json
+audit/results/totals_market_ceiling.md
+audit/totals_market_ceiling.py
 ```
 
 `python -V`
@@ -607,7 +625,25 @@ numpy 2.4.6; pandas 3.0.6; scipy 1.17.1; statsmodels 0.15.0; streamlit 1.65.0; s
 
 ```text
 ......................................................................   [100%]
-70 passed in 4.62s
+70 passed in 4.81s
+```
+
+`git log -1 --oneline origin/main`
+
+```text
+55b7039 Auto-update live data 2026-10-07T22:20Z
+```
+
+`pytest -q sui 18 file del check CI 'Audit Top Mix' (questo branch)`
+
+```text
+329 passed in 45.89s
+```
+
+`pytest -q sugli stessi 18 file in un worktree al tip di origin/main`
+
+```text
+10 failed, 319 passed in 43.96s
 ```
 
 `python audit/totals_market_ceiling.py`
@@ -626,6 +662,10 @@ numpy 2.4.6; pandas 3.0.6; scipy 1.17.1; statsmodels 0.15.0; streamlit 1.65.0; s
 [  323.3s] regressione encompassing …
 [  323.5s] verdetti …
 [  323.5s] sensibilita': senza le righe con F_season non attiva …
+(sezione rigenerata dopo il commit: i numeri del referto NON sono stati ricalcolati)
+(sezione rigenerata dopo il commit: i numeri del referto NON sono stati ricalcolati)
+(sezione rigenerata dopo il commit: i numeri del referto NON sono stati ricalcolati)
+(sezione rigenerata dopo il commit: i numeri del referto NON sono stati ricalcolati)
 (sezione rigenerata dopo il commit: i numeri del referto NON sono stati ricalcolati)
 ```
 
@@ -697,7 +737,7 @@ numpy 2.4.6; pandas 3.0.6; scipy 1.17.1; statsmodels 0.15.0; streamlit 1.65.0; s
 |---|---|---|---|
 | nessuna modifica a `SoccerMath/` | OK | `git status --porcelain` + `git diff --name-only` | `audit/results/totals_market_ceiling.md`, `audit/totals_market_ceiling.py` |
 | diff confinato ad `audit/` | OK | `git diff --name-only origin/main HEAD` | nessun file fuori da `audit/` |
-| test dei banchi riusati | OK | `pytest -q` sui 5 file di test dei banchi | 70 passed in 4.62s |
+| test dei banchi riusati | OK | `pytest -q` sui 5 file di test dei banchi | 70 passed in 4.81s |
 
-**Verdetto di processo: MERGEABLE** — il contributo tocca solo `audit/`, non modifica `SoccerMath/` e i test dei banchi riusati passano; referto e script sono riproducibili con `python audit/totals_market_ceiling.py`. La CI (`Audit Top Mix`, `Replay Top Mix legacy`) si legge sulla pagina della PR.
+**Verdetto di processo: MERGEABLE** — il contributo tocca solo `audit/`, non modifica `SoccerMath/` e i test dei banchi riusati passano; referto e script sono riproducibili con `python audit/totals_market_ceiling.py`. Avvertenza: il check CI `Audit Top Mix` resta rosso sulla run di pull_request per il motivo documentato in §7 e §8 (merge con il tip di main, non con questo diff), mentre `Replay Top Mix legacy` e la run di push dello stesso commit sono verdi.
 
