@@ -187,6 +187,24 @@ def regenerate_match_table() -> str:
     return "\n".join(clean_lines)
 
 
+class NoSeedEngine(EloEngine):
+    """Motore di produzione con il seeding degli ingressi DISATTIVATO.
+
+    E' la produzione PRIMA della PR che adotta il seeding S3, che e' il
+    riferimento storico di S0 e su cui sono misurate S1-S4. Dopo l'adozione il
+    motore di produzione applica il seeding, quindi il rerun di controllo
+    dell'audit non puo' piu' confrontarsi con la baseline Costruita dal motore
+    cosi' com'e': serve questo sottoinsieme.
+
+    Solo l'ingresso e' disattivato. Update Elo, moltiplicatore di scarto, xG e
+    ``elo_probs_from_ratings`` restano quelli di produzione, e la riga dei CSV
+    resta la stessa: nessuna modifica a ``models/elo_engine.py``.
+    """
+
+    def _is_entry(self, team: str, season: int) -> bool:   # noqa: D401
+        return False
+
+
 def _load_league_baseline(league: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
     """Ritorna (tabella walker con produzione, raw df, log di join) per lega."""
     baseline = pd.read_csv(BASELINE_OUTPUT)
@@ -201,7 +219,8 @@ def _load_league_baseline(league: str) -> tuple[pd.DataFrame, pd.DataFrame, str]
         raise AssertionError(f"chiavi duplicate nella tabella rigenerata: {league}")
 
     # Il motore e il walker esistenti sono la fonte dell'ordine e dello stato S0.
-    engine = EloEngine(league)
+    # S0 e' la produzione PRIMA del seeding degli ingressi (vedi NoSeedEngine).
+    engine = NoSeedEngine(league)
     engine.compute_ratings()
     raw = engine.matches_df.copy().reset_index(drop=True)
     walker = WALKER.build_walker_table(league, engine=engine).reset_index(drop=True)
@@ -407,7 +426,11 @@ def run_variant(
 
     all_teams = set(raw["HomeClean"]).union(set(raw["AwayClean"]))
     carry = _CarryRatings({t: float(DEFAULT_INITIAL_RATING) for t in all_teams})
-    engine = EloEngine(league)
+    # L'ingresso e' sempre assegnato dall'audit (S0 = nessun seed, S1-S4 =
+    # seed della variante): il motore di produzione non deve applicarne uno
+    # per conto proprio, altrimenti il confronto tra varianti non sarebbe
+    # quello dichiarato. Vedi NoSeedEngine.
+    engine = NoSeedEngine(league)
     engine.ratings = carry
     by_order: dict[int, list[dict]] = defaultdict(list)
     for rec in records:
@@ -949,8 +972,12 @@ def write_report(
 
     ap("## 3. Ingressi in lega")
     ap("")
-    ap("Media attiva prima del primo match = media dei rating S0 delle squadre "
-       "gia' apparse in una riga precedente nell'ordine del walker. `s0_seed` "
+    ap("Media attiva = media dei rating delle squadre ATTIVE AL INIZIO DELLA "
+       "GIORNATA della partita d'ingresso: sono quelle che avevano gia' "
+       "disputato una partita quando la giornata e' iniziata, con i rating di "
+       "quel momento. L'ordine delle partite della stessa data non influenza "
+       "il risultato e nel backtest il seed non usa risultati non ancora "
+       "disponibili al kickoff. `s0_seed` "
        "e' 1500 per mai viste e il rating stantio per ritorni; `s0_diff` e' "
        "s0_seed − media attiva. Per S1-S4 `*_active_mean`, `*_seed`, `*_diff` "
        "sono quelli effettivamente usati nella relativa rilanciata; quindi S2 "
@@ -979,11 +1006,14 @@ def write_report(
 
     ap("## 4. Varianti di seeding")
     ap("")
-    ap("S0 = produzione corrente. S1 = 1500 per tutti gli ingressi. S2 = media "
-       "attiva −50. S3 = media attiva −100. S4 = ritorni con `0.5^anni_assenza` "
-       "sul rating stantio verso media−100, mai viste a media−100. Nessun "
-       "parametro e' stimato. Le rilanciate partono dalla prima partita e "
-       "cambiano solo il seed prima della prima partita dell'ingresso.")
+    ap("S0 = produzione SENZA il seeding degli ingressi, cioe' la produzione "
+       "pre-adozione di S3 (`NoSeedEngine`: stesso motore, `_is_entry` sempre "
+       "falso, cosi' l'unica differenza rispetto alle altre varianti e' il "
+       "seed). S1 = 1500 per tutti gli ingressi. S2 = media attiva −50. "
+       "S3 = media attiva −100. S4 = ritorni con `0.5^anni_assenza` sul rating "
+       "stantio verso media−100, mai viste a media−100. Nessun parametro e' "
+       "stimato. Le rilanciate partono dalla prima partita e cambiano solo il "
+       "seed prima della prima partita dell'ingresso.")
     ap("")
     ap("L'evidenza dell'ordine usato e' nel file pesante per-partita; l'esecuzione "
        "ha prodotto anche `audit/output/elo_drift_triage_per_match.csv.gz` con "

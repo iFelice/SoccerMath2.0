@@ -9,7 +9,7 @@ Fixture
 ``audit/fixtures/elo_probs_equivalence_main.manifest.json``
 
 Generata da ``audit/make_elo_probs_equivalence_fixture.py`` sul commit
-``6ccbc69db2992117fa6122d02dce65f64897c905`` con
+``f6acf34343658b1a8fbadc029bb7dceb4ef6281e`` con
 ``git status --porcelain -- SoccerMath/`` vuoto: il generatore registra dentro
 il manifest sia il commit sia lo stato pulito, e questo test li ri-asserisce.
 
@@ -60,7 +60,7 @@ FIX_MANIFEST = os.path.join(_AUDIT_DIR, "fixtures",
                             "elo_probs_equivalence_main.manifest.json")
 #: commit che dichiara il manifest della fixture (la fixture e' rigenerata da
 #: quel commit, non da "main": vedi il docstring del modulo)
-FIXTURE_COMMIT = "6ccbc69db2992117fa6122d02dce65f64897c905"
+FIXTURE_COMMIT = "f6acf34343658b1a8fbadc029bb7dceb4ef6281e"
 
 
 def _carica_fixture():

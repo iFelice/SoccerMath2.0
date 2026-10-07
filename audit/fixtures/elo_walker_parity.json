@@ -1,12 +1,12 @@
 {
  "_schema": "elo_walker_parity/2",
- "generated_at_utc": "2026-10-07T00:07:17+00:00",
- "repo_head_commit": "6ccbc69db2992117fa6122d02dce65f64897c905",
+ "generated_at_utc": "2026-10-07T08:26:40+00:00",
+ "repo_head_commit": "f6acf34343658b1a8fbadc029bb7dceb4ef6281e",
  "generato_da": "audit/make_elo_parity_fixture.py usando solo models/elo_engine.py (EloEngine, predict_elo_probs) non modificato",
  "provenance": {
-  "commit": "6ccbc69db2992117fa6122d02dce65f64897c905",
+  "commit": "f6acf34343658b1a8fbadc029bb7dceb4ef6281e",
   "production_input_oids": {
-   "SoccerMath/models/elo_engine.py": "dde2880bd20634c4bd9116006f7f2e3e2679e96e",
+   "SoccerMath/models/elo_engine.py": "1658136ef2306f54bbf953de73000873399469c5",
    "SoccerMath/config.py": "656bc59788bc2d9848f9538973985db21f77e49f",
    "SoccerMath/database": "4650d65444bd7bc262d5f55dd7a55203097aaa63"
   }
@@ -18,33 +18,33 @@
    "last_date": "2026-09-20 00:00:00",
    "home_adv": 55.0,
    "final_ratings": {
-    "Atalanta": "1585.8317409104943",
-    "Bologna": "1502.5883942399585",
-    "Cagliari": "1483.3763697470608",
-    "Como": "1650.693208846254",
-    "Cremonese": "1371.5171734055968",
-    "Empoli": "1365.6554511803188",
-    "Fiorentina": "1489.5694702182607",
-    "Frosinone": "1440.2201905034715",
-    "Genoa": "1412.4034654134275",
-    "Inter": "1806.6754705813846",
-    "Juventus": "1649.137027863199",
-    "Lazio": "1589.9918669665399",
-    "Lecce": "1406.5696710221207",
-    "Milan": "1626.930248964775",
-    "Monza": "1369.666552505636",
-    "Napoli": "1656.5962129978918",
-    "Parma": "1426.7552548646022",
-    "Pisa": "1272.4476904701935",
-    "Roma": "1716.764370297848",
-    "Salernitana": "1283.108254640456",
+    "Atalanta": "1586.038350837545",
+    "Bologna": "1502.7907851047044",
+    "Cagliari": "1483.5840136628772",
+    "Como": "1650.8965021623699",
+    "Cremonese": "1371.4110134026507",
+    "Empoli": "1365.8919493027654",
+    "Fiorentina": "1489.7747202476924",
+    "Frosinone": "1440.4111845124864",
+    "Genoa": "1412.6563876718988",
+    "Inter": "1806.8715448809019",
+    "Juventus": "1649.3344085585513",
+    "Lazio": "1590.2102508340533",
+    "Lecce": "1406.7785539669355",
+    "Milan": "1627.1401597010558",
+    "Monza": "1369.8490600610169",
+    "Napoli": "1656.7952515366194",
+    "Parma": "1426.956697245166",
+    "Pisa": "1272.6228114463306",
+    "Roma": "1716.9644457061197",
+    "Salernitana": "1283.2988661550899",
     "Sampdoria": "1308.4550696847675",
-    "Sassuolo": "1474.1798278651943",
+    "Sassuolo": "1474.3739077677733",
     "Spezia": "1373.6068901764147",
-    "Torino": "1452.6544881499508",
-    "Udinese": "1483.540441438806",
-    "Venezia": "1318.8998853590626",
-    "Verona": "1307.5964977769302"
+    "Torino": "1452.8569446429153",
+    "Udinese": "1483.745323359623",
+    "Venezia": "1319.3609228570585",
+    "Verona": "1307.7982488828284"
    },
    "now_fixtures": [
     {
@@ -54,8 +54,8 @@
       "1": 0.3161,
       "X": 0.2636,
       "2": 0.4203,
-      "elo_home": 1369.7,
-      "elo_away": 1474.2,
+      "elo_home": 1369.8,
+      "elo_away": 1474.4,
       "elo_diff": -49.5,
       "home_adv": 55.0,
       "expected_score_home": 0.4292,
@@ -69,8 +69,8 @@
       "1": 0.3299,
       "X": 0.2668,
       "2": 0.4033,
-      "elo_home": 1716.8,
-      "elo_away": 1806.7,
+      "elo_home": 1717.0,
+      "elo_away": 1806.9,
       "elo_diff": -34.9,
       "home_adv": 55.0,
       "expected_score_home": 0.4499,
@@ -81,15 +81,15 @@
      "home_raw": "Venezia",
      "away_raw": "Lazio",
      "probs": {
-      "1": 0.1855,
-      "X": 0.1711,
-      "2": 0.6434,
-      "elo_home": 1318.9,
-      "elo_away": 1590.0,
-      "elo_diff": -216.1,
+      "1": 0.1856,
+      "X": 0.1713,
+      "2": 0.6431,
+      "elo_home": 1319.4,
+      "elo_away": 1590.2,
+      "elo_diff": -215.8,
       "home_adv": 55.0,
-      "expected_score_home": 0.2238,
-      "expected_score_away": 0.7762
+      "expected_score_home": 0.224,
+      "expected_score_away": 0.776
      }
     },
     {
@@ -99,8 +99,8 @@
       "1": 0.4898,
       "X": 0.2425,
       "2": 0.2677,
-      "elo_home": 1502.6,
-      "elo_away": 1452.7,
+      "elo_home": 1502.8,
+      "elo_away": 1452.9,
       "elo_diff": 104.9,
       "home_adv": 55.0,
       "expected_score_home": 0.6466,
@@ -114,8 +114,8 @@
       "1": 0.427,
       "X": 0.2621,
       "2": 0.3109,
-      "elo_home": 1483.5,
-      "elo_away": 1483.4,
+      "elo_home": 1483.7,
+      "elo_away": 1483.6,
       "elo_diff": 55.2,
       "home_adv": 55.0,
       "expected_score_home": 0.5787,
@@ -129,12 +129,12 @@
       "1": 0.4443,
       "X": 0.2576,
       "2": 0.2981,
-      "elo_home": 1426.8,
-      "elo_away": 1412.4,
-      "elo_diff": 69.4,
+      "elo_home": 1427.0,
+      "elo_away": 1412.7,
+      "elo_diff": 69.3,
       "home_adv": 55.0,
-      "expected_score_home": 0.5985,
-      "expected_score_away": 0.4015
+      "expected_score_home": 0.5984,
+      "expected_score_away": 0.4016
      }
     },
     {
@@ -144,8 +144,8 @@
       "1": 0.5076,
       "X": 0.2355,
       "2": 0.2569,
-      "elo_home": 1649.1,
-      "elo_away": 1585.8,
+      "elo_home": 1649.3,
+      "elo_away": 1586.0,
       "elo_diff": 118.3,
       "home_adv": 55.0,
       "expected_score_home": 0.664,
@@ -159,12 +159,12 @@
       "1": 0.2619,
       "X": 0.2389,
       "2": 0.4992,
-      "elo_home": 1489.6,
-      "elo_away": 1656.6,
+      "elo_home": 1489.8,
+      "elo_away": 1656.8,
       "elo_diff": -112.0,
       "home_adv": 55.0,
-      "expected_score_home": 0.3441,
-      "expected_score_away": 0.6559
+      "expected_score_home": 0.3442,
+      "expected_score_away": 0.6558
      }
     },
     {
@@ -173,9 +173,9 @@
      "probs": {
       "1": 0.2282,
       "X": 0.2132,
-      "2": 0.5585,
-      "elo_home": 1440.2,
-      "elo_away": 1650.7,
+      "2": 0.5586,
+      "elo_home": 1440.4,
+      "elo_away": 1650.9,
       "elo_diff": -155.5,
       "home_adv": 55.0,
       "expected_score_home": 0.2901,
@@ -189,8 +189,8 @@
       "1": 0.7231,
       "X": 0.1288,
       "2": 0.1482,
-      "elo_home": 1626.9,
-      "elo_away": 1406.6,
+      "elo_home": 1627.1,
+      "elo_away": 1406.8,
       "elo_diff": 275.4,
       "home_adv": 55.0,
       "expected_score_home": 0.8299,
@@ -234,19 +234,19 @@
      "home": "Napoli",
      "away": "Parma",
      "probs": {
-      "1": 0.6048,
-      "X": 0.1908,
+      "1": 0.6047,
+      "X": 0.1909,
       "2": 0.2044,
-      "elo_home": 1541.6,
-      "elo_away": 1408.1,
-      "elo_diff": 188.5,
+      "elo_home": 1541.7,
+      "elo_away": 1408.3,
+      "elo_diff": 188.4,
       "home_adv": 55.0,
       "expected_score_home": 0.7474,
       "expected_score_away": 0.2526
      },
      "ratings_troncati": {
-      "Napoli": "1541.5821802486091",
-      "Parma": "1408.0912647566242"
+      "Napoli": "1541.748645584867",
+      "Parma": "1408.3060408894892"
      }
     },
     {
@@ -262,16 +262,16 @@
       "1": 0.3239,
       "X": 0.2656,
       "2": 0.4105,
-      "elo_home": 1591.0,
-      "elo_away": 1687.1,
-      "elo_diff": -41.2,
+      "elo_home": 1591.2,
+      "elo_away": 1687.3,
+      "elo_diff": -41.1,
       "home_adv": 55.0,
       "expected_score_home": 0.4411,
       "expected_score_away": 0.5589
      },
      "ratings_troncati": {
-      "Fiorentina": "1590.965622507234",
-      "Napoli": "1687.115848000614"
+      "Fiorentina": "1591.202918914689",
+      "Napoli": "1687.3411825900107"
      }
     },
     {
@@ -287,16 +287,16 @@
       "1": 0.1726,
       "X": 0.1569,
       "2": 0.6705,
-      "elo_home": 1380.7,
-      "elo_away": 1671.5,
+      "elo_home": 1380.9,
+      "elo_away": 1671.7,
       "elo_diff": -235.8,
       "home_adv": 55.0,
       "expected_score_home": 0.2047,
       "expected_score_away": 0.7953
      },
      "ratings_troncati": {
-      "Lecce": "1380.7492916325757",
-      "Juventus": "1671.5256836896142"
+      "Lecce": "1380.9399494197123",
+      "Juventus": "1671.7227534152257"
      }
     }
    ]
@@ -307,33 +307,33 @@
    "last_date": "2026-09-20 00:00:00",
    "home_adv": 60.0,
    "final_ratings": {
-    "Arsenal": "1757.0627553579573",
-    "Aston Villa": "1553.345212640643",
-    "Bournemouth": "1573.7845214079796",
-    "Brentford": "1571.8050356317774",
-    "Brighton": "1600.8915653750246",
-    "Burnley": "1312.9185635811878",
-    "Chelsea": "1527.0204887449788",
-    "Coventry City": "1368.902922608221",
-    "Crystal Palace": "1468.065225374566",
-    "Everton": "1525.1546614046774",
-    "Fulham": "1488.607718573438",
-    "Hull City": "1421.4243004178009",
-    "Ipswich": "1383.7039210754835",
-    "Leeds": "1530.3245406526219",
-    "Leicester": "1295.567549919292",
-    "Liverpool": "1626.622259010207",
-    "Luton": "1314.4675084529583",
-    "Man City": "1767.6845974260941",
-    "Man United": "1608.391643777761",
-    "Newcastle": "1533.9035853352827",
-    "Nott'm Forest": "1518.3724532448266",
-    "Sheffield United": "1236.8436987981943",
-    "Southampton": "1231.6143753335755",
-    "Sunderland": "1476.9791866284488",
-    "Tottenham": "1408.0521088984888",
-    "West Ham": "1465.8929677167098",
-    "Wolves": "1351.9559178371903"
+    "Arsenal": "1757.2817684536683",
+    "Aston Villa": "1553.5878194392567",
+    "Bournemouth": "1574.0304755788918",
+    "Brentford": "1572.0352951386178",
+    "Brighton": "1601.1360431136588",
+    "Burnley": "1313.1527662294025",
+    "Chelsea": "1527.2601767838657",
+    "Coventry City": "1369.2147197139739",
+    "Crystal Palace": "1468.392819880348",
+    "Everton": "1525.4796917398291",
+    "Fulham": "1488.8282151507021",
+    "Hull City": "1421.7353257680134",
+    "Ipswich": "1387.1368991074805",
+    "Leeds": "1530.5633213555186",
+    "Leicester": "1295.982125470941",
+    "Liverpool": "1626.9864588455853",
+    "Luton": "1314.6450921488934",
+    "Man City": "1767.9089172903336",
+    "Man United": "1608.7370821886811",
+    "Newcastle": "1534.1437637629906",
+    "Nott'm Forest": "1518.5973105156868",
+    "Sheffield United": "1238.1786787503004",
+    "Southampton": "1233.2045704630825",
+    "Sunderland": "1476.8953149837625",
+    "Tottenham": "1408.2958186349706",
+    "West Ham": "1466.1086249209598",
+    "Wolves": "1352.1894961759485"
    },
    "now_fixtures": [
     {
@@ -341,10 +341,10 @@
      "away_raw": "Chelsea",
      "probs": {
       "1": 0.4896,
-      "X": 0.2425,
-      "2": 0.2678,
-      "elo_home": 1571.8,
-      "elo_away": 1527.0,
+      "X": 0.2426,
+      "2": 0.2679,
+      "elo_home": 1572.0,
+      "elo_away": 1527.3,
       "elo_diff": 104.8,
       "home_adv": 60.0,
       "expected_score_home": 0.6464,
@@ -358,8 +358,8 @@
       "1": 0.2842,
       "X": 0.2515,
       "2": 0.4643,
-      "elo_home": 1408.1,
-      "elo_away": 1553.3,
+      "elo_home": 1408.3,
+      "elo_away": 1553.6,
       "elo_diff": -85.3,
       "home_adv": 60.0,
       "expected_score_home": 0.3797,
@@ -370,15 +370,15 @@
      "home_raw": "Everton",
      "away_raw": "Ipswich",
      "probs": {
-      "1": 0.623,
-      "X": 0.1817,
-      "2": 0.1954,
-      "elo_home": 1525.2,
-      "elo_away": 1383.7,
-      "elo_diff": 201.5,
+      "1": 0.6186,
+      "X": 0.1839,
+      "2": 0.1975,
+      "elo_home": 1525.5,
+      "elo_away": 1387.1,
+      "elo_diff": 198.3,
       "home_adv": 60.0,
-      "expected_score_home": 0.7613,
-      "expected_score_away": 0.2387
+      "expected_score_home": 0.758,
+      "expected_score_away": 0.242
      }
     },
     {
@@ -388,102 +388,102 @@
       "1": 0.275,
       "X": 0.2467,
       "2": 0.4783,
-      "elo_home": 1600.9,
-      "elo_away": 1757.1,
-      "elo_diff": -96.2,
+      "elo_home": 1601.1,
+      "elo_away": 1757.3,
+      "elo_diff": -96.1,
       "home_adv": 60.0,
-      "expected_score_home": 0.365,
-      "expected_score_away": 0.635
+      "expected_score_home": 0.3651,
+      "expected_score_away": 0.6349
      }
     },
     {
      "home_raw": "Newcastle",
      "away_raw": "Hull City",
      "probs": {
-      "1": 0.5823,
-      "X": 0.2019,
+      "1": 0.5822,
+      "X": 0.202,
       "2": 0.2158,
-      "elo_home": 1533.9,
-      "elo_away": 1421.4,
-      "elo_diff": 172.5,
+      "elo_home": 1534.1,
+      "elo_away": 1421.7,
+      "elo_diff": 172.4,
       "home_adv": 60.0,
-      "expected_score_home": 0.7297,
-      "expected_score_away": 0.2703
+      "expected_score_home": 0.7296,
+      "expected_score_away": 0.2704
      }
     },
     {
      "home_raw": "Nott'm Forest",
      "away_raw": "Coventry City",
      "probs": {
-      "1": 0.6342,
-      "X": 0.1759,
-      "2": 0.1899,
-      "elo_home": 1518.4,
-      "elo_away": 1368.9,
-      "elo_diff": 209.5,
+      "1": 0.6341,
+      "X": 0.176,
+      "2": 0.19,
+      "elo_home": 1518.6,
+      "elo_away": 1369.2,
+      "elo_diff": 209.4,
       "home_adv": 60.0,
-      "expected_score_home": 0.7696,
-      "expected_score_away": 0.2304
+      "expected_score_home": 0.7695,
+      "expected_score_away": 0.2305
      }
     },
     {
      "home_raw": "Leeds",
      "away_raw": "Crystal Palace",
      "probs": {
-      "1": 0.5129,
-      "X": 0.2333,
-      "2": 0.2537,
-      "elo_home": 1530.3,
-      "elo_away": 1468.1,
-      "elo_diff": 122.3,
+      "1": 0.5128,
+      "X": 0.2334,
+      "2": 0.2538,
+      "elo_home": 1530.6,
+      "elo_away": 1468.4,
+      "elo_diff": 122.2,
       "home_adv": 60.0,
-      "expected_score_home": 0.669,
-      "expected_score_away": 0.331
+      "expected_score_home": 0.6689,
+      "expected_score_away": 0.3311
      }
     },
     {
      "home_raw": "Man City",
      "away_raw": "Sunderland",
      "probs": {
-      "1": 0.8111,
-      "X": 0.0812,
-      "2": 0.1077,
-      "elo_home": 1767.7,
-      "elo_away": 1477.0,
-      "elo_diff": 350.7,
+      "1": 0.8114,
+      "X": 0.0811,
+      "2": 0.1076,
+      "elo_home": 1767.9,
+      "elo_away": 1476.9,
+      "elo_diff": 351.0,
       "home_adv": 60.0,
-      "expected_score_home": 0.8828,
-      "expected_score_away": 0.1172
+      "expected_score_home": 0.8829,
+      "expected_score_away": 0.1171
      }
     },
     {
      "home_raw": "Bournemouth",
      "away_raw": "Liverpool",
      "probs": {
-      "1": 0.3726,
+      "1": 0.3725,
       "X": 0.2699,
-      "2": 0.3575,
-      "elo_home": 1573.8,
-      "elo_away": 1626.6,
-      "elo_diff": 7.2,
+      "2": 0.3577,
+      "elo_home": 1574.0,
+      "elo_away": 1627.0,
+      "elo_diff": 7.0,
       "home_adv": 60.0,
-      "expected_score_home": 0.5103,
-      "expected_score_away": 0.4897
+      "expected_score_home": 0.5101,
+      "expected_score_away": 0.4899
      }
     },
     {
      "home_raw": "Fulham",
      "away_raw": "Man United",
      "probs": {
-      "1": 0.3066,
+      "1": 0.3065,
       "X": 0.2607,
-      "2": 0.4326,
-      "elo_home": 1488.6,
-      "elo_away": 1608.4,
-      "elo_diff": -59.8,
+      "2": 0.4328,
+      "elo_home": 1488.8,
+      "elo_away": 1608.7,
+      "elo_diff": -59.9,
       "home_adv": 60.0,
-      "expected_score_home": 0.4148,
-      "expected_score_away": 0.5852
+      "expected_score_home": 0.4146,
+      "expected_score_away": 0.5854
      }
     }
    ],
@@ -523,19 +523,19 @@
      "home": "Nott'm Forest",
      "away": "Wolves",
      "probs": {
-      "1": 0.4636,
+      "1": 0.4637,
       "X": 0.2517,
-      "2": 0.2847,
-      "elo_home": 1422.7,
-      "elo_away": 1398.0,
-      "elo_diff": 84.7,
+      "2": 0.2846,
+      "elo_home": 1423.0,
+      "elo_away": 1398.1,
+      "elo_diff": 84.8,
       "home_adv": 60.0,
-      "expected_score_home": 0.6195,
-      "expected_score_away": 0.3805
+      "expected_score_home": 0.6197,
+      "expected_score_away": 0.3803
      },
      "ratings_troncati": {
-      "Nott'm Forest": "1422.6729768977832",
-      "Wolves": "1397.975082457566"
+      "Nott'm Forest": "1422.9766795369128",
+      "Wolves": "1398.145456052476"
      }
     },
     {
@@ -548,19 +548,19 @@
      "home": "West Ham",
      "away": "Tottenham",
      "probs": {
-      "1": 0.4105,
+      "1": 0.4103,
       "X": 0.2656,
-      "2": 0.3239,
-      "elo_home": 1446.2,
+      "2": 0.3241,
+      "elo_home": 1446.1,
       "elo_away": 1465.1,
-      "elo_diff": 41.1,
+      "elo_diff": 41.0,
       "home_adv": 60.0,
-      "expected_score_home": 0.5589,
-      "expected_score_away": 0.4411
+      "expected_score_home": 0.5587,
+      "expected_score_away": 0.4413
      },
      "ratings_troncati": {
-      "West Ham": "1446.2062803156034",
-      "Tottenham": "1465.0831355839302"
+      "West Ham": "1446.1357040962964",
+      "Tottenham": "1465.1478115021853"
      }
     },
     {
@@ -573,19 +573,19 @@
      "home": "Man City",
      "away": "Brentford",
      "probs": {
-      "1": 0.6959,
+      "1": 0.6958,
       "X": 0.1434,
-      "2": 0.1607,
-      "elo_home": 1745.4,
-      "elo_away": 1550.8,
-      "elo_diff": 254.6,
+      "2": 0.1608,
+      "elo_home": 1745.6,
+      "elo_away": 1551.0,
+      "elo_diff": 254.5,
       "home_adv": 60.0,
-      "expected_score_home": 0.8124,
-      "expected_score_away": 0.1876
+      "expected_score_home": 0.8123,
+      "expected_score_away": 0.1877
      },
      "ratings_troncati": {
-      "Man City": "1745.3673743467264",
-      "Brentford": "1550.7773805053343"
+      "Man City": "1745.557794331333",
+      "Brentford": "1551.01467831899"
      }
     }
    ]
@@ -596,35 +596,35 @@
    "last_date": "2026-10-21 00:00:00",
    "home_adv": 58.0,
    "final_ratings": {
-    "Alaves": "1472.1421744573422",
-    "Almeria": "1345.8867183993764",
-    "Ath Bilbao": "1490.0723767671182",
-    "Ath Madrid": "1641.179250427768",
-    "Barcelona": "1842.1269000629816",
-    "Betis": "1602.3273295650936",
-    "Cadiz": "1377.9485098806354",
-    "Celta": "1493.489903680658",
-    "Deportivo": "1406.932962983105",
-    "Elche": "1423.8855531945062",
-    "Espanol": "1425.313788666724",
-    "Getafe": "1456.8996747192518",
-    "Girona": "1441.8520157822525",
-    "Granada": "1306.6224097221195",
-    "Las Palmas": "1349.0775998237048",
-    "Leganes": "1409.7774380848991",
-    "Levante": "1444.7777600024192",
-    "Mallorca": "1452.0164067574358",
-    "Málaga": "1343.7302921809653",
-    "Osasuna": "1425.8418043590652",
-    "Oviedo": "1345.9176236760015",
-    "Real Madrid": "1740.3281520533556",
-    "Santander": "1372.6986693782735",
-    "Sevilla": "1463.4840956823296",
-    "Sociedad": "1481.7671814482383",
-    "Valencia": "1469.5101371489523",
-    "Valladolid": "1224.306764967362",
-    "Vallecano": "1509.113969030909",
-    "Villarreal": "1588.101317212663"
+    "Alaves": "1472.3811702657183",
+    "Almeria": "1346.0568778650236",
+    "Ath Bilbao": "1490.3061169876",
+    "Ath Madrid": "1641.4109769140339",
+    "Barcelona": "1842.3513650068453",
+    "Betis": "1602.5612703120346",
+    "Cadiz": "1378.1338783065485",
+    "Celta": "1493.7294413383277",
+    "Deportivo": "1407.2132698626622",
+    "Elche": "1424.1330127992526",
+    "Espanol": "1425.5516028818554",
+    "Getafe": "1457.1419868281675",
+    "Girona": "1442.0876672379545",
+    "Granada": "1307.9446786003293",
+    "Las Palmas": "1349.3073495801511",
+    "Leganes": "1410.018519116081",
+    "Levante": "1445.022578806278",
+    "Mallorca": "1452.2511246973488",
+    "Málaga": "1344.0114686523862",
+    "Osasuna": "1426.0782399426328",
+    "Oviedo": "1346.1662312910635",
+    "Real Madrid": "1740.5539648417448",
+    "Santander": "1372.9779530503642",
+    "Sevilla": "1463.7249254909839",
+    "Sociedad": "1482.000698740137",
+    "Valencia": "1469.746011018221",
+    "Valladolid": "1224.9799622901548",
+    "Vallecano": "1509.3513539952012",
+    "Villarreal": "1588.3393328074774"
    },
    "now_fixtures": [
     {
@@ -634,8 +634,8 @@
       "1": 0.4525,
       "X": 0.2552,
       "2": 0.2923,
-      "elo_home": 1490.1,
-      "elo_away": 1472.1,
+      "elo_home": 1490.3,
+      "elo_away": 1472.4,
       "elo_diff": 75.9,
       "home_adv": 58.0,
       "expected_score_home": 0.6076,
@@ -646,15 +646,15 @@
      "home_raw": "Celta",
      "away_raw": "Santander",
      "probs": {
-      "1": 0.5912,
+      "1": 0.5911,
       "X": 0.1976,
-      "2": 0.2112,
-      "elo_home": 1493.5,
-      "elo_away": 1372.7,
+      "2": 0.2113,
+      "elo_home": 1493.7,
+      "elo_away": 1373.0,
       "elo_diff": 178.8,
       "home_adv": 58.0,
-      "expected_score_home": 0.7368,
-      "expected_score_away": 0.2632
+      "expected_score_home": 0.7367,
+      "expected_score_away": 0.2633
      }
     },
     {
@@ -664,8 +664,8 @@
       "1": 0.3393,
       "X": 0.2683,
       "2": 0.3924,
-      "elo_home": 1425.8,
-      "elo_away": 1509.1,
+      "elo_home": 1426.1,
+      "elo_away": 1509.4,
       "elo_diff": -25.3,
       "home_adv": 58.0,
       "expected_score_home": 0.4637,
@@ -679,8 +679,8 @@
       "1": 0.1229,
       "X": 0.0989,
       "2": 0.7782,
-      "elo_home": 1463.5,
-      "elo_away": 1842.1,
+      "elo_home": 1463.7,
+      "elo_away": 1842.4,
       "elo_diff": -320.6,
       "home_adv": 58.0,
       "expected_score_home": 0.1364,
@@ -692,10 +692,10 @@
      "away_raw": "Levante",
      "probs": {
       "1": 0.6228,
-      "X": 0.1817,
+      "X": 0.1818,
       "2": 0.1955,
-      "elo_home": 1588.1,
-      "elo_away": 1444.8,
+      "elo_home": 1588.3,
+      "elo_away": 1445.0,
       "elo_diff": 201.3,
       "home_adv": 58.0,
       "expected_score_home": 0.7611,
@@ -706,12 +706,12 @@
      "home_raw": "Deportivo",
      "away_raw": "Betis",
      "probs": {
-      "1": 0.2419,
-      "X": 0.2245,
+      "1": 0.242,
+      "X": 0.2246,
       "2": 0.5335,
-      "elo_home": 1406.9,
-      "elo_away": 1602.3,
-      "elo_diff": -137.4,
+      "elo_home": 1407.2,
+      "elo_away": 1602.6,
+      "elo_diff": -137.3,
       "home_adv": 58.0,
       "expected_score_home": 0.312,
       "expected_score_away": 0.688
@@ -724,8 +724,8 @@
       "1": 0.4159,
       "X": 0.2645,
       "2": 0.3196,
-      "elo_home": 1469.5,
-      "elo_away": 1481.8,
+      "elo_home": 1469.7,
+      "elo_away": 1482.0,
       "elo_diff": 45.7,
       "home_adv": 58.0,
       "expected_score_home": 0.5655,
@@ -736,15 +736,15 @@
      "home_raw": "Getafe",
      "away_raw": "Málaga",
      "probs": {
-      "1": 0.5805,
+      "1": 0.5804,
       "X": 0.2028,
       "2": 0.2167,
-      "elo_home": 1456.9,
-      "elo_away": 1343.7,
-      "elo_diff": 171.2,
+      "elo_home": 1457.1,
+      "elo_away": 1344.0,
+      "elo_diff": 171.1,
       "home_adv": 58.0,
-      "expected_score_home": 0.7282,
-      "expected_score_away": 0.2718
+      "expected_score_home": 0.7281,
+      "expected_score_away": 0.2719
      }
     },
     {
@@ -754,8 +754,8 @@
       "1": 0.3239,
       "X": 0.2656,
       "2": 0.4105,
-      "elo_home": 1641.2,
-      "elo_away": 1740.3,
+      "elo_home": 1641.4,
+      "elo_away": 1740.6,
       "elo_diff": -41.1,
       "home_adv": 58.0,
       "expected_score_home": 0.4411,
@@ -769,8 +769,8 @@
       "1": 0.3786,
       "X": 0.2696,
       "2": 0.3519,
-      "elo_home": 1444.8,
-      "elo_away": 1490.1,
+      "elo_home": 1445.0,
+      "elo_away": 1490.3,
       "elo_diff": 12.7,
       "home_adv": 58.0,
       "expected_score_home": 0.5183,
@@ -814,19 +814,19 @@
      "home": "Espanol",
      "away": "Vallecano",
      "probs": {
-      "1": 0.3724,
+      "1": 0.3725,
       "X": 0.2699,
-      "2": 0.3577,
-      "elo_home": 1373.1,
-      "elo_away": 1424.1,
-      "elo_diff": 7.0,
+      "2": 0.3576,
+      "elo_home": 1373.3,
+      "elo_away": 1424.2,
+      "elo_diff": 7.1,
       "home_adv": 58.0,
-      "expected_score_home": 0.5101,
-      "expected_score_away": 0.4899
+      "expected_score_home": 0.5102,
+      "expected_score_away": 0.4898
      },
      "ratings_troncati": {
-      "Espanol": "1373.092187188718",
-      "Vallecano": "1424.06427715975"
+      "Espanol": "1373.3379361931732",
+      "Vallecano": "1424.2460540635172"
      }
     },
     {
@@ -841,17 +841,17 @@
      "probs": {
       "1": 0.5085,
       "X": 0.2351,
-      "2": 0.2563,
-      "elo_home": 1442.7,
-      "elo_away": 1381.7,
+      "2": 0.2564,
+      "elo_home": 1442.9,
+      "elo_away": 1381.9,
       "elo_diff": 119.0,
       "home_adv": 58.0,
       "expected_score_home": 0.6648,
       "expected_score_away": 0.3352
      },
      "ratings_troncati": {
-      "Getafe": "1442.6602442197443",
-      "Oviedo": "1381.670369306252"
+      "Getafe": "1442.9051670170709",
+      "Oviedo": "1381.944301279246"
      }
     },
     {
@@ -867,16 +867,16 @@
       "1": 0.3382,
       "X": 0.2682,
       "2": 0.3937,
-      "elo_home": 1489.5,
-      "elo_away": 1573.9,
+      "elo_home": 1489.8,
+      "elo_away": 1574.2,
       "elo_diff": -26.4,
       "home_adv": 58.0,
       "expected_score_home": 0.4621,
       "expected_score_away": 0.5379
      },
      "ratings_troncati": {
-      "Sociedad": "1489.5309722067161",
-      "Betis": "1573.942525357882"
+      "Sociedad": "1489.809341645837",
+      "Betis": "1574.2213174449946"
      }
     }
    ]
@@ -887,31 +887,31 @@
    "last_date": "2026-09-20 00:00:00",
    "home_adv": 70.0,
    "final_ratings": {
-    "Augsburg": "1494.9795054985432",
-    "Bayern": "1862.1824230734753",
+    "Augsburg": "1494.9891863735234",
+    "Bayern": "1862.1856184911787",
     "Bochum": "1350.3381406962944",
     "Darmstadt": "1269.7054680675078",
-    "Dortmund": "1731.2325233092047",
-    "Ein Frankfurt": "1501.8232151878447",
-    "Elversberg": "1409.8889866466404",
-    "Freiburg": "1547.5486467302455",
-    "Hamburg": "1400.6507025024553",
-    "Heidenheim": "1358.3498131618792",
+    "Dortmund": "1731.3050645316098",
+    "Ein Frankfurt": "1501.8348081332588",
+    "Elversberg": "1409.8969176822104",
+    "Freiburg": "1547.6737783462775",
+    "Hamburg": "1400.6764779236432",
+    "Heidenheim": "1358.3529075811273",
     "Hertha": "1382.0760199279193",
-    "Hoffenheim": "1513.8023519016729",
-    "Holstein Kiel": "1349.774882549798",
-    "Koln": "1375.810745504189",
-    "Leipzig": "1586.0884839998896",
-    "Leverkusen": "1646.3085518612843",
-    "M'gladbach": "1413.0328672945654",
-    "Mainz": "1515.1106447026723",
-    "SC Paderborn": "1388.507023680895",
-    "Schalke 04": "1388.9885002149679",
-    "St Pauli": "1319.1052412874637",
-    "Stuttgart": "1609.6802300265815",
-    "Union Berlin": "1394.8479912183313",
-    "Werder Bremen": "1435.099821710204",
-    "Wolfsburg": "1403.3510208900614"
+    "Hoffenheim": "1513.989520799546",
+    "Holstein Kiel": "1349.7748825497977",
+    "Koln": "1375.8144821933943",
+    "Leipzig": "1586.0917082999124",
+    "Leverkusen": "1646.3111254294165",
+    "M'gladbach": "1413.0459802093023",
+    "Mainz": "1515.2034349200535",
+    "SC Paderborn": "1392.182280592015",
+    "Schalke 04": "1389.1362791387082",
+    "St Pauli": "1319.1082921811883",
+    "Stuttgart": "1609.6853349804624",
+    "Union Berlin": "1394.8577291986767",
+    "Werder Bremen": "1435.1031897394596",
+    "Wolfsburg": "1403.3535678546502"
    },
    "now_fixtures": [
     {
@@ -937,7 +937,7 @@
       "X": 0.06,
       "2": 0.0408,
       "elo_home": 1862.2,
-      "elo_away": 1394.8,
+      "elo_away": 1394.9,
       "elo_diff": 537.3,
       "home_adv": 70.0,
       "expected_score_home": 0.9566,
@@ -963,15 +963,15 @@
      "home_raw": "Ein Frankfurt",
      "away_raw": "Freiburg",
      "probs": {
-      "1": 0.3913,
+      "1": 0.3912,
       "X": 0.2685,
-      "2": 0.3403,
+      "2": 0.3404,
       "elo_home": 1501.8,
-      "elo_away": 1547.5,
-      "elo_diff": 24.3,
+      "elo_away": 1547.7,
+      "elo_diff": 24.2,
       "home_adv": 70.0,
-      "expected_score_home": 0.5349,
-      "expected_score_away": 0.4651
+      "expected_score_home": 0.5347,
+      "expected_score_away": 0.4653
      }
     },
     {
@@ -983,7 +983,7 @@
       "2": 0.2761,
       "elo_home": 1400.7,
       "elo_away": 1375.8,
-      "elo_diff": 94.8,
+      "elo_diff": 94.9,
       "home_adv": 70.0,
       "expected_score_home": 0.6332,
       "expected_score_away": 0.3668
@@ -993,26 +993,26 @@
      "home_raw": "M'gladbach",
      "away_raw": "Mainz",
      "probs": {
-      "1": 0.3326,
+      "1": 0.3325,
       "X": 0.2673,
-      "2": 0.4001,
+      "2": 0.4002,
       "elo_home": 1413.0,
-      "elo_away": 1515.1,
-      "elo_diff": -32.1,
+      "elo_away": 1515.2,
+      "elo_diff": -32.2,
       "home_adv": 70.0,
-      "expected_score_home": 0.454,
-      "expected_score_away": 0.546
+      "expected_score_home": 0.4539,
+      "expected_score_away": 0.5461
      }
     },
     {
      "home_raw": "Stuttgart",
      "away_raw": "Dortmund",
      "probs": {
-      "1": 0.3142,
+      "1": 0.3141,
       "X": 0.2631,
-      "2": 0.4227,
+      "2": 0.4228,
       "elo_home": 1609.7,
-      "elo_away": 1731.2,
+      "elo_away": 1731.3,
       "elo_diff": -51.6,
       "home_adv": 70.0,
       "expected_score_home": 0.4263,
@@ -1023,15 +1023,15 @@
      "home_raw": "Schalke 04",
      "away_raw": "Elversberg",
      "probs": {
-      "1": 0.4198,
+      "1": 0.42,
       "X": 0.2637,
-      "2": 0.3165,
-      "elo_home": 1389.0,
+      "2": 0.3163,
+      "elo_home": 1389.1,
       "elo_away": 1409.9,
-      "elo_diff": 49.1,
+      "elo_diff": 49.2,
       "home_adv": 70.0,
-      "expected_score_home": 0.5702,
-      "expected_score_away": 0.4298
+      "expected_score_home": 0.5704,
+      "expected_score_away": 0.4296
      }
     },
     {
@@ -1053,15 +1053,15 @@
      "home_raw": "SC Paderborn",
      "away_raw": "Hoffenheim",
      "probs": {
-      "1": 0.3107,
-      "X": 0.2621,
-      "2": 0.4272,
-      "elo_home": 1388.5,
-      "elo_away": 1513.8,
-      "elo_diff": -55.3,
+      "1": 0.3139,
+      "X": 0.263,
+      "2": 0.423,
+      "elo_home": 1392.2,
+      "elo_away": 1514.0,
+      "elo_diff": -51.8,
       "home_adv": 70.0,
-      "expected_score_home": 0.4211,
-      "expected_score_away": 0.5789
+      "expected_score_home": 0.426,
+      "expected_score_away": 0.574
      }
     }
    ],
@@ -1154,16 +1154,16 @@
       "1": 0.0853,
       "X": 0.06,
       "2": 0.8547,
-      "elo_home": 1386.1,
-      "elo_away": 1856.5,
-      "elo_diff": -400.4,
+      "elo_home": 1386.3,
+      "elo_away": 1856.6,
+      "elo_diff": -400.3,
       "home_adv": 70.0,
       "expected_score_home": 0.0907,
       "expected_score_away": 0.9093
      },
      "ratings_troncati": {
-      "Wolfsburg": "1386.1047671964411",
-      "Bayern": "1856.5458952519273"
+      "Wolfsburg": "1386.2763200302697",
+      "Bayern": "1856.6257923746782"
      }
     }
    ]
@@ -1175,45 +1175,45 @@
    "home_adv": 56.0,
    "final_ratings": {
     "Ajaccio": "1313.4023244012737",
-    "Angers": "1424.0136165123217",
-    "Auxerre": "1471.3164144422976",
-    "Brest": "1464.5870518611484",
-    "Clermont": "1387.5773010097453",
-    "Le Havre": "1416.5872285516925",
-    "Le Mans": "1404.932827628678",
-    "Lens": "1613.9317762709188",
-    "Lille": "1633.6523929233206",
-    "Lorient": "1481.2466932352988",
-    "Lyon": "1639.8681915372592",
-    "Marseille": "1561.3716992189356",
-    "Metz": "1301.7654257472889",
-    "Monaco": "1641.6071265368762",
-    "Montpellier": "1283.1303444968994",
-    "Nantes": "1386.3590327783074",
-    "Nice": "1451.5072913700933",
-    "PSG": "1765.2926677597975",
-    "Paris": "1554.0137290520925",
-    "Reims": "1418.7466797038335",
-    "Rennes": "1605.4001682739608",
-    "St Etienne": "1387.5498776649792",
-    "Strasbourg": "1582.6222726255824",
-    "Toulouse": "1505.028255292437",
-    "Troyes": "1366.9291254839832"
+    "Angers": "1424.6346596196706",
+    "Auxerre": "1471.5775457506613",
+    "Brest": "1465.014844102386",
+    "Clermont": "1387.7726552436675",
+    "Le Havre": "1417.1242598401514",
+    "Le Mans": "1405.416950057735",
+    "Lens": "1614.37124698201",
+    "Lille": "1634.1829474855645",
+    "Lorient": "1482.696590758601",
+    "Lyon": "1640.3176644624236",
+    "Marseille": "1561.8162922615265",
+    "Metz": "1303.751698487419",
+    "Monaco": "1642.0387182415825",
+    "Montpellier": "1283.2533807490006",
+    "Nantes": "1386.818741860222",
+    "Nice": "1451.9731323859032",
+    "PSG": "1765.62334396247",
+    "Paris": "1554.5927818276973",
+    "Reims": "1418.8324313588323",
+    "Rennes": "1605.8342903679502",
+    "St Etienne": "1387.6451332319455",
+    "Strasbourg": "1583.2379151145487",
+    "Toulouse": "1505.5083531569933",
+    "Troyes": "1370.6885815008452"
    },
    "now_fixtures": [
     {
      "home_raw": "Brest",
      "away_raw": "PSG",
      "probs": {
-      "1": 0.1669,
+      "1": 0.167,
       "X": 0.1505,
-      "2": 0.6827,
-      "elo_home": 1464.6,
-      "elo_away": 1765.3,
-      "elo_diff": -244.7,
+      "2": 0.6825,
+      "elo_home": 1465.0,
+      "elo_away": 1765.6,
+      "elo_diff": -244.6,
       "home_adv": 56.0,
-      "expected_score_home": 0.1964,
-      "expected_score_away": 0.8036
+      "expected_score_home": 0.1965,
+      "expected_score_away": 0.8035
      }
     },
     {
@@ -1223,8 +1223,8 @@
       "1": 0.4623,
       "X": 0.2522,
       "2": 0.2856,
-      "elo_home": 1641.6,
-      "elo_away": 1613.9,
+      "elo_home": 1642.0,
+      "elo_away": 1614.4,
       "elo_diff": 83.7,
       "home_adv": 56.0,
       "expected_score_home": 0.6181,
@@ -1236,40 +1236,40 @@
      "away_raw": "Le Havre",
      "probs": {
       "1": 0.5432,
-      "X": 0.2202,
-      "2": 0.2365,
-      "elo_home": 1505.0,
-      "elo_away": 1416.6,
+      "X": 0.2203,
+      "2": 0.2366,
+      "elo_home": 1505.5,
+      "elo_away": 1417.1,
       "elo_diff": 144.4,
       "home_adv": 56.0,
-      "expected_score_home": 0.6967,
-      "expected_score_away": 0.3033
+      "expected_score_home": 0.6966,
+      "expected_score_away": 0.3034
      }
     },
     {
      "home_raw": "Angers",
      "away_raw": "Troyes",
      "probs": {
-      "1": 0.5006,
-      "X": 0.2383,
-      "2": 0.2611,
-      "elo_home": 1424.0,
-      "elo_away": 1366.9,
-      "elo_diff": 113.1,
+      "1": 0.4964,
+      "X": 0.2399,
+      "2": 0.2636,
+      "elo_home": 1424.6,
+      "elo_away": 1370.7,
+      "elo_diff": 109.9,
       "home_adv": 56.0,
-      "expected_score_home": 0.6572,
-      "expected_score_away": 0.3428
+      "expected_score_home": 0.6531,
+      "expected_score_away": 0.3469
      }
     },
     {
      "home_raw": "Paris",
      "away_raw": "Strasbourg",
      "probs": {
-      "1": 0.3948,
+      "1": 0.3947,
       "X": 0.268,
       "2": 0.3372,
-      "elo_home": 1554.0,
-      "elo_away": 1582.6,
+      "elo_home": 1554.6,
+      "elo_away": 1583.2,
       "elo_diff": 27.4,
       "home_adv": 56.0,
       "expected_score_home": 0.5393,
@@ -1280,15 +1280,15 @@
      "home_raw": "Le Mans",
      "away_raw": "Lorient",
      "probs": {
-      "1": 0.3442,
-      "X": 0.2689,
-      "2": 0.3869,
-      "elo_home": 1404.9,
-      "elo_away": 1481.2,
-      "elo_diff": -20.3,
+      "1": 0.3432,
+      "X": 0.2688,
+      "2": 0.388,
+      "elo_home": 1405.4,
+      "elo_away": 1482.7,
+      "elo_diff": -21.3,
       "home_adv": 56.0,
-      "expected_score_home": 0.4708,
-      "expected_score_away": 0.5292
+      "expected_score_home": 0.4694,
+      "expected_score_away": 0.5306
      }
     },
     {
@@ -1298,8 +1298,8 @@
       "1": 0.471,
       "X": 0.2493,
       "2": 0.2798,
-      "elo_home": 1639.9,
-      "elo_away": 1605.4,
+      "elo_home": 1640.3,
+      "elo_away": 1605.8,
       "elo_diff": 90.5,
       "home_adv": 56.0,
       "expected_score_home": 0.6273,
@@ -1310,12 +1310,12 @@
      "home_raw": "Nice",
      "away_raw": "Lille",
      "probs": {
-      "1": 0.2507,
+      "1": 0.2506,
       "X": 0.2311,
-      "2": 0.5182,
-      "elo_home": 1451.5,
-      "elo_away": 1633.7,
-      "elo_diff": -126.1,
+      "2": 0.5183,
+      "elo_home": 1452.0,
+      "elo_away": 1634.2,
+      "elo_diff": -126.2,
       "home_adv": 56.0,
       "expected_score_home": 0.326,
       "expected_score_away": 0.674
@@ -1325,30 +1325,30 @@
      "home_raw": "Auxerre",
      "away_raw": "Brest",
      "probs": {
-      "1": 0.4362,
-      "X": 0.2598,
-      "2": 0.304,
-      "elo_home": 1471.3,
-      "elo_away": 1464.6,
-      "elo_diff": 62.7,
+      "1": 0.436,
+      "X": 0.2599,
+      "2": 0.3041,
+      "elo_home": 1471.6,
+      "elo_away": 1465.0,
+      "elo_diff": 62.6,
       "home_adv": 56.0,
-      "expected_score_home": 0.5893,
-      "expected_score_away": 0.4107
+      "expected_score_home": 0.5891,
+      "expected_score_away": 0.4109
      }
     },
     {
      "home_raw": "Marseille",
      "away_raw": "PSG",
      "probs": {
-      "1": 0.2339,
+      "1": 0.234,
       "X": 0.2181,
-      "2": 0.5481,
-      "elo_home": 1561.4,
-      "elo_away": 1765.3,
-      "elo_diff": -147.9,
+      "2": 0.5479,
+      "elo_home": 1561.8,
+      "elo_away": 1765.6,
+      "elo_diff": -147.8,
       "home_adv": 56.0,
-      "expected_score_home": 0.2991,
-      "expected_score_away": 0.7009
+      "expected_score_home": 0.2993,
+      "expected_score_away": 0.7007
      }
     }
    ],
@@ -1388,19 +1388,19 @@
      "home": "Brest",
      "away": "St Etienne",
      "probs": {
-      "1": 0.6923,
-      "X": 0.1453,
-      "2": 0.1624,
-      "elo_home": 1562.9,
-      "elo_away": 1367.0,
-      "elo_diff": 251.9,
+      "1": 0.6921,
+      "X": 0.1454,
+      "2": 0.1625,
+      "elo_home": 1563.1,
+      "elo_away": 1367.3,
+      "elo_diff": 251.8,
       "home_adv": 56.0,
-      "expected_score_home": 0.81,
-      "expected_score_away": 0.19
+      "expected_score_home": 0.8099,
+      "expected_score_away": 0.1901
      },
      "ratings_troncati": {
-      "Brest": "1562.8873505000108",
-      "St Etienne": "1367.0194674674608"
+      "Brest": "1563.0659209293283",
+      "St Etienne": "1367.2988030828544"
      }
     },
     {
@@ -1416,16 +1416,16 @@
       "1": 0.6488,
       "X": 0.1683,
       "2": 0.1829,
-      "elo_home": 1596.0,
-      "elo_away": 1432.0,
+      "elo_home": 1596.3,
+      "elo_away": 1432.3,
       "elo_diff": 220.0,
       "home_adv": 56.0,
       "expected_score_home": 0.7801,
       "expected_score_away": 0.2199
      },
      "ratings_troncati": {
-      "Nice": "1595.991778728587",
-      "Nantes": "1431.9940757080744"
+      "Nice": "1596.3010782170743",
+      "Nantes": "1432.298727275313"
      }
     }
    ]
