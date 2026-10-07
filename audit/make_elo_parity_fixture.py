@@ -94,6 +94,21 @@ def _fresh_engine(league: str) -> EloEngine:
     return e
 
 
+def _roster_completo() -> dict:
+    """R(lega, stagione) dal database INTEGRALE, calcolato una volta sola.
+
+    Il roster e' un input esplicito: nel backtest su CSV troncati il motore
+    riceve questo e non quello ricavato dal DB tagliato, cosi' il riferimento
+    del seed non dipende da quanto e' stato troncato il database. Stessa
+    sorgente per il walker e per il motore di produzione.
+    """
+    out = {}
+    for lg in LEAGUES:
+        e = _fresh_engine(lg)
+        out[lg] = {k: set(v) for k, v in e.season_rosters.items()}
+    return out
+
+
 def _probs_via_production(league: str, engine: EloEngine, pairs,
                           season=None):
     """``predict_elo_probs`` di produzione con ``engine`` in cache."""
