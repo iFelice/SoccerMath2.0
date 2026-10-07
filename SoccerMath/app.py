@@ -1837,22 +1837,29 @@ def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
             # --- CONTESTO PER IL PROMPT (Elo, classifica, forma recente) ---
             # Il prompt ragionato ha bisogno di questi dati: senza di essi un
             # NameError verrebbe inghiottito dal try/except e Billy non risponderebbe.
+            elo_non_disponibile = "Elo non disponibile per questa partita"
             try:
                 elo_p = predict_elo_probs(h, a, camp_sel, season=_stagione_da_utcdate(match_utc))
+                elo_disponibile = True
             except Exception as e:
                 logging.warning(f"Elo non disponibile per {h} vs {a}: {e}")
-                elo_p = {'1': p1, 'X': pX, '2': p2, 'elo_diff': 0.0}
+                elo_p = None
+                elo_disponibile = False
+                st.warning(elo_non_disponibile)
             classifica = st.session_state.get("classifica", {}) or {}
             h_pos = classifica.get(clean_name(h), {}).get("pos", "N/D")
             a_pos = classifica.get(clean_name(a), {}).get("pos", "N/D")
             h_ris = contesto.get("h_risultati", [])
             a_ris = contesto.get("a_risultati", [])
 
+            elo_riga_prompt = (f"- Elo: 1={elo_p['1']:.1%} | X={elo_p['X']:.1%} | "
+                               f"2={elo_p['2']:.1%} (diff Elo={elo_p['elo_diff']:.0f})"
+                               if elo_disponibile else f"- {elo_non_disponibile}")
             prompt = f"""Sei Billy Walters, esperto di betting con 40 anni di esperienza. Analizza {h} vs {a} ({camp_sel}).
 
 DATI QUANTITATIVI DEI MODELLI:
 - Poisson: 1={p1:.1%} | X={pX:.1%} | 2={p2:.1%}
-- Elo: 1={elo_p['1']:.1%} | X={elo_p['X']:.1%} | 2={elo_p['2']:.1%} (diff Elo={elo_p['elo_diff']:.0f})
+{elo_riga_prompt}
 - Classifica attuale: {h} è {h_pos}° in classifica, {a} è {a_pos}°
 - Ultimi 5 risultati {h}: {', '.join(h_ris[-5:]) if h_ris else 'N/D'}
 - Ultimi 5 risultati {a}: {', '.join(a_ris[-5:]) if a_ris else 'N/D'}
