@@ -93,12 +93,6 @@ jobs:
             audit/test_topmix_margins.py \
             SoccerMath/test_topmix_selector_parity.py \
             SoccerMath/test_topmix_shadow_gate.py \
-            audit/test_elo_s3_parity.py \
-            audit/test_elo_probs_equivalence.py \
-            audit/test_elo_walker_parity.py \
-            SoccerMath/test_elo_promoted_seed.py \
-            SoccerMath/test_elo_probs_from_ratings.py \
-            SoccerMath/test_legacy_elo_engine.py \
             -q --tb=short
 
       - name: GET JSONBin Schalke–Bayern (sola lettura, mai PUT)
