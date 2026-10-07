@@ -26,17 +26,26 @@ di PRIMA del fix, non una ricostruzione: questi test lo dimostrano.
 from __future__ import annotations
 
 import ast
+import contextlib
+from pathlib import Path
 import difflib
 import os
 import subprocess
+import shutil
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
+import numpy as np  # noqa: E402
+
+import config as PROD_CONFIG  # noqa: E402
+
 from models import legacy_elo as L  # noqa: E402
+from models.elo_engine import PROMOTED_SEED_OFFSET  # noqa: E402
 
 LEGACY_PATH = L.LEGACY_ELO_ENGINE_FILE
 CURRENT_PATH = os.path.join(HERE, "models", "elo_engine.py")
@@ -56,19 +65,38 @@ class TestProvenienzaVerbatim(unittest.TestCase):
         self.assertEqual(L.git_blob_sha(LEGACY_PATH), L.LEGACY_ELO_BLOB_SHA)
         self.assertTrue(L.legacy_engine_is_verbatim())
 
+    def _clone_completo(self) -> bool:
+        return (_git("rev-parse", "--is-shallow-repository") or "").strip() == "false"
+
     def test_git_conferma_che_e_il_file_pre_fix(self):
-        atteso = _git("rev-parse", f"{L.LEGACY_ELO_SOURCE_COMMIT}:{L.LEGACY_ELO_SOURCE_PATH}")
-        if not atteso:
-            self.skipTest("clone senza l'oggetto git a435436 (shallow o senza git)")
-        self.assertEqual(atteso.strip(), L.LEGACY_ELO_BLOB_SHA)
-        contenuto = _git("cat-file", "-p", L.LEGACY_ELO_BLOB_SHA)
+        """Il legacy e' VERBATIM, e questo non dipende dal clone.
+
+        L'hash git del file lo ricalcola ``legacy_elo.git_blob_sha`` in Python:
+        se e' uguale al blob dichiarato, il file non e' cambiato di un byte.
+        Il confronto con l'oggetto nello store di git e' una seconda conferma
+        sullo stesso file: in un clone completo e' OBBLIGATORIO, in un clone
+        superficiale non puo' essere eseguito e non e' un test che si salta.
+        """
         with open(LEGACY_PATH, encoding="utf-8") as f:
-            self.assertEqual(contenuto, f.read())
+            contenuto = f.read()
+        self.assertEqual(L.git_blob_sha(LEGACY_PATH), L.LEGACY_ELO_BLOB_SHA)
+        self.assertTrue(L.legacy_engine_is_verbatim())
+        if self._clone_completo():
+            atteso = _git("rev-parse",
+                          f"{L.LEGACY_ELO_SOURCE_COMMIT}:{L.LEGACY_ELO_SOURCE_PATH}")
+            self.assertIsNotNone(atteso, "clone completo senza l'oggetto dichiarato")
+            self.assertEqual(atteso.strip(), L.LEGACY_ELO_BLOB_SHA)
+            self.assertEqual(_git("cat-file", "-p", L.LEGACY_ELO_BLOB_SHA), contenuto)
 
     def test_git_conferma_il_commit_che_lo_ha_sostituito(self):
+        """Quando il clone e' completo, anche la cronologia e' obbligatoria."""
         log = _git("log", "--format=%H %cI", "-1", L.LEGACY_ELO_REPLACED_BY_COMMIT)
-        if not log:
-            self.skipTest("commit 980e048 non presente nel clone")
+        if not self._clone_completo():
+            # Senza cronologia non c'e' nulla da confrontare: l'integrita' del
+            # file e' gia' asserita sopra e non dipende da git.
+            self.assertIsNone(log)
+            return
+        self.assertIsNotNone(log, "clone completo senza il commit dichiarato")
         sha, quando = log.split()
         self.assertEqual(sha, L.LEGACY_ELO_REPLACED_BY_COMMIT)
         self.assertTrue(quando.startswith("2026-09-18T21:39:23"), quando)
@@ -105,30 +133,29 @@ def _senza_docstring(src: str, nome_funzione: str) -> str:
 class TestUnicaDifferenza(unittest.TestCase):
     #: righe presenti SOLO nel legacy (boost xG) o spostate dal refactor PR #30
     RIMOSSE_ATTESE = [
-        # --- PR #35: first_season puo' essere None prima del primo ricalcolo ---
-        "from typing import Dict, List",
-        # --- boost xG retroattivo, unica differenza di COMPORTAMENTO ---
-        "from scraper_xg import get_understat_xg",
-        "xg_data = get_understat_xg(self.league_name) or {}",
-        "xg_adj = 0.0",
-        "if xg_data and h_team in xg_data and a_team in xg_data:",
+        # --- PR #35: seed d'ingresso, differenza di COMPORTAMENTO ---
+        'from typing import Dict, List',
+        'from scraper_xg import get_understat_xg',
+        'xg_data = get_understat_xg(self.league_name) or {}',
+        'xg_adj = 0.0',
+        'if xg_data and h_team in xg_data and a_team in xg_data:',
         'h_xg = xg_data[h_team].get("xG_avg", 1.3)',
         'h_xga = xg_data[h_team].get("xGA_avg", 1.3)',
         'a_xg = xg_data[a_team].get("xG_avg", 1.3)',
         'a_xga = xg_data[a_team].get("xGA_avg", 1.3)',
-        "xg_adj = ((h_xg - h_xga) - (a_xg - a_xga)) * 0.15",
-        "",
-        "xg_elo_boost = max(-100, min(100, xg_adj * 400))",
-        "dr = r_h + self.home_adv - r_a + xg_elo_boost",
-        # --- PR #30: estrazione di elo_probs_from_ratings, nessun numero cambia ---
-        "def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:",
-        "engine = get_elo_engine(league_name)",
-        "h_cl = clean_name(home_team)",
-        "a_cl = clean_name(away_team)",
-        "r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)",
-        "r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)",
-        "dr = r_h + engine.home_adv - r_a",
+        'xg_adj = ((h_xg - h_xga) - (a_xg - a_xga)) * 0.15',
+        '',
+        'xg_elo_boost = max(-100, min(100, xg_adj * 400))',
+        'dr = r_h + self.home_adv - r_a + xg_elo_boost',
+        'def predict_elo_probs(home_team: str, away_team: str, league_name: str) -> dict:',
+        'engine = get_elo_engine(league_name)',
+        'h_cl = clean_name(home_team)',
+        'a_cl = clean_name(away_team)',
+        'r_h = engine.ratings.get(h_cl, DEFAULT_INITIAL_RATING)',
+        'r_a = engine.ratings.get(a_cl, DEFAULT_INITIAL_RATING)',
+        'dr = r_h + engine.home_adv - r_a',
         '"elo_diff": round(dr, 1), "home_adv": engine.home_adv,',
+
     ]
     #: righe presenti SOLO nell'attuale (docstring della funzione pura escluso).
     #:
@@ -143,7 +170,7 @@ class TestUnicaDifferenza(unittest.TestCase):
     #: sparita, e nessuna riga NUOVA e' stata esclusa dalla lista: i docstring
     #: dei due metodi nuovi sono pinnati come tutto il resto del codice.
     AGGIUNTE_ATTESE = [
-        # --- PR #35: stato degli ingressi in lega (una sola riga di import) ---
+        # --- PR #35: stato degli ingressi in lega ---
         'from typing import Dict, List, Optional',
         'season_start_year_of,',
         '',
@@ -169,6 +196,11 @@ class TestUnicaDifferenza(unittest.TestCase):
         '# database, che resta il burn-in e non genera ingressi.',
         'self.entry_season: Dict[str, int] = {}',
         'self.first_season: Optional[int] = None',
+        '#: Stato dei rating delle squadre ATTIVE al BEGINNING of the day being',
+        '#: processed, taken before any match of that day. The seed of an entry',
+        '#: reads this and nothing else, so it cannot depend on the order of the',
+        '#: matches of the same date nor on results not yet available at kickoff.',
+        'self._day_start_state: Dict[str, float] = {}',
         '',
         'def _is_entry(self, team: str, season: int) -> bool:',
         '"""La squadra ``team`` sta giocando la sua prima partita in lega?',
@@ -187,37 +219,66 @@ class TestUnicaDifferenza(unittest.TestCase):
         'return season > self.first_season',
         'return season - ultima > 1',
         '',
+        'def _snapshot_day_start(self) -> None:',
+        '"""Fotografa lo stato delle squadre attive PRIMA della giornata."""',
+        'self._day_start_state = {',
+        't: self.ratings[t] for t in self.entry_season if t in self.ratings',
+        '}',
+        '',
         'def promoted_seed(self) -> float:',
         '"""Rating iniziale di una squadra che entra in lega (PR #35).',
         '',
-        "Media dei rating correnti delle squadre ATTIVE — quelle che hanno gia'",
-        "disputato almeno una partita in lega, nell'ordine di produzione — piu'",
-        "``PROMOTED_SEED_OFFSET``. Se non c'e' nessuna squadra attiva (prima",
-        'partita mai giocata del database, o squadra assente dai CSV) il',
-        "fallback dichiarato e' ``DEFAULT_INITIAL_RATING``.",
+        'Media dei rating delle squadre ATTIVE al **inizio della data della',
+        "partita** — cioe' di quelle che avevano gia' disputato almeno una",
+        "partita quando la giornata e' iniziata, con i rating che avevano in",
+        "quel momento — piu' ``PROMOTED_SEED_OFFSET``.",
+        '',
+        "Lo snapshot e' preso una volta per giornata, prima di qualunque",
+        "partita di quella giornata: per questo il seed non dipende dall'ordine",
+        'delle partite della stessa data e non usa risultati che al kickoff non',
+        "erano ancora disponibili. In predizione lo snapshot e' quello di fine",
+        "database, cioe' l'inizio della prossima giornata ancora da giocare:",
+        'stessa regola, stesso codice.',
+        '',
+        "Se non c'e' nessuna squadra attiva (prima partita mai giocata del",
+        "database, o squadra assente dai CSV) il fallback dichiarato e'",
+        '``DEFAULT_INITIAL_RATING``.',
         '"""',
-        'attive = [self.ratings[t] for t in sorted(self.entry_season) if t in self.ratings]',
-        'if not attive:',
+        'stato = self._day_start_state',
+        'if not stato:',
         'return DEFAULT_INITIAL_RATING',
-        'return float(np.mean(attive)) + PROMOTED_SEED_OFFSET',
+        'return float(np.mean([stato[t] for t in sorted(stato)])) + PROMOTED_SEED_OFFSET',
         "# compute_ratings e' un ricalcolo completo: lo stato degli ingressi",
         '# riparte da zero come i rating.',
         'self.entry_season = {}',
+        'self._day_start_state = {}',
         'self.first_season = season_start_year_of(df["Date_Parsed"].iloc[0])',
+        'giorno_corrente = None',
         'season = season_start_year_of(row["Date_Parsed"])',
+        '# UN solo snapshot per giornata, preso PRIMA di qualunque sua',
+        "# partita: e' lo stato che il seed deve vedere. Le righe sono",
+        "# ordinate per data, quindi il cambio di data e' il momento esatto",
+        "# in cui congelarlo; dentro la giornata non si tocca piu'.",
+        'if pd.Timestamp(row["Date_Parsed"]).normalize() != giorno_corrente:',
+        'giorno_corrente = pd.Timestamp(row["Date_Parsed"]).normalize()',
+        'self._snapshot_day_start()',
         "# Seeding d'ingresso (PR #35). Se due squadre esordiscono nella",
         '# stessa partita i seed sono applicati in sequenza, in ordine',
-        "# alfabetico di nome: il secondo vede gia' il seed del primo nel",
-        "# calcolo della media attiva. E' l'ordine con cui _entry_records",
-        "# elenca gli ingressi e con cui la variante S3 dell'audit li assegna,",
-        "# ed e' cio' che rende i numeri bit-exact su quella partita. Nessuna",
-        "# squadra entra fra le attive finche' i due seed non sono calcolati.",
+        "# alfabetico di nome: e' l'ordine con cui _entry_records elenca gli",
+        "# ingressi e con cui la variante S3 dell'audit li assegna. Lo",
+        "# snapshot letto e' quello di inizio giornata e non cambia fra le",
+        "# due squadre, quindi l'ordine serve solo a rendere deterministico",
+        '# il risultato float, non a scegliere chi vede chi.',
         'for team in sorted((h_team, a_team)):',
         'if self._is_entry(team, season):',
         'self.ratings[team] = self.promoted_seed()',
         'for team in (h_team, a_team):',
         'self.entry_season[team] = season',
         'dr = r_h + self.home_adv - r_a',
+        '# Fine database: lo snapshot diventa lo stato di inizio della PROSSIMA',
+        "# giornata, cioe' quello che predict_elo_probs usa per una squadra che",
+        '# non ha ancora rating in lega. Stessa definizione del ramo storico.',
+        'self._snapshot_day_start()',
         'def elo_probs_from_ratings(r_h: float, r_a: float, home_adv: float) -> dict:',
         'dr = r_h + home_adv - r_a',
         '"elo_diff": round(dr, 1), "home_adv": home_adv,',
@@ -237,6 +298,7 @@ class TestUnicaDifferenza(unittest.TestCase):
         'if r_a is None:',
         'r_a = engine.promoted_seed()',
         'return elo_probs_from_ratings(r_h, r_a, engine.home_adv)',
+
     ]
 
     @classmethod
@@ -364,6 +426,178 @@ class TestConvivenza(unittest.TestCase):
         for p in (a, b):
             self.assertAlmostEqual(p["1"] + p["X"] + p["2"], 1.0, places=3)
             self.assertEqual(p["home_adv"], a["home_adv"])
+
+PREFIX = PROD_CONFIG.LEAGUES_CONFIG["Serie A"]["db_prefix"]
+
+
+class TestDifferenzaAttesa(unittest.TestCase):
+    """Differenza ATTESA fra legacy e attuale: solo il seed d'ingresso.
+
+    Il legacy resta intatto e resta il riferimento del replay; questa modifica
+    cambia il motore corrente in un punto solo e dichiarato. Il test costruisce
+    un database sintetico con una neopromossa mai vista e con due squadre che
+    ritornano dopo una stagione di assenza, e verifica che:
+
+      * finche' nessuna squadra entra in lega, i due motori sono identici bit
+        per bit, non "quasi": stessi float, stesso ``repr``, tutta la stagione
+        di burn-in;
+      * nel giorno dell'ingresso le altre squadre sono ancora identiche (il
+        seed guarda l'inizio della giornata, quindi non ruba niente alla
+        giornata stessa);
+      * a divergere e' solo la squadra che entra: il legacy la lascia a 1500
+        (mai vista) o sul rating stantio (ritorno), l'attuale la mette a
+        media delle attive a inizio giornata - 100;
+      * due ingressi nella stessa partita prendono lo stesso seed.
+    """
+
+    COLONNE = ["HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR", "Date"]
+    #: lega e prefisso reali: il loader di file del motore legacy e' lo stesso
+    #: di produzione e risolve i CSV dal db_prefix di config
+    LEGA = "Serie A"
+
+    STAGIONI = {
+        # 2022/23: quattro squadre, burn-in, nessun ingresso
+        "2022": [
+            {"HomeTeam": "Alfa", "AwayTeam": "Beta", "FTHG": 2, "FTAG": 0, "FTR": "H",
+             "Date": "13/08/2022"},
+            {"HomeTeam": "Alfa", "AwayTeam": "Gamma", "FTHG": 3, "FTAG": 1, "FTR": "H",
+             "Date": "14/08/2022"},
+            {"HomeTeam": "Alfa", "AwayTeam": "Delta", "FTHG": 0, "FTAG": 2, "FTR": "A",
+             "Date": "15/08/2022"},
+            {"HomeTeam": "Beta", "AwayTeam": "Gamma", "FTHG": 1, "FTAG": 1, "FTR": "D",
+             "Date": "16/08/2022"},
+            {"HomeTeam": "Beta", "AwayTeam": "Delta", "FTHG": 2, "FTAG": 2, "FTR": "D",
+             "Date": "17/08/2022"},
+            {"HomeTeam": "Gamma", "AwayTeam": "Delta", "FTHG": 3, "FTAG": 0, "FTR": "H",
+             "Date": "18/08/2022"},
+        ],
+        # 2023/24: Beta e Delta assenti, Epsilon non e' mai stata vista
+        "2023": [
+            {"HomeTeam": "Epsilon", "AwayTeam": "Alfa", "FTHG": 1, "FTAG": 2, "FTR": "A",
+             "Date": "18/08/2023"},
+            {"HomeTeam": "Alfa", "AwayTeam": "Gamma", "FTHG": 1, "FTAG": 1, "FTR": "D",
+             "Date": "19/08/2023"},
+        ],
+        # 2024/25: Beta e Delta ritornano, nella stessa partita
+        "2024": [
+            {"HomeTeam": "Delta", "AwayTeam": "Beta", "FTHG": 0, "FTAG": 3, "FTR": "A",
+             "Date": "18/08/2024"},
+            {"HomeTeam": "Alfa", "AwayTeam": "Gamma", "FTHG": 2, "FTAG": 1, "FTR": "H",
+             "Date": "19/08/2024"},
+        ],
+    }
+
+    @contextlib.contextmanager
+    def _db(self, righe_per_stagione):
+        import pandas as pd
+        from models import elo_engine as E
+        tmp = tempfile.mkdtemp(prefix="elo_legacy_diff_")
+        try:
+            for stagione, righe in righe_per_stagione.items():
+                pd.DataFrame(righe, columns=self.COLONNE).to_csv(
+                    Path(tmp) / f"{PREFIX}_{stagione}.csv", index=False)
+            self._old = (PROD_CONFIG.DATABASE_DIR,
+                         {k: dict(v) for k, v in PROD_CONFIG.LEAGUES_CONFIG.items()})
+            PROD_CONFIG.DATABASE_DIR = Path(tmp)
+            for k, v in PROD_CONFIG.LEAGUES_CONFIG.items():
+                for chiave in ("base_csv", "live_csv", "xg_json"):
+                    if v.get(chiave):
+                        v[chiave] = str(Path(tmp) / os.path.basename(v[chiave]))
+            E._ELO_ENGINES_CACHE.pop(self.LEGA, None)
+            E._ELO_ENGINES_STAMP.pop(self.LEGA, None)
+            L.clear_legacy_elo_cache()
+            yield
+        finally:
+            PROD_CONFIG.DATABASE_DIR = self._old[0]
+            for k, v in PROD_CONFIG.LEAGUES_CONFIG.items():
+                PROD_CONFIG.LEAGUES_CONFIG[k] = self._old[1][k]
+            L.clear_legacy_elo_cache()
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def _entrambi(self):
+        from models.elo_engine import EloEngine
+        with self._db(self.STAGIONI):
+            attuale = EloEngine(self.LEGA)
+            attuale.compute_ratings()
+            legacy = L.EloEngineLegacy(self.LEGA)
+            legacy.compute_ratings()
+            return attuale, legacy
+
+    @staticmethod
+    def _stato_prima(eng, squadra, n):
+        return repr(eng.history[squadra][n - 1]["elo_before"])
+
+    @staticmethod
+    def _stato_a_inizio_giornata(eng, giorno, squadre):
+        """Rating delle squadre date l'ultima partita PRIMA di ``giorno``.
+
+        Il seed e' la media di questo stato: il riferimento che il test usa per
+        ricalcolarlo da solo, non la formula del motore.
+        """
+        import pandas as pd
+        stato = {}
+        for squadra in squadre:
+            ultimo = [h for h in eng.history[squadra]
+                      if pd.Timestamp(h["date"]) < pd.Timestamp(giorno)]
+            if ultimo:
+                stato[squadra] = float(ultimo[-1]["elo_after"])
+        return stato
+
+    def test_prima_del_ingresso_i_due_motori_coincidono_bit_per_bit(self):
+        """Nessuna squadra e' entrata: i due motori devono essere lo stesso."""
+        attuale, legacy = self._entrambi()
+        for squadra in ("Alfa", "Beta", "Gamma", "Delta"):
+            a = [(str(h["date"]), repr(h["elo_before"]), repr(h["elo_after"]))
+                 for h in attuale.history[squadra]]
+            b = [(str(h["date"]), repr(h["elo_before"]), repr(h["elo_after"]))
+                 for h in legacy.history[squadra]]
+            self.assertEqual(a[:3], b[:3],
+                             f"{squadra}: divergono prima dell'ingresso, il seed "
+                             f"non doveva cambiare nient'altro")
+            # tutta la stagione di burn-in, riga per riga
+            solo_2022 = [x for x in a if x[0].endswith("2022")]
+            self.assertEqual(solo_2022, [x for x in b if x[0].endswith("2022")],
+                             f"{squadra}: burn-in non identico")
+
+    def test_solo_la_squadra_che_entra_diverge(self):
+        import pandas as pd
+        attuale, legacy = self._entrambi()
+        attivi_2022 = ["Alfa", "Beta", "Gamma", "Delta"]
+
+        # Epsilon: MAI VISTA -> legacy 1500, attuale media di inizio giornata - 100
+        self.assertEqual(repr(legacy.history["Epsilon"][0]["elo_before"]), "1500.0")
+        stato = self._stato_a_inizio_giornata(legacy, "2023-08-18", attivi_2022)
+        self.assertEqual(set(stato), set(attivi_2022))
+        seed = float(np.mean([stato[t] for t in sorted(stato)])) + PROMOTED_SEED_OFFSET
+        self.assertEqual(self._stato_prima(attuale, "Epsilon", 1), repr(seed))
+        self.assertNotEqual(repr(seed), "1500.0")
+        # nel giorno dell'ingresso le altre squadre sono ancora IDENTICHE: il seed
+        # guarda l'inizio della giornata, non ruba niente al suo corso
+        self.assertEqual(self._stato_prima(attuale, "Alfa", 3),
+                         self._stato_prima(legacy, "Alfa", 3))
+
+        # Delta e Beta, DI RITORNO dopo una stagione di assenza: il legacy
+        # riparte dal rating STANTIO, l'attuale dal seed di inizio giornata
+        for squadra in ("Delta", "Beta"):
+            storico = legacy.history[squadra]
+            self.assertEqual(str(pd.Timestamp(storico[-1]["date"]).date()),
+                             "2024-08-18")
+            self.assertEqual(repr(storico[-1]["elo_before"]),
+                             repr(storico[-2]["elo_after"]),
+                             f"{squadra}: il legacy riparte dallo stantio")
+        stato_2024 = self._stato_a_inizio_giornata(
+            attuale, "2024-08-18", attivi_2022 + ["Epsilon"])
+        seed_ritorno = (float(np.mean([stato_2024[t] for t in sorted(stato_2024)]))
+                        + PROMOTED_SEED_OFFSET)
+        for squadra in ("Delta", "Beta"):
+            self.assertEqual(repr(attuale.history[squadra][-1]["elo_before"]),
+                             repr(seed_ritorno))
+            self.assertNotEqual(repr(attuale.history[squadra][-1]["elo_before"]),
+                                repr(legacy.history[squadra][-1]["elo_before"]))
+        # due ingressi nella stessa partita: stesso seed, non "il secondo vede
+        # il primo"
+        self.assertEqual(repr(attuale.history["Delta"][-1]["elo_before"]),
+                         repr(attuale.history["Beta"][-1]["elo_before"]))
 
 
 if __name__ == "__main__":

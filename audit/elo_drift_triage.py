@@ -267,12 +267,19 @@ def _entry_records(frame: pd.DataFrame) -> list[dict]:
     classifiche ufficiali o fonti esterne.
     """
     d = frame.sort_values("prod_order", kind="mergesort").reset_index(drop=False)
-    # state prima della riga, ottenuto da elo_after della tabella S0.
+    # state a INIZIO GIORNATA: la fotografia dei rating delle squadre che
+    # avevano gia' giocato quando la giornata e' iniziata. E' questo — non lo
+    # stato "in quel momento" — il riferimento del seed: cosi' il seed non
+    # dipende dall'ordine delle partite della stessa data e non usa risultati
+    # non disponibili prima del kickoff.
     state: dict[str, float] = {}
-    state_before: dict[int, dict[str, float]] = {}
+    day_start: dict = {}
+    giorno_corrente = None
     for _, row in d.iterrows():
-        order = int(row["prod_order"])
-        state_before[order] = dict(state)
+        giorno = pd.Timestamp(row["date"]).normalize()
+        if giorno != giorno_corrente:
+            giorno_corrente = giorno
+            day_start[giorno] = dict(state)
         state[row["home"]] = float(row["elo_home_post"])
         state[row["away"]] = float(row["elo_away_post"])
 
@@ -305,7 +312,7 @@ def _entry_records(frame: pd.DataFrame) -> list[dict]:
             # neopromosse/ritorni.
             if not never and not returning:
                 continue
-            before = state_before[order]
+            before = day_start[pd.Timestamp(d.loc[d["prod_order"] == order, "date"].iloc[0]).normalize()]
             active_teams = sorted(before)
             active_mean = float(np.mean([before[t] for t in active_teams])) if active_teams else np.nan
             stale = float(before.get(team, DEFAULT_INITIAL_RATING))
@@ -405,15 +412,34 @@ def run_variant(
     by_order: dict[int, list[dict]] = defaultdict(list)
     for rec in records:
         by_order[int(rec["prod_order"])].append(rec)
-    boundaries = sorted(set([0, len(raw)] + list(by_order)))
+    # I segmenti cominciano alla PRIMA riga di ogni giornata che contiene un
+    # ingresso: `carry` a quel punto e' esattamente lo stato di inizio
+    # giornata della variante, che e' il riferimento del seed. Tutti gli
+    # ingressi di quella giornata stanno dentro lo stesso segmento (e quindi
+    # leggono lo stesso snapshot); i confini NON sono le posizioni dei singoli
+    # ingressi, altrimenti il secondo della giornata leggerebbe lo stato
+    # modificato dal primo.
+    giorni = pd.to_datetime(d["date"], errors="coerce").dt.normalize()
+    prima_riga_del_giorno: dict = {}
+    for i, g in enumerate(giorni):
+        prima_riga_del_giorno.setdefault(g, i)
+    day_starts = {prima_riga_del_giorno[giorni.iloc[int(o)]] for o in by_order}
+    boundaries = sorted({0, len(raw)} | day_starts)
     output: list[dict] = []
     used_entries: dict[str, dict] = {}
 
     for start, end in zip(boundaries[:-1], boundaries[1:]):
         if start == end:
             continue
-        for rec in by_order.get(start, []):
-            seed, active_mean, stale, weight = _seed_for_variant(name, rec, carry)
+        # Tutti gli ingressi del segmento, non solo quelli sulla prima riga:
+        # condividono la giornata e quindi lo stesso snapshot di inizio. I seed
+        # si calcolano TUTTI prima di assegnarne uno qualsiasi, cosi' nessuno
+        # puo' vedere lo stato modificato da un altro.
+        ingressi = [r for o, rs in by_order.items() if start <= o < end
+                    for r in rs]
+        calcolati = [(rec,) + _seed_for_variant(name, rec, carry)
+                     for rec in ingressi]
+        for rec, seed, active_mean, stale, weight in calcolati:
             # S0 is a control: assigning the same value is harmless and makes
             # the entry evidence explicit; S1-S4 are the only altered seeds.
             carry[rec["team"]] = float(seed)

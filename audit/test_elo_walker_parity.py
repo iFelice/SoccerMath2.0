@@ -197,15 +197,6 @@ class TestProvenienzaFixture(unittest.TestCase):
 #: soglie ammesse SOLO per i casi P3 in cui il DB troncato e' stato
 #: ri-mangiato in un ordine diverso da quello di produzione (vedi il
 #: docstring di test_p3_walk_forward_vs_produzione_troncata)
-# Misurate su questo DB: 0.285 Elo, 0.0002 di probabilita', 0.1 di elo_diff.
-# La soglia vale circa il doppio del massimo osservato: abbastanza stretta da
-# far esplodere un seeding mal delimitato (che sbaglia di ~100 Elo), abbastanza
-# larga da non essere un test sul nulla.
-TOLLERANZA_ELO = 0.5        # elo_home_pre / elo_away_pre, non arrotondati
-TOLLERANZA_PROB = 1e-3      # "1", "X", "2", expected_score_home (4 decimali)
-TOLLERANZA_DIFF = 0.15      # elo_diff: arrotondato a un decimale in uscita
-
-
 class TestParitaWalker(unittest.TestCase):
 
     @classmethod
@@ -316,34 +307,21 @@ class TestParitaWalker(unittest.TestCase):
     # ---- P3 -------------------------------------------------------------
     def test_p3_walk_forward_vs_produzione_troncata(self):
         """Stato del walker contro un motore di PRODUZIONE costruito sui soli
-        CSV con data antecedente al cutoff.
+        CSV con data antecedente al cutoff, bit-exact.
 
-        La parita' bit-exact e' esatta finche' i due motori consumano le
-        stesse righe nello stesso ordine, e su questo DB lo e' quasi sempre:
-        il loader riordina per data con un sort instabile, quindi sul DB
+        Il loader riordina per data con un sort instabile, quindi sul DB
         troncato qualche partita della stessa giornata puo' cambiare posto.
-        Finche' il rating di una squadra dipende solo dalle sue partite,
-        l'ordine dentro la giornata e' irrilevante perche' le partite di una
-        giornata sono disgiunte (nessuna squadra gioca due volte lo stesso
-        giorno: verificato su tutti i 2445 blocchi-giornata delle 5 leghe).
+        Finche' il seed guardava lo stato "in quel momento" questo rompeva la
+        parita': il seed di una neo-promossa contava le partite della sua
+        giornata gia' acquisite, e nel backtest poteva usare risultati non
+        disponibili prima del kickoff. Con il seed letto a INIZIO giornata
+        l'ordine dentro la giornata e' di nuovo irrilevante — le partite di una
+        giornata sono disgiunte, nessuna squadra gioca due volte lo stesso
+        giorno — e il confronto torna bit-exact su tutti i cutoff.
 
-        Con il seeding S3 degli ingressi l'equivalenza non e' piu' generale:
-        il seed di una neo-promossa e' la media delle squadre gia' incontrate
-        PRIMA di quella riga, quindi conta anche quante partite della sua
-        stessa giornata sono state gia' processate. Su righe riordinate la
-        differenza resta piccola ma non e' piu' zero.
-
-        Per questo il test asserisce la parita' bit-exact (esattamente come
-        prima, stesso confronto su repr(float)) quando la fixture dichiara
-        che l'ordine coincide, e quando non coincide asserisce che la
-        differenza resti entro una soglia dichiarata: la tolleranza e' una
-        guardia contro l'esplosione numerica del seeding, non una scusa per
-        nascondere uno scarto.
+        Il test non ha soglie: ogni scarto e' un fallimento.
         """
         diffs = []
-        fuori_soglia = []
-        massimo = {}
-        esatti = tollerati = 0
         for lg in W.LEAGUES:
             d = self.tables[lg]
             for case in FIX["leagues"][lg]["cutoff_cases"]:
@@ -352,57 +330,21 @@ class TestParitaWalker(unittest.TestCase):
                 self.assertEqual(row["home"], case["home"])
                 self.assertEqual(row["away"], case["away"])
                 self.assertEqual(str(pd.Timestamp(row["date"]).date()), case["cutoff"])
-                stretto = bool(case["ordine_uguale_alla_produzione"])
                 att = case["probs"]
-                for col, key, tol in (("elo_1", "1", TOLLERANZA_PROB),
-                                      ("elo_X", "X", TOLLERANZA_PROB),
-                                      ("elo_2", "2", TOLLERANZA_PROB),
-                                      ("d", "elo_diff", TOLLERANZA_DIFF),
-                                      ("e_H", "expected_score_home", TOLLERANZA_PROB)):
-                    if repr(float(row[col])) == repr(float(att[key])):
-                        continue
-                    msg = (f"  {lg} cutoff={case['cutoff']} {col}: "
-                           f"walker={float(row[col])!r} produzione={float(att[key])!r} "
-                           f"delta={float(row[col]) - float(att[key]):+.10g}")
-                    if stretto:
-                        diffs.append(msg)
-                    elif abs(float(row[col]) - float(att[key])) > tol:
-                        fuori_soglia.append(msg + f"  [soglia {tol}]")
+                for col, key in (("elo_1", "1"), ("elo_X", "X"), ("elo_2", "2"),
+                                 ("d", "elo_diff"), ("e_H", "expected_score_home")):
+                    if repr(float(row[col])) != repr(float(att[key])):
+                        diffs.append((lg, case["cutoff"], col,
+                                      float(row[col]), float(att[key])))
                 for team, rr in case["ratings_troncati"].items():
                     col = "elo_home_pre" if team == case["home"] else "elo_away_pre"
-                    if repr(float(row[col])) == rr:
-                        continue
-                    msg = (f"  {lg} cutoff={case['cutoff']} {col}: "
-                           f"walker={float(row[col])!r} produzione={float(rr)!r} "
-                           f"delta={float(row[col]) - float(rr):+.10g}")
-                    if stretto:
-                        diffs.append(msg)
-                    elif abs(float(row[col]) - float(rr)) > TOLLERANZA_ELO:
-                        fuori_soglia.append(msg + f"  [soglia {TOLLERANZA_ELO}]")
-                esatti += int(stretto)
-                tollerati += int(not stretto)
-                if not stretto:
-                    for col, key in (("elo_1", "1"), ("elo_X", "X"), ("elo_2", "2"),
-                                     ("d", "elo_diff"),
-                                     ("e_H", "expected_score_home")):
-                        massimo[col] = max(massimo.get(col, 0.0),
-                                           abs(float(row[col]) - float(att[key])))
-                    for team, rr in case["ratings_troncati"].items():
-                        col = ("elo_home_pre" if team == case["home"]
-                               else "elo_away_pre")
-                        massimo[col] = max(massimo.get(col, 0.0),
-                                           abs(float(row[col]) - float(rr)))
+                    if repr(float(row[col])) != rr:
+                        diffs.append((lg, case["cutoff"], col,
+                                      float(row[col]), float(rr)))
         if diffs:
-            self.fail(f"P3 NON OK, {len(diffs)} differenze a parita' bit-exact:\n"
-                      + "\n".join(diffs))
-        if fuori_soglia:
-            self.fail(f"P3 NON OK, {len(fuori_soglia)} differenze oltre soglia:\n"
-                      + "\n".join(fuori_soglia))
-        print(f"\n  P3 OK: {esatti} casi a parita' bit-exact (stesso ordine di "
-              f"produzione), {tollerati} casi entro soglia (ordine diverso)")
-        if massimo:
-            print("  scarto massimo osservato: "
-                  + ", ".join(f"{k}={v:.3g}" for k, v in sorted(massimo.items())))
+            msg = "\n".join(f"  {a} cutoff={b} {c}: walker={e!r} produzione={f!r} "
+                            f"delta={e - f:+.10g}" for a, b, c, e, f in diffs)
+            self.fail(f"P3 NON OK, {len(diffs)} differenze:\n{msg}")
 
 
 class TestNoLeakage(unittest.TestCase):

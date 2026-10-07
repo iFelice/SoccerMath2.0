@@ -14,9 +14,24 @@ rilanciata S3. Tutti i float sono serializzati con ``repr()`` e riletti con
 La fixture e' prodotta ESCLUSIVAMENTE riutilizzando la logica dell'audit: la
 classificazione degli ingressi (``_entry_records``) e' quella di
 ``audit/elo_drift_triage.py`` e il seed e' quello di ``_seed_for_variant("S3")``
-(media dei rating delle squadre ATTIVE in quel momento, meno 100). Nessuna
-formula Elo e' riscritta qui: gli update li fa ``EloEngine.compute_ratings`` di
-produzione e la conversione 1X2 ``elo_probs_from_ratings`` di produzione.
+= media dei rating delle squadre ATTIVE AL INIZIO DELLA GIORNATA della partita
+d'ingresso, meno 100. Nessuna formula Elo e' riscritta qui: gli update li fa
+``EloEngine.compute_ratings`` di produzione e la conversione 1X2
+``elo_probs_from_ratings`` di produzione.
+
+Perche' due commit
+------------------
+Il riferimento deve essere la produzione PRIMA della modifica (che non ha il
+seeding): se girasse sul branch, ``compute_ratings`` applicherebbe da se' i
+seed e la fixture non sarebbe piu' un riferimento indipendente. Il generatore
+quindi prepara un worktree al commit ``--rif`` (di default il main da cui parte
+il branch), ci copia dentro la logica dell'AUDIT di questo branch e calcola la
+variante S3 li'. La provenienza dichiara i due commit e i loro object id:
+
+  * ``reference_production_commit`` + ``production_input_oids``: da quale
+    commit vengono gli input di produzione (motore, config, database);
+  * ``audit_logic_commit`` + ``audit_input_oids``: da quale commit viene la
+    LOGICA del seeding.
 
 Il frame su cui girano le funzioni dell'audit e' ricostruito dai CSV con la
 STESSA pipeline di produzione (``EloEngine.load_and_preprocess_matches``); la
@@ -25,13 +40,11 @@ colonna ``season`` e' la stagione DERIVATA dalla data con
 del file usata dall'audit (``backtest_experiment_all.load_league``) e' un fatto
 verificato e ricontrollabile: 0 discrepanze su 7334 partite sulle 5 leghe.
 
-Provenienza: la fixture dichiara il commit che l'ha generata e gli object id
-git degli input di produzione da cui dipende. Come ``make_elo_parity_fixture``
-(PR #30), il generatore RIFIUTA di scrivere se il working tree degli input di
-produzione e' sporco o diverso dal commit dichiarato: altrimenti il commit
-nel manifest non descriverebbe i numeri scritti.
+Come ``make_elo_parity_fixture`` (PR #30), il generatore RIFIUTA di scrivere se
+il working tree degli input di produzione o dell'audit e' sporco: altrimenti i
+commit nel manifest non descriverebbero i numeri scritti.
 
-Uso:  .venv/bin/python audit/make_elo_s3_parity_fixture.py
+Uso:  .venv/bin/python audit/make_elo_s3_parity_fixture.py [--rif <commit>]
 Out:  audit/fixtures/elo_s3_parity.json
 """
 from __future__ import annotations
@@ -102,6 +115,45 @@ def _build_frame(engine: EloEngine, league: str) -> tuple[pd.DataFrame, pd.DataF
     return frame, raw
 
 
+#: main da cui parte il branch: produzione SENZA seeding, la reference
+DEFAULT_REF = "9957f417ff5690bfd07210b4e1cdbb2388949281"
+
+AUDIT_COPY = ("audit/elo_drift_triage.py", "audit/elo_walker_core.py",
+              "audit/make_elo_s3_parity_fixture.py")
+
+
+def _arg(flag: str, default=None):
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
+
+
+def _genera_in_ref(ref: str, out_path: Path, head: str) -> int:
+    """Calcola la fixture in un worktree pulito a ``ref``.
+
+    Il worktree ha la PRODUZIONE di ``ref`` (motore senza seeding) e la LOGICA
+    dell'audit di questo branch. Nient'altro viene toccato: il database e' lo
+    stesso albero, i CSV non si modificano mai.
+    """
+    import shutil
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="elo_s3_ref_")
+    try:
+        subprocess.run(["git", "worktree", "add", "--detach", tmp, ref],
+                       cwd=_REPO_ROOT, check=True)
+        for rel in AUDIT_COPY:
+            shutil.copy(_REPO_ROOT / rel, Path(tmp) / rel)
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+        r = subprocess.run(
+            [sys.executable, str(Path(tmp) / "audit" / "make_elo_s3_parity_fixture.py"),
+             "--interno", "--out", str(out_path.resolve()),
+             "--prod-commit", ref, "--audit-commit", head],
+            cwd=tmp, env=env)
+        return r.returncode
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", tmp],
+                       cwd=_REPO_ROOT, check=False)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main() -> int:
     head = _git("rev-parse", "HEAD")
     dirty = _git("status", "--porcelain", "--", *PRODUCTION_INPUTS, *AUDIT_INPUTS)
@@ -110,18 +162,28 @@ def main() -> int:
             "RIFIUTO DI GENERARE: gli input di produzione/audit hanno modifiche non "
             "committate, il commit dichiarato nel manifest non le descriverebbe.\n" + dirty
         )
+    out_path = Path(_arg("--out", str(OUT_PATH)))
+    prod_commit = _arg("--prod-commit")
+    audit_commit = _arg("--audit-commit")
+    if "--interno" not in sys.argv:
+        return _genera_in_ref(_arg("--rif", DEFAULT_REF), out_path, head)
+    # --- il calcolo vero e proprio, dentro il worktree --------------------
     fixture = {
-        "_schema": "elo_s3_parity/1",
+        "_schema": "elo_s3_parity/2",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "repo_head_commit": head,
         "generato_da": "audit/make_elo_s3_parity_fixture.py; logica di seeding "
                        "importata da audit/elo_drift_triage.py (variante S3), update "
                        "Elo e 1X2 di models/elo_engine.py non modificato",
         "offset": -100.0,
+        "definizione_seed": "media dei rating delle squadre attive AL INIZIO DELLA "
+                            "GIORNATA della partita d'ingresso, piu' l'offset",
         "provenance": {
             "commit": head,
-            "production_input_oids": _oids(head, PRODUCTION_INPUTS),
-            "audit_input_oids": _oids(head, AUDIT_INPUTS),
+            "reference_production_commit": prod_commit,
+            "audit_logic_commit": audit_commit,
+            "production_input_oids": _oids(prod_commit, PRODUCTION_INPUTS),
+            "audit_input_oids": _oids(audit_commit, AUDIT_INPUTS),
         },
         "leagues": {},
         "total_matches": 0,
@@ -170,15 +232,12 @@ def main() -> int:
         total += len(out)
         print(f"  {league:16s} n={len(out):5d} ingressi={len(records):3d}")
     fixture["total_matches"] = int(total)
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    out_path = OUT_PATH
-    if "--out" in sys.argv:
-        out_path = Path(sys.argv[sys.argv.index("--out") + 1])
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(fixture, f, indent=1, ensure_ascii=False, sort_keys=False)
     print(f"scritta {out_path}")
-    print(f"commit di generazione: {head}")
+    print(f"commit di produzione (reference): {prod_commit}")
+    print(f"commit della logica S3:           {audit_commit}")
     print(f"partite totali: {total}")
     return 0
 

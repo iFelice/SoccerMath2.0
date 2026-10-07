@@ -73,6 +73,11 @@ class EloEngine:
         # database, che resta il burn-in e non genera ingressi.
         self.entry_season: Dict[str, int] = {}
         self.first_season: Optional[int] = None
+        #: Stato dei rating delle squadre ATTIVE al BEGINNING of the day being
+        #: processed, taken before any match of that day. The seed of an entry
+        #: reads this and nothing else, so it cannot depend on the order of the
+        #: matches of the same date nor on results not yet available at kickoff.
+        self._day_start_state: Dict[str, float] = {}
 
     def _get_league_files(self) -> List[str]:
         # Risoluzione centralizzata in config: include anche i file il cui nome non
@@ -96,19 +101,35 @@ class EloEngine:
             return season > self.first_season
         return season - ultima > 1
 
+    def _snapshot_day_start(self) -> None:
+        """Fotografa lo stato delle squadre attive PRIMA della giornata."""
+        self._day_start_state = {
+            t: self.ratings[t] for t in self.entry_season if t in self.ratings
+        }
+
     def promoted_seed(self) -> float:
         """Rating iniziale di una squadra che entra in lega (PR #35).
 
-        Media dei rating correnti delle squadre ATTIVE — quelle che hanno gia'
-        disputato almeno una partita in lega, nell'ordine di produzione — piu'
-        ``PROMOTED_SEED_OFFSET``. Se non c'e' nessuna squadra attiva (prima
-        partita mai giocata del database, o squadra assente dai CSV) il
-        fallback dichiarato e' ``DEFAULT_INITIAL_RATING``.
+        Media dei rating delle squadre ATTIVE al **inizio della data della
+        partita** — cioe' di quelle che avevano gia' disputato almeno una
+        partita quando la giornata e' iniziata, con i rating che avevano in
+        quel momento — piu' ``PROMOTED_SEED_OFFSET``.
+
+        Lo snapshot e' preso una volta per giornata, prima di qualunque
+        partita di quella giornata: per questo il seed non dipende dall'ordine
+        delle partite della stessa data e non usa risultati che al kickoff non
+        erano ancora disponibili. In predizione lo snapshot e' quello di fine
+        database, cioe' l'inizio della prossima giornata ancora da giocare:
+        stessa regola, stesso codice.
+
+        Se non c'e' nessuna squadra attiva (prima partita mai giocata del
+        database, o squadra assente dai CSV) il fallback dichiarato e'
+        ``DEFAULT_INITIAL_RATING``.
         """
-        attive = [self.ratings[t] for t in sorted(self.entry_season) if t in self.ratings]
-        if not attive:
+        stato = self._day_start_state
+        if not stato:
             return DEFAULT_INITIAL_RATING
-        return float(np.mean(attive)) + PROMOTED_SEED_OFFSET
+        return float(np.mean([stato[t] for t in sorted(stato)])) + PROMOTED_SEED_OFFSET
 
     def load_and_preprocess_matches(self) -> pd.DataFrame:
         files = self._get_league_files()
@@ -147,6 +168,7 @@ class EloEngine:
         # compute_ratings e' un ricalcolo completo: lo stato degli ingressi
         # riparte da zero come i rating.
         self.entry_season = {}
+        self._day_start_state = {}
         self.first_season = season_start_year_of(df["Date_Parsed"].iloc[0])
         for team in all_teams:
             self.ratings[team] = DEFAULT_INITIAL_RATING
@@ -156,18 +178,26 @@ class EloEngine:
                 "goals_for": 0, "goals_against": 0,
                 "peak_elo": DEFAULT_INITIAL_RATING, "min_elo": DEFAULT_INITIAL_RATING,
             }
+        giorno_corrente = None
         for idx, row in df.iterrows():
             h_team = row["HomeClean"]
             a_team = row["AwayClean"]
             ftr = str(row["FTR"]).strip().upper()
             season = season_start_year_of(row["Date_Parsed"])
+            # UN solo snapshot per giornata, preso PRIMA di qualunque sua
+            # partita: e' lo stato che il seed deve vedere. Le righe sono
+            # ordinate per data, quindi il cambio di data e' il momento esatto
+            # in cui congelarlo; dentro la giornata non si tocca piu'.
+            if pd.Timestamp(row["Date_Parsed"]).normalize() != giorno_corrente:
+                giorno_corrente = pd.Timestamp(row["Date_Parsed"]).normalize()
+                self._snapshot_day_start()
             # Seeding d'ingresso (PR #35). Se due squadre esordiscono nella
             # stessa partita i seed sono applicati in sequenza, in ordine
-            # alfabetico di nome: il secondo vede gia' il seed del primo nel
-            # calcolo della media attiva. E' l'ordine con cui _entry_records
-            # elenca gli ingressi e con cui la variante S3 dell'audit li assegna,
-            # ed e' cio' che rende i numeri bit-exact su quella partita. Nessuna
-            # squadra entra fra le attive finche' i due seed non sono calcolati.
+            # alfabetico di nome: e' l'ordine con cui _entry_records elenca gli
+            # ingressi e con cui la variante S3 dell'audit li assegna. Lo
+            # snapshot letto e' quello di inizio giornata e non cambia fra le
+            # due squadre, quindi l'ordine serve solo a rendere deterministico
+            # il risultato float, non a scegliere chi vede chi.
             for team in sorted((h_team, a_team)):
                 if self._is_entry(team, season):
                     self.ratings[team] = self.promoted_seed()
@@ -241,6 +271,10 @@ class EloEngine:
                 "result": "V" if s_a == 1.0 else ("P" if s_a == 0.0 else "X"),
                 "elo_before": r_a, "elo_after": new_r_a, "delta": delta_a
             })
+        # Fine database: lo snapshot diventa lo stato di inizio della PROSSIMA
+        # giornata, cioe' quello che predict_elo_probs usa per una squadra che
+        # non ha ancora rating in lega. Stessa definizione del ramo storico.
+        self._snapshot_day_start()
         self.is_computed = True
         return self.ratings
 

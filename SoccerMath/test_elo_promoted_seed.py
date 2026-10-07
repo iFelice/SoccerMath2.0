@@ -262,21 +262,31 @@ class TestDueIngressiNellaStessaPartita(unittest.TestCase):
     }
     TRONCATO = {"2022": STAGIONI["2022"], "2023": STAGIONI["2023"]}
 
-    def test_seed_in_ordine_alfabetico_il_secondo_vede_il_primo(self):
+    def test_due_ingressi_nella_stessa_partita_prendono_lo_stesso_seed(self):
+        """Il seed si legge a inizio giornata: le due squadre lo leggono
+        identico, perche' fra loro non e' ancora successo niente."""
         eng = _motore(self.STAGIONI)
         troncato = _motore(self.TRONCATO)
         attivi = sorted(troncato.ratings)
-        # "Beta" < "Delta": Beta e' seminata per PRIMA, con la media attiva
-        # intera (tutte e quattro le squadre hanno gia' giocato).
-        primo = float(np.mean([troncato.ratings[t] for t in attivi])) + PROMOTED_SEED_OFFSET
-        # Delta e' seminata DOPO: la sua media attiva vede il rating di Beta
-        # gia' sostituito dal seed. E' l'ordine con cui S3 assegna i seed.
-        dopo = [primo if t == "Beta" else troncato.ratings[t] for t in attivi]
-        secondo = float(np.mean(dopo)) + PROMOTED_SEED_OFFSET
-        self.assertEqual(repr(_rating_prima(eng, "Beta", 2)), repr(primo))
-        self.assertEqual(repr(_rating_prima(eng, "Delta", 2)), repr(secondo))
-        self.assertNotEqual(repr(primo), repr(secondo))
-        self.assertEqual(repr(_media_attiva(troncato) + PROMOTED_SEED_OFFSET), repr(primo))
+        seed = float(np.mean([troncato.ratings[t] for t in attivi])) + PROMOTED_SEED_OFFSET
+        self.assertEqual(repr(_rating_prima(eng, "Beta", 2)), repr(seed))
+        self.assertEqual(repr(_rating_prima(eng, "Delta", 2)), repr(seed))
+        self.assertEqual(repr(_rating_prima(eng, "Beta", 2)),
+                         repr(_rating_prima(eng, "Delta", 2)))
+
+    def test_il_seed_viene_dallo_stato_di_inizio_giornata(self):
+        """La giornata dell'ingresso non entra nel calcolo: si usa lo stato
+        delle partite dei giorni precedenti."""
+        eng = _motore(self.STAGIONI)
+        troncato = _motore(self.TRONCATO)
+        solo_18 = _motore({**self.TRONCATO, "2024": [
+            _partita("18/08/2024", "Alfa", "Gamma", 1, 0)]})
+        # Se la partita della giornata fosse contata, la media cambierebbe.
+        self.assertNotEqual(repr(solo_18.ratings["Alfa"]),
+                            repr(troncato.ratings["Alfa"]))
+        attivi = sorted(troncato.ratings)
+        seed = float(np.mean([troncato.ratings[t] for t in attivi])) + PROMOTED_SEED_OFFSET
+        self.assertEqual(repr(_rating_prima(eng, "Delta", 2)), repr(seed))
 
 
 class TestPrimaPartitaNonGiocataPredizione(unittest.TestCase):
@@ -425,22 +435,13 @@ if __name__ == "__main__":
     unittest.main(verbosity=2)
 
 class TestOrdineDentroLaGiornata(unittest.TestCase):
-    """Il seed conta le SQUADRE attive, e dentro la giornata puo' cambiare.
+    """Il seed si legge a INIZIO giornata: riordinare le partite dello stesso
+    giorno non cambia niente, ne' i rating ne' le probabilita'.
 
-    Conseguenza diretta e voluta della definizione S3 dell'audit ("squadre
-    che hanno gia' una partita precedente nel medesimo ordine di produzione,
-    incluse le partite della nuova stagione gia' processate prima
-    dell'ingresso"). Prima di questa modifica il motore non ne risentiva: il
-    rating di una squadra dipendeva solo dalle sue partite e le partite di
-    una stessa giornata sono disgiunte, quindi riordinarle non cambiava un
-    bit. Con il seed attivo l'ordine dentro la giornata e' osservabile, ma
-    solo dove un blocco-giornata contiene piu' di un ingresso: gli update Elo
-    sono a somma zero, quindi la media delle squadre attive non cambia se la
-    partita precedente e' fra due squadre gia' attive.
-
-    Il test fissa la proprieta' perche' e' il motivo per cui il confronto
-    walk-forward su DB troncato di audit/test_elo_walker_parity.py non puo'
-    piu' essere bit-exact (vedi TOLLERANZA_* li').
+    Prima della correzione il seed guardava lo stato "in quel momento", quindi
+    le partite della stessa giornata gia' processate entravano nella media e il
+    risultato dipendeva dall'ordine (e nel backtest il seed poteva usare
+    risultati non disponibili prima del kickoff). Qui la proprieta' e' bloccata.
     """
 
     STAGIONI = {
@@ -455,49 +456,52 @@ class TestOrdineDentroLaGiornata(unittest.TestCase):
         ],
     }
 
-    def _con_due_ingressi(self, ordine):
-        """Stesse partite, stesso giorno, ordine di acquisizione diverso."""
+    def _con_ingressi(self, ordine):
         epsilon = _partita("18/08/2024", "Epsilon", "Alfa", 1, 0)
         zeta = _partita("18/08/2024", "Zeta", "Gamma", 1, 0)
-        righe = [epsilon, zeta] if ordine == "epsilon_prima" else [zeta, epsilon]
-        eng = _motore(self.STAGIONI, file_per_riga={"2024": righe})
-        return eng, epsilon, zeta
+        righe = ([epsilon, zeta] if ordine == "epsilon_prima" else [zeta, epsilon])
+        return _motore(self.STAGIONI, file_per_riga={"2024": righe})
 
-    def test_il_secondo_ingresso_della_giornata_vede_il_seed_del_primo(self):
-        eps_prima, eps, zeta = self._con_due_ingressi("epsilon_prima")
-        zeta_prima, _, _ = self._con_due_ingressi("zeta_prima")
-        # ordine realizzato dal loader (controllato, non casuale)
-        self.assertEqual(eps_prima.matches_df.iloc[-2]["HomeClean"], "Epsilon")
-        self.assertEqual(eps_prima.matches_df.iloc[-1]["HomeClean"], "Zeta")
-        self.assertEqual(zeta_prima.matches_df.iloc[-2]["HomeClean"], "Zeta")
-        self.assertEqual(zeta_prima.matches_df.iloc[-1]["HomeClean"], "Epsilon")
+    def test_i_due_ingressi_prendono_lo_stesso_seed_qualunque_sia_l_ordine(self):
+        a = self._con_ingressi("epsilon_prima")
+        b = self._con_ingressi("zeta_prima")
+        # l'ordine realizzato dal loader e' davvero diverso
+        self.assertEqual(a.matches_df.iloc[-2]["HomeClean"], "Epsilon")
+        self.assertEqual(b.matches_df.iloc[-2]["HomeClean"], "Zeta")
+        for squadra in ("Epsilon", "Zeta"):
+            self.assertEqual(repr(_rating_prima(a, squadra, 1)),
+                             repr(_rating_prima(b, squadra, 1)),
+                             f"{squadra}: il seed dipende dall'ordine della giornata")
+        # ed e' la media delle attive a inizio giornata, meno l'offset
+        base = _motore(self.STAGIONI)
+        seed = _media_attiva(base) + PROMOTED_SEED_OFFSET
+        for squadra in ("Epsilon", "Zeta"):
+            self.assertEqual(repr(_rating_prima(a, squadra, 1)), repr(seed))
 
-        media_iniziale = _media_attiva(_motore(self.STAGIONI))
-        seed_primo = media_iniziale + PROMOTED_SEED_OFFSET
-        # chi arriva per secondo ha nel gruppo attivo anche il seed del primo:
-        # la media dei cinque non e' piu' quella iniziale.
-        media_dopo = float(np.mean(
-            [seed_primo] + [1500.0] * 4))          # 4 squadre del burn-in a 1500
-        seed_secondo = media_dopo + PROMOTED_SEED_OFFSET
+    def test_rating_finali_bit_identici_qualunque_sia_l_ordine(self):
+        a = self._con_ingressi("epsilon_prima")
+        b = self._con_ingressi("zeta_prima")
+        self.assertEqual(set(a.ratings), set(b.ratings))
+        for squadra, valore in a.ratings.items():
+            self.assertEqual(repr(valore), repr(b.ratings[squadra]),
+                             f"{squadra}: rating finale dipende dall'ordine")
 
-        self.assertEqual(repr(_rating_prima(eps_prima, "Epsilon", 1)), repr(seed_primo))
-        self.assertEqual(repr(_rating_prima(eps_prima, "Zeta", 1)), repr(seed_secondo))
-        # scambiando l'ordine di acquisizione i due seed si scambiano
-        self.assertEqual(repr(_rating_prima(zeta_prima, "Zeta", 1)), repr(seed_primo))
-        self.assertEqual(repr(_rating_prima(zeta_prima, "Epsilon", 1)), repr(seed_secondo))
-        self.assertLess(seed_secondo, seed_primo)
-
-    def test_senza_ingressi_l_ordine_dentro_la_giornata_non_conta(self):
-        """Prima del seeding le partite di una giornata erano disgiunte:
-        riordinarle non cambiava un bit, e il motore deve continuare a farlo."""
-        a = _partita("19/08/2023", "Alfa", "Gamma", 1, 0)
-        b = _partita("19/08/2023", "Beta", "Delta", 0, 2)
-        ing = self.STAGIONI["2022"]
-        uno = _motore({**self.STAGIONI, "2023": ing}, file_per_riga={"2023": [a, b]})
-        due = _motore({**self.STAGIONI, "2023": ing}, file_per_riga={"2023": [b, a]})
-        self.assertEqual(uno.matches_df.iloc[-2]["HomeClean"], "Alfa")
-        self.assertEqual(due.matches_df.iloc[-2]["HomeClean"], "Beta")
-        for squadra in ("Alfa", "Beta", "Gamma", "Delta"):
-            self.assertEqual(repr(uno.ratings[squadra]), repr(due.ratings[squadra]),
-                             f"{squadra}: l'ordine dentro la giornata ha cambiato "
-                             f"il rating finale")
+    def test_probabilita_bit_identiche_qualunque_sia_l_ordine(self):
+        """Stesse partite, ordine diverso dentro la giornata: le 1X2 che la
+        produzione calcolerebbe su quei rating sono identiche bit per bit."""
+        a = self._con_ingressi("epsilon_prima")
+        b = self._con_ingressi("zeta_prima")
+        for squadra in ("Alfa", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"):
+            self.assertEqual(len(a.history[squadra]), len(b.history[squadra]))
+            for x, y in zip(a.history[squadra], b.history[squadra]):
+                for campo in ("elo_before", "elo_after"):
+                    self.assertEqual(repr(x[campo]), repr(y[campo]),
+                                     f"{squadra} {campo}: dipende dall'ordine")
+        coppie = [("Epsilon", "Alfa"), ("Zeta", "Gamma"), ("Alfa", "Beta"),
+                  ("Gamma", "Delta")]
+        for casa, fuori in coppie:
+            pa = elo_probs_from_ratings(a.ratings[casa], a.ratings[fuori], 60.0)
+            pb = elo_probs_from_ratings(b.ratings[casa], b.ratings[fuori], 60.0)
+            for chiave in pa:
+                self.assertEqual(repr(pa[chiave]), repr(pb[chiave]),
+                                 f"{casa}-{fuori} {chiave}: dipende dall'ordine")
