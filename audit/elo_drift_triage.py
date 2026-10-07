@@ -278,13 +278,15 @@ def load_dataset() -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame], li
 def _entry_records(frame: pd.DataFrame) -> list[dict]:
     """Classifica gli ingressi usando solo la partecipazione nei CSV.
 
-    ``active_teams`` e' l'insieme delle squadre che hanno gia' una partita
-    precedente **nella stagione corrente** nel medesimo ordine di produzione;
-    l'active_mean e' il rating S0 dopo l'ultima loro partita precedente. Una
-    squadra retrocessa dalla stagione precedente resta esclusa anche se ha un
-    rating. E' quindi una definizione riproducibile di "attive nel campionato
-    corrente prima del primo match". Non usa classifiche ufficiali o fonti
-    esterne.
+    ``active_teams`` e' I(lega, stagione) = R(s) ∩ R(s−1), dove R e' l'insieme
+    delle squadre che compaiono nelle partite di quella stagione nei CSV: la
+    COMPOSIZIONE DEL CALENDARIO, nota prima del via (promozioni e retrocessioni
+    decise, calendario pubblicato), non un risultato futuro. E' quindi una
+    definizione riproducibile del riferimento del seed, identica a quella di
+    `EloEngine._snapshot_day_start`. Non usa classifiche ufficiali o fonti
+    esterne. L'active_mean e' letto sullo STATO DI INIZIO GIORNATA della
+    variante, quindi i rating sono quelli che le squadre avevano in quel
+    momento, anche se non hanno ancora giocato in stagione.
     """
     d = frame.sort_values("prod_order", kind="mergesort").reset_index(drop=False)
     # state a INIZIO GIORNATA: la fotografia dei rating delle squadre che
@@ -337,12 +339,18 @@ def _entry_records(frame: pd.DataFrame) -> list[dict]:
                 continue
             before, before_season = day_start[
                 pd.Timestamp(d.loc[d["prod_order"] == order, "date"].iloc[0]).normalize()]
-            # ATTIVE = squadre che hanno gia' disputato una partita in questa
-            # lega NELLA STAGIONE CORRENTE. Una retrocessa dalla stagione
-            # precedente ha un rating ma non fa piu' parte del campionato:
-            # mediarla abbasserebbe il riferimento. Stessa definizione di
-            # `EloEngine._snapshot_day_start`.
-            active_teams = sorted(t for t in before if before_season.get(t) == season)
+            # I(lega, stagione) = R(s) ∩ R(s−1): le squadre che compongono
+            # il campionato nella stagione s e c'erano gia' nella precedente.
+            # R e' la COMPOSIZIONE DEL CALENDARIO (le partite di quella
+            # stagione nei CSV), nota prima del via, non un risultato.
+            # Stessa definizione di `EloEngine._snapshot_day_start`: gli
+            # incumbent sono un insieme fisso per tutta la stagione e il seed
+            # ne legge i rating allo stato di inizio della data d'ingresso,
+            # anche per chi non ha ancora giocato in stagione.
+            precedenti = [x for x in SEASONS if x < season]
+            prec = set(d.loc[d["season"] == precedenti[-1], ["home", "away"]]
+                       .stack().astype(str)) if precedenti else set()
+            active_teams = sorted(set(season_teams.get(season, set())) & prec)
             active_mean = float(np.mean([before[t] for t in active_teams])) if active_teams else np.nan
             stale = float(before.get(team, DEFAULT_INITIAL_RATING))
             s0_seed = DEFAULT_INITIAL_RATING if never else stale
@@ -398,13 +406,14 @@ class _CarryRatings(dict):
 def _seed_for_variant(name: str, rec: dict, carry: _CarryRatings) -> tuple[float, float, float, float | None]:
     """(seed, active_mean_current, stale_current, weight_stale).
 
-    Se l'insieme attivo e' vuoto — caso normale sul PRIMO giorno di una
-    stagione, quando nessuna squadra ha ancora disputato una partita nella
-    stagione corrente — il fallback dichiarato e' DEFAULT_INITIAL_RATING, come
-    in ``EloEngine.promoted_seed``. Tutte le varianti S1-S4 lo applicano: un
-    riferimento che non esiste non genera una media.
+    Il riferimento e' I(lega, stagione) = R(s) ∩ R(s−1), letto dallo stato di
+    inizio giornata della variante: chi non ha ancora giocato in stagione
+    porta il rating di fine stagione precedente, esattamente come in
+    ``EloEngine._snapshot_day_start``. Se I e' vuota — solo la prima stagione
+    del database, che non ha stagione precedente — il fallback dichiarato e'
+    DEFAULT_INITIAL_RATING e vale per tutte le varianti che seminano.
     """
-    active = [float(carry[t]) for t in rec["active_teams"] if t in carry]
+    active = [float(carry[t]) for t in rec["active_teams"]]
     active_mean = float(np.mean(active)) if active else np.nan
     stale = float(carry.get(rec["team"], DEFAULT_INITIAL_RATING))
     if name == "S0":

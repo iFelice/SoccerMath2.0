@@ -65,7 +65,7 @@ class _StubEngine:
         self.home_adv = home_adv
         self.seed = seed
 
-    def promoted_seed(self):
+    def promoted_seed(self, season=None):
         return self.seed
 
 

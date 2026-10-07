@@ -127,36 +127,36 @@ def _rating_prima(eng, squadra, n):
 
 
 def _stato_attivo(eng: EloEngine, squadra: str, n: int):
-    """(insieme attivo, stagione) al primo istante della giornata della n-esima
-    partita di ``squadra``.
+    """(insieme di riferimento, stagione) al primo istante della giornata della
+    n-esima partita di ``squadra``.
 
-    Ricalcolato dal ``history`` partita per partita, quindi indipendente dalla
-    formula del seeding: e' il rating dell'ULTIMA partita che la squadra ha
-    disputato PRIMA di quel giorno, non il rating finale del motore.
-
-    Sono ATTIVE le squadre che hanno gia' disputato una partita NELLA STAGIONE
-    CORRENTE (una retrocessa dalla stagione precedente resta fuori anche se ha
-    un rating): stessa definizione di ``EloEngine._snapshot_day_start``.
+    Il riferimento e' I(lega, stagione) = R(s) ∩ R(s−1), dove R e' la
+    composizione DEL CALENDARIO (le squadre che compaiono nelle partite di
+    quella stagione nei CSV: promozioni, retrocessioni e calendario sono noti
+    prima del via, non e' un risultato futuro). I rating sono quelli che le
+    squadre avevano a inizio giornata, ricostruiti dal ``history`` partita per
+    partita e quindi indipendenti dalla formula del seeding: una squadra che
+    non ha ancora giocato in stagione porta il suo rating di fine stagione
+    precedente. Stessa definizione di ``EloEngine._snapshot_day_start``.
     """
     from config import season_start_year_of
     giorno = pd.Timestamp(eng.history[squadra][n - 1]["date"]).normalize()
+    stagione = season_start_year_of(giorno)
+    roster = {int(k): set(v) for k, v in eng.season_rosters.items()}
+    precedenti = sorted(x for x in roster if x < stagione)
+    prec = roster[precedenti[-1]] if precedenti else set()
+    incumbent = roster.get(stagione, set()) & prec
     stato = {}
-    for t, storico in eng.history.items():
+    for t in incumbent:
         ultimo = None
-        for h in storico:
+        for h in eng.history.get(t, []):
             if pd.Timestamp(h["date"]).normalize() < giorno:
                 ultimo = h
             else:
                 break
         if ultimo is not None:
             stato[t] = float(ultimo["elo_after"])
-    stagione = season_start_year_of(giorno)
-    attivi = {t: r for t, r in stato.items()
-              if season_start_year_of(pd.Timestamp(
-                  eng.history[t][[i for i, h in enumerate(eng.history[t])
-                                  if pd.Timestamp(h["date"]).normalize() < giorno][-1]]
-                  ["date"]).normalize()) == stagione}
-    return attivi, stagione
+    return stato, stagione
 
 
 def _seed_atteso(eng: EloEngine, squadra: str, n: int) -> float:
@@ -170,12 +170,9 @@ def _seed_atteso(eng: EloEngine, squadra: str, n: int) -> float:
 def _seed_fine_db(eng: EloEngine) -> float:
     """Il seed che predict_elo_probs usa: lo snapshot di fine database, cioe'
     l'inizio della prossima giornata ancora da giocare."""
-    from config import season_start_year_of
-    stagioni = [season_start_year_of(h["date"])
-                for t in eng.history for h in eng.history[t]]
-    ultima = max(stagioni)
-    attivi = {t: float(eng.ratings[t]) for t in sorted(eng.entry_season)
-              if eng.entry_season[t] == ultima and t in eng.ratings}
+    ultima = max(eng.season_rosters)
+    attivi = {t: float(eng.ratings[t]) for t in eng._incumbent(ultima)
+              if t in eng.ratings}
     if not attivi:
         return DEFAULT_INITIAL_RATING
     return float(np.mean([attivi[t] for t in sorted(attivi)])) + PROMOTED_SEED_OFFSET
@@ -200,28 +197,34 @@ class TestNeopromossaMaiVista(unittest.TestCase):
         ],
     }
 
-    def test_primo_ingresso_della_stagione_Prende_il_fallback(self):
-        """Delta debutta sul PRIMO giorno di una stagione: a inizio giornata
-        nessuna squadra ha ancora giocato nella stagione corrente, quindi
-        l'insieme attivo e' vuoto e il seed dichiarato e' 1500."""
+    def test_primo_ingresso_della_stagione_usa_il_roster_completo(self):
+        """Delta debutta sul PRIMO giorno di una stagione. L'insieme di
+        riferimento non e' "chi ha gia' giocato" (sarebbe vuoto) ma
+        I(2023) = R(2023) ∩ R(2022): tutti gli incumbent, con il loro rating
+        di fine stagione precedente. Nessuna retrocessa del 2022 e nessuna
+        entrante."""
         eng = _motore(self.STAGIONI)
         attivi, stagione = _stato_attivo(eng, "Delta", 1)
-        self.assertEqual(attivi, {}, "il 19/08/2023 qualcuno aveva gia' giocato?")
         self.assertEqual(stagione, 2023)
-        self.assertEqual(repr(_rating_prima(eng, "Delta", 1)),
-                         repr(DEFAULT_INITIAL_RATING))
+        self.assertEqual(sorted(attivi), ["Alfa", "Beta"])
+        self.assertNotIn("Gamma", attivi, "Gamma era assente nel 2023")
+        atteso = float(np.mean([attivi[t] for t in sorted(attivi)])) \
+            + PROMOTED_SEED_OFFSET
+        self.assertEqual(repr(_rating_prima(eng, "Delta", 1)), repr(atteso))
 
     def test_ingresso_in_giornata_successiva_usa_la_media_attiva_meno_100(self):
         """Epsilon debutta il 21/08, quando nella stagione corrente ha gia'
         giocato Delta: la media e' quella di QUELL'insieme, meno l'offset."""
         eng = _motore(self.STAGIONI)
         attivi, _ = _stato_attivo(eng, "Epsilon", 1)
-        self.assertEqual(sorted(attivi), ["Alfa", "Delta"])
+        self.assertEqual(sorted(attivi), ["Alfa", "Beta"])
         atteso = float(np.mean([attivi[t] for t in sorted(attivi)])) \
             + PROMOTED_SEED_OFFSET
         self.assertEqual(repr(_rating_prima(eng, "Epsilon", 1)), repr(atteso))
+        # Epsilon e' un'entrante: non puo' stare nel proprio riferimento
+        self.assertNotIn("Epsilon", attivi)
         self.assertNotEqual(repr(atteso), repr(1400.0))
-        self.assertNotEqual(repr(ottenuto := _rating_prima(eng, "Epsilon", 1)),
+        self.assertNotEqual(repr(_rating_prima(eng, "Epsilon", 1)),
                             repr(float(DEFAULT_INITIAL_RATING)))
 
     def test_le_tre_squadre_del_burnin_restano_a_1500(self):
@@ -272,11 +275,15 @@ class TestSquadraDiRitorno(unittest.TestCase):
     def test_ritorno_semina_media_attiva_meno_100(self):
         eng = _motore(self.STAGIONI)
         # Beta ha giocato 2 partite nel 2022: la 3-esima e' il ritorno, il
-        # 18/08/2024, primo giorno della stagione 2024 -> insieme vuoto
+        # 18/08/2024, primo giorno della stagione 2024. Il riferimento e'
+        # I(2024) = R(2024) ∩ R(2023) = {Alfa, Gamma}: Beta e' essa stessa
+        # un'entrante e non puo' stare dentro.
         attivi, _ = _stato_attivo(eng, "Beta", 3)
-        self.assertEqual(attivi, {})
-        self.assertEqual(repr(_rating_prima(eng, "Beta", 3)),
-                         repr(DEFAULT_INITIAL_RATING))
+        self.assertEqual(sorted(attivi), ["Alfa", "Gamma"])
+        self.assertNotIn("Beta", attivi)
+        atteso = float(np.mean([attivi[t] for t in sorted(attivi)])) \
+            + PROMOTED_SEED_OFFSET
+        self.assertEqual(repr(_rating_prima(eng, "Beta", 3)), repr(atteso))
 
     def test_ritorno_scarta_il_rating_stantio(self):
         eng = _motore(self.STAGIONI)

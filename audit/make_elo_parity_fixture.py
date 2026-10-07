@@ -94,14 +94,15 @@ def _fresh_engine(league: str) -> EloEngine:
     return e
 
 
-def _probs_via_production(league: str, engine: EloEngine, pairs):
+def _probs_via_production(league: str, engine: EloEngine, pairs,
+                          season=None):
     """``predict_elo_probs`` di produzione con ``engine`` in cache."""
     import time
     PROD_ELO._ELO_ENGINES_CACHE[league] = engine
     PROD_ELO._ELO_ENGINES_STAMP[league] = time.monotonic()
     out = []
     for home_raw, away_raw in pairs:
-        p = predict_elo_probs(home_raw, away_raw, league)
+        p = predict_elo_probs(home_raw, away_raw, league, season=season)
         out.append({"home_raw": home_raw, "away_raw": away_raw, "probs": p})
     PROD_ELO._ELO_ENGINES_CACHE.pop(league, None)
     PROD_ELO._ELO_ENGINES_STAMP.pop(league, None)
@@ -198,6 +199,7 @@ def main():
     # --- blocco 3: cutoff walk-forward ------------------------------------
     # Le date di cutoff sono comuni a tutte le leghe (un solo troncamento per
     # cutoff), prese dai quantili della Premier League per semplicita'.
+    roster_completo = _roster_completo()
     ref = full_tables["Premier League"]
     cutoffs = []
     for q in CUTOFF_QUANTILES:
@@ -222,10 +224,13 @@ def main():
                     # data il walker ha gia' assorbito le precedenti.
                     first_pos = int(full.index.get_indexer([same_day.index[0]])[0])
                     row = full.loc[same_day.index[0]]
-                    eng_t = _fresh_engine(lg)
+                    eng_t = EloEngine(lg, season_rosters=roster_completo[lg])
+                    eng_t.compute_ratings()
                     n_trunc = int(len(eng_t.matches_df))
+                    season_cutoff = int(cutoff.year - (cutoff.month <= 6))
                     probs = _probs_via_production(
-                        lg, eng_t, [(row["HomeTeam"], row["AwayTeam"])])[0]
+                        lg, eng_t, [(row["HomeTeam"], row["AwayTeam"])],
+                        season=season_cutoff)[0]
                     # Il loader di produzione riordina per data con un sort
                     # instabile: sul DB troncato le partite della stessa
                     # giornata possono quindi NON essere nello stesso ordine
@@ -245,9 +250,9 @@ def main():
                     # Rating realmente usati dalla produzione: se la squadra
                     # non e' ancora nel DB troncato predict_elo_probs passa
                     # engine.promoted_seed(), non DEFAULT_INITIAL_RATING.
-                    def _rating_usato(team):
-                        r = eng_t.ratings.get(team)
-                        return float(r if r is not None else eng_t.promoted_seed())
+                    def _rating_usato(team, _s=season_cutoff, _e=eng_t):
+                        r = _e.ratings.get(team)
+                        return float(r if r is not None else _e.promoted_seed(_s))
                     fixture["leagues"][lg]["cutoff_cases"].append({
                         "cutoff": str(cutoff.date()),
                         "n_matches_nel_motore_troncato": n_trunc,
