@@ -174,6 +174,93 @@ Media attiva = media dei rating delle squadre ATTIVE AL INIZIO DELLA GIORNATA de
 
 `audit/output/elo_drift_triage_entries.csv` contiene la stessa tabella senza il limite di visualizzazione del report.
 
+### 3.1 Tabella ingressi con roster: 55 ingressi storici
+
+Elenco completo dei **55** ingressi storici (13 nella stagione 2023/24, 14 in 2024/25, 14 in 2025/26, 14 in 2026/27) con `|I|` e la media degli incumbent letti dallo stato di **inizio data** della partita d'ingresso. Il fallback `1500` non compare in nessuna riga: la prima stagione del database (2022/23) non ha stagione precedente e resta burn-in, e in nessun'altra stagione `I` e' risultata vuota.
+
+| # | data | lega | stagione | squadra entrante | \|I\| | media I | seed S3 | fallback |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2023-08-19 | Bundesliga | 2023/24 | Heidenheim | 16 | 1512.6340 | 1412.6340 | no |
+| 2 | 2023-08-20 | Bundesliga | 2023/24 | Darmstadt | 16 | 1513.2313 | 1413.2313 | no |
+| 3 | 2024-08-24 | Bundesliga | 2024/25 | Holstein Kiel | 16 | 1523.0559 | 1423.0559 | no |
+| 4 | 2024-08-25 | Bundesliga | 2024/25 | St Pauli | 16 | 1523.5271 | 1423.5271 | no |
+| 5 | 2025-08-24 | Bundesliga | 2025/26 | Hamburg | 16 | 1531.1132 | 1431.1132 | no |
+| 6 | 2025-08-24 | Bundesliga | 2025/26 | Koln | 16 | 1531.1132 | 1431.1132 | no |
+| 7 | 2026-08-29 | Bundesliga | 2026/27 | Elversberg | 15 | 1550.0052 | 1450.0052 | no |
+| 8 | 2026-08-29 | Bundesliga | 2026/27 | SC Paderborn | 15 | 1550.0052 | 1450.0052 | no |
+| 9 | 2026-08-30 | Bundesliga | 2026/27 | Schalke 04 | 15 | 1548.6082 | 1448.6082 | no |
+| 10 | 2023-08-12 | La Liga | 2023/24 | Las Palmas | 17 | 1516.6927 | 1416.6927 | no |
+| 11 | 2023-08-14 | La Liga | 2023/24 | Alaves | 17 | 1516.6781 | 1416.6781 | no |
+| 12 | 2023-08-14 | La Liga | 2023/24 | Granada | 17 | 1516.6781 | 1416.6781 | no |
+| 13 | 2024-08-17 | La Liga | 2024/25 | Leganes | 17 | 1528.7800 | 1428.7800 | no |
+| 14 | 2024-08-19 | La Liga | 2024/25 | Espanol | 17 | 1528.6125 | 1428.6125 | no |
+| 15 | 2024-08-19 | La Liga | 2024/25 | Valladolid | 17 | 1528.6125 | 1428.6125 | no |
+| 16 | 2025-08-15 | La Liga | 2025/26 | Oviedo | 17 | 1543.8752 | 1443.8752 | no |
+| 17 | 2025-08-16 | La Liga | 2025/26 | Levante | 17 | 1544.2832 | 1444.2832 | no |
+| 18 | 2025-08-18 | La Liga | 2025/26 | Elche | 17 | 1544.8309 | 1444.8309 | no |
+| 19 | 2026-08-16 | La Liga | 2026/27 | Santander | 17 | 1545.7099 | 1445.7099 | no |
+| 20 | 2026-08-17 | La Liga | 2026/27 | Deportivo | 17 | 1545.4546 | 1445.4546 | no |
+| 21 | 2026-08-19 | La Liga | 2026/27 | Málaga | 17 | 1545.5402 | 1445.5402 | no |
+| 22 | 2023-08-13 | Ligue 1 | 2023/24 | Le Havre | 16 | 1540.2043 | 1440.2043 | no |
+| 23 | 2023-08-13 | Ligue 1 | 2023/24 | Metz | 16 | 1540.2043 | 1440.2043 | no |
+| 24 | 2024-08-17 | Ligue 1 | 2024/25 | St Etienne | 15 | 1555.6624 | 1455.6624 | no |
+| 25 | 2024-08-18 | Ligue 1 | 2024/25 | Angers | 15 | 1555.9577 | 1455.9577 | no |
+| 26 | 2024-08-18 | Ligue 1 | 2024/25 | Auxerre | 15 | 1555.9577 | 1455.9577 | no |
+| 27 | 2025-08-17 | Ligue 1 | 2025/26 | Lorient | 15 | 1570.6800 | 1470.6800 | no |
+| 28 | 2025-08-17 | Ligue 1 | 2025/26 | Metz | 15 | 1570.6800 | 1470.6800 | no |
+| 29 | 2025-08-17 | Ligue 1 | 2025/26 | Paris | 15 | 1570.6800 | 1470.6800 | no |
+| 30 | 2026-08-22 | Ligue 1 | 2026/27 | Le Mans | 16 | 1576.0780 | 1476.0780 | no |
+| 31 | 2026-08-22 | Ligue 1 | 2026/27 | Troyes | 16 | 1576.0780 | 1476.0780 | no |
+| 32 | 2023-08-11 | Premier League | 2023/24 | Burnley | 17 | 1524.0828 | 1424.0828 | no |
+| 33 | 2023-08-12 | Premier League | 2023/24 | Luton | 17 | 1524.5902 | 1424.5902 | no |
+| 34 | 2023-08-12 | Premier League | 2023/24 | Sheffield United | 17 | 1524.5902 | 1424.5902 | no |
+| 35 | 2024-08-17 | Premier League | 2024/25 | Ipswich | 17 | 1545.3383 | 1445.3383 | no |
+| 36 | 2024-08-17 | Premier League | 2024/25 | Southampton | 17 | 1545.3383 | 1445.3383 | no |
+| 37 | 2024-08-19 | Premier League | 2024/25 | Leicester | 17 | 1546.2320 | 1446.2320 | no |
+| 38 | 2025-08-16 | Premier League | 2025/26 | Burnley | 17 | 1571.5257 | 1471.5257 | no |
+| 39 | 2025-08-16 | Premier League | 2025/26 | Sunderland | 17 | 1571.5257 | 1471.5257 | no |
+| 40 | 2025-08-18 | Premier League | 2025/26 | Leeds | 17 | 1571.6722 | 1471.6722 | no |
+| 41 | 2026-08-21 | Premier League | 2026/27 | Coventry City | 17 | 1583.5211 | 1483.5211 | no |
+| 42 | 2026-08-22 | Premier League | 2026/27 | Hull City | 17 | 1583.7998 | 1483.7998 | no |
+| 43 | 2026-08-22 | Premier League | 2026/27 | Ipswich | 17 | 1583.7998 | 1483.7998 | no |
+| 44 | 2023-08-19 | Serie A | 2023/24 | Frosinone | 17 | 1525.6278 | 1425.6278 | no |
+| 45 | 2023-08-19 | Serie A | 2023/24 | Genoa | 17 | 1525.6278 | 1425.6278 | no |
+| 46 | 2023-08-21 | Serie A | 2023/24 | Cagliari | 17 | 1527.1076 | 1427.1076 | no |
+| 47 | 2024-08-17 | Serie A | 2024/25 | Parma | 17 | 1540.3692 | 1440.3692 | no |
+| 48 | 2024-08-18 | Serie A | 2024/25 | Venezia | 17 | 1540.2186 | 1440.2186 | no |
+| 49 | 2024-08-19 | Serie A | 2024/25 | Como | 17 | 1540.7113 | 1440.7113 | no |
+| 50 | 2025-08-23 | Serie A | 2025/26 | Cremonese | 17 | 1555.9459 | 1455.9459 | no |
+| 51 | 2025-08-23 | Serie A | 2025/26 | Sassuolo | 17 | 1555.9459 | 1455.9459 | no |
+| 52 | 2025-08-24 | Serie A | 2025/26 | Pisa | 17 | 1555.4068 | 1455.4068 | no |
+| 53 | 2026-08-22 | Serie A | 2026/27 | Monza | 17 | 1574.7879 | 1474.7879 | no |
+| 54 | 2026-08-23 | Serie A | 2026/27 | Frosinone | 17 | 1575.0253 | 1475.0253 | no |
+| 55 | 2026-08-23 | Serie A | 2026/27 | Venezia | 17 | 1575.0253 | 1475.0253 | no |
+
+`|I|` va da **15** a **17**: 17 in Serie A, Premier League e La Liga (campionati da 20, con 3 promosse); in Bundesliga e Ligue 1, da 18 squadre, vale 18 meno le promosse e quindi 15 o 16. Nessuna delle 55 righe ha un ingresso dentro `I`, nessuna squadra fuori roster compare in `I`, e in tutte e 55 `seed = media I − 100` esattamente.
+
+### 3.2 Tabella ingressi con roster: 14 ingressi 2026/27
+
+Il roster 2026/27 viene dalla stessa sorgente di calendario che l'app usa per le partite programmate (i CSV `*_Live.csv` della stagione corrente), verificata come roster completo in tutte e 5 le leghe: Serie A 20/20, Premier League 20/20, La Liga 20/20, Bundesliga 18/18, Ligue 1 18/18.
+
+| # | data | lega | stagione | squadra entrante | \|I\| | media I | seed S3 |
+|---|---|---|---|---|---|---|---|
+| 1 | 2026-08-29 | Bundesliga | 2026/27 | Elversberg | 15 | 1550.0052 | 1450.0052 |
+| 2 | 2026-08-29 | Bundesliga | 2026/27 | SC Paderborn | 15 | 1550.0052 | 1450.0052 |
+| 3 | 2026-08-30 | Bundesliga | 2026/27 | Schalke 04 | 15 | 1548.6082 | 1448.6082 |
+| 4 | 2026-08-16 | La Liga | 2026/27 | Santander | 17 | 1545.7099 | 1445.7099 |
+| 5 | 2026-08-17 | La Liga | 2026/27 | Deportivo | 17 | 1545.4546 | 1445.4546 |
+| 6 | 2026-08-19 | La Liga | 2026/27 | Málaga | 17 | 1545.5402 | 1445.5402 |
+| 7 | 2026-08-22 | Ligue 1 | 2026/27 | Le Mans | 16 | 1576.0780 | 1476.0780 |
+| 8 | 2026-08-22 | Ligue 1 | 2026/27 | Troyes | 16 | 1576.0780 | 1476.0780 |
+| 9 | 2026-08-21 | Premier League | 2026/27 | Coventry City | 17 | 1583.5211 | 1483.5211 |
+| 10 | 2026-08-22 | Premier League | 2026/27 | Hull City | 17 | 1583.7998 | 1483.7998 |
+| 11 | 2026-08-22 | Premier League | 2026/27 | Ipswich | 17 | 1583.7998 | 1483.7998 |
+| 12 | 2026-08-22 | Serie A | 2026/27 | Monza | 17 | 1574.7879 | 1474.7879 |
+| 13 | 2026-08-23 | Serie A | 2026/27 | Frosinone | 17 | 1575.0253 | 1475.0253 |
+| 14 | 2026-08-23 | Serie A | 2026/27 | Venezia | 17 | 1575.0253 | 1475.0253 |
+
+In tutte e 14 le righe `seed = media I − 100` esattamente e il fallback `1500` non compare.
+
 ### Prime 5 e 10 partite (S0 produzione)
 
 `ppg_real_3pt` usa 3/1/0; `elo_expected_score` e' l'`e_H` logistico (dal punto di vista della squadra, scala 0-1) e `elo_expected_points_3pt` e' la sua conversione x3. L'errore richiesto e' `S reale − e_H` dal punto di vista della squadra; `logloss_elo_1x2` e `logloss_blend_1x2` sono medie per squadra-ampiezza. Se una stagione disponibile non ha ancora 5 o 10 partite per la squadra, `n` mostra il prefisso osservato: nessuna imputazione e' stata fatta e la finestra completa non e' verificabile.
@@ -339,6 +426,49 @@ Numerosita' dei sottoinsiemi:
 
 La metrica primaria e' `primary_first10_blend`; le altre tre sono diagnostiche fissate nel mandato: prime 5/blend, prime 10/solo Elo (`w=0`) e tutte le partite/blend.
 
+### 5.1 Le tre definizioni del riferimento a confronto
+
+Le tre colonne sono la stessa procedura, le stesse 4 varianti, gli stessi 2000 bootstrap a blocchi con seed 20260905, gli stessi 7.334 match: cambia solo l'insieme di riferimento `I` usato per costruire il seed degli ingressi.
+
+- **Originale con retrocessioni** (`123b942`): `I` = squadre in lega che hanno giocato nella stagione corrente **oppure** nella precedente (le retrocessioni tornano dentro l'attivo).
+- **Gia' giocate** (`df23df5`): `I` = squadre che hanno **gia' giocato** nella stagione corrente. A inizio stagione `I` e' vuoto o 1–2 squadre, quindi il seed non e' confrontabile tra partite: e' la definizione che questa PR sostituisce.
+- **Roster** (questo report, `HEAD`): `I = R(s) ∩ R(s−1)`, dove `R(s)` e' la composizione del campionato derivata dal calendario di stagione, nota prima del calcio d'inizio.
+
+`S0` (nessun seed) non dipende dalla definizione e resta identico: LogLoss 0.9930 sulla primaria, 1.0109 su `first10_elo`, 0.9901 su tutte le partite. Solo S1–S4 si spostano, ed e' il confronto fra loro che isola l'effetto della definizione.
+
+#### Primaria `primary_first10_blend` (delta LogLoss, negativo = meglio)
+
+| variante | originale con retrocessioni | gia' giocate | roster |
+|---|---|---|---|
+| S1 | -0.0045 (IC include 0) | -0.0045 (IC include 0) | -0.0045 (IC include 0) |
+| S2 | **-0.0149** `[-0.023437; -0.006229]` | -0.0027 `[-0.016035; +0.010621]` (IC include 0) | -0.0081 `[-0.019027; +0.003617]` (IC include 0) |
+| S3 | -0.0177 `[-0.030901; -0.005302]` | -0.0120 `[-0.021387; -0.003007]` | **-0.0183** `[-0.028576; -0.007930]` |
+| S4 | -0.0176 `[-0.030657; -0.005091]` | -0.0122 `[-0.019875; -0.005427]` | -0.0186 `[-0.027877; -0.009881]` |
+
+#### Tutte le partite `all_matches_blend` (soglia di non peggioramento: +0.0005)
+
+| variante | originale con retrocessioni | gia' giocate | roster |
+|---|---|---|---|
+| S1 | +0.0003 (IC include 0) | +0.0003 (IC include 0) | +0.0003 (IC include 0) |
+| S2 | -0.0007 `[-0.001466; -0.000001]` | +0.0005 `[-0.000671; +0.001668]` | +0.0001 `[-0.000922; +0.001181]` |
+| S3 | -0.0007 `[-0.001664; +0.000304]` (IC include 0) | -0.0006 `[-0.001515; +0.000286]` (IC include 0) | **-0.0009** `[-0.001801; -0.000034]` |
+| S4 | -0.0007 `[-0.001682; +0.000232]` (IC include 0) | -0.0009 `[-0.001579; -0.000163]` | -0.0011 `[-0.001866; -0.000440]` |
+
+Cosa si legge nelle tre colonne:
+
+1. **"Gia' giocate" e' la piu' debole delle tre.** S2 sulla primaria e' -0.0027 con IC che include 0 e su tutte le partite S2 peggiora (+0.0005). Con un `I` che a inizio stagione non contiene nessuna squadra, il seed coincide con 1500 e le varianti non hanno potere di distinguersi.
+2. **Il roster e' l'unico dei tre in cui S3 ha i due IC negativi insieme**: primaria `[-0.028576; -0.007930]` e tutte le partite `[-0.001801; -0.000034]`. Sotto "originale" e "gia' giocate" S3 sulla primaria e' negativo ma su tutte le partite l'IC tocca zero.
+3. **Il roster recupera gran parte del vantaggio della definizione originale sulla primaria** (-0.0183 contro -0.0177) pur essendo privo di look-ahead, mentre su tutte le partite e' migliore delle altre due (-0.0009 contro -0.0007 e -0.0006, entrambi con IC che include 0).
+4. **S4 resta migliore di S3 di circa 0.0003 sulla primaria in tutte e tre le colonne.** La differenza e' molto piu' piccola della larghezza degli IC e S4 resta una variante non dichiarata: non viene promossa e non viene aggiunto alcun offset, perche' la regola fissa S3 come variante dichiarata.
+
+Comandi per riprodurre le due colonne storiche:
+
+```
+git show 123b942:audit/results/elo_drift_triage.md   # originale con retrocessioni
+git show df23df5:audit/results/elo_drift_triage.md   # gia' giocate
+.venv/bin/python audit/elo_drift_triage.py            # roster (questo report)
+```
+
 ## 6. La deriva compensa davvero il seeding?
 
 Confronto descrittivo delle differenze d'ingresso S0 con i target S2 (−50) e S3 (−100). Distanza più bassa significa avvicinamento al target; non e' una stima di parametro e non modifica la regola decisionale.
@@ -383,7 +513,81 @@ Il verdetto MERGEABLE/NON MERGEABLE qui sotto riguarda la PR di audit, non un ca
 
 **Verdetto PR: NON MERGEABLE.** Non e' stato eseguito alcun merge.
 
-## 9. Riproducibilita' e file
+## 9. Impatto 2026/27 e Top Mix A/B main-vs-branch
+
+Ricalcolato da zero su questo ramo, contro il main `9957f41` (il merge di PR #35), con gli stessi comandi e la stessa finestra.
+
+### 9.1 Seed degli ingressi 2026/27
+
+I 14 ingressi e i loro seed sono in §3.2: `seed = media I − 100`, `|I|` fra 15 e 17, fallback `1500` mai presente. Il seed non e' piu' una media di 1–2 squadre a inizio stagione.
+
+### 9.2 Impatto sui rating finali
+
+Comando:
+
+```
+.venv/bin/python /home/user/scratch/dump_ingressi.py <albero> <out.json>
+```
+
+| Esito | Evidenza |
+|---|---|
+| OK | 55 ingressi enumerati dal ramo, 0 fallback |
+| OK | rating finali diversi dal main su **129 delle 133** squadre, delta da **−46.83** a **+145.73** Elo |
+| OK | tutte e 14 le entranti 2026/27 hanno rating finale diverso dal main |
+
+| lega | entrante | rating finale main | rating finale roster | delta |
+|---|---|---|---|---|
+| Serie A | Monza | 1315.9781 | 1461.7106 | +145.73 |
+| Serie A | Frosinone | 1483.4524 | 1528.9790 | +45.53 |
+| Serie A | Venezia | 1361.2035 | 1406.3561 | +45.15 |
+| Premier League | Coventry City | 1474.0003 | 1460.2210 | −13.78 |
+| Premier League | Hull City | 1528.5243 | 1515.0454 | −13.48 |
+| Premier League | Ipswich | 1346.0437 | 1477.9410 | +131.90 |
+| La Liga | Santander | 1480.1324 | 1435.5216 | −44.61 |
+| La Liga | Deportivo | 1520.0488 | 1473.9450 | −46.10 |
+| La Liga | Málaga | 1461.2584 | 1414.4245 | −46.83 |
+| Bundesliga | Elversberg | 1523.7811 | 1479.2218 | −44.56 |
+| Bundesliga | SC Paderborn | 1503.1130 | 1457.8959 | −45.22 |
+| Bundesliga | Schalke 04 | 1436.8216 | 1461.8026 | +24.98 |
+| Ligue 1 | Le Mans | 1506.2306 | 1487.4289 | −18.80 |
+| Ligue 1 | Troyes | 1325.9912 | 1450.0825 | +124.09 |
+
+Il segno del delta non e' sistematico perche' nel main chi entrava a inizio stagione partiva da un `I` vuoto o minuscolo (seed ~1400–1500), mentre nel ramo parte dalla media dei 15–17 incumbent (seed ~1445–1584). Le 129 squadre non entranti cambiano per propagazione dagli ingressi e per il fatto che il seed degli ingressi delle stagioni precedenti cambia la loro base di rating.
+
+### 9.3 Top Mix A/B main-vs-branch
+
+Comando identico sulle due colonne, snapshot `origin/main`, finestra 2026-08-30 → 2026-10-06, fixture `csv`, modello `Attuale`:
+
+```
+.venv/bin/python SoccerMath/replay_legacy_topmix.py --from 2026-08-30 --to 2026-10-06 \
+  --fixtures csv --model current --ref origin/main --out <out> --snapshot-cache /tmp/snapcache
+```
+
+| Esito | main `9957f41` | ramo roster |
+|---|---|---|
+| OK | leak check **OK** | leak check **OK** |
+| OK | finestra dichiarata ricostruibile **OK** | finestra dichiarata ricostruibile **OK** |
+| OK | 104 click simulati | 104 click simulati |
+| OK | 79 righe modello Attuale | 79 righe modello Attuale |
+| OK | 0 righe modello Legacy (nessuna partita sopra soglia) | 0 righe modello Legacy |
+
+| Esito | main `9957f41` | ramo roster |
+|---|---|---|
+| OK | 59/79 = **74.68%** (IC95 Wald [65.09%; 84.27%]) | 58/79 = **73.42%** (IC95 Wald [63.68%; 83.16%]) |
+
+Il confronto riga per riga:
+
+| controllo | esito |
+|---|---|
+| Insieme di partite e mercati selezionati | 79 in entrambe le colonne |
+| Righe presenti solo nel main | 2 — `Ipswich-Liverpool 2` (71.4%, ✅), `Man United-Ipswich 1` (83.7%, ✅) |
+| Righe presenti solo nel ramo | 2 — `Lille-Troyes 1` (65.9%, ✅), `Le Mans-Lens 2` (55.8%, ❌) |
+| Probabilita' diverse sulle 77 righe comuni | 32 (scarto massimo **6.0 punti**), delta massimo di rank 2 |
+| Esiti diversi sulle 77 righe comuni | 0 |
+
+Delta complessivo **−1.27 punti percentuali (−1 pick su 79)**. Test esatto di Fisher a due code sulle due hit rate: **p = 0.9288**, differenza non significativa; il rank si sposta al massimo di 2 posizioni e le due selezioni che escono sono in Premier League (le due entranti Ipswich e Coventry pesano di piu' nel ramo) mentre quelle che entrano sono in Ligue 1 (Troyes e Le Mans, che nel main avevano seed troppo alti).
+
+## 10. Riproducibilita' e file
 
 Comando unico:
 ```
