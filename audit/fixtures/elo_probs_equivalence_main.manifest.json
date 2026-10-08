@@ -26,5 +26,12 @@
  "n_grid": 25205,
  "n_match": 7334,
  "n_total": 32539,
+ "cutoff": {
+  "Serie A": "2026-09-20",
+  "Premier League": "2026-09-20",
+  "La Liga": "2026-10-21",
+  "Bundesliga": "2026-09-20",
+  "Ligue 1": "2026-09-20"
+ },
  "sha256_payload_non_compresso": "b91cb3e064568d315c83d9e9ca3c0780f2678062e9e7c62036a5c2f8214c3413"
 }

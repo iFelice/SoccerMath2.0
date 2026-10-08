@@ -54,12 +54,19 @@ Controlli di parita':
       inclusi i rating pre-partita.
   P4  no-leakage (classe TestNoLeakage).
 
+Cutoff (vedi audit/elo_parity_cutoff.py): P0-P4 NON leggono il database intero.
+Il manifest dichiara ``cutoff`` per lega (data massima della fixture) e tutti i
+motori sono costruiti sul database troncato a quella data. Le partite che il bot
+aggiunge dopo il cutoff non entrano nei conteggi, negli stati finali ne' nelle
+posizioni. La fixture non viene toccata.
+
 Esecuzione:
     python audit/test_elo_walker_parity.py
     python -m pytest audit/test_elo_walker_parity.py -v
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -81,6 +88,7 @@ from models.elo_engine import (                            # noqa: E402
     EloEngine, predict_elo_probs, elo_probs_from_ratings,
 )
 import elo_walker_core as W                                 # noqa: E402
+from elo_parity_cutoff import database_fino_a_cutoff, leggi_cutoff  # noqa: E402
 
 FIXTURE_PATH = os.path.join(_AUDIT_DIR, "fixtures", "elo_walker_parity.json")
 GENERATOR_PATH = os.path.join(_AUDIT_DIR, "make_elo_parity_fixture.py")
@@ -193,6 +201,16 @@ class TestProvenienzaFixture(unittest.TestCase):
             shutil.rmtree(wt, ignore_errors=True)
             shutil.rmtree(os.path.dirname(out_json), ignore_errors=True)
 
+    def test_v4_cutoff_dichiarato_coerente_con_la_fixture(self):
+        """Il cutoff del manifest per ogni lega e' la data massima della fixture
+        (``last_date``): e' dedotto dai dati, non inventato. Senza cutoff (o con
+        un cutoff non valido) i test di parita' falliscono con un messaggio
+        esplicito invece di troncare a caso."""
+        cutoff = leggi_cutoff(FIX.get("cutoff"), tuple(FIX["leagues"]))
+        for lg, blk in FIX["leagues"].items():
+            self.assertEqual(cutoff[lg], str(blk["last_date"])[:10],
+                             f"{lg}: cutoff del manifest != data massima della fixture")
+
 
 #: soglie ammesse SOLO per i casi P3 in cui il DB troncato e' stato
 #: ri-mangiato in un ordine diverso da quello di produzione (vedi il
@@ -201,6 +219,24 @@ class TestParitaWalker(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Tutta la classe lavora sul database troncato al cutoff dichiarato nel
+        # manifest (audit/elo_parity_cutoff.py): le partite successive del bot
+        # non entrano ne' nei motori, ne' nelle tabelle, ne' nelle posizioni.
+        cls._cutoff_cm = database_fino_a_cutoff(
+            leggi_cutoff(FIX.get("cutoff"), tuple(FIX["leagues"])))
+        cls._cutoff_cm.__enter__()
+        try:
+            cls._costruisci_motori()
+        except BaseException:
+            cls._cutoff_cm.__exit__(None, None, None)
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._cutoff_cm.__exit__(None, None, None)
+
+    @classmethod
+    def _costruisci_motori(cls):
         cls.engines = {}
         cls.tables = {}
         cls.cache_prima = {}
@@ -346,6 +382,19 @@ class TestParitaWalker(unittest.TestCase):
                             f"delta={e - f:+.10g}" for a, b, c, e, f in diffs)
             self.fail(f"P3 NON OK, {len(diffs)} differenze:\n{msg}")
 
+    # ---- PC: conteggi e date finali al cutoff ---------------------------
+    def test_pc_conteggio_partite_al_cutoff(self):
+        """Il motore costruito sul database troncato vede esattamente le partite
+        della fixture (stesso numero per lega, stessa data finale). Le partite
+        successive al cutoff, se presenti nel database, non entrano nel calcolo."""
+        for lg in W.LEAGUES:
+            blk = FIX["leagues"][lg]
+            df = self.engines[lg].matches_df
+            self.assertEqual(len(df), blk["n_matches_full_db"],
+                             f"{lg}: partite nel motore al cutoff != fixture")
+            self.assertEqual(str(df["Date_Parsed"].max()), blk["last_date"],
+                             f"{lg}: data finale al cutoff != fixture")
+
 
 class TestNoLeakage(unittest.TestCase):
     """P4: test di causalita'. Si altera il RISULTATO di una partita nei CSV
@@ -362,6 +411,11 @@ class TestNoLeakage(unittest.TestCase):
         import tempfile
         import config as PROD_CONFIG
         from make_elo_parity_fixture import _RepointDB
+
+        # P4 lavora sul database troncato al cutoff, come tutta la suite.
+        cm = database_fino_a_cutoff(leggi_cutoff(FIX.get("cutoff"), tuple(FIX["leagues"])))
+        cm.__enter__()
+        self.addCleanup(cm.__exit__, None, None, None)
 
         base = W.build_walker_table(self.LEAGUE)
         target = 1000                       # riga di prova, in mezzo alla serie
@@ -417,6 +471,71 @@ class TestNoLeakage(unittest.TestCase):
                       != base.iloc[target + 1:][["elo_1", "elo_X", "elo_2"]].to_numpy())
                      .any(axis=1).sum())
         print(f"\n  P4: righe successive modificate = {n_post} / {len(base) - target - 1}")
+
+
+class TestCutoffEsclusoFuturo(unittest.TestCase):
+    """Prova del troncamento: una partita del bot datata DOPO il cutoff non
+    entra nel motore troncato e non cambia l'ordine di produzione delle partite
+    che restano. Si lavora su una COPIA temporanea del database: il database
+    reale non viene mai scritto."""
+
+    LEAGUE = "Premier League"
+
+    def test_partita_futura_esclusa_e_ordine_invariato(self):
+        import shutil
+        import tempfile
+        import config as PROD_CONFIG
+        from make_elo_parity_fixture import _RepointDB
+
+        cutoff = leggi_cutoff(FIX.get("cutoff"), tuple(FIX["leagues"]))
+        reale = str(PROD_CONFIG.DATABASE_DIR)
+        tmp = tempfile.mkdtemp(prefix="elo_cutoff_futuro_")
+        try:
+            for f in os.listdir(reale):
+                shutil.copy(os.path.join(reale, f), os.path.join(tmp, f))
+            # il bot aggiunge una partita datata 3 giorni dopo il cutoff
+            live = os.path.join(tmp, "Premier_Live.csv")
+            df = pd.read_csv(live, on_bad_lines="warn", low_memory=False)
+            futura = df.iloc[[-1]].copy()
+            data_futura = pd.Timestamp(cutoff[self.LEAGUE]) + pd.Timedelta(days=3)
+            futura["Date"] = data_futura.strftime("%d/%m/%Y")
+            # risultato esplicito: deve essere una partita GIOCATA, non una riga
+            # senza punteggio che il loader scarterebbe
+            futura["FTHG"], futura["FTAG"], futura["FTR"] = 1, 0, "H"
+            pd.concat([df, futura], ignore_index=True).to_csv(live, index=False)
+
+            def _motore(db_dir, troncato):
+                with _RepointDB(db_dir):
+                    cm = (database_fino_a_cutoff(cutoff) if troncato
+                          else contextlib.nullcontext())
+                    with cm:
+                        e = EloEngine(self.LEAGUE)
+                        e.compute_ratings()
+                        d = e.matches_df
+                        ordine = [(str(a), b, c) for a, b, c in
+                                  zip(d["Date_Parsed"], d["HomeClean"], d["AwayClean"])]
+                        return len(d), str(d["Date_Parsed"].max()), ordine
+
+            n_pieno_reale, _, _ = _motore(reale, troncato=False)
+            n_pieno_copia, _, _ = _motore(tmp, troncato=False)
+            n_reale, fine_reale, ord_reale = _motore(reale, troncato=True)
+            n_copia, fine_copia, ord_copia = _motore(tmp, troncato=True)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        # 1) il caso di prova esiste: la partita del bot e' nel database intero
+        self.assertGreater(data_futura, pd.Timestamp(cutoff[self.LEAGUE]))
+        self.assertEqual(n_pieno_copia, n_pieno_reale + 1,
+                         "la partita futura non e' entrata nel database copia")
+        # 2) il troncamento la esclude: stesso numero di partite della fixture,
+        #    stessa data finale, stesso risultato del database senza la partita
+        self.assertEqual(n_copia, FIX["leagues"][self.LEAGUE]["n_matches_full_db"])
+        self.assertEqual(n_copia, n_reale)
+        self.assertEqual(fine_copia[:10], cutoff[self.LEAGUE])
+        self.assertEqual(fine_copia, fine_reale)
+        # 3) stesso ordine di produzione, partita per partita
+        self.assertEqual(ord_copia, ord_reale,
+                         "la partita futura ha cambiato l'ordine delle partite al cutoff")
 
 
 if __name__ == "__main__":

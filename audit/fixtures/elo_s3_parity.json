@@ -19,6 +19,13 @@
    "audit/elo_walker_core.py": "7d397386db6148ea703414e7b62d8d9fb27bf5be"
   }
  },
+ "cutoff": {
+  "Serie A": "2026-09-20",
+  "Premier League": "2026-09-20",
+  "La Liga": "2026-10-21",
+  "Bundesliga": "2026-09-20",
+  "Ligue 1": "2026-09-20"
+ },
  "leagues": {
   "Serie A": {
    "home_adv": 55.0,

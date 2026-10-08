@@ -21,6 +21,11 @@ Cosa e' negato (e come)
       ``expected_score_home``, ``p_draw`` e la terna Elo 1X2 del motore di
       produzione coincidono, per ``repr()`` esatto del float.
 
+Cutoff (audit/elo_parity_cutoff.py): la produzione e' calcolata sul database
+TRONCATO a ``cutoff`` per lega, dichiarato nel manifest della fixture. Le partite
+che il bot aggiunge dopo quella data non entrano nel confronto (la fixture non
+cambia). Le partite confrontate restano quelle della fixture (7334 in totale).
+
 Nessuna tolleranza numerica: se la produzione si allontana di un solo ULP il
 test e' rosso. La provenienza non e' una whitelist su main (la stessa scelta di
 ``test_elo_walker_parity.py``): la fixture puo' invecchiare, basta che continui
@@ -54,6 +59,7 @@ from models.elo_engine import (                          # noqa: E402
     PROMOTED_SEED_OFFSET,
     elo_probs_from_ratings,
 )
+from elo_parity_cutoff import database_fino_a_cutoff, leggi_cutoff  # noqa: E402
 
 FIXTURE = _AUDIT_DIR / "fixtures" / "elo_s3_parity.json"
 COLONNE = ("elo_home_pre", "elo_away_pre", "elo_home_post", "elo_away_post",
@@ -74,12 +80,25 @@ def _git(*args):
 def _produzione(league: str) -> list:
     """Righe per-partita della PRODUZIONE, lette da ``EloEngine`` e basta.
 
-    ``_prematch_ratings`` ricostruisce l'accoppiamento riga <-> voce di history
-    con un cursore per squadra: non ricalcola nessun rating. La conversione 1X2
-    e' la funzione pura di produzione, sugli stessi rating pre-partita.
+    Tutte le leghe vengono calcolate in un solo contesto sul database TRONCATO
+    al cutoff dichiarato nel manifest della fixture (audit/elo_parity_cutoff.py):
+    le partite che il bot aggiunge dopo quella data non entrano nel calcolo.
+    Il troncamento riproduce il database di generazione, quindi anche l'ordine
+    delle partite (ordinamento instabile di pandas) e' quello della fixture.
     """
-    if league in _CACHE:
-        return _CACHE[league]
+    if league not in _CACHE:
+        fx = _fixture()
+        cutoff = leggi_cutoff(fx.get("cutoff"), tuple(fx["leagues"]))
+        with database_fino_a_cutoff(cutoff):
+            for lg in fx["leagues"]:
+                _CACHE[lg] = _righe_produzione(lg)
+    return _CACHE[league]
+
+
+def _righe_produzione(league: str) -> list:
+    """``_prematch_ratings`` ricostruisce l'accoppiamento riga <-> voce di history
+    con un cursore per squadra: non ricalcola nessun rating. La conversione 1X2
+    e' la funzione pura di produzione, sugli stessi rating pre-partita."""
     engine = EloEngine(league)
     engine.compute_ratings()
     df = engine.matches_df.reset_index(drop=True)
@@ -104,7 +123,6 @@ def _produzione(league: str) -> list:
             "elo_X": repr(float(p["X"])),
             "elo_2": repr(float(p["2"])),
         })
-    _CACHE[league] = righe
     return righe
 
 
@@ -171,6 +189,17 @@ class TestProvenienza(unittest.TestCase):
         attuale = _git("cat-file", "-p",
                        "HEAD:SoccerMath/models/elo_engine.py")
         self.assertIn("PROMOTED_SEED_OFFSET", attuale)
+
+
+class TestCutoff(unittest.TestCase):
+    """Il troncamento usato dai test e' quello dichiarato dalla fixture."""
+
+    def test_cutoff_dichiarato_uguale_alla_data_massima_della_fixture(self):
+        fx = _fixture()
+        cutoff = leggi_cutoff(fx.get("cutoff"), tuple(fx["leagues"]))
+        for lega, blk in fx["leagues"].items():
+            self.assertEqual(cutoff[lega], max(m["date"] for m in blk["matches"]),
+                             f"{lega}: cutoff del manifest != ultima partita in fixture")
 
 
 class TestParitaBitExact(unittest.TestCase):

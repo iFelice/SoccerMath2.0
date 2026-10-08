@@ -189,6 +189,7 @@ def main() -> int:
             "production_input_oids": _oids(prod_commit, PRODUCTION_INPUTS),
             "audit_input_oids": _oids(audit_commit, AUDIT_INPUTS),
         },
+        "cutoff": {},
         "leagues": {},
         "total_matches": 0,
     }
@@ -233,6 +234,8 @@ def main() -> int:
                 for _, r in out.iterrows()
             ],
         }
+        # cutoff dichiarato per lega = data massima della fixture (dedotta dai dati)
+        fixture["cutoff"][league] = max(m["date"] for m in fixture["leagues"][league]["matches"])
         total += len(out)
         print(f"  {league:16s} n={len(out):5d} ingressi={len(records):3d}")
     fixture["total_matches"] = int(total)
