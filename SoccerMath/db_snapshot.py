@@ -223,8 +223,9 @@ def assicura_roster_stagione(db_dir: str, instant: datetime,
     10eb41b, 07/10/2026). Nei commit storici di settembre non esiste: lo snapshot
     non ha la stagione 2026, il seed Elo della stagione solleva ``EloSeedError``
     ("nessun roster per la stagione 2026") e il replay ricostruisce il solo
-    Poisson (1X2 a soglia 0,60 invece che 0,55 con Elo). Il registro, scritto col
-    codice di allora, aveva il suo Elo: il replay non lo riproduceva.
+    Poisson (1X2 a soglia 0,60 invece che 0,55 con Elo, senza veto). Misurato sul
+    registro esportato offline: il ripiego recupera 5 righe 1X2 e non ne perde
+    nessuna (main e branch; PR #47, round 2).
 
     LA REGOLA. Se nello snapshot manca la stagione del click in almeno una lega,
     nella cartella dello snapshot si copia il file del checkout (sostituzione

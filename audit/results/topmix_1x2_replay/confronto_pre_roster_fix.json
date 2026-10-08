@@ -27,14 +27,14 @@
         "OVER_2.5": 7
       },
       "totali_sparite_senza_1x2_per_mercato": {
-        "GG": 19,
+        "GG": 18,
         "OVER_2.5": 5,
-        "UNDER_2.5": 11
+        "UNDER_2.5": 12
       },
       "totali_rivalutate_su_1x2_per_mercato": {
-        "GG": 1,
+        "GG": 2,
         "OVER_2.5": 2,
-        "UNDER_2.5": 2
+        "UNDER_2.5": 1
       },
       "totali_sparite_mid": [
         "-30796",
@@ -48,7 +48,6 @@
         "-31195",
         "-31196",
         "-31197",
-        "-31208",
         "-31210",
         "-31213",
         "-31217",
@@ -56,45 +55,46 @@
         "-31220",
         "-31224",
         "-31229",
+        "-31577",
         "-31585",
         "-31602",
         "-31607",
         "-31957",
+        "-31961",
         "-31962",
-        "-31981",
+        "-32253",
         "-32262",
         "-32265",
         "-32267",
         "-32269",
-        "-32272",
         "-32274",
         "-32275",
         "-32276",
         "-32759",
         "-32761"
       ],
-      "entrano_1x2_nuove": 7,
+      "entrano_1x2_nuove": 0,
       "entrano_1x2_rivalutate": 5,
       "entrano_1x2_hit": {
-        "righe": 12,
-        "giudicate": 12,
-        "vinte": 10,
-        "hit_rate": 0.8333333333333334
+        "righe": 5,
+        "giudicate": 5,
+        "vinte": 3,
+        "hit_rate": 0.6
       },
       "entrano_1x2_nuove_hit": {
-        "righe": 7,
-        "giudicate": 7,
-        "vinte": 6,
-        "hit_rate": 0.8571428571428571
+        "righe": 0,
+        "giudicate": 0,
+        "vinte": 0,
+        "hit_rate": null
       },
       "entrano_1x2_rivalutate_hit": {
         "righe": 5,
         "giudicate": 5,
-        "vinte": 4,
-        "hit_rate": 0.8
+        "vinte": 3,
+        "hit_rate": 0.6
       },
-      "1x2_gia_presenti": 39,
-      "1x2_identiche": 39,
+      "1x2_gia_presenti": 48,
+      "1x2_identiche": 48,
       "1x2_diverse": 0,
       "1x2_diverse_mid": [],
       "1x2_perse": 0,
@@ -105,16 +105,16 @@
         "duplicati_branch": 0
       },
       "hit_prima": {
-        "righe": 79,
-        "giudicate": 79,
-        "vinte": 58,
-        "hit_rate": 0.7341772151898734
+        "righe": 88,
+        "giudicate": 88,
+        "vinte": 63,
+        "hit_rate": 0.7159090909090909
       },
       "hit_dopo": {
-        "righe": 51,
-        "giudicate": 51,
-        "vinte": 40,
-        "hit_rate": 0.7843137254901961
+        "righe": 53,
+        "giudicate": 53,
+        "vinte": 38,
+        "hit_rate": 0.7169811320754716
       }
     },
     "legacy": {
@@ -222,13 +222,13 @@
       },
       "totali_sparite_senza_1x2_per_mercato": {
         "OVER_2.5": 10,
-        "GG": 37,
-        "UNDER_2.5": 23
+        "GG": 36,
+        "UNDER_2.5": 24
       },
       "totali_rivalutate_su_1x2_per_mercato": {
         "OVER_2.5": 4,
-        "GG": 3,
-        "UNDER_2.5": 3
+        "GG": 4,
+        "UNDER_2.5": 2
       },
       "totali_sparite_mid": [
         "-30796",
@@ -242,7 +242,6 @@
         "-31195",
         "-31196",
         "-31197",
-        "-31208",
         "-31210",
         "-31213",
         "-31217",
@@ -250,17 +249,18 @@
         "-31220",
         "-31224",
         "-31229",
+        "-31577",
         "-31585",
         "-31602",
         "-31607",
         "-31957",
+        "-31961",
         "-31962",
-        "-31981",
+        "-32253",
         "-32262",
         "-32265",
         "-32267",
         "-32269",
-        "-32272",
         "-32274",
         "-32275",
         "-32276",
@@ -302,48 +302,48 @@
         "-32759",
         "-32761"
       ],
-      "entrano_1x2_nuove": 12,
+      "entrano_1x2_nuove": 5,
       "entrano_1x2_rivalutate": 10,
       "entrano_1x2_hit": {
-        "righe": 22,
-        "giudicate": 22,
-        "vinte": 18,
-        "hit_rate": 0.8181818181818182
+        "righe": 15,
+        "giudicate": 15,
+        "vinte": 11,
+        "hit_rate": 0.7333333333333333
       },
       "entrano_1x2_nuove_hit": {
-        "righe": 12,
-        "giudicate": 12,
-        "vinte": 11,
-        "hit_rate": 0.9166666666666666
+        "righe": 5,
+        "giudicate": 5,
+        "vinte": 5,
+        "hit_rate": 1.0
       },
       "entrano_1x2_rivalutate_hit": {
         "righe": 10,
         "giudicate": 10,
-        "vinte": 7,
-        "hit_rate": 0.7
+        "vinte": 6,
+        "hit_rate": 0.6
       },
-      "1x2_gia_presenti": 69,
-      "1x2_identiche": 69,
+      "1x2_gia_presenti": 78,
+      "1x2_identiche": 78,
       "1x2_diverse": 0,
       "1x2_diverse_mid": [],
       "1x2_perse": 0,
       "anomalie": {
-        "duplicati_branch": 0,
-        "duplicati_main": 0,
         "main_1x2_branch_totale": 0,
+        "duplicati_main": 0,
+        "duplicati_branch": 0,
         "branch_con_totale": 0
       },
       "hit_prima": {
-        "righe": 149,
-        "giudicate": 149,
-        "vinte": 111,
-        "hit_rate": 0.7449664429530202
+        "righe": 158,
+        "giudicate": 158,
+        "vinte": 116,
+        "hit_rate": 0.7341772151898734
       },
       "hit_dopo": {
-        "righe": 91,
-        "giudicate": 91,
-        "vinte": 73,
-        "hit_rate": 0.8021978021978022
+        "righe": 93,
+        "giudicate": 93,
+        "vinte": 71,
+        "hit_rate": 0.7634408602150538
       }
     }
   }
