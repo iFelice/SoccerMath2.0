@@ -7,9 +7,6 @@ name: Audit Top Mix (sola lettura)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'arena/**'
   pull_request:
     branches:
       - main
