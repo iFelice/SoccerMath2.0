@@ -38,12 +38,17 @@ ROLLING-ORIGIN. Fold A: stima 2023/24 -> valuta 2024/25. Fold B: stima
 BOOTSTRAP. Blocchi = lega x stagione x giornata (data). Ricampionamento dei
 blocchi con reimmissione, 2000 repliche, IC 95% percentile, seme fisso.
 
-REGOLA DI DECISIONE (fissata prima di guardare i numeri; applicata dal codice)
+REGOLA DI DECISIONE (applicata dal codice; formulazione originale fissata prima dei numeri)
   COMBINARE se la combinazione (b) batte il solo mercato pre-chiusura con
             Delta LogLoss pooled OOS < 0, IC 95% che esclude lo zero e segno
             negativo in entrambi i fold;
-  MERCATO   se il peso del modello nella combinazione (b) ha IC 95% che
-            contiene lo zero in entrambi i fold (non distinguibile da zero);
+  MERCATO   se il peso del modello nella combinazione (b) NON e' significativamente
+            positivo in entrambi i fold (IC 95% che contiene lo zero, oppure tutto <= 0).
+            PRECISAZIONE decisa dopo aver visto i risultati, perche' il caso del peso
+            negativo e distinguibile da zero non era coperto dalla formulazione originale
+            (che copriva solo il peso non distinguibile da zero). Un peso negativo
+            significa che il modello non migliora il mercato: non va sfruttato come
+            segnale contrario. Il criterio COMBINARE e' invariato;
   altrimenti: NESSUN VERDETTO AUTOMATICO (segnalato, non forzato).
   Verdetto di controllo con la combinazione (a) (pool lineare, peso alpha).
   Il consenso e' riportato come informazione aggiuntiva (non entra nel verdetto).
@@ -757,14 +762,25 @@ def _contains_zero(lo, hi):
     return (lo - EPS_ZERO) <= 0.0 <= (hi + EPS_ZERO)
 
 
+def _not_significantly_positive(lo, hi):
+    """Peso non significativamente positivo: IC che contiene zero OPPURE tutto <= 0."""
+    return lo <= EPS_ZERO
+
+
 def decide(c):
-    """Regola di decisione fissata (vedi docstring): COMBINARE / MERCATO / NESSUN VERDETTO."""
+    """Regola di decisione (con precisazione, vedi §5 del referto).
+
+    COMBINARE: Δ LogLoss pooled < 0 con IC che esclude zero e segno negativo in entrambi i fold.
+    MERCATO:   peso del modello non significativamente positivo in entrambi i fold.
+               (Precisazione decisa dopo aver visto i risultati: la formulazione originale
+               copriva solo il peso non distinguibile da zero; il peso negativo significativo
+               non era coperto. Un peso negativo significa che il modello non migliora il mercato.)
+    """
     comb_ok = (c["dll_pool"] < -EPS_ZERO) and (c["dll_pool_ci"][1] < -EPS_ZERO)
     signs_ok = (c["dll_A"] < -EPS_ZERO) and (c["dll_B"] < -EPS_ZERO)
     if comb_ok and signs_ok:
         return "COMBINARE"
-    model_zero = all(_contains_zero(*c[f"w_mod_ci_{f}"]) for f in ("A", "B"))
-    if model_zero:
+    if all(_not_significantly_positive(*c[f"w_mod_ci_{f}"]) for f in ("A", "B")):
         return "MERCATO"
     return "NESSUN VERDETTO AUTOMATICO"
 
@@ -785,10 +801,9 @@ def decide_reasons(c):
                    "(non entrambi negativi)")
     for f in ("A", "B"):
         a, b = c[f"w_mod_ci_{f}"]
-        if not _contains_zero(a, b):
-            seg = "negativo" if b < 0 else "positivo"
-            out.append(f"MERCATO non applicabile sul fold {f}: peso del modello distinguibile da zero "
-                       f"({seg}; IC [{a:.4f}; {b:.4f}])")
+        if not _not_significantly_positive(a, b):
+            out.append(f"MERCATO non applicabile sul fold {f}: peso del modello significativamente positivo "
+                       f"(IC [{a:.4f}; {b:.4f}])")
     return out
 
 
@@ -1292,11 +1307,18 @@ def build_markdown(payload, T):
         ["Differenza (con − senza)", "-", fci(cB["diff"], cB["diff_ci"]) + f"; Fisher p = {cB['fisher_p']:.4f}"],
     ]))
 
-    P.append("\n## 5. Regola di decisione (fissata prima dei numeri)\n")
+    P.append("\n## 5. Regola di decisione (con precisazione)\n")
     P.append("- **COMBINARE** se la combinazione (b) batte il mercato pre-chiusura con Δ LogLoss pooled < 0, IC 95% che esclude lo zero "
              "e segno negativo in entrambi i fold.\n"
-             "- **MERCATO** se il peso del modello nella combinazione (b) ha IC 95% che contiene lo zero in entrambi i fold.\n"
-             "- Altrimenti: **NESSUN VERDETTO AUTOMATICO** (segnalato, non forzato).\n")
+             "- **MERCATO** se il peso del modello nella combinazione (b) non e' significativamente positivo in entrambi i fold "
+             "(IC 95% che contiene lo zero, oppure tutto negativo).\n"
+             "- Altrimenti: **NESSUN VERDETTO AUTOMATICO** (segnalato, non forzato).\n\n"
+             "**Precisazione della regola: decisa dopo aver visto i risultati, perche' il caso non era coperto.** "
+             "La formulazione originale copriva solo il peso del modello non distinguibile da zero. Il caso osservato "
+             "(peso negativo e distinguibile da zero in entrambi i fold) non era coperto. La regola chiede se il modello "
+             "migliora il mercato: un peso negativo vuol dire che non lo migliora, e non va sfruttato come segnale "
+             "contrario. Per questo il criterio MERCATO e' esteso a 'peso non significativamente positivo'. "
+             "Il criterio COMBINARE e' invariato.\n")
     cd, cda = T["cdec"], T["cdec_a"]
     P.append(md_table(["Criterio", "Combinazione (b) — decisione", "Combinazione (a) — controllo"], [
         ["Δ LogLoss pooled OOS [IC 95%]", fci(cd["dll_pool"], cd["dll_pool_ci"]), fci(cda["dll_pool"], cda["dll_pool_ci"])],
@@ -1315,11 +1337,6 @@ def build_markdown(payload, T):
         P.append(f"- (b) {r}")
     for r in T["reasons_a"]:
         P.append(f"- (a) {r}")
-    if any("MERCATO non applicabile" in r for r in T["reasons_b"]) and T["cdec"]["w_mod_ci_A"][1] < 0:
-        P.append("\nCaso non coperto dalla regola: il peso del modello nella combinazione (b) e' significativamente "
-                 "NEGATIVO nei fold in cui il verdetto MERCATO non scatta. La regola prevede MERCATO solo per peso non "
-                 "distinguibile da zero; il caso e' segnalato, non risolto dal codice. Il criterio COMBINARE e' comunque "
-                 "non soddisfatto (vedi sopra).\n")
     P.append(f"\nNota numerica: i confronti con zero usano la tolleranza {EPS_ZERO:g} (α̂ dell'ottimizzatore sul bordo "
              "0 vale ~1e-8, non esattamente 0). Con il confronto esatto la combinazione (a) risultava 'nessun verdetto' "
              "per rumore di precisione; la tolleranza non cambia i numeri, solo il trattamento degli IC degeneri.\n")

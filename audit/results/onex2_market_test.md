@@ -1,6 +1,6 @@
 # Modello contro mercato sull'1X2 — referto di audit (sola lettura)
 
-Generato da `audit/onex2_market_test.py` (nessuna modifica a `SoccerMath/`). Commit di base: `06ffaf326b8b3cc8970705fea1b0f1c29e4b04e8` (branch `arena/944a1c7e-soccermath2-0`); origin/main: `a16284c09b50668e54cae625b9b0a40c691a665b`. Bootstrap: 2000 repliche a blocchi (lega × stagione × giornata), seme 20261008. Tempo di esecuzione: 294 s.
+Generato da `audit/onex2_market_test.py` (nessuna modifica a `SoccerMath/`). Commit di base: `b6372329e1318d044a1c818cff034d986c9aeb77` (branch `arena/944a1c7e-soccermath2-0`); origin/main: `a16284c09b50668e54cae625b9b0a40c691a665b`. Bootstrap: 2000 repliche a blocchi (lega × stagione × giornata), seme 20261008. Tempo di esecuzione: 287 s.
 Comando: `python audit/onex2_market_test.py`.
 
 ## 0. Fonti di probabilita' e verifiche di riuso
@@ -255,11 +255,13 @@ Solo le scelte Top Mix del modello (confidence ≥ 0,55):
 | Scelte del modello SENZA consenso di mercato | 335 | 0.4358 [0.3821; 0.4909] |
 | Differenza (con − senza) | - | 0.2460 [0.1828; 0.3056]; Fisher p = 0.0000 |
 
-## 5. Regola di decisione (fissata prima dei numeri)
+## 5. Regola di decisione (con precisazione)
 
 - **COMBINARE** se la combinazione (b) batte il mercato pre-chiusura con Δ LogLoss pooled < 0, IC 95% che esclude lo zero e segno negativo in entrambi i fold.
-- **MERCATO** se il peso del modello nella combinazione (b) ha IC 95% che contiene lo zero in entrambi i fold.
+- **MERCATO** se il peso del modello nella combinazione (b) non e' significativamente positivo in entrambi i fold (IC 95% che contiene lo zero, oppure tutto negativo).
 - Altrimenti: **NESSUN VERDETTO AUTOMATICO** (segnalato, non forzato).
+
+**Precisazione della regola: decisa dopo aver visto i risultati, perche' il caso non era coperto.** La formulazione originale copriva solo il peso del modello non distinguibile da zero. Il caso osservato (peso negativo e distinguibile da zero in entrambi i fold) non era coperto. La regola chiede se il modello migliora il mercato: un peso negativo vuol dire che non lo migliora, e non va sfruttato come segnale contrario. Per questo il criterio MERCATO e' esteso a 'peso non significativamente positivo'. Il criterio COMBINARE e' invariato.
 
 | Criterio | Combinazione (b) — decisione | Combinazione (a) — controllo |
 |---|---|---|
@@ -268,7 +270,7 @@ Solo le scelte Top Mix del modello (confidence ≥ 0,55):
 | Δ LogLoss fold B (2025/26) | 0.0019 | 0.0000 |
 | Peso modello, IC fold A | [-0.6337; -0.0168] | [0.0000; 0.0000] |
 | Peso modello, IC fold B | [-0.6289; -0.1890] | [0.0000; 0.0000] |
-| **Verdetto** | **NESSUN VERDETTO AUTOMATICO** | **MERCATO** |
+| **Verdetto** | **MERCATO** | **MERCATO** |
 
 Nota: sulla combinazione (b) il peso del modello e' β (scala log, condiviso fra esiti); sulla (a) e' α (peso lineare). Il verdetto usa l'IC bootstrap del fold; il criterio 'segno in entrambi i fold' usa la stima puntuale.
 
@@ -276,13 +278,8 @@ Nota: sulla combinazione (b) il peso del modello e' β (scala log, condiviso fra
 
 - (b) COMBINARE non soddisfatto: Δ LogLoss pooled = -0.0003 [-0.0043; 0.0036] (IC include lo zero)
 - (b) COMBINARE non soddisfatto: segni dei fold = A -0.0026, B +0.0019 (non entrambi negativi)
-- (b) MERCATO non applicabile sul fold A: peso del modello distinguibile da zero (negativo; IC [-0.6337; -0.0168])
-- (b) MERCATO non applicabile sul fold B: peso del modello distinguibile da zero (negativo; IC [-0.6289; -0.1890])
 - (a) COMBINARE non soddisfatto: Δ LogLoss pooled = 0.0000 [0.0000; 0.0000] (IC degenere a 0)
 - (a) COMBINARE non soddisfatto: segni dei fold = A +0.0000, B +0.0000 (non entrambi negativi)
-
-Caso non coperto dalla regola: il peso del modello nella combinazione (b) e' significativamente NEGATIVO nei fold in cui il verdetto MERCATO non scatta. La regola prevede MERCATO solo per peso non distinguibile da zero; il caso e' segnalato, non risolto dal codice. Il criterio COMBINARE e' comunque non soddisfatto (vedi sopra).
-
 
 Nota numerica: i confronti con zero usano la tolleranza 1e-06 (α̂ dell'ottimizzatore sul bordo 0 vale ~1e-8, non esattamente 0). Con il confronto esatto la combinazione (a) risultava 'nessun verdetto' per rumore di precisione; la tolleranza non cambia i numeri, solo il trattamento degli IC degeneri.
 

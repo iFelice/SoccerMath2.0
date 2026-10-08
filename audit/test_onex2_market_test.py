@@ -147,5 +147,37 @@ class TopMixTests(unittest.TestCase):
         self.assertTrue(np.allclose(conf, [0.55, 0.549, 0.70]))
 
 
+class DecisionTests(unittest.TestCase):
+    """Regola di decisione (con precisazione del referto, §5)."""
+
+    @staticmethod
+    def _c(dll_pool, pool_ci, dA, dB, wA, wB):
+        return {"dll_pool": dll_pool, "dll_pool_ci": pool_ci, "dll_A": dA, "dll_B": dB,
+                "w_mod_ci_A": wA, "w_mod_ci_B": wB}
+
+    def test_combinare_when_all_criteria_hold(self):
+        c = self._c(-0.01, [-0.02, -0.001], -0.01, -0.005, [-0.1, 0.2], [-0.1, 0.2])
+        self.assertEqual(T.decide(c), "COMBINARE")
+
+    def test_mercato_when_weight_contains_zero_in_both_folds(self):
+        c = self._c(-0.0003, [-0.004, 0.003], -0.002, 0.001, [-0.3, 0.1], [-0.2, 0.2])
+        self.assertEqual(T.decide(c), "MERCATO")
+
+    def test_mercato_when_weight_significantly_negative_in_both_folds(self):
+        # caso osservato (precisazione del referto): peso negativo distinguibile da zero
+        c = self._c(-0.0003, [-0.004, 0.003], -0.0026, 0.0019, [-0.63, -0.02], [-0.63, -0.19])
+        self.assertEqual(T.decide(c), "MERCATO")
+        self.assertFalse(any("significativamente positivo" in r for r in T.decide_reasons(c)))
+
+    def test_no_mercato_when_weight_significantly_positive_in_one_fold(self):
+        c = self._c(0.001, [0.0, 0.003], 0.001, 0.002, [0.1, 0.5], [-0.2, 0.2])
+        self.assertEqual(T.decide(c), "NESSUN VERDETTO AUTOMATICO")
+        self.assertTrue(any("significativamente positivo" in r for r in T.decide_reasons(c)))
+
+    def test_alpha_on_boundary_counts_as_zero(self):
+        c = self._c(3e-10, [8e-11, 6e-10], 0.0, 0.0, [4.5e-8, 4.5e-8], [4.5e-8, 4.5e-8])
+        self.assertEqual(T.decide(c), "MERCATO")
+
+
 if __name__ == "__main__":
     unittest.main()
