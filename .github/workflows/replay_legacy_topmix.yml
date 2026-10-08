@@ -21,17 +21,9 @@ name: Replay Top Mix legacy (walk-forward, no-leakage)
 # "replay-check-{sym,legacy}-*" esegue lo STESSO comando in sola lettura.
 
 on:
-  # Il push su un branch arena/** registra il workflow (altrimenti GitHub non lo
-  # espone al dispatch finche' non e' su main) e fa girare il dry-run come CI
-  # di sola lettura: mai --write da un push.
-  #
-  # Niente filtri "paths" QUI: con quelli attivi un push di TAG non fa partire
-  # nulla quando il commit e' gia' sul remoto (il tag non "tocca" file), e per
-  # una commessa comandata dal tag sarebbe un comando che non parte. Il filtro
-  # e' dentro il job (passo "Salta?"), dove branch e tag si distinguono.
+  # Nessun filtro paths sul trigger: il check deve essere verde anche se salta.
+  # I tag restano comandi espliciti e non vengono filtrati.
   push:
-    branches:
-      - 'arena/**'
     # Scrittura nel Registro: mai da un push di branch (il default resta
     # dry-run). Solo un tag esplicito "replay-write-*" chiede --write, cosi'
     # l'intenzione e' dichiarata nel ref e tracciabile a posteriori.
@@ -41,6 +33,9 @@ on:
   pull_request:
     branches:
       - main
+  schedule:
+    # Sul default branch (main), un'ora dopo la Suite: orario nominale UTC.
+    - cron: '37 14 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -78,6 +73,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: replay-legacy-topmix-${{ github.event_name }}
@@ -90,7 +86,7 @@ jobs:
     env:
       STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
       REPLAY_OUT: ${{ github.workspace }}/replay-out
-      # Da push di branch non ci sono input: dry-run sulla finestra di default.
+      # PR e schedule senza input: dry-run sulla finestra di default.
       MODE: ${{ startsWith(github.ref, 'refs/tags/replay-write-') && 'write' || github.event.inputs.mode || 'dry-run' }}
       COMMESSA: ${{ contains(github.ref, '-sym-') && 'simmetrico' || (contains(github.ref, '-legacy-') && 'legacy' || 'input') }}
       DAY_FROM: ${{ github.event.inputs.day_from || '2026-08-30' }}
@@ -108,11 +104,80 @@ jobs:
       BACKEND: ${{ contains(github.ref, '-jsonbin-') && 'jsonbin' || (vars.REGISTRY_BACKEND || 'upstash') }}
 
     steps:
+      # Prima di checkout e Python: le PR irrilevanti non installano nulla.
+      # API paginata sull'intera PR, NON sull'ultimo commit. I vecchi nomi
+      # coprono anche rinominazioni fuori elenco. In caso di dubbio si esegue.
+      - name: File rilevanti per il replay
+        id: salta
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName !== 'pull_request') {
+              core.setOutput('skip', 'false');
+              return;
+            }
+            // Import locali diretti/transitivi e CLI dei passi sottostanti.
+            // replay_legacy_topmix e db_snapshot vivono in SoccerMath/;
+            // conserviamo anche i percorsi audit/ richiesti per futuri spostamenti.
+            const paths = new Set([
+              'SoccerMath/app.py',
+              'SoccerMath/prediction_registry.py',
+              'SoccerMath/registry_store.py',
+              'SoccerMath/team_aliases.py',
+              'SoccerMath/season_rosters.py',
+              'SoccerMath/season_calendar.py',
+              'audit/replay_legacy_topmix.py',
+              'audit/db_snapshot.py',
+              'audit/verifica_click_live.py',
+              '.github/workflows/replay_legacy_topmix.yml',
+              'SoccerMath/requirements.txt',
+              'requirements-audit.txt',
+              'SoccerMath/replay_legacy_topmix.py',
+              'SoccerMath/db_snapshot.py',
+              'SoccerMath/config.py',
+              'SoccerMath/scraper_xg.py',
+              'SoccerMath/xg_archive.py',
+              'SoccerMath/display_names.py',
+              'SoccerMath/team_names.py',
+              'SoccerMath/registry_coverage.py',
+              'SoccerMath/registry_coverage_check.py',
+              'SoccerMath/registry_backend_status.py',
+              'SoccerMath/righe_non_ricostruite.py',
+              'SoccerMath/confronto_modelli.py',
+              'SoccerMath/test_replay_legacy_no_leakage.py',
+              'SoccerMath/test_registry_coverage.py',
+              'SoccerMath/test_righe_non_ricostruite.py',
+              'SoccerMath/test_confronto_modelli.py',
+              'SoccerMath/test_registry_store.py',
+              'SoccerMath/test_registry_backend_status.py',
+              'SoccerMath/test_legacy_elo_engine.py',
+              'SoccerMath/test_model_variant_registry.py',
+              'SoccerMath/test_topmix_dual_tables.py',
+            ]);
+            const relevant = path => paths.has(path) || path.startsWith('SoccerMath/models/');
+            try {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                ...context.repo, pull_number: context.issue.number, per_page: 100,
+              });
+              // L'API restituisce al massimo 3000 file: mai saltare un elenco troncato.
+              const run = files.length >= 3000 || files.some(file =>
+                relevant(file.filename) || (file.previous_filename && relevant(file.previous_filename)));
+              core.setOutput('skip', run ? 'false' : 'true');
+              const message = run ? 'replay necessario: file rilevanti modificati (o elenco al limite API)'
+                : 'replay non necessario: nessun file rilevante modificato';
+              core.info(message);
+              await core.summary.addRaw(message).write();
+            } catch (error) {
+              core.warning(`Filtro non verificabile: eseguo il replay per sicurezza (${error.message})`);
+              core.setOutput('skip', 'false');
+            }
+
       # La finestra si decide qui, in un posto solo e leggibile: un tag
       # "replay-{write,check}-sym-*" o "-legacy-*" e' il COMANDO della
       # commessa (limiti a istante compresi), altrimenti valgono gli input.
       - name: Finestra del replay
         id: finestra
+        if: steps.salta.outputs.skip != 'true'
         run: |
           case "$COMMESSA" in
             simmetrico)
@@ -127,48 +192,16 @@ jobs:
               echo "extra=$extra" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: "Checkout (storia completa: gli snapshot vengono da git)"
-        # nessuna guardia: il passo "Salta?" (filtro di path) ha bisogno del checkout
+        if: steps.salta.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Python
+        if: steps.salta.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      # Il filtro di path vive qui e non nel trigger (vedi sopra). Un tag e' un
-      # COMANDO: si esegue sempre. Un push di branch che non tocca niente del
-      # replay esce subito, senza sprecare richieste all'API.
-      - name: Salta? (solo documentazione)
-        id: salta
-        shell: bash
-        run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "tag ${GITHUB_REF_NAME}: si esegue sempre"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE='${{ github.event.pull_request.base.sha }}'
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            git fetch --no-tags origin main
-            BASE=$(git merge-base HEAD origin/main)
-          else
-            echo "Evento manuale: si esegue sempre"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          CAMBIATI=$(git diff --name-only "$BASE" HEAD)
-          printf '%s\n' "$CAMBIATI"
-          if [ -n "$CAMBIATI" ] && printf '%s\n' "$CAMBIATI" | grep -qEv '(^docs/|\.md$)'; then
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          elif [ -n "$CAMBIATI" ]; then
-            echo "Tutti i file modificati sono documentazione: salto il replay"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Nessun file rilevato: eseguo per sicurezza"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Dipendenze
         if: steps.salta.outputs.skip != 'true'
