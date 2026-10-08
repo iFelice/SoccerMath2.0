@@ -1,6 +1,6 @@
 """
 test_pt19_totali_invariance.py — Test di regressione PERMANENTE: l'1X2 di
-``get_full_poisson_two_heads`` deve restare bit-identico (max abs diff 0.0)
+``get_full_poisson_two_heads`` deve restare identico entro 1e-12 assoluto
 attraverso OGNI cambio di fonte della testa Totali (att0_pure/def0_pure).
 
 Finora due cambi di fonte, ciascuno congelato da un fixture generato PRIMA
@@ -17,7 +17,7 @@ Questo test lo rende permanente in due modi:
 
 1. ``test_1x2_bit_identico_campione_reale`` (il controllo fatto in audit):
    per un campione di partite REALI del database attuale, l'1X2 calcolato con
-   gli stats prodotti dal motore deve essere bit-identico (max abs diff 0.0)
+   gli stats prodotti dal motore deve essere identico entro 1e-12 assoluto
    anche sostituendo att0_pure/def0_pure con la baseline precedente (att0/def0)
    o con valori arbitrari: la testa 1X2 non legge quei campi, e chiunque in
    futuro li collegasse all'1X2 farebbe fallire questo test.
@@ -26,7 +26,7 @@ Questo test lo rende permanente in due modi:
    congela input (dizionari squadra + avg_h/avg_a) ed esiti 1X2 calcolati
    PRIMA di una modifica su partite reali; ri-eseguendo
    ``get_full_poisson_two_heads`` sugli stessi input l'1X2 deve riprodursi
-   bit-identico (max abs diff 0.0), come verificato in audit in piu' round.
+   entro 1e-12 assoluto (in audit lo scarto era 0.0; 1 ULP su un runner e' accettato).
 
 Esecuzione:
     python -m pytest SoccerMath/test_pt19_totali_invariance.py -v
@@ -51,6 +51,11 @@ LEAGUES_UNDER_TEST = ("Serie A", "Premier League", "La Liga",
 SAMPLES_PER_LEAGUE = 12
 KEYS_1X2 = ("1", "X", "2")
 
+# Tolleranza assoluta per le grandezze continue (probabilita'): |diff| <= 1e-12.
+# Autorizzata dopo lo scarto di 1 ULP (1.1e-16) visto in CI su un runner;
+# le uscite discrete (chiavi, mercato, ammissione, veto, ranking) restano esatte.
+TOLLERANZA_CONTINUE = 1e-12
+
 
 def max_diff_1x2(a, b):
     return max(abs(a[k] - b[k]) for k in KEYS_1X2)
@@ -60,7 +65,7 @@ class Test1X2InvarianzaPT19(unittest.TestCase):
 
     def test_1x2_bit_identico_campione_reale(self):
         """Campione di partite reali dal database attuale: l'1X2 non deve
-        muoversi di un bit qualunque cosa ci sia in att0_pure/def0_pure."""
+        muoversi oltre 1e-12 qualunque cosa ci sia in att0_pure/def0_pure."""
         total_checked = 0
         for camp_key in LEAGUES_UNDER_TEST:
             res = prod_app.get_league_engine(camp_key)
@@ -100,12 +105,12 @@ class Test1X2InvarianzaPT19(unittest.TestCase):
                                                               as_garbage,
                                                               avg_h, avg_a)
 
-                self.assertEqual(
-                    max_diff_1x2(base, old), 0.0,
+                self.assertLessEqual(
+                    max_diff_1x2(base, old), TOLLERANZA_CONTINUE,
                     f"{camp_key} {h}-{a}: l'1X2 cambia sostituendo la fonte "
                     "della testa Totali con la baseline precedente")
-                self.assertEqual(
-                    max_diff_1x2(base, garbage), 0.0,
+                self.assertLessEqual(
+                    max_diff_1x2(base, garbage), TOLLERANZA_CONTINUE,
                     f"{camp_key} {h}-{a}: l'1X2 dipende da att0_pure/def0_pure")
                 total_checked += 1
         self.assertGreaterEqual(total_checked, 30,
@@ -113,7 +118,7 @@ class Test1X2InvarianzaPT19(unittest.TestCase):
 
     def test_1x2_bit_identico_fixture_pre_modifica(self):
         """Fixture generati PRIMA di ogni cambio di fonte della testa Totali:
-        stessi input -> stesso 1X2, bit per bit (max abs diff 0.0, come in
+        stessi input -> stesso 1X2 entro 1e-12 assoluto (come in
         audit in piu' round)."""
         paths = sorted(glob.glob(FIXTURE_GLOB))
         self.assertTrue(paths, f"nessun fixture trovato: {FIXTURE_GLOB}")
@@ -129,10 +134,10 @@ class Test1X2InvarianzaPT19(unittest.TestCase):
                     e["hs"], e["as"], e["avg_h"], e["avg_a"])
                 for k in KEYS_1X2:
                     max_diff = max(max_diff, abs(out[k] - e["expected"][k]))
-            self.assertEqual(
-                max_diff, 0.0,
+            self.assertLessEqual(
+                max_diff, TOLLERANZA_CONTINUE,
                 f"l'1X2 sul fixture {os.path.basename(path)} non e' piu' "
-                f"bit-identico (max abs diff {max_diff})")
+                f"entro 1e-12 (max abs diff {max_diff})")
             total_entries += len(entries)
         self.assertGreaterEqual(total_entries, 100,
                                 "campione complessivo di fixture troppo piccolo")
