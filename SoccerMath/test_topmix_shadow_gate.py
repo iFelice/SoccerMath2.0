@@ -288,7 +288,7 @@ class TestMirrorCasiNoti(unittest.TestCase):
         """Dal PR Totali il selettore (e quindi il suo mirror) sceglie solo sui 1X2.
 
         Over a 0,62 e' il massimo a sette mercati, ma il mirror NON lo sceglie: resta
-        sul 1X2 piu' probabile. I Totali sono nel registro ombra (riga_ombra_totali).
+        sul 1X2 piu' probabile. I Totali sono nel registro ombra (righe_ombra_totali).
         """
         m = {"1": 0.20, "X": 0.15, "2": 0.10, "u25": 0.38, "gg": 0.50}
         for elo in ({"1": 0.90, "X": 0.05, "2": 0.05}, {}, None):

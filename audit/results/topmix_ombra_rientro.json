@@ -1,5 +1,5 @@
 {
-  "generato_il": "2026-10-08T19:37:37Z",
+  "generato_il": "2026-10-08T20:50:38Z",
   "sorgente": "upstash non raggiungibile: RegistryStoreError: registro ombra: richiede REGISTRY_BACKEND=upstash (attuale: jsonbin)",
   "stato_lettura": "NON VERIFICABILE",
   "costanti": {
@@ -22,7 +22,7 @@
       2025
     ],
     "origine": "top_mix_ombra",
-    "selettore": "topmix_ombra_totali_v1"
+    "selettore": "topmix_ombra_ou25_v1"
   },
   "base_rate_over25": {
     "Serie A": {

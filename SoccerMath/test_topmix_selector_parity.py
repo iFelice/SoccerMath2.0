@@ -65,7 +65,11 @@ sys.path.insert(0, HERE)
 # fixture PRE resta significativa: se il layer display toccasse un numero,
 # questo test continuerebbe a vederlo.
 from display_names import display_name  # noqa: E402
-from prediction_registry import OMBRA_SOGLIA_TOTALI  # noqa: E402
+from prediction_registry import (  # noqa: E402
+    OMBRA_FAMIGLIA_GGNG,
+    OMBRA_FAMIGLIA_OU25,
+    OMBRA_SOGLIA_TOTALI,
+)
 # Il percorso nuovo deriva la stagione della partita da ``utcDate`` con
 # l'helper reale di app.py: servono le due funzioni di stagione nel namespace.
 from season_calendar import season_start_year_of  # noqa: E402
@@ -380,7 +384,7 @@ def _blocchi_nuovi():
     if _BLOCCHI_NUOVI is None:
         _BLOCCHI_NUOVI = [(nome, _blocco(SRC, nome)) for nome in (
             "select_next_matchday_matches", "_stagione_da_utcdate", "_stato_squadre_match",
-            "seleziona_riga_top_mix", "riga_ombra_totali", "_riga_ombra", "_riga_top_mix",
+            "seleziona_riga_top_mix", "righe_ombra_totali", "_riga_ombra", "_riga_top_mix",
             "calcola_righe_top_mix", "classifica_top_mix", "fetch_and_calc_top_mix")]
     return _BLOCCHI_NUOVI
 
@@ -405,6 +409,8 @@ def _esegui(vecchio: bool, elemi):
         "ELO_ENSEMBLE_W": POISSON_W,
         "TOP_MIX_ROUND_WINDOW_DAYS": FINESTRA,
         "OMBRA_SOGLIA_TOTALI": OMBRA_SOGLIA_TOTALI,
+        "OMBRA_FAMIGLIA_OU25": OMBRA_FAMIGLIA_OU25,
+        "OMBRA_FAMIGLIA_GGNG": OMBRA_FAMIGLIA_GGNG,
         "logging": _Logging(),
         "time": _Time,
         "datetime": datetime,
@@ -525,9 +531,9 @@ class TestGuardieTesto(unittest.TestCase):
         'elo_prob = elo_p["2"]': "letta con .get + controllo sul tipo (hardening)",
         'elo_prob = elo_p["X"]': "letta con .get + controllo sul tipo (hardening)",
         '"Over 2.5": 1 - m_poisson["u25"], "Under 2.5": m_poisson["u25"],':
-            "Over/Under 2.5 TOLTI dal Top Mix visibile (PR Totali): la scelta vive in riga_ombra_totali",
+            "Over/Under 2.5 TOLTI dal Top Mix visibile (PR Totali): la scelta vive in righe_ombra_totali",
         '"GG": m_poisson["gg"], "NG": 1 - m_poisson["gg"]':
-            "GG/NG TOLTI dal Top Mix visibile (PR Totali): la scelta vive in riga_ombra_totali",
+            "GG/NG TOLTI dal Top Mix visibile (PR Totali): la scelta vive in righe_ombra_totali",
         'if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:':
             "con i soli 1X2 il ramo Totali (soglia 0,60 senza Elo) non esiste: resta `if not elo_disponibile:`",
     }

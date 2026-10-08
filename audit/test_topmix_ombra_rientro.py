@@ -68,6 +68,15 @@ class TestCampione(unittest.TestCase):
         self.assertEqual(2, c["conteggi"]["non_ou"])        # GG e NG: mai nel campione di rientro
         self.assertEqual(3, c["conteggi"]["non_ombra"])     # visibile, origine top_mix, origine AR
 
+    def test_stessa_partita_con_due_famiglie_entra_solo_la_ou(self):
+        """Due scelte per la stessa partita (O/U 2.5 e GG/NG): il campione prende solo l'O/U."""
+        import prediction_registry as PR
+        self.assertEqual(PR.SELECTOR_VERSION_OMBRA_OU25, RI.RIENTRO_SELETTORE)
+        c = RI.scelte_ou_ammesse([_riga(1, mkt="OVER_2.5"), _riga(1, mkt="GG")])
+        self.assertEqual([1001], [r["match_id"] for r in c["righe"]])
+        self.assertEqual("OVER_2.5", c["righe"][0]["mercato_standard"])
+        self.assertEqual(1, c["conteggi"]["non_ou"])
+
     def test_scelte_non_ammesse_escluse(self):
         c = RI.scelte_ou_ammesse([_riga(1, ammessa=False), _riga(2)])
         self.assertEqual([1002], [r["match_id"] for r in c["righe"]])

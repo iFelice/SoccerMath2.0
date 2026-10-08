@@ -60,7 +60,7 @@ from prediction_registry import (
     # --- tracciamento Top Mix (audit/margini_migliorabili_topmix.md §7) ---
     SELECTOR_VERSION_CURRENT,
     SELECTOR_VERSION_PRE_1X2,
-    SELECTOR_VERSION_OMBRA,
+    SELECTOR_VERSION_OMBRA_BY_FAMIGLIA, OMBRA_FAMIGLIA_FIELD, OMBRA_FAMIGLIA_OU25, OMBRA_FAMIGLIA_GGNG,
     ORIGIN_TOP_MIX_OMBRA,
     OMBRA_FIELD, OMBRA_MERCATO_FIELD, OMBRA_CONFIDENCE_FIELD, OMBRA_AMMESSA_FIELD,
     OMBRA_SOGLIA_FIELD, OMBRA_VINCENTE_GLOBALE_FIELD, OMBRA_DATI_MANCANTI_FIELD,
@@ -616,9 +616,11 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
         gate_off_confidence=gate_off_confidence, gate_off_ammessa=gate_off_ammessa,
         model_variant=model_variant, selector_version=selector_version)
     preds, azione = upsert_prediction_entry(preds, entry)
-    if azione == "gia_graduata":
-        # La previsione e' gia' stata giudicata: NON si tocca, e il record nuovo
-        # non viene scritto (nessuna duplicazione del medesimo esito).
+    if azione in ("gia_graduata", "gia_presente_altra_versione"):
+        # gia_graduata: la previsione e' gia' stata giudicata, NON si tocca.
+        # gia_presente_altra_versione: la stessa (tabella, partita, mercato) c'e' gia'
+        # con un'altra versione del selettore: NON si aggiunge una riga accanto.
+        # In entrambi i casi il record nuovo non viene scritto.
         return {"azione": azione, "remoto": "nessuna_scrittura", "record": None}
     esito = save_predictions(preds)
     remoto = esito.get("remoto") if isinstance(esito, dict) else "ignoto"
@@ -628,7 +630,8 @@ def build_ombra_entry(riga, *, salvato_il=None, snapshot_sha=None):
     """Record del registro OMBRA per UNA partita candidata (da ``calcola_righe_top_mix(..., ombra=...)``).
 
     Stessa forma di una riga normale (``build_prediction_entry``) con origine
-    ``top_mix_ombra`` e versione ``SELECTOR_VERSION_OMBRA``, piu' i campi
+    ``top_mix_ombra`` e la versione della SUA famiglia (``SELECTOR_VERSION_OMBRA_BY_FAMIGLIA``:
+    O/U 2.5 e GG/NG sono due righe distinte per la stessa partita), piu' i campi
     ``ombra_*``. Non c'e' rank ne' Elo: la riga non e' mai stata mostrata.
     """
     conf = riga["confidence"]
@@ -640,9 +643,10 @@ def build_ombra_entry(riga, *, salvato_il=None, snapshot_sha=None):
         kickoff_utc=riga["utcDate"], prob_poisson=round(riga["poisson"] * 100, 1),
         prob_elo=None, elo_disponibile=False, snapshot_sha=snapshot_sha,
         model_variant=MODEL_VARIANT_CURRENT, salvato_il=salvato_il,
-        selector_version=SELECTOR_VERSION_OMBRA,
+        selector_version=SELECTOR_VERSION_OMBRA_BY_FAMIGLIA[riga["famiglia"]],
     )
     entry[OMBRA_FIELD] = True
+    entry[OMBRA_FAMIGLIA_FIELD] = riga["famiglia"]
     entry[OMBRA_MERCATO_FIELD] = riga["market"]
     entry[OMBRA_CONFIDENCE_FIELD] = round(conf, 6)
     entry[OMBRA_AMMESSA_FIELD] = bool(riga["ammessa"])
@@ -1767,43 +1771,50 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
     }
 
 
-def riga_ombra_totali(m, home=None, away=None):
-    """Scelta Totali ombra per UNA partita candidata: solo registrazione, mai mostrata.
+def righe_ombra_totali(m, home=None, away=None):
+    """Scelte Totali ombra per UNA partita candidata: DUE righe, mai mostrate.
 
-    Per ogni candidata il registro ombra salva la scelta Totali che il selettore a
-    7 mercati (quello PRIMA della PR) avrebbe fatto: il Totale piu' probabile fra
-    Over 2.5, Under 2.5, GG e NG, con la sua confidence e l'ammissione a soglia
-    ``OMBRA_SOGLIA_TOTALI`` (0,60, la soglia dei Totali di allora). I Totali non
-    usano l'Elo: la confidence e' la probabilita' Poisson del mercato, e il veto
-    (d = 0) non li scarta mai, quindi l'ammissione e' ``confidence >= 0,60``.
+    Il registro ombra salva, per ogni candidata, due scelte separate (round 2):
+    * ``ou25``: il piu' probabile fra Over 2.5 e Under 2.5;
+    * ``ggng``: il piu' probabile fra GG e NG.
+    Ciascuna con la sua ``confidence`` (probabilita' Poisson del mercato: i Totali non
+    usano l'Elo, e il veto non li scarta mai) e la sua ammissione a ``OMBRA_SOGLIA_TOTALI``
+    (0,60, bordo incluso).
 
-    ``vincente_globale`` dice se il selettore a 7 mercati l'avrebbe davvero
-    MOSTRATA: il suo argmax su tutti e sette i mercati deve essere proprio questo
-    Totale, e la scelta deve essere ammessa. Serve a separare, nel registro, le
-    scelte Totali che il vecchio Top Mix mostrava da quelle che restavano
-    candidate sotto la soglia o sotto un 1X2 piu' probabile.
+    ``vincente_globale`` (per ciascuna famiglia): il selettore a sette mercati di allora
+    l'avrebbe davvero MOSTRATA, cioe' il suo argmax su tutti e sette i mercati e' proprio
+    quella scelta, e la scelta e' ammessa. Serve a separare nel registro le scelte che il
+    vecchio Top Mix mostrava da quelle rimaste candidate sotto soglia o sotto un 1X2.
 
     Funzione PURA: nessuna richiesta HTTP, nessuna cache, nessun logging, nessuna
-    scrittura. Ritorna SEMPRE un dict (mai ``None``).
+    scrittura. Ritorna SEMPRE una lista di due dict (mai ``None``).
     """
-    totali = {"Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"],
-              "GG": m["gg"], "NG": 1 - m["gg"]}
-    best_tot = max(totali, key=totali.get)
-    confidence = totali[best_tot]
+    tutti_i_totali = {"Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"],
+                      "GG": m["gg"], "NG": 1 - m["gg"]}
     sette = {
         f"Vittoria {home}": m["1"], "Pareggio": m["X"], f"Vittoria {away}": m["2"],
-        **totali,
+        **tutti_i_totali,
     }
     best_globale = max(sette, key=sette.get)
-    ammessa = confidence >= OMBRA_SOGLIA_TOTALI
-    return {
-        "market": best_tot,
-        "mercato_standard": codice_mercato_selezionato(best_tot, home, away),
-        "confidence": confidence,
-        "poisson": confidence,
-        "ammessa": bool(ammessa),
-        "vincente_globale": bool(ammessa and best_globale == best_tot),
-    }
+    famiglie = (
+        (OMBRA_FAMIGLIA_OU25, {"Over 2.5": tutti_i_totali["Over 2.5"], "Under 2.5": tutti_i_totali["Under 2.5"]}),
+        (OMBRA_FAMIGLIA_GGNG, {"GG": tutti_i_totali["GG"], "NG": tutti_i_totali["NG"]}),
+    )
+    out = []
+    for famiglia, mercati in famiglie:
+        best = max(mercati, key=mercati.get)
+        confidence = mercati[best]
+        ammessa = confidence >= OMBRA_SOGLIA_TOTALI
+        out.append({
+            "famiglia": famiglia,
+            "market": best,
+            "mercato_standard": codice_mercato_selezionato(best, home, away),
+            "confidence": confidence,
+            "poisson": confidence,
+            "ammessa": bool(ammessa),
+            "vincente_globale": bool(ammessa and best_globale == best),
+        })
+    return out
 
 
 def _riga_ombra(league, match, h_disp, a_disp, riga, dati_mancanti=None):
@@ -1818,6 +1829,7 @@ def _riga_ombra(league, match, h_disp, a_disp, riga, dati_mancanti=None):
         "market": riga["market"], "mercato_standard": riga["mercato_standard"],
         "confidence": riga["confidence"], "poisson": riga["poisson"],
         "ammessa": riga["ammessa"], "vincente_globale": riga["vincente_globale"],
+        "famiglia": riga["famiglia"],
         "dati_mancanti": bool(dati_mancanti),
     }
 
@@ -1864,9 +1876,9 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None):
     medesimo codice di quelle live. Nessun I/O HTTP qui dentro.
 
     ``ombra``: lista opzionale. Se e' passata, riceve PER OGNI partita candidata
-    (dopo lo scarto delle partite con nomi sconosciuti) la scelta Totali ombra
-    (``riga_ombra_totali``). Non entra nel risultato: e' il canale del registro
-    ombra, che non viene mai mostrato in UI.
+    (dopo lo scarto delle partite con nomi sconosciuti) DUE righe ombra, una per
+    famiglia di Totali (O/U 2.5 e GG/NG: ``righe_ombra_totali``). Non entra nel
+    risultato: e' il canale del registro ombra, che non viene mai mostrato in UI.
     """
     team_stats, avg_h, avg_a, _ = engine
     righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}
@@ -1896,9 +1908,9 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None):
         # Registro ombra dei Totali: la stessa partita, la scelta che il vecchio
         # selettore avrebbe fatto sui Totali. Solo se il chiamante la vuole.
         if ombra is not None:
-            ombra.append(_riga_ombra(league, match, h_disp, a_disp,
-                                     riga_ombra_totali(m_poisson, h_disp, a_disp),
-                                     dati_mancanti=senza_stats))
+            ombra.extend(_riga_ombra(league, match, h_disp, a_disp, riga_ombra,
+                                     dati_mancanti=senza_stats)
+                         for riga_ombra in righe_ombra_totali(m_poisson, h_disp, a_disp))
 
         # Elo agreement (solo per 1X2): qui e' I/O (engine/cache Elo), la
         # decisione resta nella funzione pura.
@@ -2654,7 +2666,8 @@ with tab2:
         n_err_remoto = sum(1 for e in esiti_save if e.get("remoto") == "errore")
         n_nuove = sum(1 for e in esiti_save if e.get("azione") == "aggiunta")
         n_agg = sum(1 for e in esiti_save if e.get("azione") == "aggiornata")
-        n_gia = sum(1 for e in esiti_save if e.get("azione") == "gia_graduata")
+        n_gia = sum(1 for e in esiti_save
+                    if e.get("azione") in ("gia_graduata", "gia_presente_altra_versione"))
         n_senza_id = sum(1 for e in esiti_save if e.get("azione") == "senza_chiave")
         if not esiti_save:
             st.info("Nessuna previsione da salvare: nessuna riga del Top Mix ha un match_id valido.")
@@ -2667,8 +2680,9 @@ with tab2:
                            f"scrittura remota fallita (vedi log). Registro: {dettaglio}.")
             else:
                 st.success(f"✅ Top Mix nel registro: {dettaglio}.")
-        # Registro OMBRA dei Totali: una riga per partita candidata, la scelta che il
-        # vecchio selettore avrebbe fatto sui Totali. Non viene mostrata. Se la
+        # Registro OMBRA dei Totali: DUE righe per partita candidata (migliore O/U 2.5 e
+        # migliore GG/NG), le scelte che il vecchio selettore avrebbe fatto sui Totali.
+        # Non vengono mostrate. Se la
         # scrittura fallisce si dice SOLO che non e' avvenuta (mai il contenuto).
         esito_ombra = salva_registro_ombra(ombra)
         if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):

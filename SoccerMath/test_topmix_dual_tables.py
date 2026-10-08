@@ -172,8 +172,10 @@ class TestNessunTetto(unittest.TestCase):
             top_current, top_legacy, missing, ombra = app.fetch_and_calc_top_mix()
         n_leghe = len(app.LEAGUES_CONFIG)
         self.assertEqual([], missing)
-        # registro ombra: UNA scelta Totali per ogni partita candidata, anche se non mostrata
-        self.assertEqual(40 * n_leghe, len(ombra))
+        # registro ombra: DUE scelte per ogni partita candidata (migliore O/U 2.5 e migliore
+        # GG/NG, ciascuna con la sua confidence), anche se non mostrate
+        self.assertEqual(2 * 40 * n_leghe, len(ombra))
+        self.assertEqual({"ou25", "ggng"}, {r["famiglia"] for r in ombra})
         self.assertEqual(40 * n_leghe, len(top_current))
         self.assertEqual(40 * n_leghe, len(top_legacy))
         self.assertEqual(list(range(1, 40 * n_leghe + 1)), [r["rank"] for r in top_current])

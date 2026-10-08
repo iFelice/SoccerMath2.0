@@ -37,10 +37,10 @@ RECON_PATH = os.path.join(_AUDIT_DIR, "reconstruct_topmix_match.py")
 
 
 # Dal PR Totali: i quattro mercati del Totale (Over/Under 2.5, GG/NG) sono scelti in
-# ``riga_ombra_totali`` (solo registro ombra); il Top Mix visibile e' 1X2. L'elenco
+# ``righe_ombra_totali`` (solo registro ombra); il Top Mix visibile e' 1X2. L'elenco
 # deve contenere entrambe, cosi' le guardie sui sette mercati leggono tutto il percorso.
 APP_FUNZIONI_TOPMIX = ("fetch_and_calc_top_mix", "calcola_righe_top_mix", "classifica_top_mix",
-                       "seleziona_riga_top_mix", "riga_ombra_totali")
+                       "seleziona_riga_top_mix", "righe_ombra_totali")
 
 
 def _app_topmix_source() -> str:

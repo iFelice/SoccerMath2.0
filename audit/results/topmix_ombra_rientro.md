@@ -1,6 +1,6 @@
 # Regola di rientro dei Totali nel Top Mix (registro ombra)
 
-Generato: `2026-10-08T19:37:37Z` - sola lettura, nessuna scrittura nel registro.
+Generato: `2026-10-08T20:50:38Z` - sola lettura, nessuna scrittura nel registro.
 
 **Sorgente:** upstash non raggiungibile: RegistryStoreError: registro ombra: richiede REGISTRY_BACKEND=upstash (attuale: jsonbin)  
 **Stato della lettura:** NON VERIFICABILE

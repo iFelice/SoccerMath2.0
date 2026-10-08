@@ -56,7 +56,10 @@ RIENTRO_REPLICHE_BOOTSTRAP = 2000
 RIENTRO_SEME = 20261008
 RIENTRO_STAGIONI_BASE_RATE = (2022, 2023, 2024, 2025)  # file *_YYYY.csv = stagione YYYY/YYYY+1
 RIENTRO_ORIGINE = "top_mix_ombra"
-RIENTRO_SELETTORE = "topmix_ombra_totali_v1"
+# Versione delle righe O/U 2.5 ombra (prediction_registry.SELECTOR_VERSION_OMBRA_OU25): il
+# campione del rientro e' SOLO questa famiglia. Le righe GG/NG (versione *_ggng_v1) sono
+# conteggiate come "non_ou" e non entrano mai nel campione.
+RIENTRO_SELETTORE = "topmix_ombra_ou25_v1"
 
 REFERTO_JSON = ROOT / "audit" / "results" / "topmix_ombra_rientro.json"
 REFERTO_MD = ROOT / "audit" / "results" / "topmix_ombra_rientro.md"
@@ -124,7 +127,12 @@ def carica_registro_ombra(sorgente: str, file: Optional[str]) -> Tuple[Optional[
 
 
 def scelte_ou_ammesse(righe: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Filtra il campione: righe ombra O/U ammesse, fuori campione. Conta anche cio' che esclude."""
+    """Filtra il campione: righe ombra O/U ammesse, fuori campione. Conta anche cio' che esclude.
+
+    Ogni partita candidata ha DUE righe ombra (migliore O/U 2.5 e migliore GG/NG, ciascuna con
+    confidence e flag ammessa). Entra nel campione solo la riga O/U, se ammessa: la GG/NG
+    e' contata in ``non_ou`` e non entra mai nel campione di rientro.
+    """
     conteggi = {"righe_totali": len(righe), "non_ombra": 0, "non_ou": 0, "non_ammesse": 0,
                 "dentro_campione_precedente": 0, "senza_stagione": 0}
     campione: List[Dict[str, Any]] = []

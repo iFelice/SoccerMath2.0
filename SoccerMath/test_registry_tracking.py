@@ -324,11 +324,17 @@ class TestIdentitaCalcolo(unittest.TestCase):
 
 class TestVersioneSelettore(unittest.TestCase):
     def test_la_version_e_nel_dedup_key(self):
-        """Una cambio di selettore NON deve sovrascrivere le righe vecchie."""
+        """Un cambio di selettore NON riscrive le righe vecchie e NON aggiunge un doppione.
+
+        Round 2 (doppioni fra versioni): la stessa (tabella/modello, match_id, mercato) con
+        un'altra versione e' la stessa scelta. La riga vecchia resta identica, nessuna riga
+        nuova: azione ``gia_presente_altra_versione``.
+        """
         vecchi = [_entry(version="topmix_gate025_ens06_v1")]
         out, azione = R.upsert_prediction_entry(vecchi, _entry(version="senza_gate"))
-        self.assertEqual(azione, "aggiunta")
-        self.assertEqual(len(out), 2)
+        self.assertEqual(azione, "gia_presente_altra_versione")
+        self.assertEqual(out, vecchi)
+        self.assertEqual(1, len(out))
 
     def test_metadata_corrente_non_regressa(self):
         md = R.new_prediction_metadata()

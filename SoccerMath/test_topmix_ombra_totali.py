@@ -7,10 +7,11 @@ delle righe ammesse in ``audit/results/topmix_selector_replay.md``.
 
 Cosa viene provato:
 
-* ``riga_ombra_totali``: il Totale piu' probabile fra Over/Under/GG/NG, la sua
-  confidence (Poisson, nessun Elo), l'ammissione a 0,60 (bordo incluso), e
-  ``vincente_globale`` = il selettore a sette mercati l'avrebbe davvero mostrato;
-* ``calcola_righe_top_mix(..., ombra=...)``: UNA riga ombra per partita candidata,
+* ``righe_ombra_totali``: DUE scelte per candidata, la migliore O/U 2.5 e la migliore
+  GG/NG, ciascuna con la sua confidence (Poisson, nessun Elo), l'ammissione a 0,60
+  (bordo incluso), e ``vincente_globale`` = il selettore a sette mercati l'avrebbe
+  davvero mostrato;
+* ``calcola_righe_top_mix(..., ombra=...)``: DUE righe ombra per partita candidata,
   nessun Totale nelle due tabelle visibili, e la firma senza ``ombra`` invariata;
 * ``build_ombra_entry``: stessa forma del registro + marcatori ``ombra_*``, origine e
   versione dedicate, chiave di dedup DIVERSA da quella della riga visibile;
@@ -72,11 +73,17 @@ def _visibile(mid, origin=R.ORIGIN_TOP_MIX, sel=R.SELECTOR_VERSION_CURRENT, mark
 
 
 def _riga_ombra(mid, market="Over 2.5", conf=0.66, ammessa=True, vincente=True, dati=False):
+    famiglia = R.OMBRA_FAMIGLIA_GGNG if market in ("GG", "NG") else R.OMBRA_FAMIGLIA_OU25
     return {"league": "Serie A", "giornata": 7, "home": "Casa", "away": "Trasferta",
             "match_id": mid, "utcDate": "2026-10-17T18:45:00Z", "market": market,
             "mercato_standard": app.codice_mercato_selezionato(market, "Casa", "Trasferta"),
             "confidence": conf, "poisson": conf, "ammessa": ammessa,
-            "vincente_globale": vincente, "dati_mancanti": dati}
+            "vincente_globale": vincente, "famiglia": famiglia, "dati_mancanti": dati}
+
+
+def _scelta(m, famiglia, home="Casa", away="Trasferta"):
+    """La riga ombra di una famiglia ("ou25" | "ggng") calcolata dal codice vero."""
+    return next(r for r in app.righe_ombra_totali(m, home, away) if r["famiglia"] == famiglia)
 
 
 class _Resp:
@@ -125,49 +132,65 @@ class RipristinaLogging:
 
 # ============================================================ 1. scelta ombra
 class TestRigaOmbraTotali(unittest.TestCase):
+    """Due scelte per candidata: la migliore O/U 2.5 e la migliore GG/NG (round 2)."""
 
-    def test_sceglie_il_totale_piu_probabile_fra_quattro(self):
-        r = app.riga_ombra_totali(_m(over=0.70, gg=0.45), "Casa", "Trasferta")
+    def test_restituisce_sempre_due_righe_una_per_famiglia(self):
+        righe = app.righe_ombra_totali(_m(over=0.70, gg=0.45), "Casa", "Trasferta")
+        self.assertEqual(2, len(righe))
+        self.assertEqual({R.OMBRA_FAMIGLIA_OU25, R.OMBRA_FAMIGLIA_GGNG}, {r["famiglia"] for r in righe})
+
+    def test_ou25_sceglie_over_o_under_piu_probabile(self):
+        r = _scelta(_m(over=0.70, gg=0.45), R.OMBRA_FAMIGLIA_OU25)
         self.assertEqual("Over 2.5", r["market"])
         self.assertAlmostEqual(0.70, r["confidence"], places=12)
         self.assertEqual("OVER_2.5", r["mercato_standard"])
+        r_under = _scelta(_m(over=0.30, gg=0.45), R.OMBRA_FAMIGLIA_OU25)
+        self.assertEqual("Under 2.5", r_under["market"])
+        self.assertAlmostEqual(0.70, r_under["confidence"], places=12)
 
-    def test_gg_e_ng_hanno_il_loro_codice(self):
-        self.assertEqual("GG", app.riga_ombra_totali(_m(gg=0.80), "Casa", "Trasferta")["mercato_standard"])
-        r = app.riga_ombra_totali(_m(gg=0.20), "Casa", "Trasferta")
+    def test_ggng_sceglie_gg_o_ng_piu_probabile(self):
+        self.assertEqual("GG", _scelta(_m(gg=0.80), R.OMBRA_FAMIGLIA_GGNG)["mercato_standard"])
+        r = _scelta(_m(gg=0.20), R.OMBRA_FAMIGLIA_GGNG)
         self.assertEqual("NG", r["market"])
         self.assertEqual("NG", r["mercato_standard"])
         self.assertAlmostEqual(0.80, r["confidence"], places=12)
 
-    def test_soglia_0_60_bordo_incluso(self):
-        self.assertTrue(app.riga_ombra_totali(_m(over=0.60), "Casa", "Trasferta")["ammessa"])
-        self.assertFalse(app.riga_ombra_totali(_m(over=0.5999), "Casa", "Trasferta")["ammessa"])
+    def test_soglia_0_60_bordo_incluso_per_ciascuna_famiglia(self):
+        self.assertTrue(_scelta(_m(over=0.60), R.OMBRA_FAMIGLIA_OU25)["ammessa"])
+        self.assertFalse(_scelta(_m(over=0.5999), R.OMBRA_FAMIGLIA_OU25)["ammessa"])
+        self.assertTrue(_scelta(_m(gg=0.60), R.OMBRA_FAMIGLIA_GGNG)["ammessa"])
+        self.assertFalse(_scelta(_m(gg=0.5999), R.OMBRA_FAMIGLIA_GGNG)["ammessa"])
+
+    def test_ammissione_di_una_famiglia_non_dipende_dall_altra(self):
+        r = {x["famiglia"]: x for x in app.righe_ombra_totali(_m(over=0.62, gg=0.50), "Casa", "Trasferta")}
+        self.assertTrue(r[R.OMBRA_FAMIGLIA_OU25]["ammessa"])
+        self.assertFalse(r[R.OMBRA_FAMIGLIA_GGNG]["ammessa"])
 
     def test_soglia_della_riga_e_quella_del_selettore_dei_totali(self):
         self.assertEqual(0.60, R.OMBRA_SOGLIA_TOTALI)
 
     def test_vincente_globale_vero_se_il_totale_batte_tutti_i_1x2(self):
-        r = app.riga_ombra_totali(_m(p1=0.20, pX=0.15, p2=0.10, over=0.62), "Casa", "Trasferta")
+        r = _scelta(_m(p1=0.20, pX=0.15, p2=0.10, over=0.62), R.OMBRA_FAMIGLIA_OU25)
         self.assertTrue(r["ammessa"])
         self.assertTrue(r["vincente_globale"])
 
     def test_vincente_globale_falso_se_un_1x2_e_piu_probabile(self):
         """Over 0,62 ma il 1X2 casa 0,65: il vecchio selettore avrebbe mostrato il 1X2, non l'Over."""
-        r = app.riga_ombra_totali(_m(p1=0.65, pX=0.15, p2=0.10, over=0.62), "Casa", "Trasferta")
+        r = _scelta(_m(p1=0.65, pX=0.15, p2=0.10, over=0.62), R.OMBRA_FAMIGLIA_OU25)
         self.assertEqual("Over 2.5", r["market"])
         self.assertTrue(r["ammessa"])
         self.assertFalse(r["vincente_globale"])
 
     def test_vincente_globale_falso_se_non_ammessa(self):
-        r = app.riga_ombra_totali(_m(p1=0.20, pX=0.15, p2=0.10, over=0.59), "Casa", "Trasferta")
+        r = _scelta(_m(p1=0.20, pX=0.15, p2=0.10, over=0.59), R.OMBRA_FAMIGLIA_OU25)
         self.assertFalse(r["ammessa"])
         self.assertFalse(r["vincente_globale"])
 
     def test_non_scarta_mai_e_non_legge_l_elo(self):
         firma = list(ast.parse(open(APP_PATH, encoding="utf-8").read()).body)
-        fn = next(n for n in firma if isinstance(n, ast.FunctionDef) and n.name == "riga_ombra_totali")
+        fn = next(n for n in firma if isinstance(n, ast.FunctionDef) and n.name == "righe_ombra_totali")
         self.assertEqual(["m", "home", "away"], [a.arg for a in fn.args.args])
-        self.assertIsInstance(app.riga_ombra_totali(_m(over=0.1), "Casa", "Trasferta"), dict)
+        self.assertIsInstance(app.righe_ombra_totali(_m(over=0.1), "Casa", "Trasferta"), list)
 
 
 # ============================================ 2. calcolo per partita (tabelle)
@@ -206,8 +229,10 @@ class TestCalcolaConOmbra(unittest.TestCase):
                "Casa2": {"1": 0.58, "X": 0.22, "2": 0.20},
                "Casa3": {"1": 0.60, "X": 0.20, "2": 0.20}}
         righe, ombra = self._esegui(partite, poisson, elo)
-        # una scelta ombra per partita candidata, anche quando la visibile non c'e'
-        self.assertEqual([1, 2, 3], sorted(r["match_id"] for r in ombra))
+        # DUE scelte ombra per partita candidata (O/U 2.5 e GG/NG), anche quando la visibile non c'e'
+        self.assertEqual([1, 1, 2, 2, 3, 3], sorted(r["match_id"] for r in ombra))
+        self.assertEqual({(mid, f) for mid in (1, 2, 3) for f in (R.OMBRA_FAMIGLIA_OU25, R.OMBRA_FAMIGLIA_GGNG)},
+                         {(r["match_id"], r["famiglia"]) for r in ombra})
         visibili = {r["market"] for r in righe[R.MODEL_VARIANT_CURRENT]}
         for totale in ("Over 2.5", "Under 2.5", "GG", "NG"):
             self.assertNotIn(totale, visibili)
@@ -219,10 +244,11 @@ class TestCalcolaConOmbra(unittest.TestCase):
         elo = {"Casa2": {"1": 0.58, "X": 0.22, "2": 0.20}}
         righe, ombra = self._esegui(partite, poisson, elo)
         self.assertEqual(["Vittoria Casa2"], [r["market"] for r in righe[R.MODEL_VARIANT_CURRENT]])
-        self.assertEqual(1, len(ombra))
-        self.assertEqual("Over 2.5", ombra[0]["market"])
-        self.assertTrue(ombra[0]["ammessa"])
-        self.assertTrue(ombra[0]["vincente_globale"])     # il vecchio selettore lo avrebbe mostrato
+        self.assertEqual(2, len(ombra))
+        ou = next(r for r in ombra if r["famiglia"] == R.OMBRA_FAMIGLIA_OU25)
+        self.assertEqual("Over 2.5", ou["market"])
+        self.assertTrue(ou["ammessa"])
+        self.assertTrue(ou["vincente_globale"])           # il vecchio selettore lo avrebbe mostrato
 
     def test_firma_senza_ombra_invariata(self):
         partite = {5: ("Casa5", "Trasferta5")}
@@ -237,8 +263,9 @@ class TestCalcolaConOmbra(unittest.TestCase):
         poisson = {7: _m(p1=0.20, pX=0.15, p2=0.10, over=0.70)}
         elo = {"Casa7": RuntimeError("elo rotto")}
         _righe, ombra = self._esegui(partite, poisson, elo)
-        self.assertEqual("Over 2.5", ombra[0]["market"])
-        self.assertAlmostEqual(0.70, ombra[0]["confidence"], places=12)
+        ou = next(r for r in ombra if r["famiglia"] == R.OMBRA_FAMIGLIA_OU25)
+        self.assertEqual("Over 2.5", ou["market"])
+        self.assertAlmostEqual(0.70, ou["confidence"], places=12)
 
 
 # ====================================================== 3. forma del record
@@ -251,7 +278,7 @@ class TestBuildOmbraEntry(unittest.TestCase):
     def test_stessa_forma_della_riga_visibile_piu_i_marcatori_ombra(self):
         visibile = _visibile(42)
         extra = set(self.entry) - set(visibile)
-        self.assertEqual({R.OMBRA_FIELD, R.OMBRA_MERCATO_FIELD, R.OMBRA_CONFIDENCE_FIELD,
+        self.assertEqual({R.OMBRA_FIELD, R.OMBRA_FAMIGLIA_FIELD, R.OMBRA_MERCATO_FIELD, R.OMBRA_CONFIDENCE_FIELD,
                           R.OMBRA_AMMESSA_FIELD, R.OMBRA_SOGLIA_FIELD,
                           R.OMBRA_VINCENTE_GLOBALE_FIELD, R.OMBRA_DATI_MANCANTI_FIELD}, extra)
         self.assertEqual(set(visibile), set(self.entry) - extra)
@@ -260,7 +287,8 @@ class TestBuildOmbraEntry(unittest.TestCase):
         self.assertIs(True, self.entry[R.OMBRA_FIELD])
         self.assertEqual("top_mix_ombra", self.entry["origin"])
         self.assertEqual("Top Mix ombra", self.entry["tipo"])
-        self.assertEqual(R.SELECTOR_VERSION_OMBRA, self.entry["selector_version"])
+        self.assertEqual(R.SELECTOR_VERSION_OMBRA_OU25, self.entry["selector_version"])
+        self.assertEqual(R.OMBRA_FAMIGLIA_OU25, self.entry[R.OMBRA_FAMIGLIA_FIELD])
         self.assertEqual("Over 2.5", self.entry[R.OMBRA_MERCATO_FIELD])
         self.assertEqual("OVER_2.5", self.entry["mercato_standard"])
         self.assertAlmostEqual(0.66, self.entry[R.OMBRA_CONFIDENCE_FIELD], places=6)
@@ -563,9 +591,13 @@ class TestVersioni(unittest.TestCase):
     def test_costanti_di_versione(self):
         self.assertEqual("topmix_gate025_ens06_v1", R.SELECTOR_VERSION_PRE_1X2)
         self.assertEqual("topmix_1x2_gate025_ens06_v2", R.SELECTOR_VERSION_CURRENT)
-        self.assertEqual("topmix_ombra_totali_v1", R.SELECTOR_VERSION_OMBRA)
-        self.assertEqual(3, len({R.SELECTOR_VERSION_PRE_1X2, R.SELECTOR_VERSION_CURRENT,
-                                 R.SELECTOR_VERSION_OMBRA}))
+        self.assertEqual("topmix_ombra_ou25_v1", R.SELECTOR_VERSION_OMBRA_OU25)
+        self.assertEqual("topmix_ombra_ggng_v1", R.SELECTOR_VERSION_OMBRA_GGNG)
+        self.assertEqual({R.OMBRA_FAMIGLIA_OU25: R.SELECTOR_VERSION_OMBRA_OU25,
+                          R.OMBRA_FAMIGLIA_GGNG: R.SELECTOR_VERSION_OMBRA_GGNG},
+                         R.SELECTOR_VERSION_OMBRA_BY_FAMIGLIA)
+        self.assertEqual(4, len({R.SELECTOR_VERSION_PRE_1X2, R.SELECTOR_VERSION_CURRENT,
+                                 R.SELECTOR_VERSION_OMBRA_OU25, R.SELECTOR_VERSION_OMBRA_GGNG}))
 
     def test_analisi_rapida_e_billy_restano_sulla_versione_storica(self):
         for origin in (R.ORIGIN_ANALISI_RAPIDA, R.ORIGIN_BILLY):
