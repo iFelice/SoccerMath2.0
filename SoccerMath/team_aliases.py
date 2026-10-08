@@ -148,6 +148,12 @@ def clean_name(name: str) -> str:
     """
     Pulisce e standardizza il nome di una squadra per garantire coerenza
     tra API esterne (Football-Data, Understat) e i database CSV locali.
+
+    Idempotente: ``clean_name(clean_name(x)) == clean_name(x)`` per ogni x.
+    Dopo il ciclo di stripping/sostituzioni riapplica ``TEAM_NAME_MAP``
+    (e un altro strip) cosi' i risultati intermedi (es. "Köln" prodotto
+    da strip di "1. FC Köln" con la riga "1. ") vengono normalizzati
+    nuovamente alla forma canonica ("Koln").
     """
     if not name:
         return ""
@@ -155,6 +161,8 @@ def clean_name(name: str) -> str:
     n = TEAM_NAME_MAP.get(n, n)
     for r in NAME_CLEAN_REPLACEMENTS:
         n = n.replace(r, "")
+    n = n.strip()
+    n = TEAM_NAME_MAP.get(n, n)
     return n.strip()
 
 

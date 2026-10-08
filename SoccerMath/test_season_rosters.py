@@ -409,6 +409,26 @@ class TestValidazioneETolleranza(unittest.TestCase):
             self.assertIn("2 squadre", errori[0])
             self.assertIn("attese 20", errori[0])
 
+    def test_nome_non_punto_fisso_fallisce(self):
+        """Regressione: 'Köln' nel roster deve fallire perche' non e' un
+        punto fisso di clean_name (clean_name('Köln')=='Koln'!='Köln')."""
+        with _DBTemp() as db:
+            with open(db.tmp / SR.ROSTER_FILENAME, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # inietta 'Köln' al posto di 'Koln' nel Bundesliga 2026
+            data["Bundesliga"]["2026"] = [
+                ("Köln" if t == "Koln" else t) for t in data["Bundesliga"]["2026"]
+            ]
+            with open(db.tmp / SR.ROSTER_FILENAME, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            errori = SR.validate_current_rosters(database_dir=db.tmp, current_season=2026,
+                                                 now=datetime(2026, 10, 7))
+            self.assertTrue(any("punto fisso" in e and "Köln" in e for e in errori),
+                            f"atteso errore su 'Köln', trovati: {errori}")
+            # e anche il Live CSV mismatch (Koln vs Köln)
+            self.assertTrue(any("Live CSV" in e and "Koln" in e for e in errori),
+                            f"atteso errore Live CSV Koln, trovati: {errori}")
+
 
 class TestAppPassaLaStagione(unittest.TestCase):
     def test_stagione_da_utcdate(self):

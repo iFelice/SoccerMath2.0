@@ -33,6 +33,7 @@ stesso contenuto, stessi byte.
 
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import os
@@ -40,11 +41,12 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config  # noqa: E402
+from team_aliases import clean_name  # noqa: E402
 from season_calendar import (  # noqa: E402
     roster_deadline,
     within_roster_tolerance,
@@ -174,16 +176,68 @@ def save_league_roster(league_name: str, season: int, teams,
     return path
 
 
+def _teams_from_csv(path: str) -> Set[str]:
+    """Estrae i nomi canonici (HomeTeam/AwayTeam) di un CSV football-data."""
+    out: Set[str] = set()
+    try:
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                for col in ("HomeTeam", "AwayTeam"):
+                    v = (row.get(col) or "").strip()
+                    if v:
+                        out.add(clean_name(v))
+    except Exception:
+        pass
+    return out
+
+
+def _known_teams(lega: str, database_dir, stagione: int,
+                 tutto: Dict[str, Dict[int, List[str]]]) -> Set[str]:
+    """Insieme dei nomi noti per una lega: CSV storici + stagione precedente
+    dai roster + Live CSV della stagione corrente."""
+    known: Set[str] = set()
+    base = Path(database_dir) if database_dir is not None else Path(config.DATABASE_DIR)
+    info = config.get_league_config(lega)
+    if info:
+        prefix = info.get("db_prefix") or info.get("short_name") or ""
+        # storici
+        for p in base.glob(f"{prefix}_20*.csv"):
+            # _Live.csv viene gestito separatamente
+            if "_Live" in p.name:
+                continue
+            known |= _teams_from_csv(str(p))
+        # live CSV
+        live_path = info.get("live_csv") or str(base / f"{prefix}_Live.csv")
+        if os.path.exists(live_path):
+            known |= _teams_from_csv(live_path)
+    # anche la stagione precedente del roster e' un nome valido
+    prev = (tutto.get(lega) or {}).get(stagione - 1) or []
+    for t in prev:
+        if t:
+            known.add(str(t))
+    return known
+
+
 def validate_current_rosters(database_dir=None, now=None,
                              current_season: Optional[int] = None) -> List[str]:
     """Errori espliciti sul roster della stagione corrente (``[]`` = ok).
 
-    Per ogni lega di ``EXPECTED_ROSTER_SIZE``: il roster salvato deve avere
-    esattamente la taglia attesa (20, 18 per Bundesliga e Ligue 1). Un roster
-    MANCANTE e' ammesso solo entro il 15 luglio dell'anno di inizio stagione
-    (``within_roster_tolerance``: stessa logica della PR #27, prima che il
-    calendario sia pubblicato); dopo il termine, o se presente ma di taglia
-    sbagliata, e' un errore che deve fallire il workflow in modo visibile.
+    Controlli, per ogni lega di ``EXPECTED_ROSTER_SIZE``:
+
+    1. il roster esiste ed ha la taglia attesa (20, 18 per Bundesliga/Ligue 1);
+    2. (a) ogni nome nel roster e' un punto fisso di ``clean_name``
+       (``clean_name(t) == t``): previene nomi non normalizzati come "Köln";
+    3. (b) per la stagione corrente, se il CSV Live contiene partite giocate,
+       tutte le squadre ivi presenti devono comparire nel roster
+       (altrimenti il seed si sbaglia sugli incumbent/entranti);
+    4. (c) ogni nome nel roster deve comparire fra i nomi noti della lega
+       (CSV storici + Live + roster della stagione precedente) OPPURE essere
+       un entrante (R(s) - R(s-1)) dichiarato.
+
+    Un roster MANCANTE e' ammesso solo entro il 15 luglio dell'anno di inizio
+    stagione (``within_roster_tolerance``); dopo il termine, o se presente ma
+    non valido, e' un errore che deve fallire il workflow in modo visibile.
 
     ``now`` accetta date/datetime/None (= adesso UTC); ``current_season``
     forza la stagione (i test non dipendono dall'orologio).
@@ -208,11 +262,58 @@ def validate_current_rosters(database_dir=None, now=None,
                 f"calendari 2026/27 pubblicati a giugno, primo kickoff mai "
                 f"prima del 05/08)")
             continue
-        uniche = {str(t) for t in squadre if str(t)}
+        uniche = sorted({str(t) for t in squadre if str(t)})
+
+        # 1) taglia: se sbagliata gli altri controlli sono fuorvianti
+        size_ok = True
         if len(uniche) != attese:
+            size_ok = False
             errori.append(
                 f"{lega} stagione {stagione}/{stagione + 1}: roster con "
                 f"{len(uniche)} squadre in {ROSTER_FILENAME}, attese {attese}")
+
+        # 2(a) punto fisso di clean_name
+        bad_fixed = [t for t in uniche if clean_name(t) != t]
+        for t in bad_fixed:
+            errori.append(
+                f"{lega} {stagione}/{stagione + 1}: nome nel roster non "
+                f"e' un punto fisso di clean_name: {t!r} -> "
+                f"{clean_name(t)!r}")
+
+        # 2(b) e 2(c) hanno senso solo se il roster ha la taglia attesa.
+        # Il check sul punto fisso (2a) non inibisce il confronto col Live CSV
+        # perche' un nome non normalizzato (es. 'Köln') produce il mismatch
+        # col Live ('Koln') che e' proprio il difetto che vogliamo segnalare.
+        if size_ok:
+            base = Path(database_dir) if database_dir is not None else Path(config.DATABASE_DIR)
+            info = config.get_league_config(lega)
+            live_set: Set[str] = set()
+            if info:
+                prefix = info.get("db_prefix") or info.get("short_name") or ""
+                live_path = info.get("live_csv") or str(base / f"{prefix}_Live.csv")
+                if os.path.exists(live_path):
+                    live_set = _teams_from_csv(live_path)
+            roster_set = set(uniche)
+            if live_set:
+                missing_in_roster = sorted(live_set - roster_set)
+                if missing_in_roster:
+                    errori.append(
+                        f"{lega} {stagione}/{stagione + 1}: squadre presenti nel "
+                        f"Live CSV ma assenti nel roster: {missing_in_roster}")
+
+            # 2(c) nomi noti; le sconosciute sono ammesse solo come entranti
+            prev = set((tutto.get(lega) or {}).get(stagione - 1) or [])
+            entranti_dichiarati = roster_set - prev
+            known = _known_teams(lega, database_dir, stagione, tutto)
+            for t in uniche:
+                if t in known:
+                    continue
+                if t in entranti_dichiarati:
+                    continue
+                errori.append(
+                    f"{lega} {stagione}/{stagione + 1}: nome nel roster {t!r} "
+                    f"non compare fra i nomi noti della lega (CSV storici + Live "
+                    f"+ roster {stagione - 1}) e non e' un entrante dichiarato")
     return errori
 
 
