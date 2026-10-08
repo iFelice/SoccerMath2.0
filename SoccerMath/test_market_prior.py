@@ -70,6 +70,7 @@ class TestMarketPrior(unittest.TestCase):
         self.assertAlmostEqual(info["q"], (0.8333 + 2.0) / 2, places=3)
 
     def test_neutro_senza_alcuna_informazione(self):
+        self.fail("PROVA CI TEMPORANEA: test rotto di proposito, da rimuovere")
         self.assertEqual(self.idx.factor("Inter", 2025, datetime(2025, 8, 1)), 1.0)  # nessuna 2024
         self.assertEqual(factor_from_quality(float("nan")), 1.0)
         # una squadra assente dalla stagione precedente e' per definizione
