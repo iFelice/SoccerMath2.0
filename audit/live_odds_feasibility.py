@@ -563,7 +563,7 @@ def mergeability(stato, ci):
          f"gh pr checks: Audit {ci.get('audit', 'n/d')}"
          + (f" (run {CI_RUN['audit']})" if CI_RUN.get("audit") else "")),
         ("Replay saltato (o verde)", str(ci.get("replay", "")) in ("skipped", "success", "neutral"),
-         f"gh pr checks: Replay {ci.get('replay', 'n/d')}"
+         f"gh pr checks: Replay {ci.get('replay', 'n/d')} (passi 3-19 del job skipped)"
          + (f" (run {CI_RUN['replay']})" if CI_RUN.get("replay") else "")),
     ]
     ok = all(c[1] for c in criteri)
