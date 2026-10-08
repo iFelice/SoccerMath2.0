@@ -13,23 +13,21 @@ name: Suite test completa
 # Trigger:
 #   - pull_request verso main: si salta SOLO se tutti i file modificati sono
 #     documentazione (docs/ o *.md), stessa regola di Audit e Replay;
-#   - push su arena/**: come gli altri workflow del branch di lavoro. Un workflow
-#     presente solo su un branch non di default non e' avviabile da workflow_dispatch;
-#   - schedule ogni giorno alle 13:30 UTC, su main. Il run schedulato non si salta mai.
-#     GitHub puo' ritardare i cron: l'orario e' nominale, non garantito;
+#   - schedule ogni giorno alle 04:37 UTC (cron '37 4 * * *'), su main. Il run
+#     schedulato non si salta mai. GitHub puo' ritardare i cron: l'orario e'
+#     nominale, non garantito;
 #   - workflow_dispatch.
+#   Nessun trigger push: la suite completa non gira sui push dei branch arena/**;
+#   la verifica di un branch e' la sua pull request verso main.
 
 on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - 'arena/**'
   schedule:
-    # Dopo le partenze mattutine osservate di update_database, update_xg (mar/ven)
-    # e snapshot_registro: tutte entro le 12:50 UTC.
-    - cron: '30 13 * * *'
+    # 04:37 UTC: dopo il cluster notturno osservato di update_database (02:30-03:30 UTC)
+    # e prima delle partenze mattutine osservate (09:00-12:50 UTC).
+    - cron: '37 4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -37,7 +35,7 @@ permissions:
 
 concurrency:
   group: test-suite-${{ github.ref }}
-  # Su PR e branch vale solo l'ultimo commit: il run precedente si annulla.
+  # Su PR vale solo l'ultimo commit: il run precedente si annulla.
   # Il run schedulato su main non viene mai annullato.
   cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
@@ -52,7 +50,7 @@ jobs:
 
     steps:
       # fetch-depth: 0 come negli altri workflow: alcuni test leggono la storia git
-      # (blob/commit) e il passo "Salta?" ha bisogno di origin/main.
+      # (blob/commit) e il passo "Salta?" confronta con la base della PR.
       - name: Checkout (storia completa)
         uses: actions/checkout@v4
         with:
@@ -65,17 +63,12 @@ jobs:
           EVENTO: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENTO" = "pull_request" ]; then
-            BASE="$BASE_SHA"
-          elif [ "$EVENTO" = "push" ]; then
-            git fetch --no-tags origin main
-            BASE=$(git merge-base HEAD origin/main)
-          else
+          if [ "$EVENTO" != "pull_request" ]; then
             echo "Evento $EVENTO: si esegue sempre"
             echo "skip=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          CAMBIATI=$(git diff --name-only "$BASE" HEAD)
+          CAMBIATI=$(git diff --name-only "$BASE_SHA" HEAD)
           printf '%s\n' "$CAMBIATI"
           if [ -n "$CAMBIATI" ] && printf '%s\n' "$CAMBIATI" | grep -qEv '(^docs/|\.md$)'; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -99,6 +92,38 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest
+
+      # Solo informativa: non decide nulla e non fa fallire il job. Registra CPU, flag SIMD, glibc e
+      # versioni numeriche del runner, per confrontare i run che passano con quelli che falliscono
+      # sui due test a tolleranza 1e-12 (ipotesi: differenze di 1 ULP fra hardware diversi).
+      - name: Diagnostica del runner (solo informativa)
+        if: steps.salta.outputs.skip != 'true'
+        shell: bash
+        run: |
+          mkdir -p "$REPORT_DIR"
+          CPU=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs || true)
+          FLAGS=$(grep -m1 '^flags' /proc/cpuinfo | tr ' ' '\n' | grep -E '^(avx2|fma|avx512f|avx512_vnni|avx512_bf16|avx512_fp16|amx_tile)$' | tr '\n' ' ' | xargs || true)
+          LIBC=$(ldd --version 2>&1 | head -n 1 || true)
+          VERS=$(python -c "import platform, numpy, scipy; print(f'python {platform.python_version()}, numpy {numpy.__version__}, scipy {scipy.__version__}')" 2>&1 || echo "versioni non disponibili")
+          {
+            echo "data: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "host: $(hostname)"
+            echo "cpu: ${CPU:-n/d}"
+            echo "flag SIMD: ${FLAGS:-nessuno}"
+            echo "libc: ${LIBC}"
+            echo "librerie: ${VERS}"
+            echo "--- numpy.show_runtime():"
+            python -c "import numpy; numpy.show_runtime()" 2>&1 || true
+          } > "$REPORT_DIR/runner-diag.txt"
+          echo "::notice title=Diagnostica runner::cpu=${CPU:-n/d}; flag SIMD=${FLAGS:-nessuno}; ${LIBC}; ${VERS}"
+          {
+            echo "## Diagnostica del runner (informativa)"
+            echo ""
+            echo "- CPU: ${CPU:-n/d}"
+            echo "- flag SIMD: ${FLAGS:-nessuno}"
+            echo "- libc: ${LIBC}"
+            echo "- librerie: ${VERS}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Elenco dei file di test (test_*.py tracciati, meno test_theme_toggle.py)
         if: steps.salta.outputs.skip != 'true'
