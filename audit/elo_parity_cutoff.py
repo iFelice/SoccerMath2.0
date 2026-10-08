@@ -34,11 +34,15 @@ fixture, quindi tutte le partite della fixture restano dentro.
 
 Perche' il cutoff e' per lega
 -----------------------------
-La massima data delle fixture e' 2026-10-21 (una riga della Liga gia' presente
-nel database), mentre le altre leghe finiscono al 2026-09-20. Un cutoff unico a
-2026-10-21 includerebbe anche le partite aggiunte dal bot tra il 21/09 e il
-21/10 in Serie A, Premier, Bundesliga e Ligue 1 (per esempio una partita di
-Serie A datata 27/09, come nello scenario di prova A): il cutoff e' per lega.
+Il cutoff e' la data massima di CIASCUNA lega nella fixture, quindi dipende dalla
+lega per costruzione: il bot puo' aggiungere partite a una lega senza toccare le
+altre (e' cio' che e' successo con La Liga, che per un periodo ha avuto una
+partita datata 2026-10-21 - la riga fittizia di Levante-Ath Bilbao poi rimossa -
+mentre le altre 4 leghe finivano al 2026-09-20). Un cutoff unico preso dal
+massimo delle 5 leghe includerebbe anche le partite aggiunte dal bot tra il
+21/09 e il 21/10 in Serie A, Premier, Bundesliga e Ligue 1 (per esempio una
+partita di Serie A datata 27/09, come nello scenario di prova A): il cutoff e'
+per lega, e dopo la correzione dei dati vale 2026-09-20 per tutte e cinque.
 
 Guardia: ``leggi_cutoff`` rifiuta un cutoff mancante, incompleto o non in formato
 YYYY-MM-DD, cosi' il test fallisce in modo esplicito invece di troncare a caso.

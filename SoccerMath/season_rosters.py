@@ -19,6 +19,16 @@ Questo modulo e' l'input offline e deterministico che chiude il buco:
   derivazione dalle partite giocate, per la stagione corrente senza voce
   resta ``EloSeedError`` come oggi.
 
+Oltre al roster, ``--check`` valida anche il CONTENUTO dei ``*_Live.csv``
+(``validate_live_csvs``): nessuna riga con data futura (un risultato che non
+puo' esistere) e nessuna coppia (HomeTeam, AwayTeam) ripetuta nella stessa
+stagione (la partita rinviata si scrive una volta sola, alla data vera; la
+sospensione a meta' partita non deve lasciare in giro un 0-0 provvisorio).
+Sono i due difetti misurati su LaLiga_Live.csv: Levante-Ath Bilbao del
+16/09/2026 (sospesa per pioggia, 0-0 provvisorio) e del 21/10/2026 (data del
+recupero, stesso 0-0). Il controllo gira prima del commit del workflow, cosi'
+una riga non conclusa non arriva nel repository.
+
 Nessuna chiamata di rete: il file e' versionato nel database
 (``SoccerMath/database/season_rosters.json``) e committato dal workflow di
 aggiornamento come i CSV. Formato::
@@ -39,7 +49,7 @@ import logging
 import os
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -49,6 +59,7 @@ import config  # noqa: E402
 from team_aliases import clean_name  # noqa: E402
 from season_calendar import (  # noqa: E402
     roster_deadline,
+    season_start_year_of,
     within_roster_tolerance,
 )
 
@@ -192,6 +203,108 @@ def _teams_from_csv(path: str) -> Set[str]:
     return out
 
 
+def live_csv_path(lega: str, database_dir=None) -> Optional[Path]:
+    """Percorso del ``*_Live.csv`` di una lega (``None`` se non risolvibile).
+
+    Con ``database_dir`` esplicito il file viene cercato li' dentro (stesso
+    nome: e' il meccanismo con cui i test ripuntano il database); senza,
+    vale il percorso di ``config`` (produzione).
+    """
+    info = config.get_league_config(lega)
+    if not info:
+        return None
+    if database_dir is not None:
+        base = Path(database_dir)
+        info_path = config.get_league_config(lega).get("live_csv")
+        if info_path:
+            return base / Path(info_path).name
+        prefisso = info.get("db_prefix") or info.get("short_name") or ""
+        return base / f"{prefisso}_Live.csv"
+    if info.get("live_csv"):
+        return Path(info["live_csv"])
+    base = Path(config.DATABASE_DIR)
+    prefisso = info.get("db_prefix") or info.get("short_name") or ""
+    return base / f"{prefisso}_Live.csv"
+
+
+def _live_rows(path: Path):
+    """Righe ``(data, casa, ospite)`` leggibili di un CSV live, in ordine di file.
+
+    I nomi sono normalizzati con ``clean_name`` (come in scrittura) e le date
+    non interpretabili vengono saltate: qui si validano i difetti di CONTENUTO,
+    non il formato del CSV.
+    """
+    righe = []
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            testo = (row.get("Date") or "").strip()
+            if not testo:
+                continue
+            try:
+                giorno = datetime.strptime(testo, "%d/%m/%Y").date()
+            except ValueError:
+                continue
+            casa = clean_name((row.get("HomeTeam") or "").strip())
+            ospite = clean_name((row.get("AwayTeam") or "").strip())
+            if not casa or not ospite:
+                continue
+            righe.append((giorno, casa, ospite))
+    return righe
+
+
+def validate_live_csvs(database_dir=None, now=None) -> List[str]:
+    """Errori espliciti sul contenuto dei ``*_Live.csv`` (``[]`` = ok).
+
+    Due controlli per ogni lega di ``EXPECTED_ROSTER_SIZE``, entrambi sui CSV
+    live della stagione corrente:
+
+    1. DATA FUTURA: nessuna riga puo' avere ``Date`` successiva a oggi. Una data
+       futura con un risultato e' per costruzione un dato che non esiste (il
+       recupero riportato dall'API col giorno in cui NON e' stato giocato, o un
+       calendario scritto come risultato).
+    2. COPPIA RIPETUTA NELLA STESSA STAGIONE: ``(HomeTeam, AwayTeam)`` compare
+       una volta sola per stagione (stagione = ``season_start_year_of`` della
+       data, come ``rosters_from_api_matches``). Una partita rinviata si scrive
+       quando verra' giocata, con la data vera: la riga provvisoria del giorno
+       della sospensione non deve restare, altrimenti la stessa partita entra
+       due volte nell'Elo e nelle forze attacco/difesa.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+    oggi = now.date() if isinstance(now, datetime) else now
+    errori: List[str] = []
+    for lega in sorted(EXPECTED_ROSTER_SIZE):
+        path = live_csv_path(lega, database_dir)
+        if path is None or not path.exists():
+            continue
+        try:
+            righe = _live_rows(path)
+        except Exception as e:  # CSV illeggibile: va detto, non ignorato
+            errori.append(f"{lega}: {path.name} illeggibile ({e})")
+            continue
+        for giorno, casa, ospite in righe:
+            if giorno > oggi:
+                errori.append(
+                    f"{lega}: {path.name} contiene una partita con DATA FUTURA: "
+                    f"{casa}-{ospite} del {giorno.strftime('%d/%m/%Y')} "
+                    f"(oggi {oggi.strftime('%d/%m/%Y')}). Un risultato futuro non "
+                    f"esiste: la partita va rimossa e riscritta quando sara' giocata.")
+        coppie: Dict[tuple, List[date]] = {}
+        for giorno, casa, ospite in righe:
+            stagione = season_start_year_of(datetime(giorno.year, giorno.month, giorno.day))
+            coppie.setdefault((stagione, casa, ospite), []).append(giorno)
+        for (stagione, casa, ospite), giorni in sorted(coppie.items()):
+            if len(giorni) > 1:
+                date_txt = ", ".join(g.strftime("%d/%m/%Y") for g in sorted(giorni))
+                errori.append(
+                    f"{lega}: {path.name} contiene la coppia (HomeTeam, AwayTeam) "
+                    f"{casa}-{ospite} ripetuta nella stagione {stagione}/"
+                    f"{stagione + 1}: {date_txt}. E' la stessa partita scritta due "
+                    f"volte (sospensione + data del recupero): va tenuta solo la "
+                    f"riga della partita realmente giocata.")
+    return errori
+
+
 def _known_teams(lega: str, database_dir, stagione: int,
                  tutto: Dict[str, Dict[int, List[str]]]) -> Set[str]:
     """Insieme dei nomi noti per una lega: CSV storici + stagione precedente
@@ -239,6 +352,11 @@ def validate_current_rosters(database_dir=None, now=None,
     stagione (``within_roster_tolerance``); dopo il termine, o se presente ma
     non valido, e' un errore che deve fallire il workflow in modo visibile.
 
+    A questi si aggiungono, sempre, gli errori di contenuto dei ``*_Live.csv``
+    (``validate_live_csvs``: data futura, coppia ripetuta nella stessa
+    stagione), che non dipendono dal roster e vanno segnalati anche se il
+    roster e' a posto.
+
     ``now`` accetta date/datetime/None (= adesso UTC); ``current_season``
     forza la stagione (i test non dipendono dall'orologio).
     """
@@ -248,7 +366,7 @@ def validate_current_rosters(database_dir=None, now=None,
     if now is None:
         now = datetime.now(timezone.utc)
     tutto = load_season_rosters(database_dir)
-    errori: List[str] = []
+    errori: List[str] = list(validate_live_csvs(database_dir, now))
     for lega, attese in sorted(EXPECTED_ROSTER_SIZE.items()):
         squadre = (tutto.get(lega) or {}).get(stagione)
         if squadre is None:
@@ -323,9 +441,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     import argparse
     parser = argparse.ArgumentParser(
         description="Valida il roster della stagione corrente in "
-                    f"{ROSTER_FILENAME} (vedi docstring del modulo).")
+                    f"{ROSTER_FILENAME} e il contenuto dei *_Live.csv "
+                    "(data futura, coppia ripetuta nella stagione): vedi "
+                    "docstring del modulo.")
     parser.add_argument("--check", action="store_true",
-                        help="valida e fallisce se il roster manca o e' incompleto")
+                        help="valida e fallisce se il roster manca o e' incompleto, "
+                             "o se un *_Live.csv contiene una riga non conclusa")
     parser.add_argument("--season", type=int, default=None,
                         help="forza la stagione (anno di inizio, default: corrente)")
     parser.add_argument("--now", default=None,

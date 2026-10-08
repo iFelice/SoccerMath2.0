@@ -31,14 +31,23 @@ variante S3 li'. La provenienza dichiara i due commit e i loro object id:
   * ``reference_production_commit`` + ``production_input_oids``: da quale
     commit vengono gli input di produzione (motore, config, database);
   * ``audit_logic_commit`` + ``audit_input_oids``: da quale commit viene la
-    LOGICA del seeding.
+    LOGICA del seeding;
+  * ``database_usato``: il DATABASE effettivamente letto, che e' quello del
+    branch (``commit`` + ``tree_oid``), copiato nel worktree al posto di quello
+    di ``reference_production_commit``. I due commit coincidono quando il
+    database del branch e' quello dello stesso albero di produzione; quando
+    divergono (es. correzione dati sulla Liga) il manifest lo dice, invece di
+    lasciarlo implicito: la fixture e' rigenerata sul database corretto, con il
+    CODICE di produzione invariato.
 
 Il frame su cui girano le funzioni dell'audit e' ricostruito dai CSV con la
 STESSA pipeline di produzione (``EloEngine.load_and_preprocess_matches``); la
 colonna ``season`` e' la stagione DERIVATA dalla data con
 ``config.season_start_year_of``. L'equivalenza di quella colonna con l'etichetta
 del file usata dall'audit (``backtest_experiment_all.load_league``) e' un fatto
-verificato e ricontrollabile: 0 discrepanze su 7334 partite sulle 5 leghe.
+verificato e ricontrollabile: 0 discrepanze su 7332 partite sulle 5 leghe
+(dopo la correzione dati della Liga: le due righe fittizie di Levante-Ath
+Bilbao non entrano piu' nel conteggio).
 
 Come ``make_elo_parity_fixture`` (PR #30), il generatore RIFIUTA di scrivere se
 il working tree degli input di produzione o dell'audit e' sporco: altrimenti i
@@ -130,8 +139,14 @@ def _genera_in_ref(ref: str, out_path: Path, head: str) -> int:
     """Calcola la fixture in un worktree pulito a ``ref``.
 
     Il worktree ha la PRODUZIONE di ``ref`` (motore senza seeding) e la LOGICA
-    dell'audit di questo branch. Nient'altro viene toccato: il database e' lo
-    stesso albero, i CSV non si modificano mai.
+    dell'audit di questo branch. Il DATABASE invece e' quello del branch
+    (``head``): viene copiato nel worktree al posto di quello di ``ref``. Serve
+    a rigenerare le fixture su un database CORRETTO senza cambiare il codice di
+    produzione di riferimento: le due righe fittizie di Levante-Ath Bilbao
+    (16/09/2026 sospesa, 21/10/2026 data del recupero) rimosse da
+    ``LaLiga_Live.csv`` non devono entrare nei numeri della fixture, altrimenti
+    restano congelati due risultati mai giocati. La scelta e' dichiarata nel
+    manifest (``provenance.database_usato``) e i CSV non vengono mai riscritti.
     """
     import shutil
     import tempfile
@@ -141,6 +156,15 @@ def _genera_in_ref(ref: str, out_path: Path, head: str) -> int:
                        cwd=_REPO_ROOT, check=True)
         for rel in AUDIT_COPY:
             shutil.copy(_REPO_ROOT / rel, Path(tmp) / rel)
+        # database del branch dentro il worktree (il codice resta quello di ref)
+        db_src = _REPO_ROOT / "SoccerMath" / "database"
+        db_dst = Path(tmp) / "SoccerMath" / "database"
+        for f in sorted(db_src.iterdir()):
+            if f.is_file():
+                shutil.copy(f, db_dst / f.name)
+        for f in sorted(db_dst.iterdir()):
+            if f.is_file() and not (db_src / f.name).exists():
+                f.unlink()
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
         r = subprocess.run(
             [sys.executable, str(Path(tmp) / "audit" / "make_elo_s3_parity_fixture.py"),
@@ -188,6 +212,22 @@ def main() -> int:
             "audit_logic_commit": audit_commit,
             "production_input_oids": _oids(prod_commit, PRODUCTION_INPUTS),
             "audit_input_oids": _oids(audit_commit, AUDIT_INPUTS),
+            # Il codice e' quello di ``reference_production_commit``, il
+            # database e' quello di ``database_usato.commit`` (il branch, con i
+            # dati corretti). I due commit coincidono quando la fixture nasce
+            # sul database dello stesso albero di produzione; qui no, ed e'
+            # dichiarato invece di essere implicito.
+            "database_usato": {
+                "commit": head,
+                "tree_oid": _git("rev-parse", f"{head}:SoccerMath/database"),
+                "motivo": "rigenerazione sul database CORRETTO: rimosse da "
+                          "LaLiga_Live.csv le due righe fittizie di "
+                          "Levante-Ath Bilbao (16/09/2026 sospesa per pioggia e "
+                          "21/10/2026 data del recupero, entrambe 0-0), che "
+                          "congelavano due risultati mai giocati. Il commit di "
+                          "riferimento resta quello con il codice di produzione "
+                          "SENZA seeding: cambia il dato, non il codice.",
+            },
         },
         "cutoff": {},
         "leagues": {},

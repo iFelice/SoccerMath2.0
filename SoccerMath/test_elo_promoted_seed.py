@@ -5,7 +5,7 @@ test_elo_promoted_seed.py — Seeding S3 degli ingressi in lega in PRODUZIONE.
 la media dei rating delle squadre ATTIVE (quelle che hanno gia' disputato almeno
 una partita in lega, nell'ordine di produzione) piu' ``PROMOTED_SEED_OFFSET``.
 La variante S3 che ha validato la scelta e' ``audit/elo_drift_triage.py``; la
-parita' bit-exact sulle 7334 partite reali e' negata da
+parita' bit-exact sulle 7332 partite reali e' negata da
 ``audit/test_elo_s3_parity.py``. Qui si verifica il COMPORTAMENTO su database
 sintetici: i valori attesi sono ricalcolati da un motore costruito sul
 TRONCAMENTO del database prima della partita d'ingresso, cosi' il test non riusa

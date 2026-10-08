@@ -339,8 +339,8 @@ class TestSimulazioneInizioStagione2026(unittest.TestCase):
 
 
 class TestUpdateDbSalvaIlRoster(unittest.TestCase):
-    def _api(self, utc, casa, fuori, gh=None, ga=None, md=1):
-        return {"utcDate": utc, "matchday": md,
+    def _api(self, utc, casa, fuori, gh=None, ga=None, md=1, stato="FINISHED"):
+        return {"utcDate": utc, "matchday": md, "status": stato,
                 "homeTeam": {"shortName": casa, "name": casa},
                 "awayTeam": {"shortName": fuori, "name": fuori},
                 "score": {"winner": ("HOME_TEAM" if gh is not None and ga is not None and gh > ga
@@ -359,6 +359,51 @@ class TestUpdateDbSalvaIlRoster(unittest.TestCase):
         self.assertEqual(roster[2026], {"Inter", "Monza", "Milan", "Lazio", "Roma", "Napoli"})
         df = matches_to_df(partite)
         self.assertEqual(len(df), 1, "le non giocate restano fuori dai CSV come oggi")
+
+    def test_matches_to_df_scrive_solo_le_finished(self):
+        """Lo stato decide, non il punteggio: un ``score.fullTime`` non nullo su
+        una partita non conclusa (0-0 provvisorio della sospensione, riga del
+        recupero servita dall'API come fullTime) NON entra nei CSV."""
+        from update_db import matches_to_df
+        casi = [
+            ("FINISHED", 2, 1),
+            ("IN_PLAY", 1, 0),        # in corso: il punteggio e' provvisorio
+            ("SUSPENDED", 0, 0),      # sospesa (Levante-Ath Bilbao 16/09/2026)
+            ("POSTPONED", 0, 0),      # rinviata, riga alla data del recupero
+            ("AWARDED", 3, 0),        # a tavolino: non e' un dato di gioco
+            ("SCHEDULED", None, None),
+            ("CANCELLED", None, None),
+            (None, 0, 0),             # status assente: non e' una conclusione
+        ]
+        for stato, gh, ga in casi:
+            with self.subTest(stato=stato):
+                partita = self._api("2026-10-03T16:00:00Z", "Inter", "Monza", gh, ga, md=7)
+                if stato is None:
+                    partita.pop("status")
+                else:
+                    partita["status"] = stato
+                df = matches_to_df([partita])
+                if stato == "FINISHED":
+                    self.assertEqual(len(df), 1, "FINISHED deve entrare")
+                    self.assertEqual((int(df.iloc[0]["FTHG"]), int(df.iloc[0]["FTAG"])), (gh, ga))
+                else:
+                    self.assertEqual(len(df), 0, f"{stato} non deve entrare nei CSV")
+
+    def test_matches_to_df_lista_mista_tiene_solo_le_concluse(self):
+        from update_db import matches_to_df
+        partite = [
+            self._api("2026-09-20T16:00:00Z", "Betis", "Getafe", 1, 0, md=6),
+            self._api("2026-09-16T18:45:00Z", "Levante", "Ath Bilbao", 0, 0, md=6,
+                      stato="SUSPENDED"),
+            self._api("2026-10-21T19:00:00Z", "Levante", "Ath Bilbao", 0, 0, md=6,
+                      stato="POSTPONED"),
+            self._api("2026-10-25T16:00:00Z", "Valencia", "Celta", None, None, md=8,
+                      stato="TIMED"),
+        ]
+        df = matches_to_df(partite)
+        self.assertEqual(len(df), 1)
+        self.assertEqual((df.iloc[0]["HomeTeam"], df.iloc[0]["AwayTeam"]), ("Betis", "Getafe"))
+        self.assertEqual(df.iloc[0]["Date"], "20/09/2026")
 
     def test_salvataggio_merge_e_ordinamento_stabile(self):
         with _DBTemp() as db:
@@ -389,7 +434,11 @@ class TestValidazioneETolleranza(unittest.TestCase):
         self.assertEqual(errori, [])
 
     def test_mancante_tollerato_prima_non_dopo(self):
-        with _DBTemp() as db:
+        # Il database e' troncato alla data simulata: con un orologio di luglio
+        # 2026 un DB di ottobre conterrebbe righe "future" e il controllo sui
+        # *_Live.csv (date future) segnalerebbe un difetto del FIXTURE, non del
+        # roster. Il test resta su cio' che verifica: la tolleranza del roster.
+        with _DBTemp(truncated_before=datetime(2026, 7, 10)) as db:
             (db.tmp / SR.ROSTER_FILENAME).unlink(missing_ok=True)
             ok = SR.validate_current_rosters(database_dir=db.tmp, current_season=2026,
                                              now=datetime(2026, 7, 10))
@@ -400,7 +449,7 @@ class TestValidazioneETolleranza(unittest.TestCase):
             self.assertTrue(all("MANCANTE" in e for e in ko))
 
     def test_incompleto_fallisce_anche_entro_il_termine(self):
-        with _DBTemp() as db:
+        with _DBTemp(truncated_before=datetime(2026, 7, 10)) as db:
             (db.tmp / SR.ROSTER_FILENAME).write_text(
                 json.dumps({"Serie A": {"2026": ["Inter", "Milan"]}}), encoding="utf-8")
             errori = SR.validate_current_rosters(database_dir=db.tmp, current_season=2026,
@@ -428,6 +477,95 @@ class TestValidazioneETolleranza(unittest.TestCase):
             # e anche il Live CSV mismatch (Koln vs Köln)
             self.assertTrue(any("Live CSV" in e and "Koln" in e for e in errori),
                             f"atteso errore Live CSV Koln, trovati: {errori}")
+
+
+class TestControlloLiveCsv(unittest.TestCase):
+    """I due difetti misurati su LaLiga_Live.csv (Levante-Ath Bilbao):
+    riga con data futura (21/10/2026) e coppia (HomeTeam, AwayTeam) ripetuta
+    nella stessa stagione (16/09/2026 sospesa + 21/10/2026 recupero).
+
+    Il controllo vive in ``validate_live_csvs``, richiamato da
+    ``validate_current_rosters``: e' il passo che il workflow esegue
+    (``python season_rosters.py --check``) PRIMA del commit dei CSV.
+    """
+
+    COLONNE_RIGA = ("Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR",
+                    "HTHG", "HTAG", "HTR", "Matchday")
+
+    def _aggiungi_righe(self, path: Path, righe):
+        """Aggiunge righe ``(data, casa, ospite, gol_casa, gol_ospite)`` al CSV."""
+        df = pd.read_csv(path, low_memory=False)
+        nuove = []
+        for giorno, casa, ospite, gh, ga in righe:
+            voce = {c: None for c in df.columns}
+            voce.update({"Date": giorno, "HomeTeam": casa, "AwayTeam": ospite,
+                         "FTHG": gh, "FTAG": ga,
+                         "FTR": "H" if gh > ga else ("A" if ga > gh else "D"),
+                         "HTHG": 0, "HTAG": 0,
+                         "HTR": "H" if gh > ga else ("A" if ga > gh else "D"),
+                         "Matchday": 6})
+            nuove.append(voce)
+        df = pd.concat([df, pd.DataFrame(nuove)], ignore_index=True)
+        df.to_csv(path, index=False)
+
+    def test_data_futura_e_errore(self):
+        with _DBTemp() as db:
+            live = db.tmp / "LaLiga_Live.csv"
+            self._aggiungi_righe(live, [("21/10/2026", "Levante", "Ath Bilbao", 0, 0)])
+            errori = SR.validate_live_csvs(db.tmp, datetime(2026, 10, 8))
+            self.assertTrue(
+                any("DATA FUTURA" in e and "Levante-Ath Bilbao" in e for e in errori),
+                f"atteso errore di data futura, trovati: {errori}")
+
+    def test_coppia_ripetuta_nella_stessa_stagione_e_errore(self):
+        with _DBTemp() as db:
+            live = db.tmp / "LaLiga_Live.csv"
+            # entrambe nel passato del "now" simulato: cosi' l'unico errore
+            # possibile e' la ripetizione, non la data futura
+            self._aggiungi_righe(live, [("16/09/2026", "Levante", "Ath Bilbao", 0, 0),
+                                        ("21/10/2026", "Levante", "Ath Bilbao", 0, 0)])
+            errori = SR.validate_live_csvs(db.tmp, datetime(2026, 11, 1))
+            self.assertEqual([e for e in errori if "DATA FUTURA" in e], [],
+                             f"nessuna data e' futura a novembre: {errori}")
+            self.assertTrue(
+                any("ripetuta nella stagione" in e and "Levante-Ath Bilbao" in e
+                    and "16/09/2026" in e and "21/10/2026" in e for e in errori),
+                f"atteso errore di coppia ripetuta, trovati: {errori}")
+
+    def test_andata_e_ritorno_nella_stessa_stagione_non_e_un_errore(self):
+        """La coppia e' ORDINATA (casa, ospite): il ritorno e' un'altra coppia."""
+        with _DBTemp() as db:
+            live = db.tmp / "LaLiga_Live.csv"
+            self._aggiungi_righe(live, [("10/01/2027", "Ath Bilbao", "Levante", 2, 0)])
+            errori = SR.validate_live_csvs(db.tmp, datetime(2027, 1, 11))
+            self.assertEqual(errori, [], f"atteso nessun errore, trovati: {errori}")
+
+    def test_validate_current_rosters_include_il_controllo(self):
+        """Il passo del workflow vede i difetti anche con il roster a posto."""
+        with _DBTemp() as db:
+            self._aggiungi_righe(db.tmp / "LaLiga_Live.csv",
+                                 [("21/10/2026", "Levante", "Ath Bilbao", 0, 0)])
+            errori = SR.validate_current_rosters(database_dir=db.tmp, current_season=2026,
+                                                 now=datetime(2026, 10, 8))
+            self.assertTrue(any("DATA FUTURA" in e for e in errori),
+                            f"il roster e' valido: resta il solo errore del CSV, trovati: {errori}")
+
+    def test_database_reale_senza_date_future_ne_coppie_ripetute(self):
+        """Sentinella sui dati committati: le due righe di Levante-Ath Bilbao
+        (16/09 sospesa, 21/10 recupero) sono state rimosse e non devono
+        tornare. Il confronto e' sull'orologio reale, come in produzione."""
+        errori = SR.validate_live_csvs()
+        self.assertEqual(errori, [], f"database reale non pulito: {errori}")
+        # e il controllo non e' vacuo: nelle stagioni complete esistono le
+        # partite di ritorno (stessa coppia di squadre, ordine invertito, stessa
+        # stagione) e NON sono un errore. I Live CSV della stagione in corso si
+        # fermano alla giornata 7, quindi la prova usa uno storico.
+        storico = Path(PROD_CONFIG.DATABASE_DIR) / "LaLiga_2025.csv"
+        coppie = {(c, o) for _, c, o in SR._live_rows(storico)}
+        self.assertTrue(any((o, c) in coppie and (c, o) in coppie for c, o in coppie),
+                        "nessuna andata/ritorno nello storico: il test non prova nulla")
+        self.assertEqual(SR.validate_live_csvs(database_dir=None), [],
+                         "le andate/ritorni dello storico non sono duplicati")
 
 
 class TestAppPassaLaStagione(unittest.TestCase):
