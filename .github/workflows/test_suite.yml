@@ -1,0 +1,218 @@
+name: Suite test completa
+
+# Esegue TUTTI i test tracciati del repository, non solo i sottoinsiemi che
+# girano gia' in "Audit Top Mix" e "Replay Top Mix legacy":
+#
+#   1. pytest su ogni file test_*.py tracciato, tranne SoccerMath/test_theme_toggle.py
+#      (l'elenco si ricava da `git ls-files`: un test nuovo entra da solo);
+#   2. SoccerMath/test_theme_toggle.py eseguito come script: non e' un test pytest
+#      (fa asserzioni a livello di modulo e chiude con sys.exit(0)).
+#
+# Sola lettura: nessun commit, nessun push, nessun secret, nessuna scrittura nel Registro.
+#
+# Trigger:
+#   - pull_request verso main: si salta SOLO se tutti i file modificati sono
+#     documentazione (docs/ o *.md), stessa regola di Audit e Replay;
+#   - push su arena/**: come gli altri workflow del branch di lavoro. Un workflow
+#     presente solo su un branch non di default non e' avviabile da workflow_dispatch;
+#   - schedule ogni giorno alle 13:30 UTC, su main. Il run schedulato non si salta mai.
+#     GitHub puo' ritardare i cron: l'orario e' nominale, non garantito;
+#   - workflow_dispatch.
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - 'arena/**'
+  schedule:
+    # Dopo le partenze mattutine osservate di update_database, update_xg (mar/ven)
+    # e snapshot_registro: tutte entro le 12:50 UTC.
+    - cron: '30 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-suite-${{ github.ref }}
+  # Su PR e branch vale solo l'ultimo commit: il run precedente si annulla.
+  # Il run schedulato su main non viene mai annullato.
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+jobs:
+  suite:
+    name: Suite completa (pytest + test_theme_toggle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+      REPORT_DIR: ${{ github.workspace }}/suite-out
+
+    steps:
+      # fetch-depth: 0 come negli altri workflow: alcuni test leggono la storia git
+      # (blob/commit) e il passo "Salta?" ha bisogno di origin/main.
+      - name: Checkout (storia completa)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Salta? (solo documentazione; mai per schedule e dispatch)
+        id: salta
+        shell: bash
+        env:
+          EVENTO: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENTO" = "pull_request" ]; then
+            BASE="$BASE_SHA"
+          elif [ "$EVENTO" = "push" ]; then
+            git fetch --no-tags origin main
+            BASE=$(git merge-base HEAD origin/main)
+          else
+            echo "Evento $EVENTO: si esegue sempre"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CAMBIATI=$(git diff --name-only "$BASE" HEAD)
+          printf '%s\n' "$CAMBIATI"
+          if [ -n "$CAMBIATI" ] && printf '%s\n' "$CAMBIATI" | grep -qEv '(^docs/|\.md$)'; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$CAMBIATI" ]; then
+            echo "Tutti i file modificati sono documentazione: salto la suite"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nessun file rilevato: eseguo per sicurezza"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        if: steps.salta.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Stesso ambiente di Audit e Replay.
+      - name: Dipendenze
+        if: steps.salta.outputs.skip != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest
+
+      - name: Elenco dei file di test (test_*.py tracciati, meno test_theme_toggle.py)
+        if: steps.salta.outputs.skip != 'true'
+        run: |
+          mkdir -p "$REPORT_DIR"
+          git ls-files | grep -E '(^|/)test_[^/]*\.py$' | grep -vx 'SoccerMath/test_theme_toggle.py' > "$REPORT_DIR/file_pytest.txt"
+          echo "File per pytest: $(wc -l < "$REPORT_DIR/file_pytest.txt")"
+          cat "$REPORT_DIR/file_pytest.txt"
+
+      # Nessun `continue-on-error`, nessun `|| true`: un test fallito fa fallire il passo e il job.
+      - name: Suite pytest (tutti i file test_*.py tracciati)
+        id: pytest
+        if: steps.salta.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          mapfile -t FILES < "$REPORT_DIR/file_pytest.txt"
+          python -m pytest -q -rfE --tb=short -p no:cacheprovider \
+            --junitxml="$REPORT_DIR/pytest-junit.xml" --durations=15 \
+            "${FILES[@]}" 2>&1 | tee "$REPORT_DIR/pytest.log"
+
+      # Eseguito anche se pytest e' fallito, cosi' l'esito dei due controlli e' sempre visibile.
+      - name: test_theme_toggle.py (come script, non da pytest)
+        id: theme
+        if: always() && steps.salta.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          python SoccerMath/test_theme_toggle.py 2>&1 | tee "$REPORT_DIR/theme_toggle.log"
+
+      - name: Riepilogo e annotazioni (sempre)
+        if: always() && steps.salta.outputs.skip != 'true'
+        shell: bash
+        env:
+          PYTEST_OUTCOME: ${{ steps.pytest.outcome }}
+          THEME_OUTCOME: ${{ steps.theme.outcome }}
+          RUN_SHA: ${{ github.sha }}
+          RUN_EVENT: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+          import os, xml.etree.ElementTree as ET
+
+          out = os.environ["REPORT_DIR"]
+          files = [l.strip() for l in open(os.path.join(out, "file_pytest.txt"), encoding="utf-8") if l.strip()]
+          # classname di pytest = modulo puntato, es. SoccerMath.test_x.TestY -> SoccerMath/test_x.py
+          mod2file = {f[:-3].replace("/", "."): f for f in files}
+
+          def file_of(classname):
+              best = None
+              for mod, f in mod2file.items():
+                  if classname == mod or classname.startswith(mod + "."):
+                      if best is None or len(mod) > len(best[0]):
+                          best = (mod, f)
+              return best[1] if best else "?"
+
+          def esc_ann(s):
+              return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+          def esc_md(s):
+              return s.replace("|", "\\|").replace("\n", " ")[:300]
+
+          tot = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          secs = 0.0
+          n_cases = n_sub = 0
+          fails, timings = [], []
+          junit = os.path.join(out, "pytest-junit.xml")
+          if os.path.exists(junit):
+              root = ET.parse(junit).getroot()
+              for ts in root.iter("testsuite"):
+                  for k in tot:
+                      tot[k] += int(ts.get(k, 0))
+                  secs += float(ts.get("time", 0))
+              # l'attributo "tests" di JUnit conta anche i subtest: li separiamo dai casi
+              n_cases = sum(1 for _ in root.iter("testcase"))
+              n_sub = tot["tests"] - n_cases
+              for tc in root.iter("testcase"):
+                  timings.append((float(tc.get("time", 0)), tc.get("classname"), tc.get("name")))
+                  el = None
+                  for tag in ("failure", "error"):
+                      x = tc.find(tag)
+                      if x is not None:
+                          el = x
+                          break
+                  if el is not None:
+                      msg = (el.get("message") or "").strip()
+                      fails.append((tc.get("classname"), tc.get("name"), file_of(tc.get("classname")), msg))
+
+          for cls, name, f, msg in fails:
+              first = msg.splitlines()[0][:300] if msg else "(nessun messaggio)"
+              print(f"::error file={f},title=test fallito::{esc_ann(cls + '::' + name + ' - ' + first)}")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as s:
+              s.write("## Suite test completa\n\n")
+              s.write(f"- evento: `{os.environ['RUN_EVENT']}`, commit: `{os.environ['RUN_SHA']}`\n")
+              s.write(f"- pytest (tutti i file tracciati): **{os.environ['PYTEST_OUTCOME']}**\n")
+              s.write(f"- test_theme_toggle.py (script): **{os.environ['THEME_OUTCOME']}**\n")
+              s.write(f"- casi di test: {n_cases}, subtest: {n_sub}, falliti: {tot['failures']}, errori: {tot['errors']}, saltati: {tot['skipped']}, tempo pytest: {secs:.1f} s\n\n")
+              if fails:
+                  s.write("### Test falliti\n\n| file | test | messaggio |\n|---|---|---|\n")
+                  for cls, name, f, msg in fails[:100]:
+                      s.write(f"| `{f}` | `{esc_md(name)}` | {esc_md(msg)} |\n")
+                  s.write("\n")
+              s.write("### 10 test piu' lenti\n\n| secondi | test |\n|---|---|\n")
+              for t, cls, name in sorted(timings, reverse=True)[:10]:
+                  s.write(f"| {t:.2f} | `{esc_md(cls + '::' + name)}` |\n")
+
+          print(f"pytest: casi={n_cases} subtest={n_sub} failures={tot['failures']} errors={tot['errors']} skipped={tot['skipped']} secs={secs:.1f}")
+          PY
+
+      - name: Report come artifact
+        if: always() && steps.salta.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-test-${{ github.run_id }}
+          path: suite-out/
+          if-no-files-found: warn
+          retention-days: 14
