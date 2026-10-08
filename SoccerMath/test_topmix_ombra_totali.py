@@ -109,6 +109,20 @@ _ENV_UPSTASH = {"UPSTASH_REDIS_REST_URL": "https://example.upstash.io",
                 "REGISTRY_BACKEND": "upstash"}
 
 
+class RipristinaLogging:
+    """Alcuni moduli di test dell'audit chiamano ``logging.disable(CRITICAL)`` a import
+    time, e l'import avviene prima di tutti i test: nella suite completa i WARNING sono
+    spenti. Qui il contratto in prova E' il WARNING, quindi il setUp lo riabilita e il
+    tearDown rimette ESATTAMENTE lo stato trovato (stesso schema di test_fallback_nomi.py)."""
+
+    def setUp(self):
+        self._disable_precedente = logging.root.manager.disable
+        logging.disable(logging.NOTSET)
+
+    def tearDown(self):
+        logging.disable(self._disable_precedente)
+
+
 # ============================================================ 1. scelta ombra
 class TestRigaOmbraTotali(unittest.TestCase):
 
@@ -401,7 +415,7 @@ class TestStoreOmbra(unittest.TestCase):
 
 
 # ======================================== 7. scrittura e grading dell'ombra
-class TestSalvaRegistroOmbra(unittest.TestCase):
+class TestSalvaRegistroOmbra(RipristinaLogging, unittest.TestCase):
 
     def _store(self, esistenti, load_raise=None):
         """(load_mock, save_mock, patch_contextmanager): lo store finto del registro ombra."""
@@ -449,6 +463,16 @@ class TestSalvaRegistroOmbra(unittest.TestCase):
         self.assertEqual(1, len(salvate2))
         self.assertEqual(2, len(salvate2[0]))
 
+    def test_errore_nella_costruzione_non_fa_fallire_il_click(self):
+        """Il Top Mix visibile e' gia' salvato: un guasto dell'ombra resta dell'ombra."""
+        _l, save_m, _salvate, patch = self._store([])
+        with patch, mock.patch.object(app, "build_ombra_entry", side_effect=ValueError("riga rotta")), \
+             self.assertLogs(level="WARNING"):
+            esito = app.salva_registro_ombra([_riga_ombra(31)])
+        self.assertEqual("errore", esito["remoto"])
+        self.assertIn("riga rotta", esito["remoto_dettaglio"])
+        save_m.assert_not_called()
+
     def test_lettura_fallita_non_scrive_niente(self):
         _l, save_m, _salvate, patch = self._store([], load_raise=rs.RegistryStoreError("Upstash giu'"))
         with patch:
@@ -465,20 +489,6 @@ class TestSalvaRegistroOmbra(unittest.TestCase):
             esito = app.salva_registro_ombra([_riga_ombra(40, conf=0.75)])
         self.assertEqual({"gia_graduata": 1}, esito["azioni"])
         save_m.assert_not_called()
-
-
-class RipristinaLogging:
-    """Alcuni moduli di test dell'audit chiamano ``logging.disable(CRITICAL)`` a import
-    time, e l'import avviene prima di tutti i test: nella suite completa i WARNING sono
-    spenti. Qui il contratto in prova E' il WARNING, quindi il setUp lo riabilita e il
-    tearDown rimette ESATTAMENTE lo stato trovato (stesso schema di test_fallback_nomi.py)."""
-
-    def setUp(self):
-        self._disable_precedente = logging.root.manager.disable
-        logging.disable(logging.NOTSET)
-
-    def tearDown(self):
-        logging.disable(self._disable_precedente)
 
 
 class TestGradingOmbra(RipristinaLogging, unittest.TestCase):

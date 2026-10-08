@@ -670,9 +670,15 @@ def salva_registro_ombra(righe_ombra):
     except Exception as e:
         logging.warning(f"Registro ombra non letto, nessuna scrittura: {e}")
         return {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300], "azioni": {}}
-    sha = snapshot_fingerprint(DATABASE_DIR)          # una volta sola per il blocco
-    entries = [build_ombra_entry(r, snapshot_sha=sha) for r in candidate]
-    lista, azioni = upsert_prediction_entries(esistenti, entries)
+    try:
+        sha = snapshot_fingerprint(DATABASE_DIR)      # una volta sola per il blocco
+        entries = [build_ombra_entry(r, snapshot_sha=sha) for r in candidate]
+        lista, azioni = upsert_prediction_entries(esistenti, entries)
+    except Exception as e:
+        # Il Top Mix visibile e' gia' salvato a questo punto: un errore dell'ombra
+        # resta un errore dell'ombra, non deve far fallire il click.
+        logging.warning(f"Registro ombra: costruzione delle righe fallita, nessuna scrittura: {e}")
+        return {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300], "azioni": {}}
     if not (azioni.get("aggiunta") or azioni.get("aggiornata")):
         return {"remoto": "nessuna_scrittura", "azioni": azioni}
     try:
