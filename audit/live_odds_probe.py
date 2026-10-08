@@ -259,6 +259,30 @@ def probe_bet365_check(session, key, out_dir, summary):
     summary["controllo_bet365"] = entry
 
 
+def probe_region_cost(session, key, out_dir, summary):
+    """CONTROLLO BUDGET: quanto costa la stessa chiamata con UNA sola regione.
+
+    La documentazione dice ``costo = mercati x regioni``; qui si misura una
+    chiamata con ``regions=eu`` (1 credito atteso) per verificare che il
+    bookmaker scelto (Pinnacle) sia comunque restituito.
+    """
+    skey = "soccer_italy_serie_a"
+    url = (f"{ODDS_HOST}/v4/sports/{skey}/odds/?apiKey={key}&regions=eu"
+           f"&markets={MARKETS}&oddsFormat=decimal&dateFormat=iso")
+    payload, meta = get_json(url, key, session)
+    entry = {"endpoint": f"/v4/sports/{skey}/odds (regions=eu)",
+             "url_masked": meta["url_masked"], "status": meta.get("status"),
+             "crediti": meta.get("headers"), "ok": meta.get("ok", False),
+             "errore": meta.get("error")}
+    if payload is not None:
+        keys = sorted({bm.get("key") for ev in payload or [] for bm in ev.get("bookmakers") or []})
+        entry["n_eventi"] = len(payload or [])
+        entry["n_bookmaker"] = len(keys)
+        entry["pinnacle_presente"] = "pinnacle" in keys
+        entry["bookmakers"] = keys
+    summary["controllo_una_regione"] = entry
+
+
 def probe_football_data(session, out_dir, summary):
     """File delle partite in programma di football-data.co.uk (nessuna chiave)."""
     for label, url, fname in (("fixtures_main", FD_FIXTURES_URL, "football_data_fixtures.csv"),
@@ -333,6 +357,7 @@ def main(argv=None):
         "odds_api": {"sports_ok": False, "leagues": {}},
         "football_data": {},
         "controllo_bet365": None,
+        "controllo_una_regione": None,
     }
 
     session = _http()
@@ -341,6 +366,7 @@ def main(argv=None):
             probe_odds_api(session, key, out_dir, summary)
             if not args.skip_bet365_check:
                 probe_bet365_check(session, key, out_dir, summary)
+                probe_region_cost(session, key, out_dir, summary)
         else:
             summary["odds_api"]["errore"] = "ODDS_API_KEY assente nell'ambiente"
             for league, skey in LEAGUES:
@@ -361,6 +387,9 @@ def main(argv=None):
               f"last-modified={entry.get('headers', {}).get('last-modified')}")
     if summary["controllo_bet365"]:
         print("controllo bet365:", summary["controllo_bet365"])
+        print("controllo una regione:", {k: v for k, v in (summary["controllo_una_regione"] or {}).items()
+                                        if k in ("status", "crediti", "n_eventi", "n_bookmaker",
+                                                 "pinnacle_presente")})
     return 0
 
 
