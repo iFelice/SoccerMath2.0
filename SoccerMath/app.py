@@ -30,7 +30,7 @@ except ImportError:
 
 from scraper_xg import get_understat_xg, get_market_values
 from xg_archive import season_point_in_time_averages
-from models.elo_engine import get_current_elo, get_elo_leaderboard, predict_elo_probs, get_team_elo_history
+from models.elo_engine import get_current_elo, get_elo_engine, get_elo_leaderboard, predict_elo_probs, get_team_elo_history
 from models.dixon_coles import get_dixon_coles_matrix, predict_dixon_coles_probs, get_dixon_coles_team_strengths
 from models.backtest import run_backtest, compare_models_backtest, detect_value_bets
 from display_names import display_name
@@ -124,6 +124,69 @@ def _stagione_da_utcdate(utc_date_str):
         return season_start_year_of(dt)
     except Exception:
         return get_current_season_start_year()
+
+
+def _roster_stagione(league, season):
+    """R(lega, stagione): le squadre della stagione, dal roster del calendario.
+
+    E' la STESSA fonte del motore Elo (``season_rosters_with_file``: file
+    versionato ``database/season_rosters.json`` dove c'e', calendario delle
+    giocate per le stagioni concluse): una squadra e' "nota" se il campionato
+    di quell'anno la contiene, informazione di calendario nota prima del via.
+
+    Ritorna l'insieme dei nomi puliti, o ``None`` se il roster della stagione
+    non e' noto (o il motore non e' caricabile): in quel caso un nome fuori
+    roster non e' distinguibile da una neopromossa senza dati e il chiamante
+    resta permissivo (solo il caso "senza statistiche" e' valutabile). Read-only:
+    usa il motore Elo gia' in cache, nessun ricalcolo.
+    """
+    if season is None:
+        return None
+    try:
+        roster = get_elo_engine(league).season_rosters.get(int(season))
+    except Exception as e:
+        logging.warning(f"Roster {league} stagione {season} non disponibile: {e}")
+        return None
+    return {str(t) for t in roster} if roster is not None else None
+
+
+def _stato_squadre_match(league, season, h, a, team_stats, origine):
+    """Classifica i due lati di una partita contro R(stagione) e le stats del motore.
+
+    Distingue i due soli motivi per cui ``team_stats.get(nome, default)`` e
+    ``predict_elo_probs`` possono finire su un valore non calcolato:
+
+    * caso (a) SCONOSCIUTO: il nome pulito NON e' in R(lega, stagione) —
+      non e' una squadra di questo campionato (alias mancante, shortName
+      dell'API cambiato, lega sbagliata). E' un errore a monte: NESSUNA
+      statistica di default gli si puo' attribuire. Ogni occorrenza lascia un
+      WARNING nel log con il nome GREZZO ricevuto e quello PULITO cercato.
+    * caso (b) ROSTER SENZA STATISTICHE: il nome e' nel roster ma il motore
+      non ha statistiche (neopromossa prima del debutto, dati non ancora
+      sincronizzati). Caso legittimo: il comportamento non cambia (default
+      att=1.0 def=1.0), ma il WARNING nel log lo dichiara.
+
+    Ritorna ``(sconosciuti, senza_stats)``: liste di coppie ``(grezzo, pulito)``.
+    Roster non disponibile (``None``) -> solo il caso (b) e' valutabile.
+    """
+    sconosciuti, senza_stats = [], []
+    roster = _roster_stagione(league, season)
+    for grezzo in (h, a):
+        pulito = clean_name(grezzo)
+        if roster is not None and pulito not in roster:
+            sconosciuti.append((grezzo, pulito))
+            logging.warning(
+                f"{origine}: nome squadra SCONOSCIUTO, non e' nel roster di "
+                f"{league} stagione {season}: grezzo '{grezzo}' -> pulito "
+                f"'{pulito}'. Nessuna statistica di default gli si attribuisce.")
+        elif pulito not in team_stats:
+            senza_stats.append((grezzo, pulito))
+            logging.warning(
+                f"{origine}: squadra del roster di {league} stagione {season} "
+                f"senza statistiche nel motore: grezzo '{grezzo}' -> pulito "
+                f"'{pulito}'. Usate le statistiche di default att=1.0 def=1.0.")
+    return sconosciuti, senza_stats
+
 
 def calcola_stagione_calcolo(data_str):
     """Etichetta di stagione ("2026/2027") della data di una partita.
@@ -1533,9 +1596,15 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
     }
 
 
-def _riga_top_mix(league, match, h_disp, a_disp, riga):
-    """Riga del Top Mix: campi del match + campi del selettore (stesso ordine di prima)."""
-    return {
+def _riga_top_mix(league, match, h_disp, a_disp, riga, dati_mancanti=None):
+    """Riga del Top Mix: campi del match + campi del selettore (stesso ordine di prima).
+
+    ``dati_mancanti`` (caso b): squadre del roster senza statistiche nel motore,
+    per le quali il Poisson ha usato le statistiche di default att=1.0 def=1.0.
+    La chiave compare SOLO quando non e' vuota: una riga senza dati mancanti
+    resta identica a prima, chiave per chiave.
+    """
+    out = {
         "league": league, "giornata": match['matchday'],
         "home": h_disp, "away": a_disp, "match_id": match.get("id"),
         "utcDate": match['utcDate'],
@@ -1546,6 +1615,9 @@ def _riga_top_mix(league, match, h_disp, a_disp, riga):
         "elo_disponibile": riga["elo_disponibile"],
         "rank": None,
     }
+    if dati_mancanti:
+        out["dati_mancanti"] = [pulito for _grezzo, pulito in dati_mancanti]
+    return out
 
 
 def calcola_righe_top_mix(league, matches, engine):
@@ -1573,6 +1645,17 @@ def calcola_righe_top_mix(league, matches, engine):
         # [solo UI] h/a RESTANO GREZZI per le chiavi qui sotto (clean_name,
         # Elo); il nome mostrato/salvato passa da display_name.
         h_disp, a_disp = display_name(h), display_name(a)
+        # Fallback sui nomi: mai silenziosi. Caso (a) nome non nel roster della
+        # stagione = errore a monte: la partita e' ESCLUSA da ENTRAMBE le
+        # tabelle (nessuna statistica inventata, log col nome grezzo e quello
+        # pulito). Caso (b) squadra del roster senza statistiche (neopromossa
+        # prima del debutto): comportamento di sempre (default att=1.0 def=1.0)
+        # piu' il warning nel log e il marcatore "dati_mancanti" sulla riga.
+        sconosciuti, senza_stats = _stato_squadre_match(
+            league, _stagione_da_utcdate(match.get('utcDate')), h, a,
+            team_stats, "Top Mix")
+        if sconosciuti:
+            continue
         h_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0})
         a_s = team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
 
@@ -1602,10 +1685,10 @@ def calcola_righe_top_mix(league, matches, engine):
         # dalla STESSA variabile (come prima col grezzo).
         riga = seleziona_riga_top_mix(m_poisson, elo_probs, elo_disponibile, h_disp, a_disp)
         if riga is not None:
-            righe[MODEL_VARIANT_CURRENT].append(_riga_top_mix(league, match, h_disp, a_disp, riga))
+            righe[MODEL_VARIANT_CURRENT].append(_riga_top_mix(league, match, h_disp, a_disp, riga, dati_mancanti=senza_stats))
         riga_legacy = seleziona_riga_top_mix(m_poisson, elo_legacy, elo_legacy_disponibile, h_disp, a_disp)
         if riga_legacy is not None:
-            righe[MODEL_VARIANT_LEGACY].append(_riga_top_mix(league, match, h_disp, a_disp, riga_legacy))
+            righe[MODEL_VARIANT_LEGACY].append(_riga_top_mix(league, match, h_disp, a_disp, riga_legacy, dati_mancanti=senza_stats))
     return righe
 
 
@@ -1710,8 +1793,16 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
     scritte allora restano dove sono (nessuna riscrittura).
 
     Ritorna il numero di RIGHE scritte (due per partita).
+
+    Nomi fuori roster (caso a): la partita NON usa statistiche di default e
+    nessuna riga viene scritta; l'avviso esplicito in UI e il WARNING nel log
+    (nome grezzo e nome pulito) dicono perche'. Squadre del roster senza
+    statistiche (caso b, per es. neopromossa prima del debutto): righe scritte
+    come sempre (default att=1.0 def=1.0), con WARNING nel log e avviso in UI.
     """
     salvate = 0
+    avvisi_sconosciuti = []
+    stats_default = []
     for match in matches:
         try:
             h, a = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
@@ -1721,6 +1812,23 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             h_disp, a_disp = display_name(h), display_name(a)
             m_id = match.get('id')
             if not m_id: continue
+            # Fallback sui nomi: mai silenziosi (stessa classificazione del
+            # Top Mix). Caso (a): nome non nel roster della stagione = errore
+            # a monte -> NESSUNA riga, avviso esplicito. Caso (b): roster
+            # senza statistiche -> righe come sempre, marcatore nel log e in UI.
+            sconosciuti, senza_stats = _stato_squadre_match(
+                camp_sel, _stagione_da_utcdate(match.get('utcDate')), h, a,
+                team_stats, "Analisi Rapida")
+            if sconosciuti:
+                dettaglio = ", ".join(f"'{grezzo}' (pulito: '{pulito}')"
+                                      for grezzo, pulito in sconosciuti)
+                avvisi_sconosciuti.append(f"{h_disp} vs {a_disp}: {dettaglio}")
+                st.warning(f"⚠️ Analisi Rapida: {h_disp} vs {a_disp} SALTATA: "
+                           f"nome squadra non nel roster di {camp_sel}: {dettaglio}. "
+                           f"Nessuna statistica di default usata, nessuna riga scritta.")
+                continue
+            if senza_stats:
+                stats_default.extend(pulito for _grezzo, pulito in senza_stats)
             match_date_str = format_date_italy(match['utcDate'], "%d/%m/%Y %H:%M")
             h_s, a_s = team_stats.get(clean_name(h), {"att": 1.0, "def": 1.0}), team_stats.get(clean_name(a), {"att": 1.0, "def": 1.0})
             m = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
@@ -1771,6 +1879,12 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
                 salvate += 1
         except Exception as e:
             logging.warning(f"Analisi Rapida: partita {h} vs {a} saltata: {e}")
+    if stats_default:
+        # Caso (b) dichiarato anche in UI: il Poisson di queste righe ha usato
+        # le statistiche di default (squadre del roster ancora senza dati).
+        st.info(f"ℹ️ Analisi Rapida: statistiche di default (att=1.0 def=1.0) per: "
+                f"{', '.join(sorted(set(stats_default)))} (squadre del roster senza "
+                f"statistiche nel motore, per es. al debutto). Dettaglio nel log.")
     return salvate
 
 @st.dialog("STRATEGIC ANALYSIS", width="large")
@@ -2186,7 +2300,14 @@ def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
         dt = format_date_italy(p['utcDate'], "%d/%m %H:%M")
         # Un'Elo assente non e' un consenso: lo si dice, in UI e nel registro.
         badge_elo = "" if p.get("elo_disponibile", True) else " · <small>⚠️ Elo n/d · soglia 60%</small>"
-        st.markdown(f"<div class='top-mix-row'><div><b>#{p.get('rank') or i + 1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
+        # Stats di default (caso b): squadra del roster senza statistiche nel
+        # motore (per es. neopromossa prima del debutto). Il Poisson della riga
+        # ha usato att=1.0 def=1.0 per quelle squadre: si vede.
+        badge_dati = ""
+        if p.get("dati_mancanti"):
+            badge_dati = (" · <small>⚠️ stats di default (nessun dato: "
+                          + ", ".join(p["dati_mancanti"]) + ")</small>")
+        st.markdown(f"<div class='top-mix-row'><div><b>#{p.get('rank') or i + 1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}{badge_dati}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
 
 
 # Nomi dei due modelli come li chiama il progetto (solo UI/etichette).

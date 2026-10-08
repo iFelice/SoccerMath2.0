@@ -633,6 +633,17 @@ def predict_elo_probs(home_team: str, away_team: str, league_name: str,
     chiamante di produzione gira dentro un ``try/except`` che segna
     ``elo_disponibile = False`` e lascia un WARNING, quindi il degrado e'
     dichiarato e nessuna previsione viene inventata.
+
+    Il seed d'ingresso resta alle VERE entranti: una squadra senza rating ma
+    presente in R(lega, stagione) (il calendario, vedi
+    ``season_rosters_with_file``). Un nome pulito che NON e' nel roster della
+    stagione non e' un ingresso: e' un nome che questa lega non conosce
+    (errore a monte: alias mancante, shortName dell'API cambiato, lega
+    sbagliata) e assegnargli la media degli incumbent produrrebbe un numero
+    plausibile per una squadra inesistente. In quel caso solleva
+    ``EloSeedError`` riportando il nome GREZZO ricevuto e quello PULITO con
+    cui e' stato cercato il roster: il chiamante degrada in modo dichiarato
+    invece di pubblicare un seed inventato.
     """
     engine = get_elo_engine(league_name)
     h_cl = clean_name(home_team)
@@ -657,6 +668,30 @@ def predict_elo_probs(home_team: str, away_team: str, league_name: str,
                 f"dell'ultima stagione processata "
                 f"({engine._day_start_season}) invece di quello giusto."
             )
+        # Il seed e' solo per le vere entranti: chi non e' in R(stagione) non
+        # e' un ingresso, e' un nome sconosciuto (errore a monte). Se la
+        # stagione non ha proprio roster il controllo qui sotto non sa
+        # dire niente: lo fa poi `promoted_seed`, che in quel caso solleva
+        # la sua EloSeedError "nessun roster per la stagione".
+        roster = engine.season_rosters.get(int(season))
+        if roster is not None:
+            ignoti = [(lato, grezzo, pulito)
+                      for lato, grezzo, pulito, rating in (
+                          ("home", home_team, h_cl, r_h),
+                          ("away", away_team, a_cl, r_a))
+                      if rating is None and pulito not in roster]
+            if ignoti:
+                dettagli = "; ".join(
+                    f"{lato}: nome grezzo {grezzo!r} -> pulito {pulito!r} "
+                    f"non e' in R({league_name}, {season})"
+                    for lato, grezzo, pulito in ignoti)
+                raise EloSeedError(
+                    f"predict_elo_probs({home_team!r}, {away_team!r}, "
+                    f"{league_name!r}, season={season}): nome squadra "
+                    f"sconosciuto, il seed d'ingresso non si applica a nomi "
+                    f"fuori roster. {dettagli}. Roster noto: "
+                    f"{sorted(roster)}."
+                )
     if r_h is None:
         r_h = engine.promoted_seed(season)
     if r_a is None:

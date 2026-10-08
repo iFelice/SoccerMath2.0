@@ -53,9 +53,13 @@ def _gira(m_pure, elo_current, elo_legacy, *, legacy_ko=False):
                     if legacy_ko else
                     mock.patch.object(app, "predict_elo_probs_legacy",
                                       return_value=dict(elo_legacy)))
+    # Roster non disponibile (= non valutabile): i nomi fittizi TeamH/TeamA non
+    # devono subire la classificazione roster/stats, che qui non e' il contratto
+    # in prova (i suoi test sono in test_fallback_nomi.py).
     with mock.patch.object(app, "get_full_poisson_two_heads", return_value=dict(m_pure)), \
          mock.patch.object(app, "predict_elo_probs", return_value=dict(elo_current)), \
          patch_legacy, \
+         mock.patch.object(app, "_roster_stagione", return_value=None), \
          mock.patch.object(app, "save_prediction_entry", side_effect=_cattura):
         n = app.analisi_rapida_giornata([MATCH], STATS, 1.35, 1.15, "Serie A", {}, 5)
     righe = {k.get(MODEL_VARIANT_FIELD): (a, k) for a, k in salvate}

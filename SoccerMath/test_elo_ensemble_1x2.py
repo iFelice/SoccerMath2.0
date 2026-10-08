@@ -254,6 +254,7 @@ class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
                                return_value=dict(elo)), \
              mock.patch.object(prod_app, "predict_elo_probs_legacy",
                                return_value=legacy), \
+             mock.patch.object(prod_app, "_roster_stagione", return_value=None), \
              mock.patch.object(prod_app, "save_prediction_entry",
                                side_effect=lambda *a, **k: saved.append((a, k))):
             n = prod_app.analisi_rapida_giornata([match], stats, 1.35, 1.15,
@@ -317,6 +318,7 @@ class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
                                side_effect=Exception("Elo ko")), \
              mock.patch.object(prod_app, "predict_elo_probs_legacy",
                                side_effect=Exception("Elo legacy ko")), \
+             mock.patch.object(prod_app, "_roster_stagione", return_value=None), \
              mock.patch.object(prod_app, "save_prediction_entry",
                                side_effect=lambda *a, **k: saved.append((a, k))):
             prod_app.analisi_rapida_giornata([match], stats, 1.35, 1.15,

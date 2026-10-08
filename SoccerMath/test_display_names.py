@@ -359,7 +359,8 @@ class TestAnalisiRapidaRegistraDisplay(unittest.TestCase):
              mock.patch.object(prod_app, "predict_elo_probs_legacy",
                                return_value={"1": 0.5, "X": 0.3, "2": 0.2}), \
              mock.patch.object(prod_app, "blend_elo_into_1x2",
-                               side_effect=lambda m, h, a, camp, **kw: dict(m)):
+                               side_effect=lambda m, h, a, camp, **kw: dict(m)), \
+             mock.patch.object(prod_app, "_roster_stagione", return_value=None):
             if display_reale:
                 n = prod_app.analisi_rapida_giornata(
                     self.MATCHES, self.TEAM_STATS, 1.35, 1.15, "Serie A", {}, 7)

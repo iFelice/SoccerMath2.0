@@ -66,8 +66,13 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
         self.matches = [_match(1, "Inter", "Roma"), _match(2, "Milan", "Lazio"), _match(3, "Napoli", "Torino")]
 
     def _righe(self, elo_current, elo_legacy):
+        # Roster non disponibile (= non valutabile): qui si prova il selettore e
+        # le due tabelle, non la classificazione roster/stats (in
+        # test_fallback_nomi.py). Senza il patch verrebbe caricato il motore
+        # Elo reale di produzione solo per leggere il roster.
         with mock.patch.object(app, "predict_elo_probs", side_effect=elo_current), \
-             mock.patch.object(app, "predict_elo_probs_legacy", side_effect=elo_legacy):
+             mock.patch.object(app, "predict_elo_probs_legacy", side_effect=elo_legacy), \
+             mock.patch.object(app, "_roster_stagione", return_value=None):
             return app.calcola_righe_top_mix("Serie A", self.matches, _engine(self.stats))
 
     def test_due_liste_e_poisson_identico_per_partita(self):
@@ -161,6 +166,7 @@ class TestNessunTetto(unittest.TestCase):
              mock.patch.object(app, "predict_elo_probs", side_effect=elo), \
              mock.patch.object(app, "predict_elo_probs_legacy", side_effect=elo), \
              mock.patch.object(app, "select_next_matchday_matches", side_effect=lambda m, now=None: m), \
+             mock.patch.object(app, "_roster_stagione", return_value=None), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
             top_current, top_legacy, missing = app.fetch_and_calc_top_mix()
