@@ -1,0 +1,7276 @@
+{
+ "sport_key": "soccer_italy_serie_a",
+ "lega_progetto": "Serie A",
+ "richiesta": {
+  "regions": "eu,uk",
+  "markets": "h2h",
+  "oddsFormat": "decimal",
+  "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_italy_serie_a/odds/?apiKey=***&regions=eu,uk&markets=h2h&oddsFormat=decimal&dateFormat=iso"
+ },
+ "http": {
+  "status": 200,
+  "crediti": {
+   "x-requests-used": "12",
+   "x-requests-remaining": "488",
+   "x-requests-last": "2"
+  }
+ },
+ "scaricato_il": "2026-10-08T23:07:20Z",
+ "n_eventi": 20,
+ "prima_partita_utc": "2026-10-10T13:00:00Z",
+ "ultima_partita_utc": "2026-10-19T18:45:00Z",
+ "bookmakers": {
+  "livescorebet": {
+   "title": "LiveScore Bet",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:45Z",
+   "last_update_max": "2026-10-08T23:06:45Z",
+   "h2h_completo": 20
+  },
+  "unibet_nl": {
+   "title": "Unibet (NL)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:20Z",
+   "last_update_max": "2026-10-08T23:07:20Z",
+   "h2h_completo": 20
+  },
+  "unibet_se": {
+   "title": "Unibet (SE)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:03Z",
+   "last_update_max": "2026-10-08T23:07:03Z",
+   "h2h_completo": 20
+  },
+  "virginbet": {
+   "title": "Virgin Bet",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:03Z",
+   "last_update_max": "2026-10-08T23:07:03Z",
+   "h2h_completo": 20
+  },
+  "grosvenor": {
+   "title": "Grosvenor",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:45Z",
+   "last_update_max": "2026-10-08T23:06:45Z",
+   "h2h_completo": 20
+  },
+  "leovegas_se": {
+   "title": "LeoVegas (SE)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:29Z",
+   "last_update_max": "2026-10-08T23:06:29Z",
+   "h2h_completo": 20
+  },
+  "pinnacle": {
+   "title": "Pinnacle",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:05Z",
+   "last_update_max": "2026-10-08T23:07:05Z",
+   "h2h_completo": 20
+  },
+  "leovegas": {
+   "title": "LeoVegas",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:12Z",
+   "last_update_max": "2026-10-08T23:06:12Z",
+   "h2h_completo": 20
+  },
+  "betclic_fr": {
+   "title": "Betclic (FR)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:05:11Z",
+   "last_update_max": "2026-10-08T23:05:11Z",
+   "h2h_completo": 20
+  },
+  "winamax_de": {
+   "title": "Winamax (DE)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:53Z",
+   "last_update_max": "2026-10-08T23:06:53Z",
+   "h2h_completo": 20
+  },
+  "winamax_fr": {
+   "title": "Winamax (FR)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:06Z",
+   "last_update_max": "2026-10-08T23:07:06Z",
+   "h2h_completo": 20
+  },
+  "unibet_fr": {
+   "title": "Unibet (FR)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:03Z",
+   "last_update_max": "2026-10-08T23:07:03Z",
+   "h2h_completo": 20
+  },
+  "codere_it": {
+   "title": "Codere (IT)",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:07:05Z",
+   "last_update_max": "2026-10-08T23:07:05Z",
+   "h2h_completo": 10
+  },
+  "onexbet": {
+   "title": "1xBet",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:03Z",
+   "last_update_max": "2026-10-08T23:07:03Z",
+   "h2h_completo": 20
+  },
+  "betfred_uk": {
+   "title": "Betfred (UK)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:20Z",
+   "last_update_max": "2026-10-08T23:07:20Z",
+   "h2h_completo": 20
+  },
+  "smarkets": {
+   "title": "Smarkets",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:05Z",
+   "last_update_max": "2026-10-08T23:07:05Z",
+   "h2h_completo": 20
+  },
+  "nordicbet": {
+   "title": "Nordic Bet",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:20Z",
+   "last_update_max": "2026-10-08T23:07:20Z",
+   "h2h_completo": 20
+  },
+  "sport888": {
+   "title": "888sport",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:03Z",
+   "last_update_max": "2026-10-08T23:07:03Z",
+   "h2h_completo": 20
+  },
+  "williamhill": {
+   "title": "William Hill",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:03Z",
+   "last_update_max": "2026-10-08T23:07:03Z",
+   "h2h_completo": 20
+  },
+  "tipico_de": {
+   "title": "Tipico",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:45Z",
+   "last_update_max": "2026-10-08T23:06:45Z",
+   "h2h_completo": 20
+  },
+  "boylesports": {
+   "title": "BoyleSports",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:56Z",
+   "last_update_max": "2026-10-08T23:06:56Z",
+   "h2h_completo": 20
+  },
+  "betsson": {
+   "title": "Betsson",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:30Z",
+   "last_update_max": "2026-10-08T23:06:30Z",
+   "h2h_completo": 20
+  },
+  "everygame": {
+   "title": "Everygame",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:04:25Z",
+   "last_update_max": "2026-10-08T23:04:25Z",
+   "h2h_completo": 10
+  },
+  "ladbrokes_uk": {
+   "title": "Ladbrokes",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:06:45Z",
+   "last_update_max": "2026-10-08T23:06:45Z",
+   "h2h_completo": 10
+  },
+  "coral": {
+   "title": "Coral",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:06:10Z",
+   "last_update_max": "2026-10-08T23:06:10Z",
+   "h2h_completo": 10
+  },
+  "betvictor": {
+   "title": "Bet Victor",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:05:32Z",
+   "last_update_max": "2026-10-08T23:05:32Z",
+   "h2h_completo": 10
+  },
+  "betano_uk": {
+   "title": "Betano (UK)",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:06:57Z",
+   "last_update_max": "2026-10-08T23:06:57Z",
+   "h2h_completo": 10
+  },
+  "unibet_uk": {
+   "title": "Unibet (UK)",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:52Z",
+   "last_update_max": "2026-10-08T23:06:52Z",
+   "h2h_completo": 20
+  },
+  "betway": {
+   "title": "Betway",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:20Z",
+   "last_update_max": "2026-10-08T23:07:20Z",
+   "h2h_completo": 20
+  },
+  "casumo": {
+   "title": "Casumo",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:04Z",
+   "last_update_max": "2026-10-08T23:07:04Z",
+   "h2h_completo": 20
+  },
+  "skybet": {
+   "title": "Sky Bet",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:04:05Z",
+   "last_update_max": "2026-10-08T23:04:05Z",
+   "h2h_completo": 20
+  },
+  "paddypower": {
+   "title": "Paddy Power",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:06:13Z",
+   "last_update_max": "2026-10-08T23:06:13Z",
+   "h2h_completo": 20
+  },
+  "betfair_ex_uk": {
+   "title": "Betfair",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:05Z",
+   "last_update_max": "2026-10-08T23:07:05Z",
+   "h2h_completo": 20
+  },
+  "betfair_ex_eu": {
+   "title": "Betfair",
+   "n_events": 20,
+   "last_update_min": "2026-10-08T23:07:04Z",
+   "last_update_max": "2026-10-08T23:07:04Z",
+   "h2h_completo": 20
+  },
+  "coolbet": {
+   "title": "Coolbet",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:06:46Z",
+   "last_update_max": "2026-10-08T23:06:46Z",
+   "h2h_completo": 10
+  },
+  "betfair_sb_uk": {
+   "title": "Betfair Sportsbook",
+   "n_events": 9,
+   "last_update_min": "2026-10-08T23:07:20Z",
+   "last_update_max": "2026-10-08T23:07:20Z",
+   "h2h_completo": 9
+  },
+  "matchbook": {
+   "title": "Matchbook",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:07:04Z",
+   "last_update_max": "2026-10-08T23:07:04Z",
+   "h2h_completo": 10
+  },
+  "gtbets": {
+   "title": "GTbets",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:06:15Z",
+   "last_update_max": "2026-10-08T23:06:15Z",
+   "h2h_completo": 10
+  },
+  "betonlineag": {
+   "title": "BetOnline.ag",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:06:45Z",
+   "last_update_max": "2026-10-08T23:06:45Z",
+   "h2h_completo": 10
+  },
+  "betanysports": {
+   "title": "BetAnything",
+   "n_events": 10,
+   "last_update_min": "2026-10-08T23:06:30Z",
+   "last_update_max": "2026-10-08T23:06:30Z",
+   "h2h_completo": 10
+  }
+ },
+ "events": [
+  {
+   "id": "2f8e871a0f7f66ae22938028645e1066",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-10T13:00:00Z",
+   "home_team": "Genoa",
+   "away_team": "Fiorentina",
+   "bookmakers": [
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.15,
+      "home": 3.0,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.33,
+      "home": 3.3,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.33,
+      "home": 3.3,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.15,
+      "home": 3.0,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.28,
+      "home": 3.2,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 2.23,
+      "home": 3.1,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.36,
+      "home": 3.34,
+      "draw": 3.23
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 2.3,
+      "home": 3.05,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 2.23,
+      "home": 3.12,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 2.2,
+      "home": 3.0,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.15,
+      "home": 3.1,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.32,
+      "home": 3.2,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.39,
+      "home": 3.23,
+      "draw": 3.48
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.3,
+      "home": 3.1,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.4,
+      "home": 3.4,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.32,
+      "home": 3.25,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.0,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.0,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.2,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.0,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 2.32,
+      "home": 3.25,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.15,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "away": 2.3,
+      "home": 3.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.1,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.1,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 2.3,
+      "home": 3.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.15,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.1,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 2.25,
+      "home": 3.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.4,
+      "home": 3.4,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 2.4,
+      "home": 3.4,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "away": 2.35,
+      "home": 3.4,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.3,
+      "home": 3.25,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 2.4,
+      "home": 3.4,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "away": 2.32,
+      "home": 3.1,
+      "draw": 3.37
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.37,
+      "home": 3.31,
+      "draw": 3.22
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 2.37,
+      "home": 3.31,
+      "draw": 3.22
+     }
+    }
+   ]
+  },
+  {
+   "id": "1a01b0611dacd334e1558a5097e05023",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-10T16:00:00Z",
+   "home_team": "Inter Milan",
+   "away_team": "Parma",
+   "bookmakers": [
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 1.12,
+      "away": 17.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 20.0,
+      "draw": 9.0
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.09,
+      "away": 15.0,
+      "draw": 7.5
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 20.0,
+      "draw": 9.0
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.09,
+      "away": 15.0,
+      "draw": 7.5
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.13,
+      "away": 19.0,
+      "draw": 8.5
+     }
+    },
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 17.38,
+      "draw": 9.77
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.1,
+      "away": 16.0,
+      "draw": 7.8
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 1.1,
+      "away": 14.0,
+      "draw": 9.0
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 1.11,
+      "away": 15.0,
+      "draw": 9.5
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 1.13,
+      "away": 15.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 1.12,
+      "away": 16.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 17.0,
+      "draw": 8.6
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.17,
+      "away": 17.0,
+      "draw": 9.6
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 17.0,
+      "draw": 8.5
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 22.0,
+      "draw": 7.5
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 15.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 15.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.11,
+      "away": 19.0,
+      "draw": 9.5
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 1.12,
+      "away": 15.0,
+      "draw": 8.5
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 22.0,
+      "draw": 7.6
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 23.98,
+      "draw": 10.0
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "home": 1.1,
+      "away": 13.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 15.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 15.0,
+      "draw": 8.5
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 1.13,
+      "away": 18.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.13,
+      "away": 15.0,
+      "draw": 9.0
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.13,
+      "away": 18.0,
+      "draw": 8.0
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 1.11,
+      "away": 17.0,
+      "draw": 8.5
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 1.11,
+      "away": 19.0,
+      "draw": 9.0
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 24.0,
+      "draw": 10.0
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 24.0,
+      "draw": 10.0
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "home": 1.16,
+      "away": 16.0,
+      "draw": 9.3
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "home": 1.11,
+      "away": 18.0,
+      "draw": 8.5
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "home": 1.11,
+      "away": 18.0,
+      "draw": 8.5
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.13,
+      "away": 21.0,
+      "draw": 9.5
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 24.0,
+      "draw": 10.0
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "home": 1.14,
+      "away": 16.62,
+      "draw": 8.71
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 17.0,
+      "draw": 9.3
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.15,
+      "away": 17.0,
+      "draw": 9.3
+     }
+    }
+   ]
+  },
+  {
+   "id": "40c1bd70fee927f9bfa8901edab02b48",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-10T18:45:00Z",
+   "home_team": "Napoli",
+   "away_team": "Frosinone",
+   "bookmakers": [
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 6.1,
+      "home": 1.35,
+      "draw": 4.3
+     }
+    },
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 6.23,
+      "home": 1.48,
+      "draw": 4.99
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.4,
+      "draw": 4.6
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 7.0,
+      "home": 1.43,
+      "draw": 4.9
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 7.0,
+      "home": 1.43,
+      "draw": 4.9
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 7.0,
+      "home": 1.43,
+      "draw": 4.9
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 6.1,
+      "home": 1.35,
+      "draw": 4.3
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 5.8,
+      "home": 1.39,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 5.6,
+      "home": 1.42,
+      "draw": 4.9
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 5.8,
+      "home": 1.44,
+      "draw": 5.1
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 6.0,
+      "home": 1.44,
+      "draw": 4.75
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 6.0,
+      "home": 1.42,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 6.2,
+      "home": 1.45,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.44,
+      "draw": 4.6
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 6.85,
+      "home": 1.49,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 7.0,
+      "home": 1.49,
+      "draw": 5.1
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 6.8,
+      "home": 1.46,
+      "draw": 4.3
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 6.0,
+      "home": 1.44,
+      "draw": 4.5
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 6.0,
+      "home": 1.44,
+      "draw": 4.5
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.42,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 5.5,
+      "home": 1.4,
+      "draw": 4.75
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 6.9,
+      "home": 1.47,
+      "draw": 4.35
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "away": 5.75,
+      "home": 1.4,
+      "draw": 4.6
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.44,
+      "draw": 4.6
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.44,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 6.0,
+      "home": 1.45,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.4,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.4,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 5.75,
+      "home": 1.45,
+      "draw": 4.75
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 6.75,
+      "home": 1.41,
+      "draw": 4.7
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.44,
+      "draw": 4.6
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.4,
+      "draw": 4.75
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 7.0,
+      "home": 1.49,
+      "draw": 5.1
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 7.0,
+      "home": 1.49,
+      "draw": 5.1
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "away": 6.5,
+      "home": 1.47,
+      "draw": 5.05
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 7.0,
+      "home": 1.44,
+      "draw": 4.75
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 7.2,
+      "home": 1.49,
+      "draw": 5.1
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "away": 6.41,
+      "home": 1.47,
+      "draw": 4.71
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 6.6,
+      "home": 1.45,
+      "draw": 5.12
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 6.6,
+      "home": 1.45,
+      "draw": 5.12
+     }
+    }
+   ]
+  },
+  {
+   "id": "2547c0dbddd26d23fa532228e36348cb",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-11T10:30:00Z",
+   "home_team": "Como",
+   "away_team": "AS Roma",
+   "bookmakers": [
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.43,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.65,
+      "home": 2.6,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.65,
+      "home": 2.6,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.43,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.48,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.55,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.71,
+      "home": 2.6,
+      "draw": 3.58
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.35,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.45,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.5,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.5,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.43,
+      "draw": 3.47
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.55,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.75,
+      "home": 2.62,
+      "draw": 3.71
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.5,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.65,
+      "home": 2.52,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.72,
+      "home": 2.74,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.5,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.5,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.65,
+      "home": 2.5,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.38,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 2.68,
+      "home": 2.52,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.45,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.5,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.5,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.55,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.45,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.45,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.5,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 2.55,
+      "home": 2.5,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 2.6,
+      "home": 2.6,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 2.5,
+      "home": 2.6,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.72,
+      "home": 2.74,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 2.72,
+      "home": 2.74,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "away": 2.77,
+      "home": 2.58,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.63,
+      "home": 2.63,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 2.72,
+      "home": 2.74,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "away": 2.62,
+      "home": 2.59,
+      "draw": 3.54
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.7,
+      "home": 2.58,
+      "draw": 3.61
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 2.65,
+      "home": 2.55,
+      "draw": 3.55
+     }
+    }
+   ]
+  },
+  {
+   "id": "946716d7e5e52822f08be8cb95193d9d",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-11T13:00:00Z",
+   "home_team": "Lecce",
+   "away_team": "Bologna",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.93,
+      "home": 4.68,
+      "draw": 3.28
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 1.85,
+      "home": 4.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.92,
+      "home": 4.35,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.0,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.92,
+      "home": 4.35,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.0,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.88,
+      "home": 4.25,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.78,
+      "home": 4.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 1.92,
+      "home": 3.95,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 1.84,
+      "home": 4.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 1.88,
+      "home": 4.3,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 1.86,
+      "home": 4.2,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.92,
+      "home": 4.2,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.0,
+      "home": 3.75,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.98,
+      "home": 4.58,
+      "draw": 3.44
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.96,
+      "home": 4.6,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.92,
+      "home": 4.4,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.91,
+      "home": 3.9,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.91,
+      "home": 3.9,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.87,
+      "home": 4.3,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 1.91,
+      "home": 4.0,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 1.95,
+      "home": 4.45,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "away": 1.85,
+      "home": 4.4,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.95,
+      "home": 4.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "away": 1.95,
+      "home": 4.2,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 1.91,
+      "home": 4.2,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.88,
+      "home": 4.33,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.87,
+      "home": 4.1,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 1.85,
+      "home": 4.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 1.85,
+      "home": 4.33,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.96,
+      "home": 4.6,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.96,
+      "home": 4.6,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "away": 1.95,
+      "home": 4.5,
+      "draw": 3.38
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.91,
+      "home": 4.5,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.97,
+      "home": 4.6,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "away": 1.87,
+      "home": 4.1,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "away": 1.87,
+      "home": 4.1,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "away": 1.96,
+      "home": 4.34,
+      "draw": 3.38
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.97,
+      "home": 4.35,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 1.91,
+      "home": 4.3,
+      "draw": 3.3
+     }
+    }
+   ]
+  },
+  {
+   "id": "c0f72699f32ec193b64fd54092fe268d",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-11T13:00:00Z",
+   "home_team": "Lazio",
+   "away_team": "Monza",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 5.84,
+      "draw": 4.18
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 5.1,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.64,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.58,
+      "away": 5.0,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.64,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.58,
+      "away": 5.0,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.64,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.51,
+      "away": 5.3,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.4,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.5,
+      "draw": 3.93
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 1.56,
+      "away": 5.4,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 1.54,
+      "away": 5.2,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.59,
+      "away": 5.8,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 6.0,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.63,
+      "away": 6.18,
+      "draw": 4.17
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 5.9,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.5,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.5,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.8,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.0,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.62,
+      "away": 6.0,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.63,
+      "away": 6.2,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.5,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.75,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.75,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 1.58,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 5.25,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.75,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.5,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.63,
+      "away": 6.2,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.63,
+      "away": 6.2,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 5.95,
+      "draw": 4.15
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 6.0,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.63,
+      "away": 6.2,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "home": 1.58,
+      "away": 5.99,
+      "draw": 4.02
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 6.0,
+      "draw": 4.08
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 6.0,
+      "draw": 4.08
+     }
+    }
+   ]
+  },
+  {
+   "id": "1cf64166dda1e0da8b325161deb39662",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-11T16:00:00Z",
+   "home_team": "Sassuolo",
+   "away_team": "AC Milan",
+   "bookmakers": [
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.1,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.4,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 1.77,
+      "home": 4.1,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.4,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.1,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.8,
+      "home": 4.3,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.82,
+      "home": 4.38,
+      "draw": 3.88
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.69,
+      "home": 4.1,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 1.76,
+      "home": 4.0,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 1.78,
+      "home": 4.1,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 1.8,
+      "home": 4.0,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 1.74,
+      "home": 4.15,
+      "draw": 3.68
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.81,
+      "home": 4.3,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.0,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.87,
+      "home": 4.42,
+      "draw": 3.91
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.8,
+      "home": 4.4,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.89,
+      "home": 4.4,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.8,
+      "home": 4.0,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.8,
+      "home": 4.0,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.77,
+      "home": 4.3,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 1.73,
+      "home": 4.0,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 1.82,
+      "home": 4.45,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.1,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.2,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.33,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 1.8,
+      "home": 4.2,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.77,
+      "home": 4.0,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.79,
+      "home": 4.2,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 1.8,
+      "home": 4.2,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.2,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.89,
+      "home": 4.4,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.89,
+      "home": 4.4,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "away": 1.84,
+      "home": 4.35,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.2,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.2,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.33,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.89,
+      "home": 4.4,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.26,
+      "draw": 3.72
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.35,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 1.83,
+      "home": 4.35,
+      "draw": 3.85
+     }
+    }
+   ]
+  },
+  {
+   "id": "407f7d03157d1dfad384876e6a6bc910",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-11T18:45:00Z",
+   "home_team": "Cagliari",
+   "away_team": "Juventus",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 6.39,
+      "away": 1.58,
+      "draw": 4.05
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 5.5,
+      "away": 1.56,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.61,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 5.4,
+      "away": 1.54,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.61,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 5.4,
+      "away": 1.54,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 5.8,
+      "away": 1.57,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 5.8,
+      "away": 1.48,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.55,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.5,
+      "draw": 3.88
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 5.9,
+      "away": 1.54,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 5.7,
+      "away": 1.52,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 6.2,
+      "away": 1.57,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.57,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 6.54,
+      "away": 1.62,
+      "draw": 4.09
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 7.0,
+      "away": 1.62,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 6.3,
+      "away": 1.58,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.53,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.55,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 6.5,
+      "away": 1.52,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 5.5,
+      "away": 1.53,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 6.5,
+      "away": 1.6,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.53,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.57,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.57,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.53,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.53,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.55,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.55,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 5.75,
+      "away": 1.56,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.55,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.53,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 6.8,
+      "away": 1.62,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 6.8,
+      "away": 1.62,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "home": 6.35,
+      "away": 1.6,
+      "draw": 4.05
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 6.0,
+      "away": 1.57,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 7.0,
+      "away": 1.62,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "home": 6.25,
+      "away": 1.58,
+      "draw": 3.91
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 6.65,
+      "away": 1.58,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 6.65,
+      "away": 1.58,
+      "draw": 4.0
+     }
+    }
+   ]
+  },
+  {
+   "id": "0f2e7ff90b994f31d5cd48a9680943e1",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-12T16:30:00Z",
+   "home_team": "Atalanta BC",
+   "away_team": "Venezia",
+   "bookmakers": [
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.54,
+      "away": 4.8,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 1.56,
+      "away": 4.9,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 5.3,
+      "draw": 4.4
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 5.3,
+      "draw": 4.4
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.2,
+      "draw": 4.3
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.54,
+      "away": 4.8,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.58,
+      "away": 6.1,
+      "draw": 4.18
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.47,
+      "away": 5.3,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.2,
+      "draw": 4.3
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 1.5,
+      "away": 5.5,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 1.52,
+      "away": 5.7,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 1.51,
+      "away": 5.4,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.66,
+      "away": 5.72,
+      "draw": 4.17
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.56,
+      "away": 5.6,
+      "draw": 4.4
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.5,
+      "draw": 4.33
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.59,
+      "away": 6.2,
+      "draw": 4.5
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.0,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.0,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.52,
+      "away": 6.0,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.0,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.75,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.5,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.5,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.25,
+      "draw": 4.33
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.25,
+      "draw": 4.33
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 5.5,
+      "draw": 4.25
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.56,
+      "away": 5.0,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 1.53,
+      "away": 5.5,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 1.5,
+      "away": 5.5,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 6.2,
+      "draw": 4.5
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 6.2,
+      "draw": 4.5
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "home": 1.57,
+      "away": 5.95,
+      "draw": 4.07
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.58,
+      "away": 5.4,
+      "draw": 4.15
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.58,
+      "away": 5.45,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "betfair_sb_uk",
+     "title": "Betfair Sportsbook",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 6.0,
+      "draw": 4.33
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 6.2,
+      "draw": 4.5
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 5.35,
+      "draw": 4.12
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.59,
+      "away": 5.6,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.59,
+      "away": 5.95,
+      "draw": 4.22
+     }
+    }
+   ]
+  },
+  {
+   "id": "f4a28510bb0c835280a2aca709c19d50",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-12T18:45:00Z",
+   "home_team": "Torino",
+   "away_team": "Udinese",
+   "bookmakers": [
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 2.32,
+      "away": 2.95,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 2.9,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.43,
+      "away": 3.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.43,
+      "away": 3.1,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 2.9,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.38,
+      "away": 3.05,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 2.36,
+      "away": 3.34,
+      "draw": 3.23
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.2,
+      "away": 3.0,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 3.0,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 2.25,
+      "away": 3.05,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.15,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 2.25,
+      "away": 3.07,
+      "draw": 3.12
+     }
+    },
+    {
+     "key": "codere_it",
+     "title": "Codere (IT)",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 2.38,
+      "away": 3.15,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.39,
+      "away": 3.35,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.2,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 2.44,
+      "away": 3.35,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.1,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.1,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.2,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 2.2,
+      "away": 3.1,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "everygame",
+     "title": "Everygame",
+     "last_update": "2026-10-08T23:04:25Z",
+     "h2h": {
+      "home": 2.25,
+      "away": 3.15,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "coral",
+     "title": "Coral",
+     "last_update": "2026-10-08T23:06:10Z",
+     "h2h": {
+      "home": 2.37,
+      "away": 3.1,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "ladbrokes_uk",
+     "title": "Ladbrokes",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.0,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betvictor",
+     "title": "Bet Victor",
+     "last_update": "2026-10-08T23:05:32Z",
+     "h2h": {
+      "home": 2.25,
+      "away": 3.1,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betano_uk",
+     "title": "Betano (UK)",
+     "last_update": "2026-10-08T23:06:57Z",
+     "h2h": {
+      "home": 2.25,
+      "away": 3.1,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 3.1,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 3.0,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.25,
+      "away": 3.1,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.1,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 3.1,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 2.44,
+      "away": 3.35,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 2.44,
+      "away": 3.35,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "coolbet",
+     "title": "Coolbet",
+     "last_update": "2026-10-08T23:06:46Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 3.35,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.32,
+      "away": 3.15,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 3.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "matchbook",
+     "title": "Matchbook",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 2.44,
+      "away": 3.35,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "gtbets",
+     "title": "GTbets",
+     "last_update": "2026-10-08T23:06:15Z",
+     "h2h": {
+      "home": 2.34,
+      "away": 3.11,
+      "draw": 3.32
+     }
+    },
+    {
+     "key": "betanysports",
+     "title": "BetAnything",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 3.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betonlineag",
+     "title": "BetOnline.ag",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 3.35,
+      "draw": 3.22
+     }
+    }
+   ]
+  },
+  {
+   "id": "7d3160040958fe21778fd5ee485666c3",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-16T18:45:00Z",
+   "home_team": "Frosinone",
+   "away_team": "Sassuolo",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 2.42,
+      "away": 2.9,
+      "draw": 3.42
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.75,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 2.72,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.2,
+      "away": 2.65,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.7,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 2.2,
+      "away": 2.45,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.38,
+      "away": 2.7,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 2.65,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 2.35,
+      "away": 2.65,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 2.2,
+      "away": 2.6,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.53,
+      "away": 2.96,
+      "draw": 3.54
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 2.32,
+      "away": 2.7,
+      "draw": 3.48
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.85,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 2.8,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 2.3,
+      "away": 2.75,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.75,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.75,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.86,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.86,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.42,
+      "away": 2.82,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 2.42,
+      "away": 2.82,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.55,
+      "away": 2.8,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.63,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 2.55,
+      "away": 2.8,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.5,
+      "away": 2.75,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 2.43,
+      "away": 2.65,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.4,
+      "away": 2.63,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 2.45,
+      "away": 2.7,
+      "draw": 3.35
+     }
+    }
+   ]
+  },
+  {
+   "id": "907639dade64cca45d1ab639195d201e",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-17T13:00:00Z",
+   "home_team": "Venezia",
+   "away_team": "Napoli",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.44,
+      "draw": 4.12
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.73,
+      "home": 4.5,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.72,
+      "home": 4.7,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.65,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.58,
+      "home": 4.4,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.5,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 1.58,
+      "home": 3.95,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.2,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 1.67,
+      "home": 4.33,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 1.72,
+      "home": 4.7,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 1.66,
+      "home": 4.3,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 1.62,
+      "home": 4.2,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.76,
+      "home": 4.74,
+      "draw": 4.22
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 1.63,
+      "home": 4.45,
+      "draw": 3.83
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.67,
+      "home": 4.7,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.6,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 1.67,
+      "home": 4.5,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.33,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.33,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.8,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.75,
+      "home": 4.8,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.74,
+      "home": 4.7,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.67,
+      "home": 4.3,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 1.74,
+      "home": 4.7,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.67,
+      "home": 4.3,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.74,
+      "home": 4.7,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 1.68,
+      "home": 4.4,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.7,
+      "home": 4.5,
+      "draw": 3.8
+     }
+    }
+   ]
+  },
+  {
+   "id": "bfefc309177723410230fee52f650315",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-17T16:00:00Z",
+   "home_team": "Bologna",
+   "away_team": "Inter Milan",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 5.45,
+      "away": 1.62,
+      "draw": 3.91
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 4.8,
+      "away": 1.53,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 5.0,
+      "away": 1.62,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 4.2,
+      "away": 1.54,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 5.0,
+      "away": 1.61,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 4.75,
+      "away": 1.6,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 4.6,
+      "away": 1.6,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 4.75,
+      "away": 1.57,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 5.55,
+      "away": 1.69,
+      "draw": 4.12
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 5.0,
+      "away": 1.62,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 4.8,
+      "away": 1.57,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 5.7,
+      "away": 1.57,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 5.0,
+      "away": 1.55,
+      "draw": 4.33
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 5.0,
+      "away": 1.5,
+      "draw": 4.2
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 5.3,
+      "away": 1.63,
+      "draw": 3.95
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 5.5,
+      "away": 1.64,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 5.5,
+      "away": 1.64,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 5.4,
+      "away": 1.65,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 5.4,
+      "away": 1.62,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 4.8,
+      "away": 1.65,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 4.8,
+      "away": 1.65,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 4.75,
+      "away": 1.58,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 4.9,
+      "away": 1.6,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 5.25,
+      "away": 1.65,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 5.25,
+      "away": 1.65,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 5.25,
+      "away": 1.65,
+      "draw": 4.1
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 4.75,
+      "away": 1.58,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 5.0,
+      "away": 1.61,
+      "draw": 3.95
+     }
+    }
+   ]
+  },
+  {
+   "id": "18d478f469da3bcc654dd4555b85c7e3",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-17T18:45:00Z",
+   "home_team": "AS Roma",
+   "away_team": "Genoa",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.33,
+      "away": 8.5,
+      "draw": 5.39
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 9.5,
+      "draw": 5.5
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.34,
+      "away": 9.7,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.26,
+      "away": 7.8,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 1.33,
+      "away": 8.0,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 1.27,
+      "away": 6.5,
+      "draw": 4.7
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 7.5,
+      "draw": 5.25
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 1.32,
+      "away": 7.5,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.35,
+      "away": 9.8,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 1.31,
+      "away": 7.25,
+      "draw": 5.3
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 8.0,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.36,
+      "away": 9.9,
+      "draw": 5.53
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 1.29,
+      "away": 7.75,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 9.0,
+      "draw": 5.5
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 1.25,
+      "away": 9.5,
+      "draw": 5.5
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 1.22,
+      "away": 10.0,
+      "draw": 5.5
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 8.6,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.33,
+      "away": 8.5,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.33,
+      "away": 8.5,
+      "draw": 4.8
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.32,
+      "away": 9.4,
+      "draw": 5.6
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.32,
+      "away": 9.4,
+      "draw": 5.6
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 10.5,
+      "draw": 5.5
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.27,
+      "away": 9.0,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.27,
+      "away": 9.0,
+      "draw": 5.0
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 10.5,
+      "draw": 5.5
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 1.28,
+      "away": 9.5,
+      "draw": 5.1
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.3,
+      "away": 10.5,
+      "draw": 5.5
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.29,
+      "away": 10.0,
+      "draw": 5.25
+     }
+    }
+   ]
+  },
+  {
+   "id": "367da93aa21a1e13eeafb94fd2263c75",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-18T10:30:00Z",
+   "home_team": "Udinese",
+   "away_team": "Lecce",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 4.2,
+      "home": 1.85,
+      "draw": 3.64
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 4.0,
+      "home": 1.9,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 4.25,
+      "home": 1.85,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 4.0,
+      "home": 1.72,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 4.2,
+      "home": 1.85,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 3.65,
+      "home": 1.74,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 3.8,
+      "home": 1.83,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 4.0,
+      "home": 1.85,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 4.3,
+      "home": 1.88,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 3.95,
+      "home": 1.82,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 3.8,
+      "home": 1.83,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 4.32,
+      "home": 1.95,
+      "draw": 3.71
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 4.05,
+      "home": 1.78,
+      "draw": 3.42
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 4.3,
+      "home": 1.8,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 4.0,
+      "home": 1.85,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 4.0,
+      "home": 1.83,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 4.1,
+      "home": 1.87,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.9,
+      "home": 1.85,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.9,
+      "home": 1.85,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 4.2,
+      "home": 1.89,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 4.2,
+      "home": 1.89,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 4.35,
+      "home": 1.88,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 4.35,
+      "home": 1.88,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 4.1,
+      "home": 1.81,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 4.0,
+      "home": 1.79,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 4.0,
+      "home": 1.79,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 4.35,
+      "home": 1.88,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 4.2,
+      "home": 1.83,
+      "draw": 3.5
+     }
+    }
+   ]
+  },
+  {
+   "id": "3ea32a0aa44a5f0ef7fd088155430087",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-18T13:00:00Z",
+   "home_team": "Fiorentina",
+   "away_team": "Como",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.07,
+      "home": 3.36,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.05,
+      "home": 3.3,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.06,
+      "home": 3.25,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.08,
+      "home": 3.35,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.92,
+      "home": 3.2,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 2.08,
+      "home": 3.25,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 1.94,
+      "home": 2.95,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.0,
+      "home": 3.2,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 2.08,
+      "home": 3.15,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 2.08,
+      "home": 3.35,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 2.0,
+      "home": 3.15,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 1.95,
+      "home": 3.1,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.13,
+      "home": 3.52,
+      "draw": 3.81
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 2.0,
+      "home": 3.2,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.05,
+      "home": 3.4,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 2.05,
+      "home": 3.4,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 2.0,
+      "home": 3.3,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.05,
+      "home": 3.3,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.05,
+      "home": 3.3,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 2.08,
+      "home": 3.35,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 2.08,
+      "home": 3.35,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 1.93,
+      "home": 3.4,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 2.02,
+      "home": 3.65,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 2.02,
+      "home": 3.65,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 1.93,
+      "home": 3.4,
+      "draw": 3.45
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 1.94,
+      "home": 3.45,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 2.02,
+      "home": 3.65,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 1.96,
+      "home": 3.5,
+      "draw": 3.55
+     }
+    }
+   ]
+  },
+  {
+   "id": "f9403dd597edbfaa73abdc974e55344c",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-18T16:00:00Z",
+   "home_team": "AC Milan",
+   "away_team": "Atalanta BC",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.85,
+      "away": 4.16,
+      "draw": 3.69
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.85,
+      "away": 4.1,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.75,
+      "away": 3.8,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 1.88,
+      "away": 3.8,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 1.76,
+      "away": 3.4,
+      "draw": 3.35
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.8,
+      "away": 3.8,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 1.88,
+      "away": 3.7,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.85,
+      "away": 4.15,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 1.86,
+      "away": 3.7,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 1.75,
+      "away": 3.8,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.93,
+      "away": 4.22,
+      "draw": 3.86
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.83,
+      "away": 4.2,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 1.81,
+      "away": 3.78,
+      "draw": 3.53
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.83,
+      "away": 4.1,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 1.8,
+      "away": 4.2,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 1.75,
+      "away": 4.2,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.92,
+      "away": 4.0,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.85,
+      "away": 3.9,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.85,
+      "away": 3.9,
+      "draw": 3.4
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.9,
+      "away": 4.2,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.9,
+      "away": 4.2,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.83,
+      "away": 4.3,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.75,
+      "away": 3.95,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.75,
+      "away": 3.95,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.83,
+      "away": 4.3,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 1.76,
+      "away": 4.1,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.8,
+      "away": 4.25,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.78,
+      "away": 4.1,
+      "draw": 3.7
+     }
+    }
+   ]
+  },
+  {
+   "id": "4c4026e2782f09d6f0ff2bde2a390513",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-18T18:45:00Z",
+   "home_team": "Juventus",
+   "away_team": "Lazio",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.64,
+      "away": 5.34,
+      "draw": 3.87
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.67,
+      "away": 5.0,
+      "draw": 4.0
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.65,
+      "away": 5.4,
+      "draw": 3.6
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.55,
+      "away": 4.9,
+      "draw": 3.7
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 1.65,
+      "away": 5.0,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 5.0,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 1.62,
+      "away": 4.9,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 1.68,
+      "away": 5.5,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 5.0,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.68,
+      "away": 5.66,
+      "draw": 4.12
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 1.6,
+      "away": 4.95,
+      "draw": 3.68
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.62,
+      "away": 5.3,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 1.62,
+      "away": 4.7,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 1.56,
+      "away": 4.3,
+      "draw": 3.5
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 1.67,
+      "away": 5.0,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 1.65,
+      "away": 4.75,
+      "draw": 3.75
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.65,
+      "away": 5.1,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.61,
+      "away": 5.0,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.62,
+      "away": 5.0,
+      "draw": 3.8
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.67,
+      "away": 5.2,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 1.67,
+      "away": 5.2,
+      "draw": 3.9
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.62,
+      "away": 4.9,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.62,
+      "away": 4.9,
+      "draw": 3.55
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 1.68,
+      "away": 5.4,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 1.63,
+      "away": 5.0,
+      "draw": 3.65
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 1.68,
+      "away": 5.4,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 1.68,
+      "away": 5.4,
+      "draw": 3.85
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 1.65,
+      "away": 5.1,
+      "draw": 3.7
+     }
+    }
+   ]
+  },
+  {
+   "id": "ce94aca384a20f6af459366da6e1dd21",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-19T16:30:00Z",
+   "home_team": "Monza",
+   "away_team": "Cagliari",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 3.43,
+      "home": 2.25,
+      "draw": 3.18
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 3.25,
+      "home": 2.25,
+      "draw": 3.3
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.2,
+      "home": 2.0,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "away": 3.25,
+      "home": 2.2,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 3.3,
+      "home": 2.15,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "away": 3.2,
+      "home": 2.2,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "away": 3.2,
+      "home": 2.1,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.58,
+      "home": 2.32,
+      "draw": 3.27
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "away": 3.22,
+      "home": 2.12,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 3.3,
+      "home": 2.25,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "away": 3.15,
+      "home": 2.15,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "away": 2.95,
+      "home": 2.05,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "away": 3.2,
+      "home": 2.3,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "away": 3.2,
+      "home": 2.25,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 3.3,
+      "home": 2.4,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.3,
+      "home": 2.2,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.3,
+      "home": 2.2,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 3.35,
+      "home": 2.42,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "away": 3.35,
+      "home": 2.42,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 3.25,
+      "home": 2.25,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "away": 3.3,
+      "home": 2.28,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "away": 3.65,
+      "home": 2.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "away": 3.5,
+      "home": 2.14,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "away": 3.45,
+      "home": 2.1,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.4,
+      "home": 2.08,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "away": 3.65,
+      "home": 2.2,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 3.6,
+      "home": 2.16,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "away": 3.4,
+      "home": 2.08,
+      "draw": 3.05
+     }
+    }
+   ]
+  },
+  {
+   "id": "07014d9adc65ca39710bd9f0c7c0d3f0",
+   "sport_key": "soccer_italy_serie_a",
+   "commence_time": "2026-10-19T18:45:00Z",
+   "home_team": "Parma",
+   "away_team": "Torino",
+   "bookmakers": [
+    {
+     "key": "pinnacle",
+     "title": "Pinnacle",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 3.18,
+      "away": 2.48,
+      "draw": 3.01
+     }
+    },
+    {
+     "key": "betfred_uk",
+     "title": "Betfred (UK)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 3.0,
+      "away": 2.4,
+      "draw": 3.2
+     }
+    },
+    {
+     "key": "unibet_fr",
+     "title": "Unibet (FR)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.9,
+      "away": 2.2,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "unibet_uk",
+     "title": "Unibet (UK)",
+     "last_update": "2026-10-08T23:06:52Z",
+     "h2h": {
+      "home": 2.9,
+      "away": 2.4,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "betway",
+     "title": "Betway",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 3.1,
+      "away": 2.38,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "leovegas",
+     "title": "LeoVegas",
+     "last_update": "2026-10-08T23:06:12Z",
+     "h2h": {
+      "home": 2.88,
+      "away": 2.38,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "boylesports",
+     "title": "BoyleSports",
+     "last_update": "2026-10-08T23:06:56Z",
+     "h2h": {
+      "home": 3.0,
+      "away": 2.38,
+      "draw": 2.9
+     }
+    },
+    {
+     "key": "onexbet",
+     "title": "1xBet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 3.25,
+      "away": 2.54,
+      "draw": 3.17
+     }
+    },
+    {
+     "key": "betclic_fr",
+     "title": "Betclic (FR)",
+     "last_update": "2026-10-08T23:05:11Z",
+     "h2h": {
+      "home": 2.93,
+      "away": 2.32,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "tipico_de",
+     "title": "Tipico",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 3.1,
+      "away": 2.45,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "winamax_de",
+     "title": "Winamax (DE)",
+     "last_update": "2026-10-08T23:06:53Z",
+     "h2h": {
+      "home": 2.9,
+      "away": 2.35,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "winamax_fr",
+     "title": "Winamax (FR)",
+     "last_update": "2026-10-08T23:07:06Z",
+     "h2h": {
+      "home": 2.7,
+      "away": 2.25,
+      "draw": 2.9
+     }
+    },
+    {
+     "key": "skybet",
+     "title": "Sky Bet",
+     "last_update": "2026-10-08T23:04:05Z",
+     "h2h": {
+      "home": 3.2,
+      "away": 2.3,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "paddypower",
+     "title": "Paddy Power",
+     "last_update": "2026-10-08T23:06:13Z",
+     "h2h": {
+      "home": 3.1,
+      "away": 2.3,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "smarkets",
+     "title": "Smarkets",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 3.1,
+      "away": 2.4,
+      "draw": 2.88
+     }
+    },
+    {
+     "key": "sport888",
+     "title": "888sport",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 3.0,
+      "away": 2.4,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "williamhill",
+     "title": "William Hill",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 3.0,
+      "away": 2.4,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "betfair_ex_eu",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 3.2,
+      "away": 2.44,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "betfair_ex_uk",
+     "title": "Betfair",
+     "last_update": "2026-10-08T23:07:05Z",
+     "h2h": {
+      "home": 3.2,
+      "away": 2.44,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "nordicbet",
+     "title": "Nordic Bet",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 3.05,
+      "away": 2.52,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "betsson",
+     "title": "Betsson",
+     "last_update": "2026-10-08T23:06:30Z",
+     "h2h": {
+      "home": 3.05,
+      "away": 2.52,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "livescorebet",
+     "title": "LiveScore Bet",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 2.95,
+      "away": 2.3,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "grosvenor",
+     "title": "Grosvenor",
+     "last_update": "2026-10-08T23:06:45Z",
+     "h2h": {
+      "home": 3.1,
+      "away": 2.4,
+      "draw": 3.15
+     }
+    },
+    {
+     "key": "unibet_nl",
+     "title": "Unibet (NL)",
+     "last_update": "2026-10-08T23:07:20Z",
+     "h2h": {
+      "home": 3.15,
+      "away": 2.43,
+      "draw": 3.25
+     }
+    },
+    {
+     "key": "casumo",
+     "title": "Casumo",
+     "last_update": "2026-10-08T23:07:04Z",
+     "h2h": {
+      "home": 3.05,
+      "away": 2.35,
+      "draw": 3.1
+     }
+    },
+    {
+     "key": "leovegas_se",
+     "title": "LeoVegas (SE)",
+     "last_update": "2026-10-08T23:06:29Z",
+     "h2h": {
+      "home": 3.0,
+      "away": 2.33,
+      "draw": 3.05
+     }
+    },
+    {
+     "key": "virginbet",
+     "title": "Virgin Bet",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 2.95,
+      "away": 2.3,
+      "draw": 3.0
+     }
+    },
+    {
+     "key": "unibet_se",
+     "title": "Unibet (SE)",
+     "last_update": "2026-10-08T23:07:03Z",
+     "h2h": {
+      "home": 3.15,
+      "away": 2.43,
+      "draw": 3.25
+     }
+    }
+   ]
+  }
+ ]
+}
