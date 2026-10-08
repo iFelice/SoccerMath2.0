@@ -44,7 +44,8 @@ OUT_DIR = os.path.join(_AUDIT_DIR, "output")
 RESULTS_DIR = os.path.join(_AUDIT_DIR, "results")
 REPORT_PATH = os.path.join(RESULTS_DIR, "live_odds_feasibility.md")
 
-CI = {}   # esiti dei check GitHub, passati con --ci suite=... audit=... replay=...
+CI = {}       # esiti dei check GitHub, passati con --ci suite=... audit=... replay=...
+CI_RUN = {}   # id dei run GitHub, passati con --ci-run suite=... audit=... replay=...
 
 import bookmaker_source_test as BST  # noqa: E402
 import live_odds_match as LOM  # noqa: E402
@@ -350,10 +351,20 @@ def build_markdown(probe, bst, match, budget, stagioni, checks, verdetto, criter
         last = max(v["ultima_partita_utc"] for v in agg.values())
         lu_min = min(v["aggiornamento_libro_min"] for v in agg.values() if v.get("aggiornamento_libro_min"))
         lu_max = max(v["aggiornamento_libro_max"] for v in agg.values() if v.get("aggiornamento_libro_max"))
+        try:
+            t0 = datetime.fromisoformat(str(probe.get("generato_il")).replace("Z", "+00:00"))
+            t_min = datetime.fromisoformat(str(lu_min).replace("Z", "+00:00"))
+            t_max = datetime.fromisoformat(str(lu_max).replace("Z", "+00:00"))
+            eta_min = (t0 - t_min).total_seconds() / 60.0
+            eta_max = (t0 - t_max).total_seconds() / 60.0
+            eta_txt = (f"l'aggiornamento piu' vecchio fra i libri risale a {eta_min:.1f} minuti "
+                       f"prima della chiamata, il piu' recente a {eta_max:.1f} minuti")
+        except (TypeError, ValueError):
+            eta_txt = "orario di aggiornamento non ricostruibile"
         A(f"Orizzonte coperto: dal {first} al {last} (una chiamata per lega restituisce circa "
           "due giornate). Aggiornamento dei libri rilevato: da "
-          f"{lu_min} a {lu_max}, cioe' entro i ~3 minuti precedenti la chiamata "
-          f"(scaricata alle {probe.get('generato_il')}).\n")
+          f"{lu_min} a {lu_max}: {eta_txt} "
+          f"(chiamate scaricate alle {probe.get('generato_il')}).\n")
     bet = probe.get("controllo_bet365") or {}
     if bet:
         A("**Controllo Bet365.** Chiamata esplicita `bookmakers=bet365` sulla Serie A: HTTP "
@@ -513,14 +524,14 @@ def build_markdown(probe, bst, match, budget, stagioni, checks, verdetto, criter
     A("## 6. Quadro di sintesi (esito, comando, evidenza)\n")
     A(md(["#", "Voce verificata", "Esito", "Comando / link", "Evidenza"], checks["sintesi"]))
     A("")
+    A("## 7. Limiti dichiarati\n")
+    for lim in checks["limiti"]:
+        A(f"- {lim}")
+    A("")
     A("## 8. Verdetto di mergeability\n")
     A(f"**{verdetto}**\n")
     A(md(["Criterio", "Esito", "Evidenza"],
          [[c[0], "OK" if c[1] else "NON OK / DA VERIFICARE", c[2]] for c in criteri]))
-    A("")
-    A("## 7. Limiti dichiarati\n")
-    for lim in checks["limiti"]:
-        A(f"- {lim}")
     A("")
     return "\n".join(L)
 
@@ -545,10 +556,15 @@ def mergeability(stato, ci):
          "il confronto fra book e l'abbinamento nomi sono sola lettura"),
         ("Nessun workflow temporaneo nel diff", not stato["tocca_workflow"],
          "il workflow di prova e' stato rimosso prima della chiusura"),
-        ("Suite test verde", ci.get("suite") == "success", f"esito Suite: {ci.get('suite', 'n/d')}"),
-        ("Audit Top Mix verde", ci.get("audit") == "success", f"esito Audit: {ci.get('audit', 'n/d')}"),
-        ("Replay saltato (o verde)", ci.get("replay") in ("skipped", "success", "neutral"),
-         f"esito Replay: {ci.get('replay', 'n/d')}"),
+        ("Suite test verde", str(ci.get("suite", "")).startswith("success"),
+         f"gh pr checks: Suite {ci.get('suite', 'n/d')}"
+         + (f" (run {CI_RUN['suite']})" if CI_RUN.get("suite") else "")),
+        ("Audit Top Mix verde", str(ci.get("audit", "")).startswith("success"),
+         f"gh pr checks: Audit {ci.get('audit', 'n/d')}"
+         + (f" (run {CI_RUN['audit']})" if CI_RUN.get("audit") else "")),
+        ("Replay saltato (o verde)", str(ci.get("replay", "")) in ("skipped", "success", "neutral"),
+         f"gh pr checks: Replay {ci.get('replay', 'n/d')}"
+         + (f" (run {CI_RUN['replay']})" if CI_RUN.get("replay") else "")),
     ]
     ok = all(c[1] for c in criteri)
     return ("MERGEABLE" if ok else "NON MERGEABLE"), criteri
@@ -630,7 +646,8 @@ def build_checks(probe, bst, match, budget, stato, ci):
          "alla regola C1-C2-C3; |Δ LogLoss| <= 0,0015"],
         ["6", "Aggiornamento orario della quota", "OK",
          "confronto last_update dei libri con l'ora della chiamata",
-         "aggiornamenti entro ~3 minuti dalla chiamata; documentazione: 60 s pre-partita"],
+         "aggiornamenti dei libri entro ~6 minuti dalla chiamata; documentazione: 60 s "
+         "pre-partita"],
         ["7", "football-data.co.uk: file delle partite in programma", "OK",
          "https://www.football-data.co.uk/fixtures.csv",
          "il file esiste (HTTP 200, 94 colonne, B365 pre e chiusura)"],
@@ -655,12 +672,17 @@ def build_checks(probe, bst, match, budget, stato, ci):
          "git diff --name-only origin/main...HEAD",
          f"{stato['n_file']} file, cartelle: " + (", ".join(stato["dirs"]) or "nessuna")],
         ["13", "CI: Suite e Audit verdi, Replay saltato",
-         "OK" if (ci.get("suite") == "success" and ci.get("audit") == "success"
-                  and ci.get("replay") in ("skipped", "success", "neutral"))
+         "OK" if (str(ci.get("suite", "")).startswith("success")
+                  and str(ci.get("audit", "")).startswith("success")
+                  and str(ci.get("replay", "")) in ("skipped", "success", "neutral"))
          else "DA VERIFICARE",
          "gh pr checks <numero PR>",
-         f"Suite: {ci.get('suite', 'n/d')} · Audit: {ci.get('audit', 'n/d')} · "
-         f"Replay: {ci.get('replay', 'n/d')}"],
+         "Suite: " + f"{ci.get('suite', 'n/d')}"
+         + (f" (run {CI_RUN['suite']})" if CI_RUN.get("suite") else "")
+         + " · Audit: " + f"{ci.get('audit', 'n/d')}"
+         + (f" (run {CI_RUN['audit']})" if CI_RUN.get("audit") else "")
+         + " · Replay: " + f"{ci.get('replay', 'n/d')}"
+         + (f" (run {CI_RUN['replay']})" if CI_RUN.get("replay") else "")],
     ]
 
     # --- raccomandazione (numeri, non opinioni) ---
@@ -695,7 +717,7 @@ def build_checks(probe, bst, match, budget, stato, ci):
                "(venerdi' 17:00 UK / martedi' 13:00 UK). Resta la fonte storica del progetto, "
                "che gia' e'.")
     rec.append("**Precondizione obbligatoria prima di andare in produzione: l'abbinamento dei "
-               f"nomi.** Con il solo `clean_name` si ferma il {pct(t['pct_abbinate'])} delle "
+               f"nomi.** Con il solo `clean_name` si ferma al {pct(t['pct_abbinate'])} delle "
                f"partite della prossima giornata ({t['n_abbinate']}/{t['n_prossima_giornata']}); "
                f"con il resolver di produzione (`team_names.resolve_team_name`, che usa tutte le "
                f"tabelle di alias) si sale al {pct(t['pct_abbinate_resolver'])} "
@@ -748,6 +770,8 @@ def main(argv=None):
                     help="riusa i JSON gia' presenti in audit/output invece di ricalcolare")
     ap.add_argument("--reps", type=int, default=BST.DEFAULT_REPS)
     ap.add_argument("--seed", type=int, default=BST.DEFAULT_SEED)
+    ap.add_argument("--ci-run", default=os.environ.get("CI_RUN_ID", ""),
+                    help="id dei run GitHub, es. 'suite=123 audit=456 replay=789'")
     ap.add_argument("--ci", default=os.environ.get("CI_ESITI", ""),
                     help="esiti dei check GitHub, es. 'suite=success audit=success "
                          "replay=skipped' (o variabile CI_ESITI)")
@@ -756,6 +780,10 @@ def main(argv=None):
         if "=" in pezzo:
             k, v = pezzo.split("=", 1)
             CI[k.strip()] = v.strip()
+    for pezzo in (args.ci_run or "").replace(",", " ").split():
+        if "=" in pezzo:
+            k, v = pezzo.split("=", 1)
+            CI_RUN[k.strip()] = v.strip()
 
     with open(os.path.join(DATA_DIR, "probe_summary.json"), encoding="utf-8") as fh:
         probe = json.load(fh)

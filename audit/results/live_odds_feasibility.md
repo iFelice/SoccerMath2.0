@@ -1,6 +1,6 @@
 # Fattibilita' di una fonte di quote 1X2 dal vivo — referto di audit (sola lettura)
 
-Generato da `audit/live_odds_feasibility.py` (2026-10-08T23:44:13Z), branch `arena/edb67158-soccermath2-0`, commit `0e37a44`. Nessuna modifica a `SoccerMath/`: tutti i file nuovi vivono in `audit/`.
+Generato da `audit/live_odds_feasibility.py` (2026-10-08T23:54:29Z), branch `arena/edb67158-soccermath2-0`, commit `27397c1`. Nessuna modifica a `SoccerMath/`: tutti i file nuovi vivono in `audit/`.
 
 Comandi:
 
@@ -15,7 +15,7 @@ python audit/live_odds_feasibility.py      # questo referto (punti 1-5)
 
 | Voce | Esito | Comando / link | Evidenza |
 |---|---|---|---|
-| Branch partito da main dopo il merge della PR #49 | OK | git log --oneline -1; gh pr view 49 --json mergedAt | HEAD = 0e37a44; PR #49 mergiata il 2026-10-08T22:55:04Z (merge commit f77366b) |
+| Branch partito da main dopo il merge della PR #49 | OK | git log --oneline -1; gh pr view 49 --json mergedAt | HEAD = 27397c1; PR #49 mergiata il 2026-10-08T22:55:04Z (merge commit f77366b) |
 | Diff vuoto all'inizio del lavoro | OK | git diff --name-only origin/main...HEAD | nessun file (branch allineato a main: 0 commit avanti, 0 indietro) |
 | Script della PR #49 presente | OK | ls -l audit/onex2_market_test.py | 68.666 byte; `python -m pytest audit/test_onex2_market_test.py`: 18 test verdi |
 | Secret ODDS_API_KEY esistente nel repository | OK | workflow temporaneo: ${{ secrets.ODDS_API_KEY != '' }} | SECRET_PRESENT = true; 6 chiamate su 6 hanno risposto HTTP 200 (con chiave assente o errata: 401) |
@@ -145,7 +145,7 @@ Chiavi delle 5 leghe, mercato `h2h`, regioni `eu,uk`, `oddsFormat=decimal`. Snap
 | Bundesliga | soccer_germany_bundesliga | OK | 18 | 39 | sì | **NO** | used 39 · last 2 · remaining 461 |
 | Ligue 1 | soccer_france_ligue_one | OK | 18 | 37 | sì | **NO** | used 41 · last 2 · remaining 459 |
 
-Orizzonte coperto: dal 2026-10-09T18:30:00Z al 2026-10-19T19:00:00Z (una chiamata per lega restituisce circa due giornate). Aggiornamento dei libri rilevato: da 2026-10-08T23:24:27Z a 2026-10-08T23:30:38Z, cioe' entro i ~3 minuti precedenti la chiamata (scaricata alle 2026-10-08T23:30:38Z).
+Orizzonte coperto: dal 2026-10-09T18:30:00Z al 2026-10-19T19:00:00Z (una chiamata per lega restituisce circa due giornate). Aggiornamento dei libri rilevato: da 2026-10-08T23:24:27Z a 2026-10-08T23:30:38Z: l'aggiornamento piu' vecchio fra i libri risale a 6.2 minuti prima della chiamata, il piu' recente a 0.0 minuti (chiamate scaricate alle 2026-10-08T23:30:38Z).
 
 **Controllo Bet365.** Chiamata esplicita `bookmakers=bet365` sulla Serie A: HTTP 200, 20 eventi, bookmaker restituiti: 0. Bet365 **non e' disponibile** su queste leghe/regioni, in linea con il catalogo ufficiale (l'unica chiave Bet365 e' `bet365_au`, solo AFL/NRL e solo a pagamento).
 
@@ -245,7 +245,7 @@ Motivi, tutti misurati in questo referto:
 
 4. **football-data.co.uk non puo' essere la fonte dal vivo**: il file delle partite in programma esiste e ha le colonne Bet365, ma oggi non contiene NESSUNA partita delle 5 leghe e dichiara un aggiornamento settimanale (venerdi' 17:00 UK / martedi' 13:00 UK). Resta la fonte storica del progetto, che gia' e'.
 
-**Precondizione obbligatoria prima di andare in produzione: l'abbinamento dei nomi.** Con il solo `clean_name` si ferma il 81.2% delle partite della prossima giornata (39/48); con il resolver di produzione (`team_names.resolve_team_name`, che usa tutte le tabelle di alias) si sale al 87.5% (42/48). Restano 6 nomi non censiti da aggiungere a `SoccerMath/team_aliases.py`: `Borussia Monchengladbach`, `FSV Mainz 05`, `Atlético Madrid`, `CA Osasuna`, `Elche CF`, `Real Racing Club de Santander`. La modifica non e' in questo audit (nessun file di `SoccerMath/` e' toccato) e va fatta con la regola del progetto: nessun fuzzy matching, ogni nome dichiarato.
+**Precondizione obbligatoria prima di andare in produzione: l'abbinamento dei nomi.** Con il solo `clean_name` si ferma al 81.2% delle partite della prossima giornata (39/48); con il resolver di produzione (`team_names.resolve_team_name`, che usa tutte le tabelle di alias) si sale al 87.5% (42/48). Restano 6 nomi non censiti da aggiungere a `SoccerMath/team_aliases.py`: `Borussia Monchengladbach`, `FSV Mainz 05`, `Atlético Madrid`, `CA Osasuna`, `Elche CF`, `Real Racing Club de Santander`. La modifica non e' in questo audit (nessun file di `SoccerMath/` e' toccato) e va fatta con la regola del progetto: nessun fuzzy matching, ogni nome dichiarato.
 
 **Rischi aperti (da decidere prima di integrare).** (a) La copertura di Pinnacle non e' garantita su tutte le partite: nei CSV storici manca su 850 partite su 3504: serve una regola di ripiego (consenso de-vigato dei book tornati). (b) Le quote di Pinnacle sono 'dal sito pubblico, con possibile ritardo' (nota del catalogo ufficiale). (c) Il piano gratuito esclude lo storico quote: per il confronto modello/mercato resta solo il flusso live. (d) La copertura dei book puo' cambiare senza preavviso: il controllo va ripetuto a ogni stagione.
 
@@ -258,27 +258,14 @@ Motivi, tutti misurati in questo referto:
 | 3 | Bet365 disponibile nella fonte dal vivo | NON OK | bookmakers=bet365 (chiamata esplicita) | HTTP 200, 0 bookmaker restituiti; nel catalogo ufficiale Bet365 esiste solo come bet365_au (AFL/NRL, solo a pagamento) |
 | 4 | Pinnacle disponibile nella fonte dal vivo | OK | audit/data/live_odds_probe/probe_summary.json | chiave `pinnacle` presente in tutte e 5 le leghe |
 | 5 | Un bookmaker basta al posto di Bet365 (dati storici) | OK | python audit/bookmaker_source_test.py | Avg, Max, Pinnacle, consenso e i singoli book disponibili live: tutti EQUIVALENTE alla regola C1-C2-C3; \|Δ LogLoss\| <= 0,0015 |
-| 6 | Aggiornamento orario della quota | OK | confronto last_update dei libri con l'ora della chiamata | aggiornamenti entro ~3 minuti dalla chiamata; documentazione: 60 s pre-partita |
+| 6 | Aggiornamento orario della quota | OK | confronto last_update dei libri con l'ora della chiamata | aggiornamenti dei libri entro ~6 minuti dalla chiamata; documentazione: 60 s pre-partita |
 | 7 | football-data.co.uk: file delle partite in programma | OK | https://www.football-data.co.uk/fixtures.csv | il file esiste (HTTP 200, 94 colonne, B365 pre e chiusura) |
 | 8 | football-data.co.uk: copertura delle 5 leghe oggi | NON OK | python audit/live_odds_probe.py | 0 righe su 46: solo E2, E3, EC, SC1, SC2, SC3, SP2, date 02-05/10/2026 (gia' giocate) |
 | 9 | Terza fonte gratuita | NON VERIFICABILE | documentazione OddsPapi | nessuna chiave nel repository e rete bloccata: solo documentazione |
 | 10 | Abbinamento nomi della prossima giornata | NON OK | python audit/live_odds_match.py | 39/48 con clean_name (81.2%); 42/48 (87.5%) con il resolver di produzione |
 | 11 | Budget nel piano gratuito | OK | python audit/live_odds_feasibility.py | mese peggiore 127 crediti su 500 |
-| 12 | Diff finale limitato a audit/ | NON OK | git diff --name-only origin/main...HEAD | 11 file, cartelle: .github, audit |
-| 13 | CI: Suite e Audit verdi, Replay saltato | DA VERIFICARE | gh pr checks <numero PR> | Suite: n/d · Audit: n/d · Replay: n/d |
-
-## 8. Verdetto di mergeability
-
-**NON MERGEABLE**
-
-| Criterio | Esito | Evidenza |
-|---|---|---|
-| Il diff tocca solo audit/ | NON OK / DA VERIFICARE | git diff --name-only origin/main...HEAD: .github, audit |
-| Nessun file di SoccerMath/ modificato | OK | il confronto fra book e l'abbinamento nomi sono sola lettura |
-| Nessun workflow temporaneo nel diff | NON OK / DA VERIFICARE | il workflow di prova e' stato rimosso prima della chiusura |
-| Suite test verde | NON OK / DA VERIFICARE | esito Suite: n/d |
-| Audit Top Mix verde | NON OK / DA VERIFICARE | esito Audit: n/d |
-| Replay saltato (o verde) | NON OK / DA VERIFICARE | esito Replay: n/d |
+| 12 | Diff finale limitato a audit/ | OK | git diff --name-only origin/main...HEAD | 19 file, cartelle: audit |
+| 13 | CI: Suite e Audit verdi, Replay saltato | OK | gh pr checks <numero PR> | Suite: success (run 37861185339) · Audit: success (run 37861185340) · Replay: skipped (run 37861185348) |
 
 ## 7. Limiti dichiarati
 
@@ -289,3 +276,16 @@ Motivi, tutti misurati in questo referto:
 - I turni infrasettimanali del budget sono ricostruiti dalle date dei CSV (mar/mer/gio raggruppate se consecutive o entro 2 giorni): una ricostruzione, non il calendario ufficiale.
 - L'abbinamento nomi e' misurato sulla sola prossima giornata disponibile (48 partite): le squadre promosse di altre leghe non ancora incontrate possono aggiungere altri nomi mancanti.
 - Terza fonte (OddsPapi): solo documentazione, nessuna prova. Non e' un'alternativa verificata.
+
+## 8. Verdetto di mergeability
+
+**MERGEABLE**
+
+| Criterio | Esito | Evidenza |
+|---|---|---|
+| Il diff tocca solo audit/ | OK | git diff --name-only origin/main...HEAD: audit |
+| Nessun file di SoccerMath/ modificato | OK | il confronto fra book e l'abbinamento nomi sono sola lettura |
+| Nessun workflow temporaneo nel diff | OK | il workflow di prova e' stato rimosso prima della chiusura |
+| Suite test verde | OK | gh pr checks: Suite success (run 37861185339) |
+| Audit Top Mix verde | OK | gh pr checks: Audit success (run 37861185340) |
+| Replay saltato (o verde) | OK | gh pr checks: Replay skipped (run 37861185348) |
