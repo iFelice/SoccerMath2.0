@@ -169,7 +169,8 @@ def _genera_in_ref(ref: str, out_path: Path, head: str) -> int:
         r = subprocess.run(
             [sys.executable, str(Path(tmp) / "audit" / "make_elo_s3_parity_fixture.py"),
              "--interno", "--out", str(out_path.resolve()),
-             "--prod-commit", ref, "--audit-commit", head],
+             "--prod-commit", ref, "--audit-commit", head,
+             "--database-commit", head],
             cwd=tmp, env=env)
         return r.returncode
     finally:
@@ -193,6 +194,9 @@ def main() -> int:
     out_path = Path(_arg("--out", str(OUT_PATH)))
     prod_commit = _arg("--prod-commit")
     audit_commit = _arg("--audit-commit")
+    #: commit da cui viene il DATABASE (il branch, con i dati corretti): dentro
+    #: il worktree HEAD e' il commit di produzione, quindi arriva dal chiamante.
+    database_commit = _arg("--database-commit", head)
     if "--interno" not in sys.argv:
         return _genera_in_ref(_arg("--rif", DEFAULT_REF), out_path, head)
     # --- il calcolo vero e proprio, dentro il worktree --------------------
@@ -218,8 +222,8 @@ def main() -> int:
             # sul database dello stesso albero di produzione; qui no, ed e'
             # dichiarato invece di essere implicito.
             "database_usato": {
-                "commit": head,
-                "tree_oid": _git("rev-parse", f"{head}:SoccerMath/database"),
+                "commit": database_commit,
+                "tree_oid": _git("rev-parse", f"{database_commit}:SoccerMath/database"),
                 "motivo": "rigenerazione sul database CORRETTO: rimosse da "
                           "LaLiga_Live.csv le due righe fittizie di "
                           "Levante-Ath Bilbao (16/09/2026 sospesa per pioggia e "

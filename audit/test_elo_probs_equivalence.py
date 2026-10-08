@@ -64,8 +64,12 @@ FIX_JSONL = os.path.join(_AUDIT_DIR, "fixtures", "elo_probs_equivalence_main.jso
 FIX_MANIFEST = os.path.join(_AUDIT_DIR, "fixtures",
                             "elo_probs_equivalence_main.manifest.json")
 #: commit che dichiara il manifest della fixture (la fixture e' rigenerata da
-#: quel commit, non da "main": vedi il docstring del modulo)
-FIXTURE_COMMIT = "5a6243255b2eb06429ae9ecdd772461376c46fb9"
+#: quel commit, non da "main": vedi il docstring del modulo). Aggiornato con la
+#: rigenerazione sul database corretto della Liga: le due righe fittizie di
+#: Levante-Ath Bilbao (16/09 sospesa, 21/10 data del recupero) sono state
+#: rimosse, quindi i casi di partita passano da 7334 a 7332 e lo sha256 del
+#: payload cambia. Il commit e' quello da cui e' stata rigenerata la fixture.
+FIXTURE_COMMIT = "6f9505b996812e7fd2695c7db8fdfd6ef36fa860"
 
 
 def _carica_fixture():
