@@ -5,13 +5,15 @@ Cosa viene provato (commessa "eliminare i fallback silenziosi sui nomi squadra")
 * caso (a) NOME SCONOSCIUTO (il nome pulito non e' in R(lega, stagione)):
   ``predict_elo_probs`` solleva ``EloSeedError`` col nome GREZZO e quello
   PULITO; nel Top Mix la partita e' ESCLUSA da entrambe le tabelle; in Analisi
-  Rapida non si scrive nessuna riga e compare un avviso esplicito. Nessuno di
-  questi percorsi usa le statistiche di default;
+  Rapida non si scrive nessuna riga e compare un avviso esplicito; nella
+  scheda PARTITE la card non si costruisce (avviso esplicito in scheda).
+  Nessuno di questi percorsi usa le statistiche di default;
 * caso (b) ROSTER SENZA STATISTICHE (la squadra e' nel calendario della
   stagione ma il motore non ha ancora dati, per es. una neopromossa prima del
   debutto): il comportamento numerico e' INVARIATO (default att=1.0 def=1.0),
-  ma non e' piu' silenzioso: WARNING nel log col nome grezzo e pulito e
-  marcatore ``dati_mancanti`` sulla riga del Top Mix;
+  ma non e' piu' silenzioso: WARNING nel log col nome grezzo e pulito,
+  marcatore ``dati_mancanti`` sulla riga del Top Mix e marcatore nella card
+  della scheda PARTITE;
 * nome NOTO: le righe hanno ESATTAMENTE lo schema di prima, chiave per chiave
   (la chiave ``dati_mancanti`` compare solo quando serve);
 * roster NON disponibile: il chiamante resta permissivo (solo il caso b e'
@@ -240,6 +242,101 @@ class TestAnalisiRapidaNomi(RipristinaLogging, unittest.TestCase):
         self.assertEqual([], cattura.output, "nome noto con statistiche: NESSUN avviso")
         self.assertNotIn("SCONOSCIUTO", log)
         self.assertNotIn("att=1.0 def=1.0", log)
+
+
+class TestSchedaPartiteNomi(RipristinaLogging, unittest.TestCase):
+    """Scheda PARTITE: stesso trattamento di Top Mix e Analisi Rapida.
+
+    La logica della card vive in ``dati_card_partita`` (il tab Streamlit la
+    chiama per ogni partita del giorno): qui si prova la funzione e, in coda,
+    una guardia di cablaggio sul sorgente del tab.
+    """
+
+    def _gira(self, match, stats, roster=ROSTER_BUNDES_2026):
+        chiamate = []
+
+        def _poisson(h_s, a_s, avg_h, avg_a):
+            chiamate.append((dict(h_s), dict(a_s), avg_h, avg_a))
+            return dict(POISSON)
+
+        with mock.patch.object(app, "get_full_poisson_two_heads", side_effect=_poisson), \
+             mock.patch.object(app, "blend_elo_into_1x2",
+                               side_effect=lambda m, h, a, camp, **kw: dict(m)), \
+             mock.patch.object(app, "_roster_stagione",
+                               return_value=set(roster) if roster is not None else None), \
+             _CatturaLog() as cattura:
+            esito = app.dati_card_partita(match, stats, 1.5, 1.2, "Bundesliga")
+        return esito, chiamate, cattura
+
+    def test_sconosciuto_niente_default_niente_card(self):
+        stats = {"Bayern": dict(STATS_BASE)}
+        match = _match(1, "Zeta FC", "Bayern")
+        (h, a, m_poisson, m, sconosciuti, senza), chiamate, cattura = self._gira(match, stats)
+        log = cattura.testo()
+        self.assertIsNone(m_poisson, "nome sconosciuto: nessun Poisson calcolato")
+        self.assertIsNone(m, "nome sconosciuto: nessuna card costruita")
+        self.assertEqual([], chiamate, "NESSUNA statistica di default al sconosciuto")
+        self.assertEqual([("Zeta FC", "Zeta")], sconosciuti)
+        self.assertEqual([], senza)
+        self.assertIn("PARTITE", log)
+        self.assertIn("SCONOSCIUTO", log)
+        self.assertIn("'Zeta FC'", log, "nome GREZZO nel log")
+        self.assertIn("'Zeta'", log, "nome PULITO nel log")
+
+    def test_entrante_senza_stats_invariato_e_marcato(self):
+        stats = {"Bayern": dict(STATS_BASE)}          # Koln senza statistiche
+        match = _match(2, "Köln", "Bayern")
+        (h, a, m_poisson, m, sconosciuti, senza), chiamate, cattura = self._gira(match, stats)
+        log = cattura.testo()
+        self.assertEqual([], sconosciuti)
+        self.assertEqual([("Köln", "Koln")], senza)
+        self.assertEqual(dict(POISSON), m)
+        self.assertEqual(1, len(chiamate))
+        h_s, a_s, avg_h, avg_a = chiamate[0]
+        self.assertEqual({"att": 1.0, "def": 1.0}, h_s,
+                         "il Poisson riceve il default per l'entrante (invariato)")
+        self.assertEqual(dict(STATS_BASE), a_s)
+        self.assertEqual((1.5, 1.2), (avg_h, avg_a))
+        self.assertIn("Köln", log)
+        self.assertIn("'Koln'", log)
+        self.assertIn("att=1.0 def=1.0", log)
+
+    def test_nomi_noti_output_identico_zero_avvisi(self):
+        stats = {"Bayern": dict(STATS_BASE), "Stuttgart": dict(STATS_BASE)}
+        match = _match(3, "Bayern", "Stuttgart")
+        (h, a, m_poisson, m, sconosciuti, senza), chiamate, cattura = self._gira(match, stats)
+        self.assertEqual(("Bayern", "Stuttgart"), (h, a))
+        self.assertEqual(dict(POISSON), m_poisson)
+        self.assertEqual(dict(POISSON), m)
+        self.assertEqual([], sconosciuti)
+        self.assertEqual([], senza)
+        self.assertEqual([(dict(STATS_BASE), dict(STATS_BASE), 1.5, 1.2)], chiamate)
+        self.assertEqual([], cattura.output, "nome noto con statistiche: NESSUN avviso")
+
+    def test_roster_non_disponibile_permissivo(self):
+        stats = {"Bayern": dict(STATS_BASE)}          # Koln senza statistiche
+        match = _match(4, "Köln", "Bayern")
+        (h, a, m_poisson, m, sconosciuti, senza), chiamate, cattura = self._gira(
+            match, stats, roster=None)
+        self.assertEqual([], sconosciuti, "roster non noto: nessuno e' 'sconosciuto'")
+        self.assertEqual([("Köln", "Koln")], senza)
+        self.assertEqual(dict(POISSON), m, "comportamento invariato")
+        self.assertEqual(1, len(chiamate))
+
+    def test_cablaggio_scheda_partite(self):
+        """Il tab PARTITE passa da ``dati_card_partita``: avviso caso (a) e
+        marcatore caso (b) in scheda, niente default inline residui."""
+        with open(os.path.join(HERE, "app.py"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("def dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel):", src)
+        chiamata = ("h_api, a_api, m_poisson, m, sconosciuti, senza_stats = "
+                    "dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)")
+        self.assertEqual(1, src.count(chiamata), "il tab chiama l'helper")
+        self.assertIn('st.warning(f"⚠️ PARTITE:', src, "avviso esplicito in scheda (caso a)")
+        self.assertIn("stats di default (nessun dato: ", src, "marcatore nella card (caso b)")
+        inline_vecchio = 'h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})'
+        self.assertEqual(1, src.count(inline_vecchio),
+                         "il default inline resta SOLO dentro l'helper")
 
 
 class TestRosterStagione(unittest.TestCase):

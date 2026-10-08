@@ -188,6 +188,40 @@ def _stato_squadre_match(league, season, h, a, team_stats, origine):
     return sconosciuti, senza_stats
 
 
+def dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel):
+    """Dati di UNA card della scheda PARTITE, fallback sui nomi espliciti.
+
+    Stesso trattamento di Top Mix e Analisi Rapida:
+
+    * caso (a) SCONOSCIUTO (nome pulito fuori da R(stagione) = errore a
+      monte): NESSUNA statistica di default — ``m_poisson`` e ``m`` sono
+      ``None`` e la card non va costruita; il WARNING nel log (nome grezzo e
+      pulito, via ``_stato_squadre_match``) e l'avviso in scheda del chiamante
+      dicono perche'.
+    * caso (b) ROSTER SENZA STATISTICHE (neopromossa al debutto):
+      comportamento di sempre (default att=1.0 def=1.0) piu' WARNING nel log e
+      l'elenco in ``senza_stats`` per il marcatore nella card.
+
+    Ritorna ``(h_api, a_api, m_poisson, m, sconosciuti, senza_stats)``.
+    """
+    h_api, a_api = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
+    stagione_match = _stagione_da_utcdate(match.get('utcDate'))
+    sconosciuti, senza_stats = _stato_squadre_match(
+        camp_sel, stagione_match, h_api, a_api, team_stats, "PARTITE")
+    if sconosciuti:
+        return h_api, a_api, None, None, sconosciuti, senza_stats
+    h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})
+    a_s = team_stats.get(clean_name(a_api), {"att": 1.0, "def": 1.0})
+    m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+    # 1X2 mostrato = ensemble Poisson+Elo
+    # (w=POISSON_1X2_WEIGHT, peso Poisson di produzione); Totali
+    # (u25/gg) restano Poisson puro. m_poisson (puro)
+    # viene passato a show_details per la selezione (argmax): il blend
+    # deve restare fuori dall'argmax, come in analisi_rapida_giornata().
+    m = blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel, season=stagione_match)
+    return h_api, a_api, m_poisson, m, sconosciuti, senza_stats
+
+
 def calcola_stagione_calcolo(data_str):
     """Etichetta di stagione ("2026/2027") della data di una partita.
 
@@ -2230,17 +2264,18 @@ with tab1:
                 with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, st.session_state.get("classifica", {}), g_sel)
                 st.success(f"✅ {n} righe salvate ({len(matches)} partite x 2 motori: attuale e legacy)!")
         for idx, match in enumerate(matches):
-            h_api, a_api = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
+            h_api, a_api, m_poisson, m, sconosciuti, senza_stats = dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)
             dt = format_date_italy(match['utcDate'])
-            h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})
-            a_s = team_stats.get(clean_name(a_api), {"att": 1.0, "def": 1.0})
-            m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
-            # 1X2 mostrato = ensemble Poisson+Elo
-            # (w=POISSON_1X2_WEIGHT, peso Poisson di produzione); Totali
-            # (u25/gg) restano Poisson puro. m_poisson (puro)
-            # viene passato a show_details per la selezione (argmax): il blend
-            # deve restare fuori dall'argmax, come in analisi_rapida_giornata().
-            m = blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel, season=_stagione_da_utcdate(match.get('utcDate')))
+            if m is None:
+                # Caso (a): la card NON usa statistiche di default. L'avviso
+                # esplicito in scheda (qui) e il WARNING nel log (nome grezzo e
+                # pulito, in _stato_squadre_match) dicono perche'.
+                dettaglio = ", ".join(f"'{grezzo}' (pulito: '{pulito}')"
+                                      for grezzo, pulito in sconosciuti)
+                st.warning(f"⚠️ PARTITE: {display_name(h_api)} vs {display_name(a_api)} "
+                           f"non mostrata: nome squadra non nel roster di {camp_sel}: "
+                           f"{dettaglio}. Nessuna statistica di default usata.")
+                continue
             with st.container():
                 st.markdown('<div class="match-card">', unsafe_allow_html=True)
                 c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])
@@ -2260,6 +2295,13 @@ with tab1:
                     else:
                         st.write("<br>", unsafe_allow_html=True)
                         st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, m_poisson, camp_sel, g_sel))
+                if senza_stats:
+                    # Caso (b) marcato nella card: il Poisson mostrato ha usato
+                    # le statistiche di default (squadra del roster ancora
+                    # senza dati nel motore, per es. al debutto).
+                    st.markdown(f"<small>⚠️ stats di default (nessun dato: "
+                                f"{', '.join(pulito for _grezzo, pulito in senza_stats)})</small>",
+                                unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
     else:
         if not engine:
