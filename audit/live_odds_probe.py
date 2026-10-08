@@ -61,6 +61,10 @@ LEAGUES = [
     ("Ligue 1", "soccer_france_ligue_one"),
 ]
 
+# cartella degli snapshot committati (usata dal workflow e riletta dagli script
+# di abbinamento e dal referto: e' la prova che resta nel repository)
+DATA_DIR = os.path.join(_AUDIT_DIR, "data", "live_odds_probe")
+
 ODDS_HOST = "https://api.the-odds-api.com"
 SPORTS_URL = f"{ODDS_HOST}/v4/sports/"
 FD_FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
