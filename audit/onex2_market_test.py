@@ -870,7 +870,10 @@ def main(argv=None):
         ("blend + Pinnacle chiusura prop. (riferimento, non pre-chiusura)", "m", "pin", "pin_ok"),
     ]
     sens_rows, sens_json = [], {}
+    DEC_LABEL = sens_specs[0][0]
     for label, mp, qp, need in sens_specs:
+        if label == DEC_LABEL:
+            continue  # riga decisionale: riusa i fold gia' stimati (vedi sotto, dopo il rolling)
         for fold in FOLDS:
             est_s = df[df["season"].isin(fold["estimate"]) & df["has_model"] & df["pre_ok"]]
             if need:
@@ -882,6 +885,14 @@ def main(argv=None):
             sens_rows.append([label, fold["name"], len(est_s),
                               fci(cc["peso_modello_b1"]["stima"], cc["peso_modello_b1"]["ic95"]),
                               fci(cc["peso_mercato_b2"]["stima"], cc["peso_mercato_b2"]["ic95"])])
+    dec_rows = []
+    for fold in FOLDS:
+        cc = fits[fold["name"]]["coef"]
+        sens_json[f"{DEC_LABEL}|{fold['name']}"] = cc
+        dec_rows.append([DEC_LABEL, fold["name"], fits[fold["name"]]["n_stima"],
+                         fci(cc["peso_modello_b1"]["stima"], cc["peso_modello_b1"]["ic95"]),
+                         fci(cc["peso_mercato_b2"]["stima"], cc["peso_mercato_b2"]["ic95"])])
+    sens_rows[0:0] = dec_rows
     print("sensibilita' calcolate", flush=True)
 
     # --- campioni per bootstrap ------------------------------------------------
