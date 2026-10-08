@@ -2,8 +2,11 @@ name: TMP probe fonti quote live (DA RIMUOVERE)
 
 # Workflow TEMPORANEO di sola prova: esegue unicamente le chiamate di
 # raggiungibilita' (The Odds API + football-data.co.uk fixtures) perche' la
-# sandbox di sviluppo non ha rete verso quei domini. Non committa, non pusha,
-# non tocca SoccerMath/ e non scrive nel Registro.
+# sandbox di sviluppo non ha rete verso quei domini e i log/artifact dei run
+# non sono leggibili dalla sandbox. Per questo l'esito viene COMMITTATO sul
+# branch in audit/data/live_odds_probe/ (solo file compattati, nessun segreto).
+# Non tocca SoccerMath/ e non scrive nel Registro.
+#
 # VA RIMOSSO PRIMA DELLA CHIUSURA DELLA PR: il diff finale deve contenere
 # solo file sotto audit/.
 
@@ -14,7 +17,7 @@ on:
       - arena/edb67158-soccermath2-0
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: tmp-live-odds-probe
@@ -23,10 +26,12 @@ concurrency:
 jobs:
   probe:
     name: Probe (solo chiamate GET)
+    # Il commit di ritorno non deve riattivare il workflow.
+    if: "!contains(github.event.head_commit.message, '[probe-out]')"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PROBE_OUT: ${{ github.workspace }}/probe-out
+      DATA_DIR: audit/data/live_odds_probe
 
     steps:
       - name: Checkout
@@ -49,21 +54,35 @@ jobs:
           SECRET_PRESENT: ${{ secrets.ODDS_API_KEY != '' }}
         run: |
           echo "::add-mask::${{ secrets.ODDS_API_KEY }}"
-          python audit/live_odds_probe.py --out "$PROBE_OUT"
+          echo "secret ODDS_API_KEY presente nel repository: ${{ secrets.ODDS_API_KEY != '' }}"
+          python audit/live_odds_probe.py --out "$DATA_DIR"
 
-      - name: Riassunto
+      - name: Riassunto in log
         if: always()
         run: |
-          echo "secret ODDS_API_KEY presente nel repository: ${{ secrets.ODDS_API_KEY != '' }}"
-          if [ -f "$PROBE_OUT/probe_summary.json" ]; then
-            python -m json.tool "$PROBE_OUT/probe_summary.json"
+          if [ -f "$DATA_DIR/probe_summary.json" ]; then
+            python -m json.tool "$DATA_DIR/probe_summary.json"
           fi
 
-      - name: Artifact
+      - name: Commit dell'esito (solo dati compattati)
+        if: always()
+        run: |
+          rm -f "$DATA_DIR"/raw_*.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A "$DATA_DIR"
+          if git diff --cached --quiet; then
+            echo "nessuna variazione: nessun commit"
+            exit 0
+          fi
+          git commit -m "chore: esito probe quote dal vivo [probe-out]"
+          git push origin HEAD:arena/edb67158-soccermath2-0
+
+      - name: Artifact (grezzi, per controllo)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-odds-probe-${{ github.run_id }}
-          path: ${{ env.PROBE_OUT }}/
+          path: ${{ env.DATA_DIR }}/
           if-no-files-found: warn
           retention-days: 14
