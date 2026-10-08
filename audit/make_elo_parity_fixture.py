@@ -190,6 +190,7 @@ def main():
             "commit": head,
             "production_input_oids": production_input_oids(head),
         },
+        "cutoff": {},
         "leagues": {},
     }
 
@@ -210,6 +211,8 @@ def main():
             "now_fixtures": _probs_via_production(lg, eng, pairs),
             "cutoff_cases": [],
         }
+        # cutoff dichiarato per lega = data massima della fixture (dedotta dai dati)
+        fixture["cutoff"][lg] = str(df["Date_Parsed"].max())[:10]
 
     # --- blocco 3: cutoff walk-forward ------------------------------------
     # Le date di cutoff sono comuni a tutte le leghe (un solo troncamento per

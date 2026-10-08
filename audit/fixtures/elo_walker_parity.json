@@ -11,6 +11,13 @@
    "SoccerMath/database": "4650d65444bd7bc262d5f55dd7a55203097aaa63"
   }
  },
+ "cutoff": {
+  "Serie A": "2026-09-20",
+  "Premier League": "2026-09-20",
+  "La Liga": "2026-10-21",
+  "Bundesliga": "2026-09-20",
+  "Ligue 1": "2026-09-20"
+ },
  "leagues": {
   "Serie A": {
    "n_matches_full_db": 1570,

@@ -165,6 +165,13 @@ def main(argv=None):
 
     na = block_a(emit)
     nb = block_b(emit)
+    # cutoff dichiarato per lega = data massima dei record di partita (dedotta dai dati)
+    cutoff = {}
+    for s in lines:
+        r = json.loads(s)
+        if r["kind"] == "match":
+            lg = r["meta"]["league"]
+            cutoff[lg] = max(cutoff.get(lg, ""), r["meta"]["date"][:10])
     payload = "\n".join(lines) + "\n"
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -193,6 +200,7 @@ def main(argv=None):
                  "leagues": list(LEAGUES),
                  "home_adv": {k: repr(LEAGUE_HOME_ADVANTAGE[k]) for k in LEAGUES}},
         "n_grid": na, "n_match": nb, "n_total": na + nb,
+        "cutoff": cutoff,
         "sha256_payload_non_compresso": digest,
     }
     with open(out_manifest, "w", encoding="utf-8") as f:

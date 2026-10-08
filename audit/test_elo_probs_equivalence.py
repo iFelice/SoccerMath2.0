@@ -34,6 +34,10 @@ Contenuto (32539 casi):
 Il test rigenera entrambi i blocchi con il codice CORRENTE e confronta il
 ``repr(float)`` di OGNI chiave di OGNI caso. Nessun ``assertAlmostEqual``.
 
+Cutoff (audit/elo_parity_cutoff.py): il blocco (b) e' calcolato sul database
+TRONCATO al ``cutoff`` del manifest, per lega. Le partite che il bot aggiunge
+dopo quella data non entrano nei casi: restano i 7334 della fixture.
+
 Esecuzione:
     python audit/test_elo_probs_equivalence.py
     python -m pytest audit/test_elo_probs_equivalence.py -v
@@ -54,6 +58,7 @@ sys.path.insert(0, _AUDIT_DIR)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 
 import make_elo_probs_equivalence_fixture as GEN  # noqa: E402
+from elo_parity_cutoff import database_fino_a_cutoff, leggi_cutoff  # noqa: E402
 
 FIX_JSONL = os.path.join(_AUDIT_DIR, "fixtures", "elo_probs_equivalence_main.jsonl.gz")
 FIX_MANIFEST = os.path.join(_AUDIT_DIR, "fixtures",
@@ -72,10 +77,16 @@ def _carica_fixture():
     return payload, righe, manifest
 
 
-def _rigenera():
+def _rigenera(cutoff):
+    """Rigenera i due blocchi con il codice CORRENTE.
+
+    Il blocco (b) gira sul database TRONCATO al ``cutoff`` dichiarato nel
+    manifest, per lega: le partite che il bot aggiunge dopo quella data non
+    entrano nei casi, e l'ordine di produzione resta quello della fixture."""
     righe = []
     na = GEN.block_a(righe.append)
-    nb = GEN.block_b(righe.append)
+    with database_fino_a_cutoff(cutoff):
+        nb = GEN.block_b(righe.append)
     payload = "\n".join(json.dumps(r, sort_keys=True, ensure_ascii=False)
                         for r in righe) + "\n"
     return payload, righe, na, nb
@@ -86,7 +97,8 @@ class TestEquivalenzaBitExact(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pay_fix, cls.righe_fix, cls.manifest = _carica_fixture()
-        cls.pay_now, cls.righe_now, cls.na, cls.nb = _rigenera()
+        cutoff = leggi_cutoff(cls.manifest.get("cutoff"), tuple(GEN.LEAGUES))
+        cls.pay_now, cls.righe_now, cls.na, cls.nb = _rigenera(cutoff)
 
     def test_provenienza_fixture(self):
         self.assertEqual(self.manifest["repo_head_commit"], FIXTURE_COMMIT)
@@ -103,6 +115,19 @@ class TestEquivalenzaBitExact(unittest.TestCase):
             capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.strip(), "commit")
+
+    def test_cutoff_dichiarato_coerente_con_i_record(self):
+        """Il cutoff del manifest, per lega, e' la data massima dei record di
+        partita della fixture (dedotto dai dati, non inventato)."""
+        cutoff = leggi_cutoff(self.manifest.get("cutoff"), tuple(GEN.LEAGUES))
+        massimo: dict = {}
+        for r in self.righe_fix:
+            if r["kind"] == "match":
+                lg = r["meta"]["league"]
+                massimo[lg] = max(massimo.get(lg, ""), r["meta"]["date"][:10])
+        self.assertEqual(set(massimo), set(GEN.LEAGUES))
+        for lg in GEN.LEAGUES:
+            self.assertEqual(cutoff[lg], massimo[lg], f"{lg}: cutoff != ultima partita")
 
     def test_conteggi(self):
         self.assertEqual(self.na, self.manifest["n_grid"])
