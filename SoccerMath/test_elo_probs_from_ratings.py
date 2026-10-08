@@ -66,6 +66,10 @@ class _StubEngine:
         self.home_adv = home_adv
         self.seed = seed
         self._day_start_season = None
+        # Motore senza roster (informazione non disponibile): il ramo di
+        # predizione non puo' classificare i nomi e delega al `promoted_seed`
+        # del motore, che e' il contratto in prova qui.
+        self.season_rosters = {}
 
     def promoted_seed(self, season=None):
         if season is None:

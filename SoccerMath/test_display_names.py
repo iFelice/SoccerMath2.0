@@ -359,7 +359,8 @@ class TestAnalisiRapidaRegistraDisplay(unittest.TestCase):
              mock.patch.object(prod_app, "predict_elo_probs_legacy",
                                return_value={"1": 0.5, "X": 0.3, "2": 0.2}), \
              mock.patch.object(prod_app, "blend_elo_into_1x2",
-                               side_effect=lambda m, h, a, camp, **kw: dict(m)):
+                               side_effect=lambda m, h, a, camp, **kw: dict(m)), \
+             mock.patch.object(prod_app, "_roster_stagione", return_value=None):
             if display_reale:
                 n = prod_app.analisi_rapida_giornata(
                     self.MATCHES, self.TEAM_STATS, 1.35, 1.15, "Serie A", {}, 7)
@@ -449,6 +450,9 @@ class TestGuardiaSorgente(unittest.TestCase):
 
     def test_punto_card_partite(self):
         self.assertIn("{display_name(h_api)}<br>{display_name(a_api)}", self.src)
+        # avviso nome sconosciuto (caso a): display_name solo per il messaggio,
+        # il log di _stato_squadre_match porta grezzo E pulito
+        self.assertIn('st.warning(f"⚠️ PARTITE: {display_name(h_api)} vs {display_name(a_api)} "', self.src)
         # chiavi sul grezzo (la stagione esplicita non cambia i nomi)
         self.assertIn('h_s = team_stats.get(clean_name(h_api), {"att": 1.0, "def": 1.0})', self.src)
         self.assertIn("blend_elo_into_1x2(m_poisson, h_api, a_api, camp_sel, season=", self.src)
@@ -456,9 +460,10 @@ class TestGuardiaSorgente(unittest.TestCase):
         self.assertIn("args=(h_api, a_api, m, m_poisson, camp_sel, g_sel)", self.src)
 
     def test_display_name_usato_solo_nei_4_punti(self):
-        """Nessuna ottava chiamata nascosta: 2 (ultimi risultati) + 2 (Top Mix)
-        + 2 (Analisi Rapida) + 2 (card PARTITE) = 8 usate come chiamata."""
-        self.assertEqual(self.src.count("display_name("), 8,
+        """Nessuna undicesima chiamata nascosta: 2 (ultimi risultati) + 2 (Top Mix)
+        + 2 (Analisi Rapida) + 4 (card PARTITE: 2 nella card + 2 nell'avviso
+        nome sconosciuto) = 10 usate come chiamata."""
+        self.assertEqual(self.src.count("display_name("), 10,
                          "numero inatteso di chiamate display_name in app.py")
 
 

@@ -179,6 +179,14 @@ class TestUnicaDifferenza(unittest.TestCase):
     #: ``season_rosters_from_matches``). Nessuna riga precedente e' cambiata o
     #: sparita: ``predict_elo_probs``, il seeding, K, home advantage e la
     #: conversione 1X2 restano quelli pinnati sopra.
+    #:
+    #: La lista e' stata aggiornata una terza volta dalla PR che toglie il
+    #: fallback silenzioso sui nomi squadra: in ``predict_elo_probs`` il seed
+    #: d'ingresso e' solo per le VERE entranti (nome pulito in R(stagione)) e
+    #: un nome fuori roster solleva ``EloSeedError`` col nome grezzo e quello
+    #: pulito. Le righe nuove sono la coda del docstring della funzione e il
+    #: ramo di controllo sul roster; nulla di K, home advantage, draw, blend,
+    #: ``promoted_seed`` o ``compute_ratings``.
     AGGIUNTE_ATTESE = [
         'from typing import Dict, List, Optional',
         'get_current_season_start_year,',
@@ -519,6 +527,17 @@ class TestUnicaDifferenza(unittest.TestCase):
         'chiamante di produzione gira dentro un ``try/except`` che segna',
         "``elo_disponibile = False`` e lascia un WARNING, quindi il degrado e'",
         'dichiarato e nessuna previsione viene inventata.',
+        '',
+        "Il seed d'ingresso resta alle VERE entranti: una squadra senza rating ma",
+        'presente in R(lega, stagione) (il calendario, vedi',
+        "``season_rosters_with_file``). Un nome pulito che NON e' nel roster della",
+        "stagione non e' un ingresso: e' un nome che questa lega non conosce",
+        "(errore a monte: alias mancante, shortName dell'API cambiato, lega",
+        'sbagliata) e assegnargli la media degli incumbent produrrebbe un numero',
+        'plausibile per una squadra inesistente. In quel caso solleva',
+        '``EloSeedError`` riportando il nome GREZZO ricevuto e quello PULITO con',
+        "cui e' stato cercato il roster: il chiamante degrada in modo dichiarato",
+        'invece di pubblicare un seed inventato.',
         '"""',
         'engine = get_elo_engine(league_name)',
         'h_cl = clean_name(home_team)',
@@ -542,6 +561,30 @@ class TestUnicaDifferenza(unittest.TestCase):
         'f"esplicitamente: senza, il riferimento sarebbe quello "',
         'f"dell\'ultima stagione processata "',
         'f"({engine._day_start_season}) invece di quello giusto."',
+        ')',
+        "# Il seed e' solo per le vere entranti: chi non e' in R(stagione) non",
+        "# e' un ingresso, e' un nome sconosciuto (errore a monte). Se la",
+        '# stagione non ha proprio roster il controllo qui sotto non sa',
+        '# dire niente: lo fa poi `promoted_seed`, che in quel caso solleva',
+        '# la sua EloSeedError "nessun roster per la stagione".',
+        'roster = engine.season_rosters.get(int(season))',
+        'if roster is not None:',
+        'ignoti = [(lato, grezzo, pulito)',
+        'for lato, grezzo, pulito, rating in (',
+        '("home", home_team, h_cl, r_h),',
+        '("away", away_team, a_cl, r_a))',
+        'if rating is None and pulito not in roster]',
+        'if ignoti:',
+        'dettagli = "; ".join(',
+        'f"{lato}: nome grezzo {grezzo!r} -> pulito {pulito!r} "',
+        'f"non e\' in R({league_name}, {season})"',
+        'for lato, grezzo, pulito in ignoti)',
+        'raise EloSeedError(',
+        'f"predict_elo_probs({home_team!r}, {away_team!r}, "',
+        'f"{league_name!r}, season={season}): nome squadra "',
+        'f"sconosciuto, il seed d\'ingresso non si applica a nomi "',
+        'f"fuori roster. {dettagli}. Roster noto: "',
+        'f"{sorted(roster)}."',
         ')',
         'if r_h is None:',
         'r_h = engine.promoted_seed(season)',
@@ -592,7 +635,7 @@ class TestUnicaDifferenza(unittest.TestCase):
         """
         self.assertEqual(
             self._fn(self.current, "predict_elo_probs"),
-                        'def predict_elo_probs(home_team: str, away_team: str, league_name: str, season: Optional[int]=None) -> dict:\n    """1X2 da Elo. ``season`` e\' obbligatoria SOLO se serve il seed.\n\n    Se entrambe le squadre hanno gia\' un rating in lega il valore di ``season``\n    non viene letto: il risultato non dipende dal seed e resta identico a\n    prima. Se invece una squadra non ha ancora rating (neopromossa non ancora\n    presente nei CSV, quindi alla sua prima partita) il seed serve, e allora\n    ``season=None`` solleva ``EloSeedError`` invece di ricadere su 1500: il\n    chiamante di produzione gira dentro un ``try/except`` che segna\n    ``elo_disponibile = False`` e lascia un WARNING, quindi il degrado e\'\n    dichiarato e nessuna previsione viene inventata.\n    """\n    engine = get_elo_engine(league_name)\n    h_cl = clean_name(home_team)\n    a_cl = clean_name(away_team)\n    r_h = engine.ratings.get(h_cl)\n    r_a = engine.ratings.get(a_cl)\n    if r_h is None or r_a is None:\n        if season is None:\n            raise EloSeedError(f"predict_elo_probs({home_team!r}, {away_team!r}, {league_name!r}): {(\'h\' if r_h is None else \'a\')} non ha un rating in lega, quindi serve il seed di ingresso, che richiede la stagione della partita. Passare season=esplicitamente: senza, il riferimento sarebbe quello dell\'ultima stagione processata ({engine._day_start_season}) invece di quello giusto.")\n    if r_h is None:\n        r_h = engine.promoted_seed(season)\n    if r_a is None:\n        r_a = engine.promoted_seed(season)\n    return elo_probs_from_ratings(r_h, r_a, engine.home_adv)')
+            'def predict_elo_probs(home_team: str, away_team: str, league_name: str, season: Optional[int]=None) -> dict:\n    """1X2 da Elo. ``season`` e\' obbligatoria SOLO se serve il seed.\n\n    Se entrambe le squadre hanno gia\' un rating in lega il valore di ``season``\n    non viene letto: il risultato non dipende dal seed e resta identico a\n    prima. Se invece una squadra non ha ancora rating (neopromossa non ancora\n    presente nei CSV, quindi alla sua prima partita) il seed serve, e allora\n    ``season=None`` solleva ``EloSeedError`` invece di ricadere su 1500: il\n    chiamante di produzione gira dentro un ``try/except`` che segna\n    ``elo_disponibile = False`` e lascia un WARNING, quindi il degrado e\'\n    dichiarato e nessuna previsione viene inventata.\n\n    Il seed d\'ingresso resta alle VERE entranti: una squadra senza rating ma\n    presente in R(lega, stagione) (il calendario, vedi\n    ``season_rosters_with_file``). Un nome pulito che NON e\' nel roster della\n    stagione non e\' un ingresso: e\' un nome che questa lega non conosce\n    (errore a monte: alias mancante, shortName dell\'API cambiato, lega\n    sbagliata) e assegnargli la media degli incumbent produrrebbe un numero\n    plausibile per una squadra inesistente. In quel caso solleva\n    ``EloSeedError`` riportando il nome GREZZO ricevuto e quello PULITO con\n    cui e\' stato cercato il roster: il chiamante degrada in modo dichiarato\n    invece di pubblicare un seed inventato.\n    """\n    engine = get_elo_engine(league_name)\n    h_cl = clean_name(home_team)\n    a_cl = clean_name(away_team)\n    r_h = engine.ratings.get(h_cl)\n    r_a = engine.ratings.get(a_cl)\n    if r_h is None or r_a is None:\n        if season is None:\n            raise EloSeedError(f"predict_elo_probs({home_team!r}, {away_team!r}, {league_name!r}): {(\'h\' if r_h is None else \'a\')} non ha un rating in lega, quindi serve il seed di ingresso, che richiede la stagione della partita. Passare season=esplicitamente: senza, il riferimento sarebbe quello dell\'ultima stagione processata ({engine._day_start_season}) invece di quello giusto.")\n        roster = engine.season_rosters.get(int(season))\n        if roster is not None:\n            ignoti = [(lato, grezzo, pulito) for lato, grezzo, pulito, rating in ((\'home\', home_team, h_cl, r_h), (\'away\', away_team, a_cl, r_a)) if rating is None and pulito not in roster]\n            if ignoti:\n                dettagli = \'; \'.join((f"{lato}: nome grezzo {grezzo!r} -> pulito {pulito!r} non e\' in R({league_name}, {season})" for lato, grezzo, pulito in ignoti))\n                raise EloSeedError(f"predict_elo_probs({home_team!r}, {away_team!r}, {league_name!r}, season={season}): nome squadra sconosciuto, il seed d\'ingresso non si applica a nomi fuori roster. {dettagli}. Roster noto: {sorted(roster)}.")\n    if r_h is None:\n        r_h = engine.promoted_seed(season)\n    if r_a is None:\n        r_a = engine.promoted_seed(season)\n    return elo_probs_from_ratings(r_h, r_a, engine.home_adv)')
 
     def test_predict_elo_probs_identica_nei_due_motori_bit_exact(self):
         """Identita' NUMERICA legacy vs attuale: stessi rating, stesso

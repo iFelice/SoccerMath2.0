@@ -254,6 +254,7 @@ class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
                                return_value=dict(elo)), \
              mock.patch.object(prod_app, "predict_elo_probs_legacy",
                                return_value=legacy), \
+             mock.patch.object(prod_app, "_roster_stagione", return_value=None), \
              mock.patch.object(prod_app, "save_prediction_entry",
                                side_effect=lambda *a, **k: saved.append((a, k))):
             n = prod_app.analisi_rapida_giornata([match], stats, 1.35, 1.15,
@@ -317,6 +318,7 @@ class TestAnalisiRapidaSelezionePuraProbabilitaBlendata(unittest.TestCase):
                                side_effect=Exception("Elo ko")), \
              mock.patch.object(prod_app, "predict_elo_probs_legacy",
                                side_effect=Exception("Elo legacy ko")), \
+             mock.patch.object(prod_app, "_roster_stagione", return_value=None), \
              mock.patch.object(prod_app, "save_prediction_entry",
                                side_effect=lambda *a, **k: saved.append((a, k))):
             prod_app.analisi_rapida_giornata([match], stats, 1.35, 1.15,
@@ -573,16 +575,25 @@ class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
 
     def test_tab1_mostra_il_blend_invariato(self):
         src = inspect.getsource(prod_app)
+        self.assertTrue(hasattr(prod_app, "dati_card_partita"),
+                        "il calcolo della card PARTITE vive in dati_card_partita")
+        helper = inspect.getsource(prod_app.dati_card_partita)
+        self.assertIn("m = blend_elo_into_1x2(", helper,
+                      "il loop card giornata (tab1, via dati_card_partita) deve "
+                      "restare come da d21f5c3: 1X2 mostrato blendato")
         tab1 = src[src.index("with tab1:"):src.index("with tab2:")]
-        self.assertIn("blend_elo_into_1x2(", tab1,
-                      "il loop card giornata (tab1) deve restare come da "
-                      "d21f5c3: 1X2 mostrato blendato")
+        self.assertIn("dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)",
+                      tab1, "il tab1 costruisce le card tramite dati_card_partita")
 
     def test_tab1_passa_m_poisson_a_show_details(self):
         src = inspect.getsource(prod_app)
+        helper = inspect.getsource(prod_app.dati_card_partita)
+        i_poisson = helper.index("m_poisson = get_full_poisson_two_heads(")
+        i_blend = helper.index("m = blend_elo_into_1x2(")
+        self.assertLess(i_poisson, i_blend,
+                        "il Poisson puro va calcolato PRIMA del blend "
+                        "(anche nella card della scheda PARTITE)")
         tab1 = src[src.index("with tab1:"):src.index("with tab2:")]
-        self.assertIn("m_poisson = get_full_poisson_two_heads(", tab1,
-                      "tab1 deve calcolare il Poisson puro PRIMA del blend")
         self.assertIn(
             "args=(h_api, a_api, m, m_poisson, camp_sel, g_sel)", tab1,
             "show_details deve ricevere sia m (blendato) sia m_poisson "

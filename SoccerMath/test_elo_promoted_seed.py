@@ -371,10 +371,15 @@ class TestPrimaPartitaNonGiocataPredizione(unittest.TestCase):
         "2023": [_partita("19/08/2023", "Alfa", "Beta", 1, 1)],
     }
 
-    def _predici(self, casa, fuori, season=2023):
+    def _predici(self, casa, fuori, season=2023, ingressi_2023=()):
+        """Predice con il motore calcolato sui CSV; ``ingressi_2023`` aggiunge
+        nomi a R(2023) DOPO il calcolo: e' il modo di simulare una vera
+        entrante (nel calendario della stagione, mai vista nei CSV)."""
         import time
         import models.elo_engine as E
         eng = _motore(self.STAGIONI)
+        for nome in ingressi_2023:
+            eng.season_rosters[2023].add(nome)
         E._ELO_ENGINES_CACHE[LEGA] = eng
         E._ELO_ENGINES_STAMP[LEGA] = time.monotonic()
         try:
@@ -383,18 +388,40 @@ class TestPrimaPartitaNonGiocataPredizione(unittest.TestCase):
             E._ELO_ENGINES_CACHE.pop(LEGA, None)
             E._ELO_ENGINES_STAMP.pop(LEGA, None)
 
-    def test_squadra_ignota_usa_il_seeding_e_non_1500(self):
-        eng, p = self._predici("Zeta", "Alfa")
+    def test_entrante_del_roster_senza_rating_usa_il_seed(self):
+        """La VERA entrante (nel roster della stagione, mai vista) prende il
+        seed d'ingresso, non 1500: e' il contratto PR#35 resto invariato."""
+        eng, p = self._predici("Delta", "Alfa", ingressi_2023=("Delta",))
         seed = _seed_fine_db(eng)
         self.assertEqual(p["elo_home"], round(seed, 1))
         self.assertEqual(p, elo_probs_from_ratings(seed, eng.ratings["Alfa"], eng.home_adv))
         self.assertNotEqual(p["elo_home"], round(DEFAULT_INITIAL_RATING, 1))
 
-    def test_entrambe_ignote(self):
-        eng, p = self._predici("Zeta", "Eta")
-        seed = _seed_fine_db(eng)
-        self.assertEqual(p["elo_home"], round(seed, 1))
-        self.assertEqual(p["elo_away"], round(seed, 1))
+    def test_nome_fuori_roster_solleva_con_grezzo_e_pulito(self):
+        """Nome che il campionato non conosce (non in R(stagione)): EloSeedError
+        con nome GREZZO e PULITO. Prima della correzione il seed d'ingresso
+        veniva assegnato in silenzio anche a nomi sconosciuti: un numero
+        plausibile per una squadra inesistente."""
+        import time
+        import models.elo_engine as E
+        eng = _motore(self.STAGIONI)
+        E._ELO_ENGINES_CACHE[LEGA] = eng
+        E._ELO_ENGINES_STAMP[LEGA] = time.monotonic()
+        try:
+            with self.assertRaises(EloSeedError) as ctx:
+                predict_elo_probs("Zeta FC", "Alfa", LEGA, season=2023)
+        finally:
+            E._ELO_ENGINES_CACHE.pop(LEGA, None)
+            E._ELO_ENGINES_STAMP.pop(LEGA, None)
+        msg = str(ctx.exception)
+        self.assertIn("Zeta FC", msg, "il messaggio riporta il nome GREZZO ricevuto")
+        self.assertIn("'Zeta'", msg, "il messaggio riporta il nome PULITO cercato nel roster")
+        self.assertIn("2023", msg)
+        self.assertNotIn("Delta", msg)  # nessun nome inventato al posto giusto
+
+    def test_entrambe_ignote_fuori_roster_solleva(self):
+        with self.assertRaises(EloSeedError):
+            self._predici("Zeta", "Eta")
 
     def test_squadra_gia_nei_csv_usa_il_proprio_rating(self):
         eng, p = self._predici("Alfa", "Beta")
@@ -402,7 +429,7 @@ class TestPrimaPartitaNonGiocataPredizione(unittest.TestCase):
         self.assertEqual(p["elo_away"], round(eng.ratings["Beta"], 1))
 
     def test_il_seeding_cambia_le_probabilita_rispetto_a_1500(self):
-        eng, p1 = self._predici("Zeta", "Alfa")
+        eng, p1 = self._predici("Delta", "Alfa", ingressi_2023=("Delta",))
         diverso = elo_probs_from_ratings(DEFAULT_INITIAL_RATING,
                                          eng.ratings["Alfa"], HOME_ADV)
         self.assertNotEqual((p1["1"], p1["X"], p1["2"]),

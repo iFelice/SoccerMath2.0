@@ -350,6 +350,11 @@ def _esegui(vecchio: bool, elemi):
     # namespace: il refactor non la tocca, e condividerla garantisce che le due
     # esecuzioni vedano esattamente la stessa lista di partite.
     exec(_blocco(SRC, "select_next_matchday_matches"), ns)
+    # Roster non disponibile nel namespace stub (= non valutabile): la
+    # classificazione nomi del chiamante resta permissiva, quindi NESSUNA
+    # partita sintetica viene esclusa e NESSUN avviso nuovo compare nel
+    # confronto dei log (le stats dello stub coprono ogni nome della griglia).
+    ns["_roster_stagione"] = lambda lega, stagione: None
     if vecchio:
         exec(FIX.TESTO_FUNZIONE, ns)
         top, missing = ns["fetch_and_calc_top_mix"]()
@@ -362,8 +367,9 @@ def _esegui(vecchio: bool, elemi):
         ns["MODEL_VARIANT_CURRENT"] = "current"
         ns["MODEL_VARIANT_LEGACY"] = "legacy"
         ns["predict_elo_probs_legacy"] = _elo_legacy_stub(mondo)
-        for nome in ("_stagione_da_utcdate", "seleziona_riga_top_mix", "_riga_top_mix",
-                     "calcola_righe_top_mix", "classifica_top_mix", "fetch_and_calc_top_mix"):
+        for nome in ("_stagione_da_utcdate", "_stato_squadre_match", "seleziona_riga_top_mix",
+                     "_riga_top_mix", "calcola_righe_top_mix", "classifica_top_mix",
+                     "fetch_and_calc_top_mix"):
             exec(_blocco(SRC, nome), ns)
         top_current, top_legacy, missing = ns["fetch_and_calc_top_mix"]()
         completo = {"top_current": top_current, "top_legacy": top_legacy, "missing": missing}
