@@ -1,5 +1,5 @@
 {
- "generato_il": "2026-10-08T23:11:02Z",
+ "generato_il": "2026-10-08T23:30:38Z",
  "chiave_presente_nell_ambiente": true,
  "chiave_presente_nel_repository": "true",
  "host": "https://api.the-odds-api.com",
@@ -14,11 +14,11 @@
   {
    "label": "sports",
    "url_masked": "https://api.the-odds-api.com/v4/sports/?apiKey=***",
-   "fetched_at_utc": "2026-10-08T23:11:02Z",
+   "fetched_at_utc": "2026-10-08T23:30:38Z",
    "status": 200,
    "headers": {
-    "x-requests-used": "20",
-    "x-requests-remaining": "480",
+    "x-requests-used": "31",
+    "x-requests-remaining": "469",
     "x-requests-last": "0"
    },
    "ok": true,
@@ -27,11 +27,11 @@
   {
    "label": "odds:soccer_italy_serie_a",
    "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_italy_serie_a/odds/?apiKey=***&regions=eu,uk&markets=h2h&oddsFormat=decimal&dateFormat=iso",
-   "fetched_at_utc": "2026-10-08T23:11:03Z",
+   "fetched_at_utc": "2026-10-08T23:30:38Z",
    "status": 200,
    "headers": {
-    "x-requests-used": "22",
-    "x-requests-remaining": "478",
+    "x-requests-used": "33",
+    "x-requests-remaining": "467",
     "x-requests-last": "2"
    },
    "ok": true,
@@ -41,11 +41,11 @@
   {
    "label": "odds:soccer_epl",
    "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?apiKey=***&regions=eu,uk&markets=h2h&oddsFormat=decimal&dateFormat=iso",
-   "fetched_at_utc": "2026-10-08T23:11:04Z",
+   "fetched_at_utc": "2026-10-08T23:30:39Z",
    "status": 200,
    "headers": {
-    "x-requests-used": "24",
-    "x-requests-remaining": "476",
+    "x-requests-used": "35",
+    "x-requests-remaining": "465",
     "x-requests-last": "2"
    },
    "ok": true,
@@ -55,11 +55,11 @@
   {
    "label": "odds:soccer_spain_la_liga",
    "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_spain_la_liga/odds/?apiKey=***&regions=eu,uk&markets=h2h&oddsFormat=decimal&dateFormat=iso",
-   "fetched_at_utc": "2026-10-08T23:11:05Z",
+   "fetched_at_utc": "2026-10-08T23:30:40Z",
    "status": 200,
    "headers": {
-    "x-requests-used": "26",
-    "x-requests-remaining": "474",
+    "x-requests-used": "37",
+    "x-requests-remaining": "463",
     "x-requests-last": "2"
    },
    "ok": true,
@@ -69,11 +69,11 @@
   {
    "label": "odds:soccer_germany_bundesliga",
    "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_germany_bundesliga/odds/?apiKey=***&regions=eu,uk&markets=h2h&oddsFormat=decimal&dateFormat=iso",
-   "fetched_at_utc": "2026-10-08T23:11:06Z",
+   "fetched_at_utc": "2026-10-08T23:30:42Z",
    "status": 200,
    "headers": {
-    "x-requests-used": "28",
-    "x-requests-remaining": "472",
+    "x-requests-used": "39",
+    "x-requests-remaining": "461",
     "x-requests-last": "2"
    },
    "ok": true,
@@ -83,11 +83,11 @@
   {
    "label": "odds:soccer_france_ligue_one",
    "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_france_ligue_one/odds/?apiKey=***&regions=eu,uk&markets=h2h&oddsFormat=decimal&dateFormat=iso",
-   "fetched_at_utc": "2026-10-08T23:11:07Z",
+   "fetched_at_utc": "2026-10-08T23:30:43Z",
    "status": 200,
    "headers": {
-    "x-requests-used": "30",
-    "x-requests-remaining": "470",
+    "x-requests-used": "41",
+    "x-requests-remaining": "459",
     "x-requests-last": "2"
    },
    "ok": true,
@@ -109,11 +109,11 @@
      "status": 200,
      "ok": true,
      "headers": {
-      "x-requests-used": "22",
-      "x-requests-remaining": "478",
+      "x-requests-used": "33",
+      "x-requests-remaining": "467",
       "x-requests-last": "2"
      },
-     "fetched_at_utc": "2026-10-08T23:11:03Z"
+     "fetched_at_utc": "2026-10-08T23:30:38Z"
     },
     "ok": true,
     "n_eventi": 20,
@@ -163,14 +163,14 @@
     "bet365_presente": false,
     "pinnacle_presente": true,
     "crediti_header": {
-     "x-requests-used": "22",
-     "x-requests-remaining": "478",
+     "x-requests-used": "33",
+     "x-requests-remaining": "467",
      "x-requests-last": "2"
     },
     "prima_partita_utc": "2026-10-10T13:00:00Z",
     "ultima_partita_utc": "2026-10-19T18:45:00Z",
-    "aggiornamento_libro_min": "2026-10-08T23:08:32Z",
-    "aggiornamento_libro_max": "2026-10-08T23:10:52Z"
+    "aggiornamento_libro_min": "2026-10-08T23:24:27Z",
+    "aggiornamento_libro_max": "2026-10-08T23:30:33Z"
    },
    "Premier League": {
     "sport_key": "soccer_epl",
@@ -183,11 +183,11 @@
      "status": 200,
      "ok": true,
      "headers": {
-      "x-requests-used": "24",
-      "x-requests-remaining": "476",
+      "x-requests-used": "35",
+      "x-requests-remaining": "465",
       "x-requests-last": "2"
      },
-     "fetched_at_utc": "2026-10-08T23:11:04Z"
+     "fetched_at_utc": "2026-10-08T23:30:39Z"
     },
     "ok": true,
     "n_eventi": 20,
@@ -238,14 +238,14 @@
     "bet365_presente": false,
     "pinnacle_presente": true,
     "crediti_header": {
-     "x-requests-used": "24",
-     "x-requests-remaining": "476",
+     "x-requests-used": "35",
+     "x-requests-remaining": "465",
      "x-requests-last": "2"
     },
     "prima_partita_utc": "2026-10-10T11:30:00Z",
     "ultima_partita_utc": "2026-10-19T19:00:00Z",
-    "aggiornamento_libro_min": "2026-10-08T23:06:41Z",
-    "aggiornamento_libro_max": "2026-10-08T23:11:04Z"
+    "aggiornamento_libro_min": "2026-10-08T23:27:37Z",
+    "aggiornamento_libro_max": "2026-10-08T23:30:36Z"
    },
    "La Liga": {
     "sport_key": "soccer_spain_la_liga",
@@ -258,11 +258,11 @@
      "status": 200,
      "ok": true,
      "headers": {
-      "x-requests-used": "26",
-      "x-requests-remaining": "474",
+      "x-requests-used": "37",
+      "x-requests-remaining": "463",
       "x-requests-last": "2"
      },
-     "fetched_at_utc": "2026-10-08T23:11:05Z"
+     "fetched_at_utc": "2026-10-08T23:30:40Z"
     },
     "ok": true,
     "n_eventi": 20,
@@ -309,14 +309,14 @@
     "bet365_presente": false,
     "pinnacle_presente": true,
     "crediti_header": {
-     "x-requests-used": "26",
-     "x-requests-remaining": "474",
+     "x-requests-used": "37",
+     "x-requests-remaining": "463",
      "x-requests-last": "2"
     },
     "prima_partita_utc": "2026-10-09T19:00:00Z",
     "ultima_partita_utc": "2026-10-19T19:00:00Z",
-    "aggiornamento_libro_min": "2026-10-08T23:04:40Z",
-    "aggiornamento_libro_max": "2026-10-08T23:10:50Z"
+    "aggiornamento_libro_min": "2026-10-08T23:25:52Z",
+    "aggiornamento_libro_max": "2026-10-08T23:30:38Z"
    },
    "Bundesliga": {
     "sport_key": "soccer_germany_bundesliga",
@@ -329,11 +329,11 @@
      "status": 200,
      "ok": true,
      "headers": {
-      "x-requests-used": "28",
-      "x-requests-remaining": "472",
+      "x-requests-used": "39",
+      "x-requests-remaining": "461",
       "x-requests-last": "2"
      },
-     "fetched_at_utc": "2026-10-08T23:11:06Z"
+     "fetched_at_utc": "2026-10-08T23:30:42Z"
     },
     "ok": true,
     "n_eventi": 18,
@@ -382,14 +382,14 @@
     "bet365_presente": false,
     "pinnacle_presente": true,
     "crediti_header": {
-     "x-requests-used": "28",
-     "x-requests-remaining": "472",
+     "x-requests-used": "39",
+     "x-requests-remaining": "461",
      "x-requests-last": "2"
     },
     "prima_partita_utc": "2026-10-09T18:30:00Z",
     "ultima_partita_utc": "2026-10-18T15:30:00Z",
-    "aggiornamento_libro_min": "2026-10-08T23:03:42Z",
-    "aggiornamento_libro_max": "2026-10-08T23:11:06Z"
+    "aggiornamento_libro_min": "2026-10-08T23:29:14Z",
+    "aggiornamento_libro_max": "2026-10-08T23:30:29Z"
    },
    "Ligue 1": {
     "sport_key": "soccer_france_ligue_one",
@@ -402,15 +402,15 @@
      "status": 200,
      "ok": true,
      "headers": {
-      "x-requests-used": "30",
-      "x-requests-remaining": "470",
+      "x-requests-used": "41",
+      "x-requests-remaining": "459",
       "x-requests-last": "2"
      },
-     "fetched_at_utc": "2026-10-08T23:11:07Z"
+     "fetched_at_utc": "2026-10-08T23:30:43Z"
     },
     "ok": true,
     "n_eventi": 18,
-    "n_bookmaker": 38,
+    "n_bookmaker": 37,
     "bookmakers": [
      "betano_uk",
      "betclic_fr",
@@ -435,7 +435,6 @@
      "leovegas_se",
      "livescorebet",
      "nordicbet",
-     "onexbet",
      "paddypower",
      "pinnacle",
      "skybet",
@@ -454,28 +453,28 @@
     "bet365_presente": false,
     "pinnacle_presente": true,
     "crediti_header": {
-     "x-requests-used": "30",
-     "x-requests-remaining": "470",
+     "x-requests-used": "41",
+     "x-requests-remaining": "459",
      "x-requests-last": "2"
     },
     "prima_partita_utc": "2026-10-09T18:45:00Z",
     "ultima_partita_utc": "2026-10-18T18:45:00Z",
-    "aggiornamento_libro_min": "2026-10-08T23:06:57Z",
-    "aggiornamento_libro_max": "2026-10-08T23:11:08Z"
+    "aggiornamento_libro_min": "2026-10-08T23:28:30Z",
+    "aggiornamento_libro_max": "2026-10-08T23:30:34Z"
    }
   }
  },
  "football_data": {
   "fixtures_main": {
    "url": "https://www.football-data.co.uk/fixtures.csv",
-   "scaricato_il": "2026-10-08T23:11:09Z",
+   "scaricato_il": "2026-10-08T23:30:44Z",
    "richiede_chiave": false,
    "status": 200,
    "headers": {
     "last-modified": "Fri, 02 Oct 2026 08:57:47 GMT",
     "content-length": "13669",
     "content-type": "text/csv",
-    "date": "Thu, 08 Oct 2026 23:11:10 GMT"
+    "date": "Thu, 08 Oct 2026 23:30:45 GMT"
    },
    "ok": true,
    "n_colonne": 94,
@@ -958,14 +957,14 @@
   },
   "fixtures_extra": {
    "url": "https://www.football-data.co.uk/new_league_fixtures.csv",
-   "scaricato_il": "2026-10-08T23:11:10Z",
+   "scaricato_il": "2026-10-08T23:30:45Z",
    "richiede_chiave": false,
    "status": 200,
    "headers": {
     "last-modified": "Tue, 06 Oct 2026 08:23:30 GMT",
     "content-length": "1860",
     "content-type": "text/csv",
-    "date": "Thu, 08 Oct 2026 23:11:11 GMT"
+    "date": "Thu, 08 Oct 2026 23:30:46 GMT"
    },
    "ok": true,
    "n_colonne": 21,
@@ -1071,8 +1070,8 @@
   "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_italy_serie_a/odds/?apiKey=***&bookmakers=bet365&markets=h2h&oddsFormat=decimal&dateFormat=iso",
   "status": 200,
   "crediti": {
-   "x-requests-used": "31",
-   "x-requests-remaining": "469",
+   "x-requests-used": "42",
+   "x-requests-remaining": "458",
    "x-requests-last": "1"
   },
   "ok": true,
@@ -1080,5 +1079,44 @@
   "n_eventi": 20,
   "bookmakers_restituiti": [],
   "bet365_presente": false
+ },
+ "controllo_una_regione": {
+  "endpoint": "/v4/sports/soccer_italy_serie_a/odds (regions=eu)",
+  "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_italy_serie_a/odds/?apiKey=***&regions=eu&markets=h2h&oddsFormat=decimal&dateFormat=iso",
+  "status": 200,
+  "crediti": {
+   "x-requests-used": "43",
+   "x-requests-remaining": "457",
+   "x-requests-last": "1"
+  },
+  "ok": true,
+  "errore": null,
+  "n_eventi": 20,
+  "n_bookmaker": 22,
+  "pinnacle_presente": true,
+  "bookmakers": [
+   "betanysports",
+   "betclic_fr",
+   "betfair_ex_eu",
+   "betonlineag",
+   "betsson",
+   "codere_it",
+   "coolbet",
+   "everygame",
+   "gtbets",
+   "leovegas_se",
+   "matchbook",
+   "nordicbet",
+   "onexbet",
+   "pinnacle",
+   "sport888",
+   "tipico_de",
+   "unibet_fr",
+   "unibet_nl",
+   "unibet_se",
+   "williamhill",
+   "winamax_de",
+   "winamax_fr"
+  ]
  }
 }
