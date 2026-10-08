@@ -24,7 +24,7 @@ Cosa e' negato (e come)
 Cutoff (audit/elo_parity_cutoff.py): la produzione e' calcolata sul database
 TRONCATO a ``cutoff`` per lega, dichiarato nel manifest della fixture. Le partite
 che il bot aggiunge dopo quella data non entrano nel confronto (la fixture non
-cambia). Le partite confrontate restano quelle della fixture (7334 in totale).
+cambia). Le partite confrontate restano quelle della fixture (7332 in totale).
 
 Nessuna tolleranza numerica: se la produzione si allontana di un solo ULP il
 test e' rosso. La provenienza non e' una whitelist su main (la stessa scelta di
@@ -177,6 +177,25 @@ class TestProvenienza(unittest.TestCase):
                 atteso = _git("rev-parse", f"{sha}:{path}")
                 self.assertIsNotNone(atteso, f"{path} assente al commit {sha}")
                 self.assertEqual(atteso, oid, f"{path}: manifest e commit non coincidono")
+
+    def test_V4_database_usato_dichiarato_e_coerente(self):
+        """Il DATABASE di generazione e' dichiarato a parte (``database_usato``).
+
+        Il codice viene da ``reference_production_commit``, i dati dal commit
+        indicato qui. Serve a rigenerare la fixture su un database CORRETTO
+        (Liga: rimosse le due righe fittizie di Levante-Ath Bilbao) senza
+        cambiare il codice di produzione di riferimento, e a non lasciare
+        implicito che i due alberi coincidano: qui non coincidono.
+        """
+        prov = _fixture()["provenance"]
+        db = prov.get("database_usato")
+        self.assertIsInstance(db, dict, "manifest senza il blocco 'database_usato'")
+        self.assertTrue(db.get("motivo"), "database_usato senza motivazione")
+        self._hex(db.get("commit", ""), "database_usato.commit")
+        atteso = _git("rev-parse", f"{db['commit']}:SoccerMath/database")
+        self.assertIsNotNone(atteso, "database_usato.commit non presente nel clone")
+        self.assertEqual(atteso, db["tree_oid"],
+                         "tree_oid dichiarato != database di database_usato.commit")
 
     def test_V3_la_reference_non_ha_il_seeding(self):
         """Il motore di produzione da cui viene la reference deve essere quello

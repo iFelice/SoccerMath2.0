@@ -71,6 +71,25 @@ def matches_to_df(matches):
     rows = []
     for m in matches:
         try:
+            # Solo le partite CONCLUSE con un risultato reale. Gli stati
+            # dell'API che NON sono un risultato (SCHEDULED, TIMED, IN_PLAY,
+            # PAUSED, EXTRA_TIME, PENALTY_SHOOTOUT, SUSPENDED, POSTPONED,
+            # CANCELLED) vengono scartati anche quando `score.fullTime` non e'
+            # nullo: e' il caso della partita sospesa (0-0 provvisorio servito
+            # come fullTime) e della riga post-datata che l'API riporta con
+            # 0-0 e il giorno del recupero. Senza questo filtro i CSV
+            # contengono risultati mai giocati e la stessa partita compare due
+            # volte nella stagione (16/09 e 21/10/2026, Levante-Ath Bilbao).
+            # AWARDED resta FUORI, per scelta: e' un esito deciso a tavolino
+            # (tipicamente 3-0 / 0-3) su una partita NON giocata, quindi il
+            # punteggio non e' un dato di gioco: farlo entrare
+            # nell'aggiornamento Elo e nelle forze attacco/difesa
+            # immetterebbe un segnale finto, e la partita vera - se verra'
+            # recuperata - non potrebbe piu' sovrascriverlo. Se un giorno
+            # servira' la congruenza con la classifica ufficiale, la riga
+            # AWARDED va trattata a parte e marcata, non scritta da qui.
+            if str(m.get("status") or "").upper() != "FINISHED":
+                continue
             date_str = m["utcDate"][:10]  # YYYY-MM-DD
             date_fmt = datetime.strptime(date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
 

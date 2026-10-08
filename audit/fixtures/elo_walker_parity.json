@@ -1,20 +1,20 @@
 {
  "_schema": "elo_walker_parity/2",
- "generated_at_utc": "2026-10-07T14:51:17+00:00",
- "repo_head_commit": "5a6243255b2eb06429ae9ecdd772461376c46fb9",
+ "generated_at_utc": "2026-10-08T11:37:35+00:00",
+ "repo_head_commit": "6f9505b996812e7fd2695c7db8fdfd6ef36fa860",
  "generato_da": "audit/make_elo_parity_fixture.py usando solo models/elo_engine.py (EloEngine, predict_elo_probs) non modificato",
  "provenance": {
-  "commit": "5a6243255b2eb06429ae9ecdd772461376c46fb9",
+  "commit": "6f9505b996812e7fd2695c7db8fdfd6ef36fa860",
   "production_input_oids": {
-   "SoccerMath/models/elo_engine.py": "b4dd02b983df3e31a9a582025edf2634afc5113b",
+   "SoccerMath/models/elo_engine.py": "326edcff8a4bc67355a1d92c3d77d6e6ce27f350",
    "SoccerMath/config.py": "656bc59788bc2d9848f9538973985db21f77e49f",
-   "SoccerMath/database": "4650d65444bd7bc262d5f55dd7a55203097aaa63"
+   "SoccerMath/database": "a6b0d9a021a9f3f3bc383936a152fd893ceea2f3"
   }
  },
  "cutoff": {
   "Serie A": "2026-09-20",
   "Premier League": "2026-09-20",
-  "La Liga": "2026-10-21",
+  "La Liga": "2026-09-20",
   "Bundesliga": "2026-09-20",
   "Ligue 1": "2026-09-20"
  },
@@ -698,14 +698,14 @@
    ]
   },
   "La Liga": {
-   "n_matches_full_db": 1591,
+   "n_matches_full_db": 1589,
    "first_date": "2022-08-12 00:00:00",
-   "last_date": "2026-10-21 00:00:00",
+   "last_date": "2026-09-20 00:00:00",
    "home_adv": 58.0,
    "final_ratings": {
-    "Alaves": "1489.8665204581234",
+    "Alaves": "1489.827202970816",
     "Almeria": "1348.4467644053325",
-    "Ath Bilbao": "1506.50670956284",
+    "Ath Bilbao": "1504.4722431326227",
     "Ath Madrid": "1656.7563672167635",
     "Barcelona": "1856.7739922944518",
     "Betis": "1619.283002509966",
@@ -719,7 +719,7 @@
     "Granada": "1315.7340403890664",
     "Las Palmas": "1357.8759111672716",
     "Leganes": "1427.2374073471226",
-    "Levante": "1472.1696681134476",
+    "Levante": "1474.1946380556558",
     "Mallorca": "1468.0471032093506",
     "Málaga": "1414.4245437412765",
     "Osasuna": "1441.5996325443668",
@@ -731,22 +731,22 @@
     "Valencia": "1487.3250920719552",
     "Valladolid": "1244.2736149843072",
     "Vallecano": "1526.6058166595374",
-    "Villarreal": "1608.5256307079985"
+    "Villarreal": "1608.574444683315"
    },
    "now_fixtures": [
     {
-     "home_raw": "Ath Bilbao",
-     "away_raw": "Alaves",
+     "home_raw": "Espanol",
+     "away_raw": "Elche",
      "probs": {
-      "1": 0.4509,
-      "X": 0.2557,
-      "2": 0.2934,
-      "elo_home": 1506.5,
-      "elo_away": 1489.9,
-      "elo_diff": 74.6,
+      "1": 0.417,
+      "X": 0.2643,
+      "2": 0.3187,
+      "elo_home": 1444.0,
+      "elo_away": 1455.3,
+      "elo_diff": 46.7,
       "home_adv": 58.0,
-      "expected_score_home": 0.6058,
-      "expected_score_away": 0.3942
+      "expected_score_home": 0.5669,
+      "expected_score_away": 0.4331
      }
     },
     {
@@ -765,21 +765,6 @@
      }
     },
     {
-     "home_raw": "Osasuna",
-     "away_raw": "Vallecano",
-     "probs": {
-      "1": 0.3376,
-      "X": 0.2681,
-      "2": 0.3943,
-      "elo_home": 1441.6,
-      "elo_away": 1526.6,
-      "elo_diff": -27.0,
-      "home_adv": 58.0,
-      "expected_score_home": 0.4612,
-      "expected_score_away": 0.5388
-     }
-    },
-    {
      "home_raw": "Sevilla",
      "away_raw": "Barcelona",
      "probs": {
@@ -795,18 +780,33 @@
      }
     },
     {
-     "home_raw": "Villarreal",
-     "away_raw": "Levante",
+     "home_raw": "Osasuna",
+     "away_raw": "Vallecano",
      "probs": {
-      "1": 0.613,
-      "X": 0.1867,
-      "2": 0.2003,
-      "elo_home": 1608.5,
-      "elo_away": 1472.2,
-      "elo_diff": 194.4,
+      "1": 0.3376,
+      "X": 0.2681,
+      "2": 0.3943,
+      "elo_home": 1441.6,
+      "elo_away": 1526.6,
+      "elo_diff": -27.0,
       "home_adv": 58.0,
-      "expected_score_home": 0.7538,
-      "expected_score_away": 0.2462
+      "expected_score_home": 0.4612,
+      "expected_score_away": 0.5388
+     }
+    },
+    {
+     "home_raw": "Ath Bilbao",
+     "away_raw": "Alaves",
+     "probs": {
+      "1": 0.4484,
+      "X": 0.2564,
+      "2": 0.2952,
+      "elo_home": 1504.5,
+      "elo_away": 1489.8,
+      "elo_diff": 72.6,
+      "home_adv": 58.0,
+      "expected_score_home": 0.603,
+      "expected_score_away": 0.397
      }
     },
     {
@@ -825,18 +825,18 @@
      }
     },
     {
-     "home_raw": "Valencia",
-     "away_raw": "Sociedad",
+     "home_raw": "Villarreal",
+     "away_raw": "Levante",
      "probs": {
-      "1": 0.418,
-      "X": 0.2641,
-      "2": 0.3179,
-      "elo_home": 1487.3,
-      "elo_away": 1497.7,
-      "elo_diff": 47.6,
+      "1": 0.6103,
+      "X": 0.1881,
+      "2": 0.2016,
+      "elo_home": 1608.6,
+      "elo_away": 1474.2,
+      "elo_diff": 192.4,
       "home_adv": 58.0,
-      "expected_score_home": 0.5681,
-      "expected_score_away": 0.4319
+      "expected_score_home": 0.7516,
+      "expected_score_away": 0.2484
      }
     },
     {
@@ -870,18 +870,18 @@
      }
     },
     {
-     "home_raw": "Levante",
-     "away_raw": "Ath Bilbao",
+     "home_raw": "Valencia",
+     "away_raw": "Sociedad",
      "probs": {
-      "1": 0.3906,
-      "X": 0.2685,
-      "2": 0.3409,
-      "elo_home": 1472.2,
-      "elo_away": 1506.5,
-      "elo_diff": 23.7,
+      "1": 0.418,
+      "X": 0.2641,
+      "2": 0.3179,
+      "elo_home": 1487.3,
+      "elo_away": 1497.7,
+      "elo_diff": 47.6,
       "home_adv": 58.0,
-      "expected_score_home": 0.534,
-      "expected_score_away": 0.466
+      "expected_score_home": 0.5681,
+      "expected_score_away": 0.4319
      }
     }
    ],
@@ -1016,24 +1016,24 @@
      "n_matches_nel_motore_troncato": 1481,
      "prod_pos_nel_db_completo": 1481,
      "ordine_uguale_alla_produzione": false,
-     "home_raw": "Sociedad",
-     "away_raw": "Betis",
-     "home": "Sociedad",
-     "away": "Betis",
+     "home_raw": "Ath Madrid",
+     "away_raw": "Celta",
+     "home": "Ath Madrid",
+     "away": "Celta",
      "probs": {
-      "1": 0.3399,
-      "X": 0.2684,
-      "2": 0.3917,
-      "elo_home": 1504.8,
-      "elo_away": 1587.4,
-      "elo_diff": -24.6,
+      "1": 0.5923,
+      "X": 0.197,
+      "2": 0.2106,
+      "elo_home": 1648.5,
+      "elo_away": 1526.9,
+      "elo_diff": 179.6,
       "home_adv": 58.0,
-      "expected_score_home": 0.4646,
-      "expected_score_away": 0.5354
+      "expected_score_home": 0.7377,
+      "expected_score_away": 0.2623
      },
      "ratings_troncati": {
-      "Sociedad": "1504.8017184877438",
-      "Betis": "1587.4199803547283"
+      "Ath Madrid": "1648.4605168301043",
+      "Celta": "1526.859167241248"
      }
     },
     {

@@ -21,14 +21,14 @@ quella — il seeding S3 degli ingressi in lega, PR #35 — la ri-genera sul
 proprio commit. Le asserzioni NON sono state allentate: restano il confronto
 ``repr(float)`` chiave per chiave su tutti i 32539 casi e il controllo dello
 sha256 del payload, oltre ai conteggi e alla provenienza. Quello che il
-blocco (b) misura — i 7334 stati point-in-time del motore — e' coperto
+blocco (b) misura — i 7332 stati point-in-time del motore — e' coperto
 stabilmente dalla parita' bit-exact con la variante S3 dell'audit in
 ``audit/test_elo_s3_parity.py``, che non dipende da main.
 
 Contenuto (32539 casi):
   (a) 25205 casi di griglia: rating 1200..1900 passo 10 (71 x 71) per
       l'home advantage di ciascuna delle 5 leghe;
-  (b) 7334 partite storiche di tutte le leghe, stato del motore
+  (b) 7332 partite storiche di tutte le leghe, stato del motore
       point-in-time (rating pre-partita).
 
 Il test rigenera entrambi i blocchi con il codice CORRENTE e confronta il
@@ -36,7 +36,7 @@ Il test rigenera entrambi i blocchi con il codice CORRENTE e confronta il
 
 Cutoff (audit/elo_parity_cutoff.py): il blocco (b) e' calcolato sul database
 TRONCATO al ``cutoff`` del manifest, per lega. Le partite che il bot aggiunge
-dopo quella data non entrano nei casi: restano i 7334 della fixture.
+dopo quella data non entrano nei casi: restano i 7332 della fixture.
 
 Esecuzione:
     python audit/test_elo_probs_equivalence.py
@@ -64,8 +64,12 @@ FIX_JSONL = os.path.join(_AUDIT_DIR, "fixtures", "elo_probs_equivalence_main.jso
 FIX_MANIFEST = os.path.join(_AUDIT_DIR, "fixtures",
                             "elo_probs_equivalence_main.manifest.json")
 #: commit che dichiara il manifest della fixture (la fixture e' rigenerata da
-#: quel commit, non da "main": vedi il docstring del modulo)
-FIXTURE_COMMIT = "5a6243255b2eb06429ae9ecdd772461376c46fb9"
+#: quel commit, non da "main": vedi il docstring del modulo). Aggiornato con la
+#: rigenerazione sul database corretto della Liga: le due righe fittizie di
+#: Levante-Ath Bilbao (16/09 sospesa, 21/10 data del recupero) sono state
+#: rimosse, quindi i casi di partita passano da 7334 a 7332 e lo sha256 del
+#: payload cambia. Il commit e' quello da cui e' stata rigenerata la fixture.
+FIXTURE_COMMIT = "6f9505b996812e7fd2695c7db8fdfd6ef36fa860"
 
 
 def _carica_fixture():

@@ -1,7 +1,7 @@
 {
  "_schema": "elo_probs_equivalence/1",
- "generated_at_utc": "2026-10-07T14:51:12+00:00",
- "repo_head_commit": "5a6243255b2eb06429ae9ecdd772461376c46fb9",
+ "generated_at_utc": "2026-10-08T11:37:52+00:00",
+ "repo_head_commit": "6f9505b996812e7fd2695c7db8fdfd6ef36fa860",
  "produzione_sporca_rispetto_al_commit": "(pulita)",
  "generator": "audit/make_elo_probs_equivalence_fixture.py",
  "grid": {
@@ -24,14 +24,14 @@
   }
  },
  "n_grid": 25205,
- "n_match": 7334,
- "n_total": 32539,
+ "n_match": 7332,
+ "n_total": 32537,
  "cutoff": {
   "Serie A": "2026-09-20",
   "Premier League": "2026-09-20",
-  "La Liga": "2026-10-21",
+  "La Liga": "2026-09-20",
   "Bundesliga": "2026-09-20",
   "Ligue 1": "2026-09-20"
  },
- "sha256_payload_non_compresso": "b91cb3e064568d315c83d9e9ca3c0780f2678062e9e7c62036a5c2f8214c3413"
+ "sha256_payload_non_compresso": "7c429b6e8d8410565941ec68d717189e4041fbfd082c2754c94824edf94bc25e"
 }
