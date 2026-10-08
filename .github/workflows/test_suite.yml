@@ -13,7 +13,7 @@ name: Suite test completa
 # Trigger:
 #   - pull_request verso main: si salta SOLO se tutti i file modificati sono
 #     documentazione (docs/ o *.md), stessa regola di Audit e Replay;
-#   - schedule ogni giorno alle 04:37 UTC (cron '37 4 * * *'), su main. Il run
+#   - schedule ogni giorno alle 13:37 UTC (cron '37 13 * * *'), su main. Il run
 #     schedulato non si salta mai. GitHub puo' ritardare i cron: l'orario e'
 #     nominale, non garantito;
 #   - workflow_dispatch.
@@ -25,9 +25,9 @@ on:
     branches:
       - main
   schedule:
-    # 04:37 UTC: dopo il cluster notturno osservato di update_database (02:30-03:30 UTC)
-    # e prima delle partenze mattutine osservate (09:00-12:50 UTC).
-    - cron: '37 4 * * *'
+    # 13:37 UTC: nei run schedulati osservati di update_database, update_xg e
+    # snapshot_registro non c'e' nessuna partenza tra le 12:47 e le 14:03 UTC.
+    - cron: '37 13 * * *'
   workflow_dispatch:
 
 permissions:
