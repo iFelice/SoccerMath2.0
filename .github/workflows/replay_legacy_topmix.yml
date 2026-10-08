@@ -382,6 +382,12 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           REGISTRY_BACKEND: ${{ env.BACKEND }}
         run: |
+          # Esiti (ultima riga del riepilogo, "[verifica] esito: ..."):
+          #  - "verifica rimandata, 0 righe v2": nessuna riga della versione del
+          #    selettore in prova nel Registro -> exit 0, il passo NON fallisce;
+          #  - "ok": almeno una riga v2 coincide -> exit 0;
+          #  - "fallita": righe v2 presenti e nessuna coincide -> exit 1.
+          # Le righe di versioni precedenti sono NON VERIFICABILI (conteggiate nel referto).
           # pipefail: senza, un errore dello script finiva inghiottito dalla
           # pipe e il passo risultava verde (e' successo davvero).
           set -o pipefail
@@ -400,6 +406,13 @@ jobs:
           tail -n 16 "$REPLAY_OUT/verifica_click_live.txt" | while IFS= read -r line; do
             echo "::warning title=click-veri::${line:0:900}"
           done
+          # Riepilogo del job: l'esito della verifica in chiaro (rimandata / ok / fallita).
+          esito_riga="$(grep '^\[verifica\] esito:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
+          {
+            echo "### Verifica click veri (solo la versione in prova)"
+            echo ""
+            echo "${esito_riga:-[verifica] esito: non letto (vedi il log del passo)}"
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "$rc" != "0" ]; then
             echo "::error title=click-veri::verifica uscita con $rc: nessuna riga riprodotta o errore (vedi le righe sopra)"
           fi

@@ -431,6 +431,8 @@ class ClickResult:
     targets: List[Fixture]
     fuori_stagione: List[str] = field(default_factory=list)   # leghe con snapshot non della stagione
     archivio_xg: Dict[str, bool] = field(default_factory=dict)  # lega -> archivio xG presente nello snapshot
+    # Roster della stagione: ``fonte`` = snapshot | checkout | assente (vedi db_snapshot.assicura_roster_stagione).
+    roster: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def scrivibile(self) -> bool:
@@ -594,7 +596,8 @@ def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
             archivio[lega] = os.path.exists(archive_path(lega, base_dir=snap.db_dir))
         return ClickResult(instant=instant, commit=snap.commit, snapshot_sha=snap.commit.short,
                            pool_sizes=pool_sizes, selected=selected, rows=rows, missing=missing,
-                           leak=leak, targets=targets, fuori_stagione=fuori_stagione, archivio_xg=archivio)
+                           leak=leak, targets=targets, fuori_stagione=fuori_stagione, archivio_xg=archivio,
+                           roster=dict(snap.roster))
 
 
 # ---------------------------------------------------------------------------
@@ -671,6 +674,10 @@ def merge_entries(existing: List[Dict[str, Any]], entries: List[Dict[str, Any]])
       aggiornata (idempotenza: rilanciare il replay non modifica nulla, e una
       riga del modello attuale scritta da un click vero NON viene riscritta da
       una riga ricostruita);
+    - DOPPIONI FRA VERSIONI: una riga del replay NON si aggiunge se il Registro ha
+      gia' una riga Top Mix con la stessa (tabella/modello, match_id, mercato) di
+      qualunque versione del selettore (azione ``gia_presente_altra_versione``):
+      la regola e' quella di ``upsert_prediction_entry``;
     - a fusione fatta OGNI riga preesistente deve essere ancora li', identica.
     """
     for e in entries:
@@ -950,6 +957,7 @@ def run_replay(fixtures: Dict[str, List[Fixture]], day_from: date, day_to: date,
             "sopra_soglia": {v: len(r) for v, r in c.rows.items()},
             "leghe_senza_stagione": c.fuori_stagione,
             "archivio_xg": c.archivio_xg,
+            "roster": c.roster,
             "righe_current": [f"{e['home']}-{e['away']} {e['mercato_standard']} {e['prob_sicuro']}% rank {e['rank']} {e['esito']}" for e in cur],
             "righe_legacy": [f"{e['home']}-{e['away']} {e['mercato_standard']} {e['prob_sicuro']}% rank {e['rank']} {e['esito']}" for e in leg],
             "leak": {"commit_before_instant": c.leak.commit_before_instant,
@@ -1028,6 +1036,24 @@ def render_markdown(rep: ReplayReport) -> str:
                  f"{'OK' if lk['scrivibile'] else 'FAIL'}"
                  f"{' (no stagione: ' + ', '.join(c['leghe_senza_stagione']) + ')' if c.get('leghe_senza_stagione') else ''}"
                  f"{' (+' + str(drop) + ' righe future scartate)' if drop else ''} |")
+    # Roster della stagione: quanti click hanno usato il ripiego dal checkout (vedi
+    # db_snapshot.assicura_roster_stagione) e quanti restano senza roster (Elo non disponibile).
+    roster_click = [(c, c.get("roster") or {}) for c in rep.clicks]
+    n_checkout = sum(1 for _c, r in roster_click if r.get("fonte") == "checkout")
+    n_residui = sum(1 for _c, r in roster_click if r.get("ancora_mancanti"))
+    L.append("\n## Roster della stagione (ripiego dal checkout)\n")
+    L.append(f"Click con roster preso dal checkout: **{n_checkout}** su {len(rep.clicks)} · "
+             f"click con roster ancora mancante (Elo non disponibile): **{n_residui}**\n")
+    if any(r for _c, r in roster_click):
+        L.append("| T (UTC) | stagione | fonte | mancanti nello snapshot | integrate dal checkout | ancora mancanti |")
+        L.append("|---|---|---|---|---|---|")
+        for c, r in roster_click:
+            if not r:
+                continue
+            L.append(f"| {c['instant']} | {r.get('stagione', '—')} | {r.get('fonte', '—')} | "
+                     f"{', '.join(r.get('mancanti_snapshot') or []) or '—'} | "
+                     f"{', '.join(r.get('integrate') or []) or '—'} | "
+                     f"{', '.join(r.get('ancora_mancanti') or []) or '—'} |")
     L.append("\n## Tabella leakage per click\n")
     L.append("| T | commit < T | bersaglio assente dal CSV | bersaglio assente da xG | cutoff xG = T | snapshot della stagione | righe future scartate | dettagli |")
     L.append("|---|---|---|---|---|---|---|---|")

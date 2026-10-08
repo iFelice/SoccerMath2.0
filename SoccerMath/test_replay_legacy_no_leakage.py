@@ -606,6 +606,10 @@ class TestReportEndToEnd(_Base):
         self.assertIn(self.sha["B"][:12], md)
         self.assertIn("Inter-Roma", md)
         self.assertNotIn("FALLITO", md)
+        # roster della stagione: sezione presente e click con l'esito del ripiego
+        self.assertIn("## Roster della stagione (ripiego dal checkout)", md)
+        self.assertIn("Click con roster preso dal checkout", md)
+        self.assertIsInstance(clicks[0].roster, dict)
 
 
 if __name__ == "__main__":

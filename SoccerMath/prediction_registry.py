@@ -134,7 +134,10 @@ ORIGIN_TOP_MIX = "top_mix"
 ORIGIN_ANALISI_RAPIDA = "analisi_rapida"
 ORIGIN_BILLY = "billy"
 ORIGIN_UNKNOWN = "unknown"
-ORIGINI_NOTE = (ORIGIN_TOP_MIX, ORIGIN_ANALISI_RAPIDA, ORIGIN_BILLY, ORIGIN_UNKNOWN)
+# Registro OMBRA dei Totali (vedi sotto): origine dedicata, mai mostrata in UI.
+ORIGIN_TOP_MIX_OMBRA = "top_mix_ombra"
+ORIGINI_NOTE = (ORIGIN_TOP_MIX, ORIGIN_ANALISI_RAPIDA, ORIGIN_BILLY, ORIGIN_UNKNOWN,
+                ORIGIN_TOP_MIX_OMBRA)
 
 # Etichetta mostrata nel Registro: sostituisce il test ``"Top Mix" in pronostico``.
 TIPO_BY_ORIGIN = {
@@ -142,13 +145,74 @@ TIPO_BY_ORIGIN = {
     ORIGIN_ANALISI_RAPIDA: "Analisi Rapida",
     ORIGIN_BILLY: "Billy",
     ORIGIN_UNKNOWN: "Analisi",
+    ORIGIN_TOP_MIX_OMBRA: "Top Mix ombra",
 }
 
 # Versione del SELETTORE (non del modello): va alzata OGNI volta che cambiano
 # argmax sui mercati, soglie 0,55/0,60, peso del blend o il filtro di
 # disaccordo, perche' e' parte della chiave di dedup e dell'aggregazione.
+#
+# Storia:
+# * ``SELECTOR_VERSION_PRE_1X2``: selettore a 7 mercati (argmax su 1X2 E Totali).
+#   E' la versione di TUTTE le righe scritte fino alla PR che toglie i Totali dal
+#   Top Mix visibile, ed e' il DEFAULT di ``build_prediction_entry``: Analisi
+#   Rapida e Billy lo usano e NON cambiano.
+# * ``SELECTOR_VERSION_CURRENT``: Top Mix visibile dopo la PR, argmax SOLO su
+#   1X2 (soglie 0,55 con Elo / 0,60 senza, veto invariati). Il Top Mix la passa
+#   esplicitamente (``argomenti_registro_top_mix``). Chiave nuova: una riga
+#   PRE_1X2 gia' scritta non viene mai sovrascritta.
 SELECTOR_VERSION_FIELD = "selector_version"
-SELECTOR_VERSION_CURRENT = "topmix_gate025_ens06_v1"
+SELECTOR_VERSION_PRE_1X2 = "topmix_gate025_ens06_v1"
+SELECTOR_VERSION_CURRENT = "topmix_1x2_gate025_ens06_v2"
+# REGOLA (verificata da SoccerMath/test_versione_selettore.py): ogni modifica che cambia le
+# probabilita' o la selezione del Top Mix ALZA questa versione e aggiunge la nuova impronta
+# in IMPRONTE. Il verificatore (audit/verifica_click_live.py) confronta solo le righe di questa
+# versione: una versione non alzata significherebbe righe che sembrano verificabili e non lo sono.
+
+# ---------------------------------------------------------------------------
+# Totali (Over/Under 2.5, GG/NG): fuori dal Top Mix visibile, ombra in registro
+# ---------------------------------------------------------------------------
+# Motivazione misurata (non opinione), da citare dove si tocca il selettore:
+# * ``audit/results/totals_market_ceiling.md`` §11a (PR #41): BSS Brier di
+#   Over/Under 2.5 del modello di produzione +0,0084 (~0,8%) contro +0,0337
+#   (~3,4%) della chiusura di mercato B365; GG/NG del modello -0,0007, cioe'
+#   SOTTO il base rate (tetto raggiunto, §6).
+# * ``audit/results/ev_and_baserate_fix.md`` (PR #34): O/U 2.5 pari al base
+#   rate; GG/NG pari in Brier e peggiore in LogLoss.
+# * ``audit/results/topmix_selector_replay.md``: i Totali sono il 39,7% delle
+#   righe ammesse dal selettore (741 su 1865, 2024/25-2025/26).
+#
+# Il registro OMBRA registra comunque, per ogni partita candidata, DUE scelte Totali
+# (round 2): la migliore fra Over/Under 2.5 e la migliore fra GG/NG, ciascuna con la
+# sua confidence e la sua ammissione a 0,60. Le righe ombra:
+# * usano lo STESSO schema (retrocompatibile), con origine dedicata
+#   (``top_mix_ombra``) e una VERSIONE PER FAMIGLIA (``SELECTOR_VERSION_OMBRA_BY_FAMIGLIA``):
+#   due righe della stessa partita hanno chiavi di dedup diverse, quindi non si
+#   sovrascrivono mai a vicenda, ne' con una riga visibile;
+# * portano il marcatore ``ombra = True`` e i campi ``ombra_*`` qui sotto;
+# * vivono in un HASH separato (``registry_store.shadow_hash_key``): le letture
+#   del Registro visibile non le caricano mai; le statistiche le escludono in
+#   ogni caso (``is_ombra`` in ``compute_stats`` e nella calibrazione);
+# * sono valutate a esito noto con lo stesso grading delle righe normali.
+SELECTOR_VERSION_OMBRA_OU25 = "topmix_ombra_ou25_v1"    # migliore fra Over 2.5 / Under 2.5
+SELECTOR_VERSION_OMBRA_GGNG = "topmix_ombra_ggng_v1"    # migliore fra GG / NG
+OMBRA_FAMIGLIA_OU25 = "ou25"
+OMBRA_FAMIGLIA_GGNG = "ggng"
+SELECTOR_VERSION_OMBRA_BY_FAMIGLIA = {
+    OMBRA_FAMIGLIA_OU25: SELECTOR_VERSION_OMBRA_OU25,
+    OMBRA_FAMIGLIA_GGNG: SELECTOR_VERSION_OMBRA_GGNG,
+}
+OMBRA_FIELD = "ombra"                                     # True SOLO sulle righe ombra
+OMBRA_FAMIGLIA_FIELD = "ombra_famiglia"                   # ou25 / ggng (vedi famiglia_ombra)
+OMBRA_MERCATO_FIELD = "ombra_mercato"                     # Over 2.5 / Under 2.5 / GG / NG
+OMBRA_CONFIDENCE_FIELD = "ombra_confidence"               # frazione in [0,1] (= Poisson: nessun Elo sui Totali)
+OMBRA_AMMESSA_FIELD = "ombra_ammessa"                     # confidence >= OMBRA_SOGLIA_TOTALI
+OMBRA_SOGLIA_FIELD = "ombra_soglia"                       # 0,60, la soglia dei Totali del selettore
+OMBRA_VINCENTE_GLOBALE_FIELD = "ombra_vincente_globale"   # il selettore a 7 mercati l'avrebbe MOSTRATA
+OMBRA_DATI_MANCANTI_FIELD = "ombra_dati_mancanti"         # statistiche di default (caso b)
+OMBRA_SOGLIA_TOTALI = 0.60
+# Codici dei Totali (``mercato_standard``): gli stessi di ``_GRADING``.
+MERCATI_TOTALI_CODICI = ("OVER_2.5", "UNDER_2.5", "GG", "NG")
 
 # ---------------------------------------------------------------------------
 # Variante del MODELLO: Top Mix a due motori (attuale / legacy)
@@ -286,9 +350,9 @@ def model_variant_read_source(entry: Any) -> str:
 # Modalita' OMBRA del veto di disaccordo ``abs(poisson - elo) < 0.25``: il gate
 # non scarta piu' la partita, ma applica una penalita' CONTINUA alla confidence
 # (mai un secondo taglio secco a un'altra soglia). Nessuna di queste costanti
-# tocca il selettore reale (``seleziona_riga_top_mix`` resta esattamente come
-# in 32e3eda): servono solo ai campi shadow persistiti nel registro e agli
-# strumenti di audit che li leggono.
+# tocca il selettore reale (``seleziona_riga_top_mix``: dal PR Totali sceglie
+# solo sui 1X2; la versione a sette mercati e' nel commit 32e3eda): servono solo
+# ai campi shadow persistiti nel registro e agli strumenti di audit che li leggono.
 GATE_SHADOW_CONFIDENCE_FIELD = "gate_shadow_confidence"
 GATE_SHADOW_AMMESSA_FIELD = "gate_shadow_ammessa"
 # Secondo segnale OMBRA, parallelo e indipendente dal primo (referto §11quinquies):
@@ -900,8 +964,93 @@ def backup_prediction_file(path: str | Path, timestamp: Optional[datetime] = Non
 # ---------------------------------------------------------------------------
 # Statistiche
 # ---------------------------------------------------------------------------
+def is_ombra(entry: Any) -> bool:
+    """Riga del registro OMBRA dei Totali? Marcatore esplicito o origine dedicata.
+
+    Le statistiche visibili la escludono SEMPRE (``compute_stats``, calibrazione):
+    l'ombra non deve mai far cambiare un numero che l'utente vede.
+    """
+    if not is_dict(entry):
+        return False
+    return entry.get(OMBRA_FIELD) is True or origin_of(entry) == ORIGIN_TOP_MIX_OMBRA
+
+
+def chiave_tabella_mercato(entry: Any) -> Tuple[str, str, str]:
+    """Chiave di DOPPIONE fra versioni del selettore: (tabella/modello, match_id, mercato).
+
+    Ignora ``selector_version`` di proposito: la versione in prova e quella
+    precedente scrivono la stessa partita e lo stesso mercato, e per la vista e per
+    la scrittura sono la stessa scelta. ``dedup_key`` (identita' della riga) resta
+    invariata: qui si decide solo cosa mostrare e cosa non aggiungere.
+    """
+    return (model_variant_read(entry), str(entry.get("match_id")),
+            str(entry.get("mercato_standard") or ""))
+
+
+def _e_top_mix_visibile(entry: Any) -> bool:
+    """Riga Top Mix della vista (non ombra, con match_id): soggetta alla regola dei doppioni.
+
+    Analisi Rapida, Billy e le altre origini NON entrano: la loro tabella resta invariata.
+    """
+    return (is_dict(entry) and origin_of(entry) == ORIGIN_TOP_MIX and not is_ombra(entry)
+            and entry.get("match_id") is not None)
+
+
+def _istante_per_ordine(entry: Any) -> datetime:
+    dt = parse_datetime(entry.get(SALVATO_IL_FIELD)) if is_dict(entry) else None
+    return dt if dt is not None else datetime.min.replace(tzinfo=timezone.utc)
+
+
+def dedup_visibili_top_mix(entries: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Una sola riga per (tabella/modello, match_id, mercato) fra le Top Mix: la PIU' RECENTE.
+
+    Filtra SOLO la vista (statistiche e tabella): non cancella, non riscrive e non
+    riordina nulla del Registro. A parita' di ``salvato_il`` vince l'ultima nella
+    lista (la scrittura piu' tarda). Le righe fuori dalla regola passano invariate.
+    """
+    lst = list(entries or [])
+    migliore: Dict[Tuple[str, str, str], int] = {}
+    for i, e in enumerate(lst):
+        if not _e_top_mix_visibile(e):
+            continue
+        k = chiave_tabella_mercato(e)
+        j = migliore.get(k)
+        if j is None or _istante_per_ordine(e) >= _istante_per_ordine(lst[j]):
+            migliore[k] = i
+    scartate = {i for i, e in enumerate(lst)
+                if _e_top_mix_visibile(e) and migliore[chiave_tabella_mercato(e)] != i}
+    return [e for i, e in enumerate(lst) if i not in scartate]
+
+
+def famiglia_ombra(entry: Any) -> str:
+    """Famiglia di una riga ombra: ``ou25`` (Over/Under 2.5), ``ggng`` (GG/NG) o ``""``.
+
+    Retrocompatibile: una riga ombra senza ``ombra_famiglia`` (schema precedente, a una
+    riga per partita) si legge dal mercato scelto. Le righe non ombra danno ``""``.
+    """
+    if not is_dict(entry):
+        return ""
+    esplicita = str(entry.get(OMBRA_FAMIGLIA_FIELD) or "")
+    if esplicita:
+        return esplicita
+    # Etichetta mostrata (ombra_mercato) o codice standard (mercato_standard): basta uno dei due.
+    mercato = str(entry.get(OMBRA_MERCATO_FIELD) or "")
+    standard = str(entry.get("mercato_standard") or "")
+    if mercato in ("Over 2.5", "Under 2.5") or standard in ("OVER_2.5", "UNDER_2.5"):
+        return OMBRA_FAMIGLIA_OU25
+    if mercato in ("GG", "NG") or standard in ("GG", "NG"):
+        return OMBRA_FAMIGLIA_GGNG
+    return ""
+
+
+def righe_visibili(entries: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Le righe del Registro che l'utente vede: tutto tranne l'ombra, e UNA riga per
+    (tabella/modello, match_id, mercato) fra le Top Mix (vedi ``dedup_visibili_top_mix``)."""
+    return dedup_visibili_top_mix([e for e in (entries or []) if not is_ombra(e)])
+
+
 def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    lst = list(entries)
+    lst = dedup_visibili_top_mix([e for e in entries if not is_ombra(e)])
     wins = 0
     losses = 0
     pending = 0
@@ -1093,7 +1242,13 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
     """Inserisce o aggiorna una previsione, senza mai toccarne una gia' giudicata.
 
     Ritorna ``(lista_aggiornata, azione)`` con azione in
-    ``{"aggiunta", "aggiornata", "gia_graduata", "senza_chiave"}``.
+    ``{"aggiunta", "aggiornata", "gia_graduata", "senza_chiave", "gia_presente_altra_versione"}``.
+
+    DOPPIONI FRA VERSIONI: una riga Top Mix NUOVA non si aggiunge se nel Registro
+    c'e' gia' una riga della stessa (tabella/modello, match_id, mercato) scritta da
+    QUALUNQUE versione del selettore (``chiave_tabella_mercato``): azione
+    ``gia_presente_altra_versione``, lista invariata. Le righe esistenti non si
+    toccano mai (ne' per cancellarle ne' per riscriverle).
 
     - un ricalcolo della STESSA previsione (stesso match_id + origine +
       selector_version) la SOSTITUISCE: prima il record restava congelato alla
@@ -1120,8 +1275,66 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
             aggiornato.setdefault("salvato_il_originario", p[SALVATO_IL_FIELD])
         lst[i] = aggiornato
         return lst, "aggiornata"
+    if _altra_versione_stessa_chiave(lst, entry):
+        return lst, "gia_presente_altra_versione"
     lst.append(entry)
     return lst, "aggiunta"
+
+
+def _altra_versione_stessa_chiave(lista: Iterable[Dict[str, Any]], entry: Dict[str, Any]) -> bool:
+    """True se la lista ha gia' una riga Top Mix con la stessa (tabella/modello, match_id,
+    mercato) scritta da QUALUNQUE versione del selettore. Chi la chiama ha gia' escluso la
+    stessa identita' (``dedup_key``): ci che resta e' un'altra versione della stessa scelta."""
+    if not _e_top_mix_visibile(entry):
+        return False
+    k = chiave_tabella_mercato(entry)
+    return any(_e_top_mix_visibile(p) and chiave_tabella_mercato(p) == k for p in lista)
+
+
+def upsert_prediction_entries(preds: Iterable[Dict[str, Any]],
+                              entries: Iterable[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    """``upsert_prediction_entry`` su un blocco di righe, senza rileggere la lista.
+
+    Stessa semantica riga per riga (sostituisce la stessa previsione finche' non
+    e' giudicata, non tocca mai una riga con esito, conserva ``salvato_il``
+    originario). Usata dal registro ombra: fino a ~100 candidate per click, una
+    sola lettura e una sola scrittura. Ritorna ``(lista, conteggio_azioni)``.
+    """
+    lst = list(preds or [])
+    indice = {}
+    for i, p in enumerate(lst):
+        indice.setdefault(dedup_key(p), i)
+    # doppioni fra versioni (stessa regola di upsert_prediction_entry), solo Top Mix
+    visti_mercato = {chiave_tabella_mercato(p) for p in lst if _e_top_mix_visibile(p)}
+    azioni: Dict[str, int] = {}
+    for entry in entries or []:
+        chiave = dedup_key(entry)
+        if chiave[0] is None:
+            lst.append(entry)
+            azioni["senza_chiave"] = azioni.get("senza_chiave", 0) + 1
+            continue
+        i = indice.get(chiave)
+        if i is None:
+            if _e_top_mix_visibile(entry) and chiave_tabella_mercato(entry) in visti_mercato:
+                azioni["gia_presente_altra_versione"] = azioni.get("gia_presente_altra_versione", 0) + 1
+                continue
+            indice[chiave] = len(lst)
+            lst.append(entry)
+            if _e_top_mix_visibile(entry):
+                visti_mercato.add(chiave_tabella_mercato(entry))
+            azione = "aggiunta"
+        else:
+            p = lst[i]
+            if is_dict(p) and p.get(ESITO_FIELD) in (ESITO_VINTO, ESITO_PERSO):
+                azioni["gia_graduata"] = azioni.get("gia_graduata", 0) + 1
+                continue
+            aggiornato = dict(entry)
+            if is_dict(p) and p.get(SALVATO_IL_FIELD):
+                aggiornato.setdefault("salvato_il_originario", p[SALVATO_IL_FIELD])
+            lst[i] = aggiornato
+            azione = "aggiornata"
+        azioni[azione] = azioni.get(azione, 0) + 1
+    return lst, azioni
 
 
 # ---------------------------------------------------------------------------
@@ -1341,7 +1554,7 @@ def compute_calibration_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, An
     Il Registro finora esponeva SOLO il win rate, mentre ``prob_sicuro`` e'
     persistito da sempre: il Brier non richiede nessuna migrazione.
     """
-    lst = [e for e in (entries or []) if is_dict(e)]
+    lst = dedup_visibili_top_mix([e for e in (entries or []) if is_dict(e) and not is_ombra(e)])
     decise = [e for e in lst if outcome_of_entry(e) is not None]
     coppie = [(prob_of_entry(e), outcome_of_entry(e)) for e in decise]
     coppie = [(p, y) for p, y in coppie if p is not None]
@@ -1370,7 +1583,7 @@ def calibration_by_mercato(entries: Iterable[Dict[str, Any]], min_decise: int = 
     from collections import defaultdict
     gruppi = defaultdict(list)
     for e in entries or []:
-        if not is_dict(e):
+        if not is_dict(e) or is_ombra(e):
             continue
         mkt = str(e.get(MERCATO_FIELD) or "ALTRO")
         if per_origine:

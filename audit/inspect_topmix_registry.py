@@ -200,6 +200,18 @@ def _if_gates_call(module_tree: ast.AST, test_token: str, ok_call: str,
     return False
 
 
+def _soglia_0_60_se_elo_manca(testo: str) -> bool:
+    """Senza Elo la confidence e' Poisson puro e la soglia 1X2 vale 0,60.
+
+    Forma attuale (dal PR Totali, selettore solo 1X2): ``if not elo_disponibile:``
+    seguito da ``confidence = poisson_prob`` e ``min_conf = 0.60``. Accetta sia il
+    sorgente (``0.60``) sia ``ast.unparse`` (``0.6``).
+    """
+    return bool(re.search(
+        r"if not elo_disponibile:\s*\n\s*confidence = poisson_prob\s*\n\s*min_conf = 0\.6(?:0)?\b",
+        testo))
+
+
 def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         raw_src = f.read()
@@ -489,7 +501,7 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
             # L'Elo deve ENTRARE come argomento: se venisse riletto dentro con un
             # default magico la funzione non sarebbe piu' testabile in isolamento.
             "elo_iniettato": "elo_probs" in firme and "elo_disponibile" in firme,
-            "soglia_totali_condizionata_alelo": "or not elo_disponibile:" in ast.unparse(selez),
+            "soglia_0_60_condizionata_alelo": _soglia_0_60_se_elo_manca(ast.unparse(selez)),
         })
         puro["pura_davvero"] = all(puro[k] for k in (
             "io_vietato_assente", "niente_try", "niente_streamlit", "ritorna_dett_o_none",
@@ -511,7 +523,11 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
         igiene["elo_flag_disponibilita"] = ("elo_disponibile" in src_tm
                                            and "elo_disponibile = False" in src_tm)
         # senza Elo la confidence e' Poisson puro: deve valere la soglia 0,60
-        igiene["soglia_totali_se_elo_manca"] = "or not elo_disponibile:" in src_tm
+        # Solo il SELETTORE reale: il mirror ombra ha la stessa forma, e basterebbe
+        # che lui la conservasse per far passare il controllo.
+        _sel_reale = _fn(tree, "seleziona_riga_top_mix")
+        igiene["soglia_0_60_se_elo_manca"] = _soglia_0_60_se_elo_manca(
+            ast.unparse(_sel_reale) if _sel_reale is not None else "")
         igiene["rank_sulla_riga"] = bool(re.search(r"\['rank'\]\s*=\s*i \+ 1", src_tm)
                                           or re.search(r'\["rank"\]\s*=\s*i \+ 1', src_tm))
         # la coda di rate-limit serve FRA le leghe, non dopo l'ultima
@@ -550,7 +566,9 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     # --- grading unico (audit §4 punto 6) e Brier nel registro (§7) ---
     grading: Dict[str, Any] = {"esito_mercato_chiamato": 0, "catene_elif_superate": 0,
                                "bare_excepts_in_aggiorna": 0}
-    agg = _fn(tree, "aggiorna_risultati_reali")
+    # Dal refactor del grading la tabella unica vive in _applica_esiti (chiamato
+    # sia dal Registro vivo sia dall'ombra): e' quella che va ispezionata.
+    agg = _fn(tree, "_applica_esiti") or _fn(tree, "aggiorna_risultati_reali")
     if agg is not None:
         src_agg = ast.unparse(agg)
         grading["esito_mercato_chiamato"] = src_agg.count("esito_mercato(")
@@ -671,7 +689,7 @@ def tracking_verdict(app_facts: Optional[Dict[str, Any]] = None) -> Dict[str, An
             guasti.append("richieste senza timeout")
         if not ig.get("elo_flag_disponibilita"):
             guasti.append("fallback Elo non marcato")
-        if not ig.get("soglia_totali_se_elo_manca"):
+        if not ig.get("soglia_0_60_se_elo_manca"):
             guasti.append("soglia 1X2 non rialzata quando l'Elo manca")
         if not ig.get("rank_sulla_riga"):
             guasti.append("rank non persistito sulla riga")

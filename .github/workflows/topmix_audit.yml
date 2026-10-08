@@ -93,6 +93,8 @@ jobs:
             audit/test_topmix_margins.py \
             SoccerMath/test_topmix_selector_parity.py \
             SoccerMath/test_topmix_shadow_gate.py \
+            SoccerMath/test_topmix_ombra_totali.py \
+            audit/test_topmix_ombra_rientro.py \
             audit/test_elo_s3_parity.py \
             audit/test_elo_walker_parity.py \
             audit/test_elo_probs_equivalence.py \

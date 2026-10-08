@@ -20,7 +20,12 @@ Questo modulo, senza checkout e senza toccare HEAD:
   presente il 19/09: non e' il risultato che si sta predicendo, ma la regola
   e' "mai dati successivi al kickoff");
 * punta ``config`` / ``scraper_xg`` / ``xg_archive`` / entrambi i motori Elo
-  alla cartella estratta e svuota le loro cache; all'uscita ripristina tutto.
+  alla cartella estratta e svuota le loro cache; all'uscita ripristina tutto;
+* se lo snapshot non ha il ROSTER della stagione del click, usa il file
+  ``season_rosters.json`` del checkout attuale (``assicura_roster_stagione``):
+  il roster e' calendario noto prima della prima giornata, non un risultato.
+  Il file e' stato introdotto dalla PR #38 e i commit storici di settembre non
+  lo contengono: senza questo ripiego il seed Elo della stagione non parte.
 
 E' la stessa tecnica di ``audit/reconstruct_topmix_match.database_at_git_ref``,
 qui in un modulo importabile dal codice applicativo e con in piu' la cache del
@@ -197,6 +202,65 @@ def drop_future_dated_rows(db_dir: str, cutoff: datetime) -> Dict[str, int]:
 # ---------------------------------------------------------------------------
 # redirezione dei moduli di produzione
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# roster della stagione: ripiego sul file del checkout
+# ---------------------------------------------------------------------------
+#: Cartella dati del checkout che esegue il replay (``SoccerMath/database``).
+CHECKOUT_DATABASE_DIR = os.path.join(HERE, "database")
+
+
+def assicura_roster_stagione(db_dir: str, instant: datetime,
+                             checkout_dir: str = CHECKOUT_DATABASE_DIR) -> Dict[str, Any]:
+    """Il roster della stagione del click deve esistere nello snapshot: se manca, si usa quello del checkout.
+
+    PERCHE' E' LECITO. ``season_rosters.json`` (R(lega, stagione)) e' il CALENDARIO
+    della stagione: squadre iscritte, promozioni e retrocessioni sono decise e
+    pubblicate PRIMA della prima giornata; non sono risultati (vedi la docstring
+    di ``season_rosters.py``). Il file di oggi, usato per un click di settembre,
+    non porta quindi informazione futura rispetto all'istante del click.
+
+    IL DIFETTO CHE CHIUDE. Il file e' stato introdotto dalla PR #38 (merge
+    10eb41b, 07/10/2026). Nei commit storici di settembre non esiste: lo snapshot
+    non ha la stagione 2026, il seed Elo della stagione solleva ``EloSeedError``
+    ("nessun roster per la stagione 2026") e il replay ricostruisce il solo
+    Poisson (1X2 a soglia 0,60 invece che 0,55 con Elo, senza veto). Misurato sul
+    registro esportato offline: il ripiego recupera 5 righe 1X2 e non ne perde
+    nessuna (main e branch; PR #47, round 2).
+
+    LA REGOLA. Se nello snapshot manca la stagione del click in almeno una lega,
+    nella cartella dello snapshot si copia il file del checkout (sostituzione
+    intera, non fusione di voci). Uno snapshot che ha gia' la stagione per tutte
+    le leghe resta com'e'. La cartella e' temporanea: il repository non cambia.
+
+    Ritorna ``{"stagione", "fonte", "mancanti_snapshot", "integrate",
+    "ancora_mancanti"}`` con ``fonte`` in {"snapshot", "checkout", "assente"}
+    ("assente": il checkout non ha la stagione per nessuna lega mancante).
+    """
+    from season_rosters import ROSTER_FILENAME, load_season_rosters
+    from season_calendar import season_start_year_of
+    import config
+
+    stagione = int(season_start_year_of(instant.astimezone(timezone.utc)))
+    leghe = list(config.LEAGUES_CONFIG.keys())
+    nello_snapshot = load_season_rosters(db_dir)
+    mancanti = [lega for lega in leghe if stagione not in nello_snapshot.get(lega, {})]
+    esito: Dict[str, Any] = {"stagione": stagione, "fonte": "snapshot",
+                             "mancanti_snapshot": mancanti, "integrate": [],
+                             "ancora_mancanti": []}
+    if not mancanti:
+        return esito
+    dal_checkout = load_season_rosters(checkout_dir)
+    integrabili = [lega for lega in mancanti if stagione in dal_checkout.get(lega, {})]
+    esito["ancora_mancanti"] = [lega for lega in mancanti if lega not in integrabili]
+    if not integrabili:
+        esito["fonte"] = "assente"
+        return esito
+    shutil.copyfile(os.path.join(checkout_dir, ROSTER_FILENAME),
+                    os.path.join(db_dir, ROSTER_FILENAME))
+    esito.update(fonte="checkout", integrate=integrabili)
+    return esito
+
+
 def _snapshot_paths() -> Dict[str, Any]:
     import config
     import scraper_xg
@@ -287,9 +351,11 @@ class database_at_instant:
     repo_root: str = REPO_ROOT
     drop_future_rows: bool = True
     cache_dir: Optional[str] = None      # riuso fra click che condividono commit + giorno
+    roster_fallback: bool = True         # roster della stagione dal checkout se manca: vedi assicura_roster_stagione
     commit: Optional[CommitInfo] = None
     db_dir: str = ""
     future_rows_dropped: Dict[str, int] = field(default_factory=dict)
+    roster: Dict[str, Any] = field(default_factory=dict)   # esito di assicura_roster_stagione (referto)
     _tmp: str = ""
     _cached: bool = False
     _snap: Optional[Dict[str, Any]] = None
@@ -314,10 +380,18 @@ class database_at_instant:
             self.db_dir = extract_database_at(self.commit.sha, self._tmp, self.repo_root)
             if self.drop_future_rows:
                 self.future_rows_dropped = drop_future_dated_rows(self.db_dir, self.instant)
-            if self.cache_dir:
-                with open(os.path.join(self._tmp, _MARKER), "w", encoding="utf-8") as f:
-                    json.dump({"db_dir": os.path.relpath(self.db_dir, self._tmp),
-                               "dropped": self.future_rows_dropped}, f)
+            meta = {"db_dir": os.path.relpath(self.db_dir, self._tmp),
+                    "dropped": self.future_rows_dropped}
+        # Roster: si applica una volta per cartella. Il marker ricorda l'esito,
+        # cosi' una cartella riusata dalla cache non viene rielaborata a caso.
+        nuovo_roster = False
+        if self.roster_fallback and "roster" not in meta:
+            meta["roster"] = assicura_roster_stagione(self.db_dir, self.instant)
+            nuovo_roster = True
+        self.roster = dict(meta.get("roster") or {})
+        if self.cache_dir and (not self._cached or nuovo_roster):
+            with open(os.path.join(self._tmp, _MARKER), "w", encoding="utf-8") as f:
+                json.dump(meta, f)
         self._snap = _snapshot_paths()
         _redirect(self.db_dir)
         clear_engine_caches()

@@ -35,6 +35,10 @@ BACKEND_UPSTASH = "upstash"
 BACKENDS = (BACKEND_JSONBIN, BACKEND_UPSTASH)
 
 HASH_KEY_DEFAULT = "sm:registro"
+# Registro OMBRA dei Totali (vedi prediction_registry, OMBRA_*): hash SEPARATO
+# dal Registro vivo, cosi' le letture visibili non lo caricano mai e nessuna
+# statistica puo' includerlo. Stesso Upstash, altra chiave.
+SHADOW_HASH_KEY_DEFAULT = "sm:registro:ombra"
 SNAPSHOT_PREFIX = "sm:registro:snapshot:"
 TIMEOUT = 20
 
@@ -77,6 +81,19 @@ def _upstash_config() -> Tuple[str, str]:
 
 def hash_key() -> str:
     return impostazione("REGISTRY_HASH_KEY", HASH_KEY_DEFAULT).strip() or HASH_KEY_DEFAULT
+
+
+def shadow_hash_key() -> str:
+    """Hash del registro OMBRA (``REGISTRY_SHADOW_HASH_KEY``).
+
+    Deve essere diverso dal Registro vivo e dagli snapshot: se coincidesse, una
+    scrittura ombra riscriverebbe righe visibili. Si rifiuta invece di adattarsi.
+    """
+    chiave = impostazione("REGISTRY_SHADOW_HASH_KEY", SHADOW_HASH_KEY_DEFAULT).strip() or SHADOW_HASH_KEY_DEFAULT
+    if chiave == hash_key() or chiave.startswith(SNAPSHOT_PREFIX) or chiave == HASH_KEY_DEFAULT:
+        raise RegistryStoreError(f"REGISTRY_SHADOW_HASH_KEY={chiave!r} coincide con il Registro vivo "
+                                 f"o con uno snapshot: l'ombra non puo' scrivere li'")
+    return chiave
 
 
 def field_of(row: Dict[str, Any]) -> str:
@@ -185,7 +202,7 @@ def _upstash_cmd(comando: List[Any], *, post=None) -> Any:
     return upstash_raw(comando, post=post).get("result")
 
 
-def upstash_rows(*, post=None) -> List[Dict[str, Any]]:
+def upstash_rows(*, post=None, chiave: Optional[str] = None) -> List[Dict[str, Any]]:
     """Tutte le righe dell'hash (1 comando: ``HGETALL``), UNA per chiave logica.
 
     Il campo dell'hash e' ``field_of(riga)`` = ``dedup_key``: quando la
@@ -201,7 +218,7 @@ def upstash_rows(*, post=None) -> List[Dict[str, Any]]:
     non si fa in silenzio: si alza ``RegistryStoreError`` (una delle due righe
     non sarebbe raggiungibile per chiave).
     """
-    risultato = _upstash_cmd(["HGETALL", hash_key()], post=post)
+    risultato = _upstash_cmd(["HGETALL", chiave or hash_key()], post=post)
     valori = hash_da_risposta(risultato)
     per_chiave: Dict[str, Tuple[str, str, Dict[str, Any]]] = {}
     for campo, valore in valori.items():
@@ -228,14 +245,15 @@ def upstash_rows(*, post=None) -> List[Dict[str, Any]]:
     return _righe_ordinate(righe)
 
 
-def upstash_save(righe: Iterable[Dict[str, Any]], *, post=None) -> Dict[str, Any]:
+def upstash_save(righe: Iterable[Dict[str, Any]], *, post=None, chiave: Optional[str] = None) -> Dict[str, Any]:
     """Scrive SOLO i campi nuovi o cambiati: ``HGETALL`` + un ``HSET``.
 
     Una riga gia' presente e identica viene saltata: rilanciare un salvataggio
     non produce nessuna scrittura (idempotenza, la stessa garanzia della fusione
     con ``dedup_key``).
     """
-    attuale = hash_da_risposta(_upstash_cmd(["HGETALL", hash_key()], post=post))
+    hash_name = chiave or hash_key()
+    attuale = hash_da_risposta(_upstash_cmd(["HGETALL", hash_name], post=post))
     coppie: List[str] = []
     scritte = saltate = 0
     risposta: Any = None
@@ -251,7 +269,7 @@ def upstash_save(righe: Iterable[Dict[str, Any]], *, post=None) -> Dict[str, Any
     if coppie:
         # La risposta del servizio viene riportata: se l'hash poi non contiene
         # quello che abbiamo scritto, il "perche'" sta in quel valore.
-        risposta = _upstash_cmd(["HSET", hash_key()] + coppie, post=post)
+        risposta = _upstash_cmd(["HSET", hash_name] + coppie, post=post)
         comandi += 1
     return {"remoto": "ok", "backend": BACKEND_UPSTASH, "comandi": comandi,
             "righe_scritte": scritte, "righe_saltate": saltate,
@@ -359,6 +377,39 @@ def save_rows(righe: List[Dict[str, Any]], *, put=None, post=None) -> Dict[str, 
     if backend() == BACKEND_UPSTASH:
         return upstash_save(righe, post=post)
     return jsonbin_save(righe, put=put)
+
+
+def load_ombra_rows(*, strict: bool = True, post=None) -> Tuple[Optional[List[Dict[str, Any]]], str]:
+    """Righe del registro OMBRA (hash ``shadow_hash_key()``). Ritorna ``(righe, fonte)``.
+
+    Solo Upstash: con ``jsonbin`` il registro ombra non esiste (il bin intero
+    crescerebbe di decine di righe per click e romperebbe il tetto di 100 kB del
+    piano free, che il Registro vivo gia' non rispetta). ``strict=True`` (default)
+    alza invece di tornare vuoto: un ``[]`` falso su un percorso di scrittura
+    farebbe riscrivere l'ombra da zero.
+    """
+    scelto = backend()
+    if scelto != BACKEND_UPSTASH:
+        if strict:
+            raise RegistryStoreError(f"registro ombra: richiede REGISTRY_BACKEND=upstash (attuale: {scelto})")
+        return None, "non_supportato"
+    try:
+        return upstash_rows(post=post, chiave=shadow_hash_key()), BACKEND_UPSTASH
+    except RegistryStoreError:
+        if strict:
+            raise
+        return None, "nessuno"
+
+
+def save_ombra_rows(righe: List[Dict[str, Any]], *, post=None) -> Dict[str, Any]:
+    """Scrive il registro ombra: solo righe nuove o cambiate (``HSET`` diff).
+
+    Con un backend diverso da Upstash non scrive nulla e lo dice (``non_supportato``):
+    niente fallimento silenzioso, niente bin gonfiato.
+    """
+    if backend() != BACKEND_UPSTASH:
+        return {"remoto": "non_supportato", "backend": backend(), "righe_scritte": 0}
+    return upstash_save(righe, post=post, chiave=shadow_hash_key())
 
 
 def esito_scrittura(esito: Dict[str, Any]) -> Dict[str, Any]:

@@ -3,12 +3,13 @@
 Cosa viene provato (Commessa "Top Mix a due modelli", FASE 3/4):
 
 * ``calcola_righe_top_mix`` produce DUE liste (current / legacy) dallo stesso
-  Poisson: sui mercati 1X2 le righe differiscono quando i due Elo
-  differiscono, sui Totali (Elo non letto) coincidono numero per numero, e le
-  due tabelle possono contenere partite diverse (nessuna coincidenza forzata);
+  Poisson: sui 1X2 le righe differiscono quando i due Elo differiscono, e le
+  due tabelle possono contenere partite diverse (nessuna coincidenza forzata).
+  Dal PR Totali nessuna delle due tabelle contiene un Over/Under o un GG/NG:
+  quelle scelte vanno nel registro ombra (campo ``ombra`` di ``fetch``);
 * ``classifica_top_mix`` non tronca: N righe sopra soglia -> N righe con rank
   1..N (il vecchio tetto di 10 e' sparito per ENTRAMBE le tabelle), soglie
-  invariate (0,55 1X2 / 0,60 Totali);
+  invariate (0,55 sui 1X2 con Elo, 0,60 senza Elo);
 * ``argomenti_registro_top_mix`` e' l'unico punto che trasforma una riga in
   record: i suoi argomenti sono esattamente quelli accettati da
   ``save_prediction_entry``/``build_prediction_entry``, e la variante passa
@@ -121,7 +122,7 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
 
     def test_totali_identici_e_legacy_in_errore_isolato(self):
         """Elo legacy che solleva: la riga legacy resta Poisson puro (soglia 0,60),
-        quella current non ne risente; sui Totali le due righe coincidono."""
+        quella current non ne risente. Nessuna delle due tabelle contiene un Totale."""
         cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
 
         def leg_elo(h, a, l):
@@ -134,9 +135,8 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
         for r in leg.values():
             self.assertFalse(r["elo_disponibile"])
             self.assertAlmostEqual(r["prob"], r["poisson"] / 100.0, places=3)   # poisson e' arrotondato a 1 decimale
-        for mid in set(cur) & set(leg):
-            if not cur[mid]["market"].startswith(("Vittoria", "Pareggio")):
-                self.assertEqual(cur[mid]["prob"], leg[mid]["prob"])
+        for riga in list(cur.values()) + list(leg.values()):
+            self.assertTrue(riga["market"].startswith(("Vittoria", "Pareggio")), riga["market"])
 
 
 class TestNessunTetto(unittest.TestCase):
@@ -169,9 +169,13 @@ class TestNessunTetto(unittest.TestCase):
              mock.patch.object(app, "_roster_stagione", return_value=None), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
-            top_current, top_legacy, missing = app.fetch_and_calc_top_mix()
+            top_current, top_legacy, missing, ombra = app.fetch_and_calc_top_mix()
         n_leghe = len(app.LEAGUES_CONFIG)
         self.assertEqual([], missing)
+        # registro ombra: DUE scelte per ogni partita candidata (migliore O/U 2.5 e migliore
+        # GG/NG, ciascuna con la sua confidence), anche se non mostrate
+        self.assertEqual(2 * 40 * n_leghe, len(ombra))
+        self.assertEqual({"ou25", "ggng"}, {r["famiglia"] for r in ombra})
         self.assertEqual(40 * n_leghe, len(top_current))
         self.assertEqual(40 * n_leghe, len(top_legacy))
         self.assertEqual(list(range(1, 40 * n_leghe + 1)), [r["rank"] for r in top_current])
