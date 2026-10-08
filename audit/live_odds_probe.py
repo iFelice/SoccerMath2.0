@@ -64,6 +64,10 @@ LEAGUES = [
 ODDS_HOST = "https://api.the-odds-api.com"
 SPORTS_URL = f"{ODDS_HOST}/v4/sports/"
 FD_FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
+FD_NEW_FIXTURES_URL = "https://www.football-data.co.uk/new_league_fixtures.csv"
+# Codici Div di football-data.co.uk per le 5 leghe del progetto
+DIV_TARGET = {"E0": "Premier League", "I1": "Serie A", "D1": "Bundesliga",
+              "SP1": "La Liga", "F1": "Ligue 1"}
 REGIONS = "eu,uk"
 MARKETS = "h2h"
 CREDIT_HEADERS = ("x-requests-used", "x-requests-remaining", "x-requests-last")
@@ -233,41 +237,70 @@ def probe_odds_api(session, key, out_dir, summary):
     summary["odds_api"]["sports_ok"] = True
 
 
+def probe_bet365_check(session, key, out_dir, summary):
+    """CONTROLLO: si chiede ESPLICITAMENTE bet365 (parametro ``bookmakers``).
+
+    Serve a distinguere 'bet365 non e' nel piano' da 'bet365 non ha ancora
+    pubblicato queste partite'. Costa 1 credito (fino a 10 bookmaker = 1 regione).
+    """
+    skey = "soccer_italy_serie_a"
+    url = (f"{ODDS_HOST}/v4/sports/{skey}/odds/?apiKey={key}&bookmakers=bet365"
+           f"&markets={MARKETS}&oddsFormat=decimal&dateFormat=iso")
+    payload, meta = get_json(url, key, session)
+    entry = {"endpoint": f"/v4/sports/{skey}/odds (bookmakers=bet365)",
+             "url_masked": meta["url_masked"], "status": meta.get("status"),
+             "crediti": meta.get("headers"), "ok": meta.get("ok", False),
+             "errore": meta.get("error")}
+    if payload is not None:
+        keys = sorted({bm.get("key") for ev in payload or [] for bm in ev.get("bookmakers") or []})
+        entry["n_eventi"] = len(payload or [])
+        entry["bookmakers_restituiti"] = keys
+        entry["bet365_presente"] = any("365" in (k or "").lower() for k in keys)
+    summary["controllo_bet365"] = entry
+
+
 def probe_football_data(session, out_dir, summary):
     """File delle partite in programma di football-data.co.uk (nessuna chiave)."""
-    entry = {"url": FD_FIXTURES_URL, "scaricato_il": _now(), "richiede_chiave": False}
-    try:
-        resp = session.get(FD_FIXTURES_URL, timeout=30)
-    except Exception as exc:
-        entry.update(ok=False, errore=f"{type(exc).__name__}: {exc}")
-        summary["football_data"] = entry
-        return
-    entry["status"] = resp.status_code
-    entry["headers"] = {k: resp.headers.get(k) for k in
-                        ("last-modified", "content-length", "content-type", "date")}
-    if resp.status_code != 200:
-        entry.update(ok=False, errore=f"HTTP {resp.status_code}")
-        summary["football_data"] = entry
-        return
-    text = resp.text
-    with open(os.path.join(out_dir, "football_data_fixtures.csv"), "w", encoding="utf-8") as fh:
-        fh.write(text)
-    reader = csv.reader(io.StringIO(text))
-    rows = [r for r in reader if any(c.strip() for c in r)]
-    header = rows[0] if rows else []
-    body = rows[1:]
-    entry["ok"] = True
-    entry["n_colonne"] = len(header)
-    entry["colonne"] = header
-    entry["n_righe"] = len(body)
-    entry["prime_3_righe"] = body[:3]
-    # il campo Div (prima colonna) distingue i campionati nel file fixtures
-    if header and str(header[0]).strip().lower().startswith("div"):
-        counts = {}
-        for r in body:
-            counts[str(r[0]).strip()] = counts.get(str(r[0]).strip(), 0) + 1
-        entry["righe_per_div"] = counts
-    summary["football_data"] = entry
+    for label, url, fname in (("fixtures_main", FD_FIXTURES_URL, "football_data_fixtures.csv"),
+                              ("fixtures_extra", FD_NEW_FIXTURES_URL, "football_data_new_league_fixtures.csv")):
+        entry = {"url": url, "scaricato_il": _now(), "richiede_chiave": False}
+        try:
+            resp = session.get(url, timeout=30)
+        except Exception as exc:
+            entry.update(ok=False, errore=f"{type(exc).__name__}: {exc}")
+            summary["football_data"][label] = entry
+            continue
+        entry["status"] = resp.status_code
+        entry["headers"] = {k: resp.headers.get(k) for k in
+                            ("last-modified", "content-length", "content-type", "date")}
+        if resp.status_code != 200:
+            entry.update(ok=False, errore=f"HTTP {resp.status_code}")
+            summary["football_data"][label] = entry
+            continue
+        # content-type 'text/csv' senza charset: requests usa ISO-8859-1 e il BOM
+        # diventa 'ï»¿'. Si decodifica esplicitamente come UTF-8 con BOM.
+        text = resp.content.decode("utf-8-sig", errors="replace")
+        with open(os.path.join(out_dir, fname), "w", encoding="utf-8") as fh:
+            fh.write(text)
+        reader = csv.reader(io.StringIO(text))
+        rows = [r for r in reader if any(c.strip() for c in r)]
+        header = rows[0] if rows else []
+        body = rows[1:]
+        entry["ok"] = True
+        entry["n_colonne"] = len(header)
+        entry["colonne"] = header
+        entry["n_righe"] = len(body)
+        entry["prime_3_righe"] = body[:3]
+        if header and str(header[0]).strip().lower().startswith("div"):
+            counts = {}
+            for r in body:
+                counts[str(r[0]).strip()] = counts.get(str(r[0]).strip(), 0) + 1
+            entry["righe_per_div"] = counts
+            entry["righe_5_leghe"] = {d: counts.get(d, 0) for d in DIV_TARGET}
+            entry["n_righe_5_lelhe"] = sum(counts.get(d, 0) for d in DIV_TARGET)
+            entry["colonne_quote_1x2"] = [c for c in header if c.endswith(("H", "D", "A"))
+                                          and len(c) > 2]
+        summary["football_data"][label] = entry
 
 
 def main(argv=None):
@@ -276,6 +309,8 @@ def main(argv=None):
                     help="cartella di output (default: audit/output/live_odds_probe)")
     ap.add_argument("--skip-odds-api", action="store_true", help="non chiamare The Odds API")
     ap.add_argument("--skip-football-data", action="store_true", help="non scaricare fixtures.csv")
+    ap.add_argument("--skip-bet365-check", action="store_true",
+                    help="non fare la chiamata di controllo bookmakers=bet365 (1 credito)")
     args = ap.parse_args(argv)
 
     out_dir = args.out
@@ -296,13 +331,16 @@ def main(argv=None):
         },
         "calls": [],
         "odds_api": {"sports_ok": False, "leagues": {}},
-        "football_data": None,
+        "football_data": {},
+        "controllo_bet365": None,
     }
 
     session = _http()
     if not args.skip_odds_api:
         if key:
             probe_odds_api(session, key, out_dir, summary)
+            if not args.skip_bet365_check:
+                probe_bet365_check(session, key, out_dir, summary)
         else:
             summary["odds_api"]["errore"] = "ODDS_API_KEY assente nell'ambiente"
             for league, skey in LEAGUES:
@@ -317,7 +355,12 @@ def main(argv=None):
     ok = [k for k, v in summary["odds_api"]["leagues"].items() if v.get("ok")]
     print(f"riassunto: {path}")
     print(f"leghe con quote The Odds API: {len(ok)}/5 -> {ok}")
-    print(f"football-data fixtures: {'ok' if (summary['football_data'] or {}).get('ok') else 'NON OK'}")
+    for label, entry in summary["football_data"].items():
+        print(f"football-data {label}: {'ok' if entry.get('ok') else 'NON OK'} "
+              f"righe={entry.get('n_righe')} righe_5_leghe={entry.get('n_righe_5_lelhe')} "
+              f"last-modified={entry.get('headers', {}).get('last-modified')}")
+    if summary["controllo_bet365"]:
+        print("controllo bet365:", summary["controllo_bet365"])
     return 0
 
 
