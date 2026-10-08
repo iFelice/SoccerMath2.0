@@ -284,17 +284,17 @@ class TestMirrorCasiNoti(unittest.TestCase):
         self.assertAlmostEqual(r["conf_shadow"], 0.935 * 0.25 / 0.27, places=6)
         self.assertTrue(r["ammessa_shadow"])
 
-    def test_totali_non_toccati_dalla_penalita(self):
-        # Over 2.5 argmax; l'Elo non viene letto -> d = 0, ammessa invariata.
+    def test_totali_fuori_dal_mirror(self):
+        """Dal PR Totali il selettore (e quindi il suo mirror) sceglie solo sui 1X2.
+
+        Over a 0,62 e' il massimo a sette mercati, ma il mirror NON lo sceglie: resta
+        sul 1X2 piu' probabile. I Totali sono nel registro ombra (riga_ombra_totali).
+        """
         m = {"1": 0.20, "X": 0.15, "2": 0.10, "u25": 0.38, "gg": 0.50}
         for elo in ({"1": 0.90, "X": 0.05, "2": 0.05}, {}, None):
             r = MIRROR(m, elo, True, "Casa", "Trasferta")
-            self.assertEqual(r["market"], "Over 2.5")
-            self.assertAlmostEqual(r["prob"], 0.62, places=12)
-            self.assertAlmostEqual(r["disaccordo"], 0.0, places=12)
-            self.assertAlmostEqual(r["conf_shadow"], 0.62, places=12)
-            self.assertTrue(r["ammessa_shadow"])
-            self.assertFalse(r["gate_avrebbe_scartato"])
+            self.assertEqual(r["market"], "Vittoria Casa")
+            self.assertFalse(r["market"].startswith(("Over", "Under", "GG", "NG")))
 
     def test_facce_dell_elo_assente(self):
         # Stesse facce di ELO_MANCANTI della parita': l'ombra coincide con la

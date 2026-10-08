@@ -1,0 +1,57 @@
+{
+  "generato_il": "2026-10-08T19:37:37Z",
+  "sorgente": "upstash non raggiungibile: RegistryStoreError: registro ombra: richiede REGISTRY_BACKEND=upstash (attuale: jsonbin)",
+  "stato_lettura": "NON VERIFICABILE",
+  "costanti": {
+    "mercati_ou": [
+      "OVER_2.5",
+      "UNDER_2.5"
+    ],
+    "gg_ng": "fuori_definitivamente",
+    "stagione_min": "2026/2027",
+    "N_min": 300,
+    "margine_calibrazione_pp": -2.0,
+    "margine_base_rate_pp": 5.0,
+    "livello_ic": 0.95,
+    "repliche_bootstrap": 2000,
+    "seme": 20261008,
+    "stagioni_base_rate": [
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "origine": "top_mix_ombra",
+    "selettore": "topmix_ombra_totali_v1"
+  },
+  "base_rate_over25": {
+    "Serie A": {
+      "n": 1520,
+      "over": 717,
+      "rate": 0.47171052631578947
+    },
+    "Premier League": {
+      "n": 1520,
+      "over": 870,
+      "rate": 0.5723684210526315
+    },
+    "La Liga": {
+      "n": 1520,
+      "over": 731,
+      "rate": 0.48092105263157897
+    },
+    "Bundesliga": {
+      "n": 1224,
+      "over": 754,
+      "rate": 0.6160130718954249
+    },
+    "Ligue 1": {
+      "n": 1298,
+      "over": 707,
+      "rate": 0.5446841294298922
+    }
+  },
+  "campione": null,
+  "valutazione": null,
+  "esito": "NON VERIFICABILE: registro ombra non letto dalla sorgente richiesta. Nessun conteggio e' stato fatto: zero non significa 'nessuna scelta'."
+}

@@ -12,7 +12,8 @@ le righe:
 * il confronto fra i due insiemi da': quante partite hanno ENTRAMBI i modelli,
   quante solo l'uno, quante solo l'altro;
 * il motivo della differenza e' quasi sempre lo stesso: la partita non supera
-  le soglie del selettore (0,55 1X2 / 0,60 Totali) per quel modello, oppure il
+  le soglie del selettore (0,55 sui 1X2 con Elo, 0,60 senza Elo; i Totali non
+  entrano piu' nel Top Mix) per quel modello, oppure il
   veto di disaccordo |P-E| >= 0,25 la scarta. E' una differenza legittima, non
   un buco: il selettore non inventa una scelta per far tornare i conti.
 
@@ -167,5 +168,5 @@ def render_coverage(cov: Dict[str, Any]) -> str:
                 L.append(f"    · … e altre {len(sole) - 20}")
     L.append("- i due campioni COINCIDONO" if cov["pareggio"]
              else "- i due campioni NON coincidono: le partite mancanti sono quelle sotto le soglie "
-                  "del selettore (0,55 1X2 / 0,60 Totali) o scartate dal veto di disaccordo per QUEL modello")
+                  "del selettore (0,55 sui 1X2 con Elo, 0,60 senza Elo) o scartate dal veto di disaccordo per QUEL modello")
     return "\n".join(L)

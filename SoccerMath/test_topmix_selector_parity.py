@@ -29,7 +29,9 @@ Se il confronto fallisce, lo spostamento NON era neutro: correggere
 ne' pesi.
 
 Top Mix a due modelli (dopo PR#24): ``fetch_and_calc_top_mix`` ritorna
-``(top_current, top_legacy, missing)`` e NON tronca piu' a 10 righe. Le due
+``(top_current, top_legacy, missing, ombra)`` e NON tronca piu' a 10 righe. Dal PR
+Totali la tabella contiene solo 1X2 (la confronto con l'oracolo, vedi
+``TestParitaGriglia``): le Over/Under e GG/NG vanno nel registro ombra. Le due
 differenze sono DICHIARATE qui e verificate cosi': la tabella ``current``,
 troncata alle prime 10, deve restare bit-identica al fixture PRE (stessa
 matematica, stesso ordine, stessi rank 1..10); la lista completa deve avere
@@ -63,6 +65,7 @@ sys.path.insert(0, HERE)
 # fixture PRE resta significativa: se il layer display toccasse un numero,
 # questo test continuerebbe a vederlo.
 from display_names import display_name  # noqa: E402
+from prediction_registry import OMBRA_SOGLIA_TOTALI  # noqa: E402
 # Il percorso nuovo deriva la stagione della partita da ``utcDate`` con
 # l'helper reale di app.py: servono le due funzioni di stagione nel namespace.
 from season_calendar import season_start_year_of  # noqa: E402
@@ -312,14 +315,85 @@ def assert_solo_elo_in_meno(tc, vecchio, nuovo):
 
 
 # ------------------------------------------------------------------ esecuzioni
+def _argmax_sette(poisson):
+    """Argmax del VECCHIO selettore (7 mercati, stesso ordine di dict). Indipendente dal codice.
+
+    Serve a sapere, per ogni partita del test, se il selettore PRE avrebbe mostrato
+    un 1X2 (allora la riga nuova deve essere identica al fixture) oppure un Totale
+    (allora la riga nuova deve essere l'oracolo 1X2, cioe' il selettore che ha
+    rivalutato la partita sui soli 1X2).
+    """
+    mercati = {"1": poisson["1"], "X": poisson["X"], "2": poisson["2"],
+               "Over": 1 - poisson["u25"], "Under": poisson["u25"],
+               "GG": poisson["gg"], "NG": 1 - poisson["gg"]}
+    return max(mercati, key=mercati.get)
+
+
+def _oracolo_1x2(poisson, elo, home="Casa", away="Trasferta"):
+    """Riga Top Mix ATTESA, scritta dalla specifica (non copiata dal codice).
+
+    Specifica del selettore nuovo: argmax SOLO sui tre 1X2 (a parita' vince il
+    primo nell'ordine casa, X, trasferta); Elo assente, rotto o non numerico ->
+    Poisson puro con soglia 0,60; Elo presente sul mercato scelto -> blend con
+    soglia 0,55; veto |P-E| < 0,25 (stretto). Nessun Totale, mai.
+    Ritorna il dizionario della riga (senza i campi del match) o ``None``.
+    """
+    if isinstance(elo, BaseException):
+        elo = None
+    nomi = [(f"Vittoria {home}", "1", poisson["1"]),
+            ("Pareggio", "X", poisson["X"]),
+            (f"Vittoria {away}", "2", poisson["2"])]
+    best, chiave, p = nomi[0]
+    for voce in nomi[1:]:
+        if voce[2] > p:
+            best, chiave, p = voce
+    valore = elo.get(chiave) if isinstance(elo, dict) else None
+    if isinstance(valore, (int, float)) and not isinstance(valore, bool):
+        e, disponibile = valore, True
+    else:
+        e, disponibile = p, False
+    if disponibile:
+        conf, minimo = POISSON_W * p + (1 - POISSON_W) * e, 0.55
+    else:
+        conf, minimo = p, 0.60
+    if conf >= minimo and abs(p - e) < 0.25:
+        return {"market": best, "mercato_standard": f"STD<{best}|{home}|{away}>",
+                "prob": conf, "prob_val": round(conf * 100, 1),
+                "poisson": round(p * 100, 1), "elo": round(e * 100, 1),
+                "elo_disponibile": disponibile}
+    return None
+
+
+CHIAVI_ORACOLO = ("market", "mercato_standard", "prob", "prob_val", "poisson", "elo", "elo_disponibile")
+
+
+def _senza_rank(riga):
+    return {k: riga[k] for k in CHIAVI_ORACOLO}
+
+
+_BLOCCHI_NUOVI = None
+
+
+def _blocchi_nuovi():
+    """Sorgente dei blocchi del percorso NUOVO, letto una volta sola (ast.parse di app.py e' lento)."""
+    global _BLOCCHI_NUOVI
+    if _BLOCCHI_NUOVI is None:
+        _BLOCCHI_NUOVI = [(nome, _blocco(SRC, nome)) for nome in (
+            "select_next_matchday_matches", "_stagione_da_utcdate", "_stato_squadre_match",
+            "seleziona_riga_top_mix", "riga_ombra_totali", "_riga_ombra", "_riga_top_mix",
+            "calcola_righe_top_mix", "classifica_top_mix", "fetch_and_calc_top_mix")]
+    return _BLOCCHI_NUOVI
+
+
+# ------------------------------------------------------------------ esecuzioni
 def _esegui(vecchio: bool, elemi):
     """Esegue la Top Mix PRIMA (testo del fixture) o DOPO (testo di app.py).
 
     Gli stub sono identici nei due namespace: cambia solo il codice chiamato.
     Restituisce il JSON delle righe SENZA ``sort_keys`` - quindi l'ordine delle
-    chiavi fa parte del confronto, ed e' giusto cosi': e' quell'ordine a decidere
-    l'ordine delle colonne del DataFrame che la UI costruisce sulle righe - piu'
-    gli avvisi di log e i timeout delle GET.
+    chiavi fa parte del confronto - piu' gli avvisi di log e i timeout delle GET.
+    Il quarto elemento e' il risultato COMPLETO del percorso nuovo (tutte le
+    righe, senza il tetto [:10]), ``None`` per il fixture.
     """
     mondo = _payload(elemi)
     ns = {
@@ -330,6 +404,7 @@ def _esegui(vecchio: bool, elemi):
         # Il fixture storico usa il vecchio nome: stesso valore, sola compatibilita'.
         "ELO_ENSEMBLE_W": POISSON_W,
         "TOP_MIX_ROUND_WINDOW_DAYS": FINESTRA,
+        "OMBRA_SOGLIA_TOTALI": OMBRA_SOGLIA_TOTALI,
         "logging": _Logging(),
         "time": _Time,
         "datetime": datetime,
@@ -346,39 +421,37 @@ def _esegui(vecchio: bool, elemi):
         "season_start_year_of": season_start_year_of,
         "get_current_season_start_year": get_current_season_start_year,
     }
-    # La scelta della giornata e' la STESSA funzione reale di app.py in entrambi i
-    # namespace: il refactor non la tocca, e condividerla garantisce che le due
-    # esecuzioni vedano esattamente la stessa lista di partite.
-    exec(_blocco(SRC, "select_next_matchday_matches"), ns)
     # Roster non disponibile nel namespace stub (= non valutabile): la
     # classificazione nomi del chiamante resta permissiva, quindi NESSUNA
     # partita sintetica viene esclusa e NESSUN avviso nuovo compare nel
     # confronto dei log (le stats dello stub coprono ogni nome della griglia).
-    ns["_roster_stagione"] = lambda lega, stagione: None
+    completo = None
     if vecchio:
+        exec(dict(_blocchi_nuovi())["select_next_matchday_matches"], ns)
+        ns["_roster_stagione"] = lambda lega, stagione: None
         exec(FIX.TESTO_FUNZIONE, ns)
         top, missing = ns["fetch_and_calc_top_mix"]()
-        completo = None
     else:
-        # Il percorso nuovo e' su piu' funzioni (due motori, nessun tetto): si
-        # esegue tutto il testo corrente. L'Elo legacy dello stub non solleva
-        # mai: un avviso "Elo legacy non disponibile" sarebbe un avviso NUOVO
-        # rispetto al fixture e farebbe fallire il confronto dei log.
+        # Il percorso nuovo e' su piu' funzioni (due motori, registro ombra, nessun
+        # tetto): si esegue tutto il testo corrente. L'Elo legacy dello stub non
+        # solleva mai: un avviso "Elo legacy non disponibile" sarebbe un avviso
+        # NUOVO rispetto al fixture e farebbe fallire il confronto dei log.
         ns["MODEL_VARIANT_CURRENT"] = "current"
         ns["MODEL_VARIANT_LEGACY"] = "legacy"
         ns["predict_elo_probs_legacy"] = _elo_legacy_stub(mondo)
-        for nome in ("_stagione_da_utcdate", "_stato_squadre_match", "seleziona_riga_top_mix",
-                     "_riga_top_mix", "calcola_righe_top_mix", "classifica_top_mix",
-                     "fetch_and_calc_top_mix"):
-            exec(_blocco(SRC, nome), ns)
-        top_current, top_legacy, missing = ns["fetch_and_calc_top_mix"]()
-        completo = {"top_current": top_current, "top_legacy": top_legacy, "missing": missing}
+        ns["_roster_stagione"] = lambda lega, stagione: None
+        for _nome, testo in _blocchi_nuovi():
+            exec(testo, ns)
+        top_current, top_legacy, missing, ombra = ns["fetch_and_calc_top_mix"]()
+        completo = {"top_current": top_current, "top_legacy": top_legacy,
+                    "missing": missing, "ombra": ombra}
         # Differenza DICHIARATA: il tetto [:10] non c'e' piu'. Per il confronto
-        # bit-per-bit col fixture PRE si guardano le prime 10 righe della
-        # tabella current (rank 1..10 identici per costruzione).
+        # col fixture PRE si guardano le prime 10 righe della tabella current.
         top = top_current[:10]
     return (json.dumps({"top": top, "missing": missing}), list(ns["logging"].warn),
             mondo.get("timeouts", []), completo)
+
+
 
 
 def _poisson_stub(mondo):
@@ -451,6 +524,12 @@ class TestGuardieTesto(unittest.TestCase):
         'elo_prob = elo_p["1"]': "letta con .get + controllo sul tipo (hardening)",
         'elo_prob = elo_p["2"]': "letta con .get + controllo sul tipo (hardening)",
         'elo_prob = elo_p["X"]': "letta con .get + controllo sul tipo (hardening)",
+        '"Over 2.5": 1 - m_poisson["u25"], "Under 2.5": m_poisson["u25"],':
+            "Over/Under 2.5 TOLTI dal Top Mix visibile (PR Totali): la scelta vive in riga_ombra_totali",
+        '"GG": m_poisson["gg"], "NG": 1 - m_poisson["gg"]':
+            "GG/NG TOLTI dal Top Mix visibile (PR Totali): la scelta vive in riga_ombra_totali",
+        'if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:':
+            "con i soli 1X2 il ramo Totali (soglia 0,60 senza Elo) non esiste: resta `if not elo_disponibile:`",
     }
     NORMALIZZA = [("m_poisson[", "m["), ('f"Vittoria {h}"', 'f"Vittoria {home}"'),
                   ('f"Vittoria {a}"', 'f"Vittoria {away}"'), ("elo_p[", "elo_probs["),
@@ -508,48 +587,122 @@ class TestGuardieTesto(unittest.TestCase):
             self.assertRegex(fetch, '"%s": riga\\["%s"\\]' % (chiave, chiave), chiave)
 
 
+def _genera_rivalutazione(n: int = 120, seed: int = 20261008):
+    """Partite dove un Totale batte il 1X2 MA un 1X2 resta sopra soglia: il caso che la PR cambia.
+
+    Il Totale (0,70-0,90) e' il massimo del vecchio selettore; il 1X2 casa (0,56-0,66) e'
+    sopra la soglia 0,55 con Elo concorde. Il vecchio le mostrava sul Totale, il nuovo le
+    rivaluta sul 1X2. Senza questo gruppo la griglia non copre mai la rivalutazione.
+    """
+    rng = random.Random(seed)
+    base = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=1)
+    elemi = []
+    for i in range(n):
+        lega = LEGHE[i % len(LEGHE)]
+        h, a = f"RIVAL{i}Casa", f"RIVAL{i}Trasferta"
+        totale = rng.uniform(0.70, 0.90)
+        p1 = rng.uniform(0.56, 0.66)
+        pX = rng.uniform(0.12, 0.20)
+        p2 = rng.uniform(0.10, 0.20)
+        modo = ("Over", "Under", "GG", "NG")[i % 4]
+        poisson = {"1": p1, "X": pX, "2": p2, "u25": 0.5, "gg": 0.5}
+        if modo == "Over":
+            poisson["u25"] = 1.0 - totale
+        elif modo == "Under":
+            poisson["u25"] = totale
+        elif modo == "GG":
+            poisson["gg"] = totale
+        else:
+            poisson["gg"] = 1.0 - totale
+        delta = rng.uniform(-0.05, 0.05)
+        elo = {"1": min(0.99, max(0.01, p1 + delta)), "X": pX, "2": p2}
+        elemi.append(_partita(h, a, lega, 10000 + i, 12,
+                              (base + timedelta(hours=1 + i % 7)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                              poisson, elo))
+    return elemi
+
+
 class TestParitaGriglia(unittest.TestCase):
-    """Stesso input, due implementazioni: output identico carattere per carattere."""
+    """Griglia sintetica: il nuovo selettore contro il fixture PRE e contro l'oracolo 1X2.
+
+    Il confronto e' PER PARTITA: il fixture PRE restituisce solo le prime 10 righe,
+    quindi ogni partita viene eseguita da sola nei due percorsi. Per ognuna valgono
+    due ancore:
+    * se il vecchio argmax (7 mercati) e' un 1X2, la riga nuova e' BIT-IDENTICA a
+      quella del fixture (stessa chiave, stesso ordine di chiavi, stesso rank);
+    * altrimenti la riga nuova e' esattamente l'oracolo 1X2 (o nessuna riga).
+    """
 
     @classmethod
     def setUpClass(cls):
-        cls.elemi = _genera_griglia()
-        _Requests.timeouts = []
+        cls.elemi = _genera_griglia() + _genera_rivalutazione()
         cls.vecchio, cls.log_v, cls.to_v, _ = _esegui(True, cls.elemi)
         cls.nuovo, cls.log_n, cls.to_n, cls.completo = _esegui(False, cls.elemi)
         cls.top_v = json.loads(cls.vecchio)["top"]
         cls.top_n = json.loads(cls.nuovo)["top"]
+        cls.per_partita = []
+        for e in cls.elemi:
+            v = json.loads(_esegui(True, [e])[0])["top"]
+            n = _esegui(False, [e])[3]["top_current"]
+            cls.per_partita.append((e, v, n))
 
     def test_il_fixture_produce_righe_da_confrontare(self):
         self.assertEqual(10, len(self.top_v), "input troppo povero: nessun confronto reale")
 
-    def test_output_identico(self):
-        self.assertEqual(self.vecchio, self.nuovo)
+    def test_il_fixture_mostra_totali_quindi_la_rimozione_ha_effetto(self):
+        """Ancora: nella stessa griglia il selettore PRE sceglieva Totali. Senza, il test non direbbe nulla."""
+        visti = {r["market"] for _e, v, _n in self.per_partita for r in v}
+        self.assertTrue(visti & {"Over 2.5", "Under 2.5", "GG", "NG"}, visti)
 
-    def test_ordine_delle_chiavi_identico(self):
-        self.assertEqual([list(r) for r in self.top_v], [list(r) for r in self.top_n])
+    def test_nessun_totale_nella_selezione_visibile(self):
+        visti = {r["market"] for _e, _v, n in self.per_partita for r in n}
+        for totale in ("Over 2.5", "Under 2.5", "GG", "NG"):
+            self.assertNotIn(totale, visti)
+        for mercato in visti:
+            self.assertTrue(mercato.startswith(("Vittoria", "Pareggio")), mercato)
+        self.assertTrue(all(r["market"].startswith(("Vittoria", "Pareggio"))
+                            for r in self.completo["top_current"]))
+
+    def test_1x2_bit_identici_al_fixture_partita_per_partita(self):
+        """Se il vecchio argmax era un 1X2, la riga nuova e' la stessa riga del fixture, byte per byte."""
+        confronti = 0
+        for e, v, n in self.per_partita:
+            if _argmax_sette(e["poisson"]) in ("1", "X", "2"):
+                confronti += 1
+                self.assertEqual(json.dumps(v), json.dumps(n), e["_mid"])
+        self.assertGreater(confronti, 300, "copertura 1X2 troppo bassa per dire qualcosa")
+
+    def test_partite_gia_su_totale_rivalutate_come_l_oracolo(self):
+        """Il selettore nuovo rivaluta sui 1X2 le partite che il vecchio mostrava su un Totale."""
+        rivalutate = 0
+        for e, v, n in self.per_partita:
+            if _argmax_sette(e["poisson"]) in ("1", "X", "2"):
+                continue
+            atteso = _oracolo_1x2(e["poisson"], e["elo"], e["h"], e["a"])
+            ottenuto = [_senza_rank(r) for r in n]
+            self.assertEqual([] if atteso is None else [atteso], ottenuto, e["_mid"])
+            if atteso is not None:
+                rivalutate += 1
+        self.assertGreater(rivalutate, 0, "nessuna partita rivalutata: il caso non e' coperto")
+
+    def test_ogni_partita_coincide_con_l_oracolo(self):
+        for e, _v, n in self.per_partita:
+            atteso = _oracolo_1x2(e["poisson"], e["elo"], e["h"], e["a"])
+            self.assertEqual([] if atteso is None else [atteso], [_senza_rank(r) for r in n], e["_mid"])
+
+    def test_ordine_delle_chiavi_identico_sui_1x2(self):
+        for e, v, n in self.per_partita:
+            if v and _argmax_sette(e["poisson"]) in ("1", "X", "2"):
+                self.assertEqual(list(v[0]), list(n[0]), e["_mid"])
 
     def test_chiavi_del_selettore_allineate_al_fixture(self):
         attese = [k for k in FIX.CHIAVI_RIGA if k not in CAMPI_MATCH]
         self.assertEqual(attese, [k for k in self.top_v[0] if k not in CAMPI_MATCH])
 
-    def test_tutti_i_rami_esplorati(self):
-        """Altrimenti la parita' non avrebbe coperto 1X2 e totali separatamente."""
-        visti = {r["market"] for r in self.top_v} | {r["market"] for r in self.top_n}
-        self.assertTrue(any(m.startswith("Vittoria") for m in visti), visti)
-        for totale in ("Over 2.5", "Under 2.5", "GG", "NG"):
-            self.assertIn(totale, visti)
-        # Il ramo "Elo assente" ha soglia 0.60 e qui non arriva mai in vetta:
-        # lo si confronta a parte, in test_griglia_con_elo_assente_parita_e_flag_acceso.
-
     def test_griglia_con_elo_assente_parita_e_flag_acceso(self):
-        """Ripete il confronto dove il ramo "Elo assente" E' quello che passa.
+        """Il ramo "Elo assente" (soglia 0,60 anche sui 1X2) deve restare coperto e uguale all'ancora.
 
-        Nella griglia generale il top 10 e' pieno di righe sopra 0.9 con Elo
-        concorde, quindi li' il ramo debole non si vede mai: qui tutti i valori
-        stanno fra 0.60 e 0.63 (la fascia dove la soglia 0.60 decide) e l'Elo e'
-        sempre mancante o rotto. Se l'estrazione avesse perso un `False`, la
-        soglia sarebbe tornata 0.55 e le due liste avrebbero differito.
+        Tutti i valori stanno fra 0,60 e 0,63 e l'Elo e' sempre mancante o rotto.
         """
         base = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=1)
         elemi = []
@@ -563,16 +716,18 @@ class TestParitaGriglia(unittest.TestCase):
                                   (base + timedelta(hours=i % 9)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                                   poisson, ELO_MANCANTI[i % len(ELO_MANCANTI)]))
         vecchio, log_v, _, _ = _esegui(True, elemi)
-        nuovo, log_n, _, _ = _esegui(False, elemi)
-        self.assertEqual(vecchio, nuovo)
-        righe = json.loads(nuovo)["top"]
-        self.assertEqual(10, len(righe), "griglia troppo povera: nessun confronto")
+        nuovo, log_n, _, completo = _esegui(False, elemi)
+        self.assertEqual(10, len(json.loads(vecchio)["top"]), "griglia troppo povera")
+        for e in elemi:
+            v = json.loads(_esegui(True, [e])[0])["top"]
+            n = _esegui(False, [e])[3]["top_current"]
+            if _argmax_sette(e["poisson"]) in ("1", "X", "2"):
+                self.assertEqual(json.dumps(v), json.dumps(n), e["_mid"])
+            else:
+                atteso = _oracolo_1x2(e["poisson"], e["elo"], e["h"], e["a"])
+                self.assertEqual([] if atteso is None else [atteso], [_senza_rank(r) for r in n], e["_mid"])
+        righe = completo["top_current"]
         self.assertTrue(any(not r["elo_disponibile"] for r in righe), righe)
-        # Sui totali l'Elo non viene nemmeno letto, quindi il flag resta True:
-        # e' il comportamento di prima, e la soglia 0.60 e' gia' quella dei totali.
-        for r in righe:
-            if r["market"].startswith(("Vittoria", "Pareggio")):
-                self.assertFalse(r["elo_disponibile"], r)
         assert_solo_elo_in_meno(self, log_v, log_n)
 
     def test_rank_e_ordamento(self):
@@ -581,8 +736,7 @@ class TestParitaGriglia(unittest.TestCase):
         self.assertEqual(probs, sorted(probs, reverse=True))
 
     def test_tetto_rimosso_rank_continui_su_tutta_la_lista(self):
-        """Differenza dichiarata: nessun [:10]. La lista completa ha N > 10 righe,
-        rank 1..N, ordinata; le prime 10 sono esattamente il confronto PRE."""
+        """Differenza dichiarata: nessun [:10]. La lista completa ha N > 10 righe, rank 1..N, ordinata."""
         for nome in ("top_current", "top_legacy"):
             completo = self.completo[nome]
             self.assertGreater(len(completo), 10, nome)
@@ -592,11 +746,8 @@ class TestParitaGriglia(unittest.TestCase):
         self.assertEqual(self.completo["top_current"][:10], self.top_n)
 
     def test_tabella_legacy_stesso_selettore_elo_diverso(self):
-        """La seconda tabella e' lo stesso selettore con l'Elo legacy: stesse
-        chiavi riga, stesso Poisson per la stessa partita, e almeno una
-        partita in cui le due tabelle differiscono (l'Elo ribaltato dallo stub
-        cambia blend e veto sull'1X2), mentre sui Totali (Elo non letto) le
-        righe coincidono numero per numero."""
+        """La seconda tabella e' lo stesso selettore con l'Elo legacy: stesse chiavi, stesso Poisson
+        per la stessa partita, e almeno una differenza reale fra le due tabelle."""
         cur = {r["match_id"]: r for r in self.completo["top_current"]}
         leg = {r["match_id"]: r for r in self.completo["top_legacy"]}
         self.assertTrue(leg, "tabella legacy vuota: la griglia non copre il secondo motore")
@@ -606,27 +757,15 @@ class TestParitaGriglia(unittest.TestCase):
         self.assertTrue(comuni)
         for mid in comuni:
             self.assertEqual(cur[mid]["poisson"], leg[mid]["poisson"], mid)
-            if not cur[mid]["market"].startswith(("Vittoria", "Pareggio")):
-                self.assertEqual(cur[mid]["prob"], leg[mid]["prob"], mid)
-                self.assertEqual(cur[mid]["elo"], leg[mid]["elo"], mid)
-        # diversita' reale: partite presenti solo in una tabella, o 1X2 con
-        # confidence diversa
         solo_una = (set(cur) ^ set(leg))
-        diverse_1x2 = [mid for mid in comuni
-                       if cur[mid]["market"].startswith(("Vittoria", "Pareggio"))
-                       and cur[mid]["prob"] != leg[mid]["prob"]]
+        diverse_1x2 = [mid for mid in comuni if cur[mid]["prob"] != leg[mid]["prob"]]
         self.assertTrue(solo_una or diverse_1x2, "le due tabelle sono identiche: l'Elo legacy non entra")
 
     def test_log_nessun_avviso_nuovo_e_solo_elo_in_meno(self):
-        """Lo spostamento del `try` non introduce avvisi ne' ne perde di fetch.
-
-        Gli unici messaggi che possono scomparire sono "Elo non disponibile": la
-        causa (dict incompleto) oggi viaggia sul flag `elo_disponibile` della
-        riga, dove conta, invece che su un log.
-        """
+        """Lo spostamento del `try` non introduce avvisi ne' ne perde di fetch."""
         fetch_v = [w for w in self.log_v if w.startswith("Errore fetch Top Mix")]
         fetch_n = [w for w in self.log_n if w.startswith("Errore fetch Top Mix")]
-        self.assertEqual([], fetch_v)             # input pulito: nessuna fetch fallita
+        self.assertEqual([], fetch_v)
         self.assertEqual(fetch_v, fetch_n)
         assert_solo_elo_in_meno(self, self.log_v, self.log_n)
 
@@ -638,7 +777,7 @@ class TestParitaGriglia(unittest.TestCase):
 
 
 class TestParitaCasiLimite(unittest.TestCase):
-    """I punti dove un refactor si rompe: bordi di soglia, gate, Elo assente/malformato."""
+    """I punti dove un refactor si rompe: bordi di soglia, veto, Elo assente/malformato, Totali."""
 
     def _entrambi(self, poisson, elo, home="Casa", away="Trasferta"):
         utc = (datetime.now(timezone.utc).replace(microsecond=0)
@@ -649,8 +788,14 @@ class TestParitaCasiLimite(unittest.TestCase):
         return json.loads(v), json.loads(n), (log_v, log_n)
 
     def assert_parita(self, poisson, elo, **kw):
+        """Argmax 1X2 nel vecchio -> identico al fixture. Argmax Totale -> l'oracolo 1X2."""
         v, n, log = self._entrambi(poisson, elo, **kw)
-        self.assertEqual(v, n, f"divergenza su {poisson} / elo={elo}")
+        if _argmax_sette(poisson) in ("1", "X", "2"):
+            self.assertEqual(v, n, f"divergenza su 1X2 {poisson} / elo={elo}")
+        else:
+            atteso = _oracolo_1x2(poisson, elo, kw.get("home", "Casa"), kw.get("away", "Trasferta"))
+            self.assertEqual([] if atteso is None else [atteso],
+                             [_senza_rank(r) for r in n["top"]], f"{poisson} / elo={elo}")
         return n
 
     def test_confidence_esattamente_sulla_soglia_1x2(self):
@@ -671,21 +816,18 @@ class TestParitaCasiLimite(unittest.TestCase):
                                {"1": 0.40, "X": 0.15, "2": 0.45})
         self.assertEqual([], n["top"])
 
-    def test_soglia_dei_totali_a_0_60_e_bordo(self):
-        for val, atteso in ((0.60, 1), (0.5999, 0)):
+    def test_totali_a_0_60_erano_visibili_ora_no(self):
+        """Ancora: col vecchio selettore un Over a 0,60 entrava; ora il Top Mix non lo mostra piu'."""
+        for val, visto_prima in ((0.60, 1), (0.5999, 0)):
             m = {"1": 0.10, "X": 0.10, "2": 0.10, "u25": 1.0 - val, "gg": 0.5}
-            n = self.assert_parita(m, {"1": 0.50, "X": 0.20, "2": 0.30})
-            self.assertEqual(atteso, len(n["top"]), (val, n))
-            if atteso:
-                self.assertEqual("Over 2.5", n["top"][0]["market"])
-                self.assertEqual(n["top"][0]["prob"], n["top"][0]["poisson"] / 100.0)
+            v, n, _ = self._entrambi(m, {"1": 0.50, "X": 0.20, "2": 0.30})
+            self.assertEqual(visto_prima, len(v["top"]), (val, v))
+            if visto_prima:
+                self.assertEqual("Over 2.5", v["top"][0]["market"])
+            self.assertEqual([], n["top"], (val, n))
 
     def test_veto_a_discrepanza_esatta(self):
-        """|P-E| == 0.25 NON e' ammesso (< stretto), 0.2499999 si': confine movente.
-
-        Vettori a 0.80 (prima 0.70): con POISSON_1X2_WEIGHT=0.25 la confidence a
-        0.70 cadrebbe sotto 0.55 e il confine verrebbe deciso dalla soglia di
-        ammissibilita', non dal veto (adattato al porting w=0.25, 2026-09-12)."""
+        """|P-E| == 0.25 NON e' ammesso (< stretto), 0.2499999 si': confine movente."""
         for delta, atteso in ((0.25, 0), (0.2499999, 1)):
             m = {"1": 0.80, "X": 0.10, "2": 0.10, "u25": 0.50, "gg": 0.50}
             n = self.assert_parita(m, {"1": 0.80 - delta, "X": 0.10, "2": 0.10})
@@ -714,16 +856,27 @@ class TestParitaCasiLimite(unittest.TestCase):
                                {"1": 0.90, "X": 0.05, "2": 0.05})
         self.assertEqual([1], [r["rank"] for r in n["top"]])
 
+    def test_totale_forte_con_1x2_sotto_soglia_non_entra(self):
+        """Over a 0,80 ma nessun 1X2 sopra soglia: il vecchio la mostrava, il nuovo no."""
+        m = {"1": 0.45, "X": 0.30, "2": 0.25, "u25": 0.20, "gg": 0.50}
+        v, n, _ = self._entrambi(m, {"1": 0.45, "X": 0.30, "2": 0.25})
+        self.assertEqual(["Over 2.5"], [r["market"] for r in v["top"]])
+        self.assertEqual([], n["top"])
+
+    def test_totale_forte_con_1x2_ammessa_viene_rivalutata(self):
+        """Over a 0,80 ma il 1X2 casa a 0,58 e' ammesso: la partita entra sul 1X2 (rivalutata)."""
+        m = {"1": 0.58, "X": 0.22, "2": 0.20, "u25": 0.20, "gg": 0.50}
+        v, n, _ = self._entrambi(m, {"1": 0.58, "X": 0.22, "2": 0.20})
+        self.assertEqual(["Over 2.5"], [r["market"] for r in v["top"]])
+        self.assertEqual(["Vittoria Casa"], [r["market"] for r in n["top"]])
+        self.assertAlmostEqual(0.58, n["top"][0]["prob"], places=12)
+
     def test_valore_elo_non_numerico_non_fa_piu_esplodere_il_batch(self):
         """Differenza VOLUTA e unidirezionale: qui la parita' NON puo' valere.
 
         PRIMA ``elo_prob = elo_p["1"]`` con un valore non numerico sollevava
-        ``TypeError`` fuori dal ``try`` (il try copriva la sola chiamata, non
-        l'accesso) e perdeva l'intero batch di 5 leghe. DOPO, il controllo sul
-        tipo marca la riga ``elo_disponibile=False`` e la lascia Poisson puro.
-        E' l'unico punto in cui il comportamento nuovo e' piu' permissivo: la
-        riga prodotta e' comunque quella che il selettore avrebbe prodotto con
-        un Elo semplicemente assente (vedi test_elo_assente_...).
+        ``TypeError`` fuori dal ``try`` e perdeva l'intero batch. DOPO, il controllo
+        sul tipo marca la riga ``elo_disponibile=False`` e la lascia Poisson puro.
         """
         m = {"1": 0.80, "X": 0.10, "2": 0.10, "u25": 0.50, "gg": 0.50}
         utc = (datetime.now(timezone.utc).replace(microsecond=0)
@@ -736,10 +889,11 @@ class TestParitaCasiLimite(unittest.TestCase):
         self.assertEqual(1, len(n["top"]), n)
         self.assertFalse(n["top"][0]["elo_disponibile"])
         self.assertEqual(n["top"][0]["prob"], n["top"][0]["poisson"] / 100.0)
-        # identica alla riga che lo STESSO input produce con Elo assente: la
-        # tolleranza non apre una terza via, si appoggia a un percorso gia' testato
+        # identica alla riga che lo STESSO input produce con Elo assente
         assente, _, _, _ = _esegui(False, [_partita("Casa", "Trasferta", "SerieA", 0, 12, utc, m, None)])
         self.assertEqual(n["top"], json.loads(assente)["top"])
+
+
 
 
 class TestProvenienza(unittest.TestCase):

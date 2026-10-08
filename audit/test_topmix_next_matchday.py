@@ -216,7 +216,7 @@ class TestFetchAndCalcTopMix(unittest.TestCase):
              mock.patch.object(app, "predict_elo_probs_legacy", side_effect=fake_elo), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()  # azzera la cache st.cache_data
-            top_current, top_legacy, missing = app.fetch_and_calc_top_mix()
+            top_current, top_legacy, missing, _ombra = app.fetch_and_calc_top_mix()
 
         self.assertEqual(missing, [])
         # Due tabelle (attuale / legacy): entrambe non vuote, ordinate per

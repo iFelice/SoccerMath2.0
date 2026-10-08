@@ -104,7 +104,7 @@ class TestIgieneTopMix(unittest.TestCase):
 
     def test_fallback_elo_marcato_e_soglia_corretta(self):
         self.assertTrue(self.igiene["elo_flag_disponibilita"])
-        self.assertTrue(self.igiene["soglia_totali_se_elo_manca"])
+        self.assertTrue(self.igiene["soglia_0_60_se_elo_manca"])
 
     def test_rank_sulla_riga_e_sleep_tra_le_leghe(self):
         self.assertTrue(self.igiene["rank_sulla_riga"])
@@ -233,7 +233,9 @@ class TestSelettoreInvariato(unittest.TestCase):
         self.assertTrue(s["elo_legacy_chiamato"])
         self.assertFalse(s["has_over_15"])
         self.assertFalse(s["has_over_35"])
-        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_gate025_ens06_v1")
+        # bump intenzionale (PR Totali): il Top Mix visibile e' solo 1X2
+        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_1x2_gate025_ens06_v2")
+        self.assertEqual(R.SELECTOR_VERSION_PRE_1X2, "topmix_gate025_ens06_v1")
 
     def test_get_league_engine_usa_il_gate_condiviso(self):
         tree = ast.parse(_src(APP_PATH))

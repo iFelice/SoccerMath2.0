@@ -242,7 +242,7 @@ def _righe_referto(esito: Dict[str, Any]) -> List[str]:
                  f"{n_l}; {solo_c + solo_l} partite le copre UN SOLO modello "
                  f"({solo_c} solo attuale, {solo_l} solo legacy). Dove manca l'ATTUALE la causa va "
                  f"MISURATA (diagnosi: sotto soglia, veto o buco del replay); dove manca il LEGACY vale "
-                 f"lo stesso: sotto le soglie del selettore 0,55 1X2 / 0,60 Totali o scartata dal veto")
+                 f"lo stesso: sotto le soglie del selettore (0,55 sui 1X2 con Elo, 0,60 senza Elo) o scartata dal veto")
     for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
         voci = intero["solo"][variante]
         if voci:

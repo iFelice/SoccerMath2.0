@@ -334,7 +334,9 @@ class TestVersioneSelettore(unittest.TestCase):
         md = R.new_prediction_metadata()
         self.assertEqual(md[R.MODEL_VERSION_FIELD], R.MODEL_VERSION_CURRENT)
         self.assertFalse(md[R.EXCLUDED_FROM_CURRENT_STATS_FIELD])
-        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_gate025_ens06_v1")
+        # bump intenzionale (PR Totali): il Top Mix visibile e' solo 1X2
+        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_1x2_gate025_ens06_v2")
+        self.assertEqual(R.SELECTOR_VERSION_PRE_1X2, "topmix_gate025_ens06_v1")
 
 
 if __name__ == "__main__":

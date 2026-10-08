@@ -59,6 +59,15 @@ from prediction_registry import (
     build_registry_datetime_column,
     # --- tracciamento Top Mix (audit/margini_migliorabili_topmix.md §7) ---
     SELECTOR_VERSION_CURRENT,
+    SELECTOR_VERSION_PRE_1X2,
+    SELECTOR_VERSION_OMBRA,
+    ORIGIN_TOP_MIX_OMBRA,
+    OMBRA_FIELD, OMBRA_MERCATO_FIELD, OMBRA_CONFIDENCE_FIELD, OMBRA_AMMESSA_FIELD,
+    OMBRA_SOGLIA_FIELD, OMBRA_VINCENTE_GLOBALE_FIELD, OMBRA_DATI_MANCANTI_FIELD,
+    OMBRA_SOGLIA_TOTALI,
+    is_ombra,
+    righe_visibili,
+    upsert_prediction_entries,
     ORIGIN_TOP_MIX,
     ORIGIN_ANALISI_RAPIDA,
     ORIGIN_BILLY,
@@ -504,7 +513,8 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
                            snapshot_sha=None,
                            gate_shadow_confidence=None, gate_shadow_ammessa=None,
                            gate_off_confidence=None, gate_off_ammessa=None,
-                           model_variant=MODEL_VARIANT_CURRENT, salvato_il=None):
+                           model_variant=MODEL_VARIANT_CURRENT, salvato_il=None,
+                           selector_version=None):
     """Costruisce il record del registro (nessun I/O): la forma della riga vive QUI.
 
     E' la stessa funzione per il salvataggio live (``save_prediction_entry``)
@@ -520,6 +530,11 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
     orig = resolve_origin(origin, pronostico)
     sha = snapshot_sha if snapshot_sha is not None else snapshot_fingerprint(DATABASE_DIR)
     variante = str(model_variant or MODEL_VARIANT_CURRENT).strip().lower()
+    # Versione del selettore: esplicita se passata; altrimenti quella che ha
+    # prodotto la riga. Top Mix -> selettore attuale (solo 1X2); Analisi Rapida e
+    # Billy -> selettore storico, cioe' la versione di sempre: il loro dedup non cambia.
+    sel = selector_version or (SELECTOR_VERSION_CURRENT if orig == ORIGIN_TOP_MIX
+                               else SELECTOR_VERSION_PRE_1X2)
     entry = {
         "match_id": match_id, "home": h, "away": a, "campionato": camp, "giornata": giornata,
         "data": match_date, "pronostico_sicuro": pronostico, "mercato_standard": mercato_code,
@@ -528,12 +543,12 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
         "stagione": stagione_reale,
         "salvato_il": salvato_il or datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M"),
         "origin": orig,
-        "selector_version": SELECTOR_VERSION_CURRENT,
+        "selector_version": sel,
         MODEL_VARIANT_FIELD: variante,
         "rank": rank,
         "kickoff_utc": kickoff_utc or "",
         "data_snapshot_sha": sha or "",
-        "calculation_id": build_calculation_id(match_id, orig, SELECTOR_VERSION_CURRENT,
+        "calculation_id": build_calculation_id(match_id, orig, sel,
                                                kickoff_utc, sha, rank, model_variant=variante),
         "poisson": prob_poisson,
         "elo": prob_elo,
@@ -561,7 +576,7 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
                           snapshot_sha=None,
                           gate_shadow_confidence=None, gate_shadow_ammessa=None,
                           gate_off_confidence=None, gate_off_ammessa=None,
-                          model_variant=MODEL_VARIANT_CURRENT):
+                          model_variant=MODEL_VARIANT_CURRENT, selector_version=None):
     """Scrive UNA previsione nel registro e dice cosa ha fatto.
 
     Due modifiche puntuali, entrambe richieste da
@@ -599,7 +614,7 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
         snapshot_sha=snapshot_sha,
         gate_shadow_confidence=gate_shadow_confidence, gate_shadow_ammessa=gate_shadow_ammessa,
         gate_off_confidence=gate_off_confidence, gate_off_ammessa=gate_off_ammessa,
-        model_variant=model_variant)
+        model_variant=model_variant, selector_version=selector_version)
     preds, azione = upsert_prediction_entry(preds, entry)
     if azione == "gia_graduata":
         # La previsione e' gia' stata giudicata: NON si tocca, e il record nuovo
@@ -609,8 +624,77 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
     remoto = esito.get("remoto") if isinstance(esito, dict) else "ignoto"
     return {"azione": azione, "remoto": remoto, "record": entry}
 
-def aggiorna_risultati_reali(api_key):
-    preds = load_predictions()
+def build_ombra_entry(riga, *, salvato_il=None, snapshot_sha=None):
+    """Record del registro OMBRA per UNA partita candidata (da ``calcola_righe_top_mix(..., ombra=...)``).
+
+    Stessa forma di una riga normale (``build_prediction_entry``) con origine
+    ``top_mix_ombra`` e versione ``SELECTOR_VERSION_OMBRA``, piu' i campi
+    ``ombra_*``. Non c'e' rank ne' Elo: la riga non e' mai stata mostrata.
+    """
+    conf = riga["confidence"]
+    entry = build_prediction_entry(
+        riga["match_id"], riga["home"], riga["away"], riga["league"], riga["giornata"],
+        format_date_italy(riga["utcDate"], "%d/%m/%Y %H:%M"),
+        f"{riga['market']} - Top Mix ombra", [], round(conf * 100, 1), "",
+        mercato_standard=riga["mercato_standard"], origin=ORIGIN_TOP_MIX_OMBRA, rank=None,
+        kickoff_utc=riga["utcDate"], prob_poisson=round(riga["poisson"] * 100, 1),
+        prob_elo=None, elo_disponibile=False, snapshot_sha=snapshot_sha,
+        model_variant=MODEL_VARIANT_CURRENT, salvato_il=salvato_il,
+        selector_version=SELECTOR_VERSION_OMBRA,
+    )
+    entry[OMBRA_FIELD] = True
+    entry[OMBRA_MERCATO_FIELD] = riga["market"]
+    entry[OMBRA_CONFIDENCE_FIELD] = round(conf, 6)
+    entry[OMBRA_AMMESSA_FIELD] = bool(riga["ammessa"])
+    entry[OMBRA_SOGLIA_FIELD] = OMBRA_SOGLIA_TOTALI
+    entry[OMBRA_VINCENTE_GLOBALE_FIELD] = bool(riga["vincente_globale"])
+    entry[OMBRA_DATI_MANCANTI_FIELD] = bool(riga.get("dati_mancanti"))
+    return entry
+
+
+def salva_registro_ombra(righe_ombra):
+    """Scrive le scelte Totali ombra nel registro OMBRA. Ritorna un esito (mai le righe).
+
+    Una lettura STRICT (se l'hash non si legge, non si scrive nulla: un ``[]``
+    falso riscriverebbe l'ombra da zero), un upsert in blocco (le righe gia'
+    giudicate non si toccano mai) e una scrittura che tocca solo le righe nuove
+    o cambiate. Non produce nessun output visibile: il chiamante decide se e
+    come segnalare un errore di scrittura.
+    """
+    from registry_store import esito_scrittura, load_ombra_rows, save_ombra_rows
+    candidate = [r for r in (righe_ombra or []) if r.get("match_id") is not None]
+    if not candidate:
+        return {"remoto": "nessuna_riga", "azioni": {}}
+    try:
+        esistenti, _fonte = load_ombra_rows(strict=True)
+    except Exception as e:
+        logging.warning(f"Registro ombra non letto, nessuna scrittura: {e}")
+        return {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300], "azioni": {}}
+    sha = snapshot_fingerprint(DATABASE_DIR)          # una volta sola per il blocco
+    entries = [build_ombra_entry(r, snapshot_sha=sha) for r in candidate]
+    lista, azioni = upsert_prediction_entries(esistenti, entries)
+    if not (azioni.get("aggiunta") or azioni.get("aggiornata")):
+        return {"remoto": "nessuna_scrittura", "azioni": azioni}
+    try:
+        esito = esito_scrittura(save_ombra_rows(lista))
+    except Exception as e:
+        logging.warning(f"Scrittura del registro ombra fallita: {e}")
+        return {"remoto": "errore", "remoto_dettaglio": f"{type(e).__name__}: {e}"[:300], "azioni": azioni}
+    esito["azioni"] = azioni
+    if esito.get("remoto") not in ("ok", "disattivato"):
+        logging.warning(f"Registro ombra: scrittura non riuscita ({esito.get('remoto_dettaglio', esito.get('remoto'))})")
+    return esito
+
+
+def _applica_esiti(preds, api_key, cache=None):
+    """Grading delle righe ancora in attesa: UNA logica per il Registro vivo e per l'ombra.
+
+    Modifica ``preds`` sul posto e ritorna ``(aggiornate, pending)``. ``cache`` e'
+    il dizionario delle risposte per giornata condiviso fra le due passate
+    (visibile e ombra): un solo giro di chiamate a football-data per giornata.
+    """
+    if cache is None:
+        cache = {}
     aggiornate = 0
     # FIX: is not None invece di truthiness, così giornata=0 non viene esclusa
     pending = [p for p in preds if p.get("esito") in [None, "⏳"] and p.get("campionato") is not None and p.get("giornata") is not None]
@@ -620,7 +704,7 @@ def aggiorna_risultati_reali(api_key):
     grouped = defaultdict(list)
     for p in pending:
         grouped[(p["campionato"], p["giornata"])].append(p)
-    
+
     # --- FIX GIORNATA 0: chiamata diretta per match_id ---
     for camp in list(LEAGUES_CONFIG.keys()):
         zero_day_preds = grouped.pop((camp, 0), [])
@@ -649,26 +733,35 @@ def aggiorna_risultati_reali(api_key):
                 aggiornate += 1
             except Exception as e:
                 logging.warning(f"Aggiornamento risultato per match_id {m_id} fallito: {e}")
-    
+
     # --- Loop normale per giornata > 0 ---
     for (camp, giornata), camp_pending in grouped.items():
         comp = LEAGUE_CODE_MAP.get(camp)
         if not comp:
             continue
-        try:
-            r = requests.get(
-                f"https://api.football-data.org/v4/competitions/{comp}/matches",
-                headers={"X-Auth-Token": api_key},
-                params={"matchday": giornata, "status": "FINISHED"},
-                timeout=15
-            )
-            if r.status_code != 200:
+        chiave_cache = ("giornata", comp, giornata)
+        if chiave_cache in cache:
+            risultati_api = cache[chiave_cache]
+        else:
+            try:
+                r = requests.get(
+                    f"https://api.football-data.org/v4/competitions/{comp}/matches",
+                    headers={"X-Auth-Token": api_key},
+                    params={"matchday": giornata, "status": "FINISHED"},
+                    timeout=15
+                )
+                if r.status_code != 200:
+                    cache[chiave_cache] = None
+                    continue
+                risultati_api = {m["id"]: m for m in r.json().get("matches", [])}
+                cache[chiave_cache] = risultati_api
+            except Exception as e:
+                # Non e' un `except: continue` muto: un fallback sul grading e'
+                # un giorno di risultati che non arriva, e va visto.
+                logging.warning(f"Aggiornamento risultati {camp} giornata {giornata} fallito: {e}")
+                cache[chiave_cache] = None
                 continue
-            risultati_api = {m["id"]: m for m in r.json().get("matches", [])}
-        except Exception as e:
-            # Non e' piu' un `except: continue` muto: un fallback sul grading e'
-            # un giorno di risultati che non arriva, e va visto.
-            logging.warning(f"Aggiornamento risultati {camp} giornata {giornata} fallito: {e}")
+        if risultati_api is None:
             continue
         for p in camp_pending:
             m_id = p.get("match_id")
@@ -685,10 +778,43 @@ def aggiorna_risultati_reali(api_key):
             # perche' salvato da un altro percorso".
             p["esito"] = esito_mercato(p.get("mercato_standard", ""), gh, ga) or "⏳"
             aggiornate += 1
-    
+    return aggiornate, len(pending)
+
+
+def aggiorna_risultati_reali(api_key):
+    """Grading del Registro vivo (e, nello stesso giro, di quello ombra).
+
+    Ritorna ``(aggiornate, pending)`` del Registro visibile, come sempre. Il
+    registro ombra viene valutato con le STESSE regole e le STESSE risposte HTTP
+    (cache condivisa): un suo guasto non fa fallire il grading visibile, viene
+    solo registrato nel log.
+    """
+    cache = {}
+    preds = load_predictions()
+    aggiornate, pending = _applica_esiti(preds, api_key, cache)
     if aggiornate > 0:
         save_predictions(preds)
-    return aggiornate, len(pending)
+    try:
+        aggiorna_esiti_ombra(api_key, cache)
+    except Exception as e:
+        logging.warning(f"Grading del registro ombra non riuscito (il Registro visibile e' a posto): {e}")
+    return aggiornate, pending
+
+
+def aggiorna_esiti_ombra(api_key, cache=None):
+    """Grading del registro OMBRA: stesse regole delle righe normali. Ritorna ``(aggiornate, pending)``.
+
+    Lettura strict: con un errore di rete non scrive nulla. Scrive solo le righe
+    giudicate in questo giro (``HSET`` diff).
+    """
+    from registry_store import esito_scrittura, load_ombra_rows, save_ombra_rows
+    righe, _fonte = load_ombra_rows(strict=True)
+    aggiornate, pending = _applica_esiti(righe, api_key, cache)
+    if aggiornate > 0:
+        esito = esito_scrittura(save_ombra_rows(righe))
+        if esito.get("remoto") not in ("ok", "disattivato"):
+            raise RuntimeError(f"scrittura ombra non riuscita: {esito.get('remoto_dettaglio', esito.get('remoto'))}")
+    return aggiornate, pending
 
 # --- MOTORI LOGICI ---
 
@@ -1457,7 +1583,17 @@ def select_next_matchday_matches(matches, now=None):
 
 
 def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, away=None):
-    """Riga Top Mix di UNA partita: argmax, blend 1X2, soglie e veto.
+    """Riga Top Mix di UNA partita: argmax sui 1X2, blend, soglie e veto.
+
+    Dalla PR che toglie i Totali dal Top Mix, la selezione VISIBILE sceglie solo
+    fra Vittoria casa, Pareggio e Vittoria trasferta: Over/Under 2.5 e GG/NG non
+    entrano mai nella tabella. Il motivo e' misurato (vedi la sezione "Totali" di
+    ``prediction_registry.py``: BSS del modello sull'O/U 2.5 ~0,8% contro ~3,4%
+    della chiusura di mercato; GG/NG sotto il base rate; Totali = 39,7% delle
+    righe ammesse). Le partite che prima vincevano un Totale vengono RIVALUTATE
+    sui soli 1X2: se la miglior scelta 1X2 supera la sua soglia entra con la sua
+    riga, altrimenti non entra. Soglie (0,55 con Elo, 0,60 senza), blend e veto
+    restano quelli di prima.
 
     Funzione PURA (nessuna richiesta HTTP, nessuna cache, nessun logging,
     nessuna scrittura nel registro): riceve solo i dati gia' calcolati per la
@@ -1479,12 +1615,13 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
     ---------
     m : dict
         Output di ``get_full_poisson_two_heads``: chiavi "1", "X", "2", "u25", "gg".
+        Qui si leggono solo "1", "X", "2": i Totali sono nel registro ombra.
     elo_probs : dict | None
         Output di ``predict_elo_probs`` (chiavi "1", "X", "2"); ``None`` se l'Elo
         non e' disponibile.
     elo_disponibile : bool
         False quando ``predict_elo_probs`` ha fallito: la confidence e' allora
-        Poisson puro e vale la soglia dei totali (0,60), non 0,55.
+        Poisson puro e vale la soglia 0,60, non 0,55.
     home, away : str
         Nomi (``shortName`` API) usati per le etichette "Vittoria {squadra}" e
         per il codice mercato.
@@ -1492,11 +1629,10 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
     Ritorna ``dict | None`` con chiavi ``market``, ``mercato_standard``,
     ``prob``, ``prob_val``, ``poisson``, ``elo``, ``elo_disponibile``.
     """
-    # Poisson a due teste: 1X2 da mercato normalizzato, O/U e GG da lambda base
+    # Solo i tre 1X2, nello stesso ordine di prima: con lo stesso ordine di dict
+    # lo spareggio fra due 1X2 uguali resta quello di sempre (casa, X, trasferta).
     mercati = {
         f"Vittoria {home}": m["1"], "Pareggio": m["X"], f"Vittoria {away}": m["2"],
-        "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"],
-        "GG": m["gg"], "NG": 1 - m["gg"]
     }
     best_mkt = max(mercati, key=mercati.get)
     poisson_prob = mercati[best_mkt]
@@ -1519,15 +1655,13 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
             else:
                 elo_disponibile = False
 
-    # Confidence = media tra Poisson ed Elo (se Elo è vicino, conferma; se lontano, penalizza)
-    # Per mercati O/U e GG dove Elo non esiste, usiamo solo Poisson ma richiediamo soglia più alta
-    if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:
+    # Confidence: blend 1X2 Poisson/Elo (media pesata, stesso peso dell'ensemble
+    # POISSON_1X2_WEIGHT, quindi la confidence coincide con la probabilita' 1X2
+    # ensemble usata ovunque). Senza Elo: solo Poisson, soglia piu' alta.
+    if not elo_disponibile:
         confidence = poisson_prob
         min_conf = 0.60
     else:
-        # Per 1X2: media armonica pesata (stesso peso dell'ensemble
-        # POISSON_1X2_WEIGHT: la confidence coincide con la probabilita'
-        # 1X2 ensemble usata ovunque)
         confidence = POISSON_1X2_WEIGHT * poisson_prob + (1 - POISSON_1X2_WEIGHT) * elo_prob
         min_conf = 0.55
 
@@ -1560,29 +1694,26 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
 
     Funzione PURA (stessi divieti di ``seleziona_riga_top_mix``: niente HTTP,
     cache, logging o scritture) e speculare alla sua matematica di selezione:
-    ripercorre le stesse righe (7 mercati, argmax, estrazione Elo, blend,
-    ``min_conf``) SOLO per ricavare ``confidence`` e ``d`` su cui applicare la
-    penalita'. La specularita' e' intenzionale e tenuta viva dal test di
-    coerenza ``test_topmix_shadow_gate.py`` (sulle stesse griglie della
-    parita' il lato reale di questa funzione deve coincidere con l'output di
+    ripercorre le stesse righe (argmax sui 1X2, stesso blend, stessa estrazione
+    Elo, stesse soglie) SOLO per ricavare ``confidence`` e ``d`` su cui applicare
+    la penalita'. La specularita' e' intenzionale e tenuta viva dal test di
+    coerenza ``test_topmix_shadow_gate.py`` (sulle stesse griglie della parita'
+    il lato reale di questa funzione deve coincidere con l'output di
     ``seleziona_riga_top_mix``); il selettore reale NON viene toccato.
 
-    Ritorna SEMPRE un dict (mai ``None``): la candidate non viene mai
-    scartata qui, l'ammissione ombra viaggia nel campo ``ammessa_shadow``.
-    Chiavi: ``market``, ``mercato_standard``, ``prob`` (confidence REALE),
-    ``prob_val``, ``poisson``, ``elo``, ``elo_disponibile``, ``min_conf``,
-    ``disaccordo`` (d = |P-E|; 0 per totali o Elo assente), ``conf_shadow``
-    (confidence penalizzata), ``ammessa_shadow`` (``conf_shadow >= min_conf``)
-    e ``gate_avrebbe_scartato`` (``d >= 0.25``, cioe' la riga che oggi il veto
-    blocca). Accanto, il SECONDO segnale (referto §11quinquies): ``conf_off``
-    (identita': nessuno sconto) e ``ammessa_off`` (``conf_off >= min_conf``).
+    Ritorna SEMPRE un dict (mai ``None``): la candidate non viene mai scartata
+    qui, l'ammissione ombra viaggia nel campo ``ammessa_shadow``. Chiavi:
+    ``market``, ``mercato_standard``, ``prob`` (confidence REALE), ``prob_val``,
+    ``poisson``, ``elo``, ``elo_disponibile``, ``min_conf``, ``disaccordo``
+    (d = |P-E|), ``conf_shadow`` (confidence penalizzata), ``ammessa_shadow``
+    (``conf_shadow >= min_conf``) e ``gate_avrebbe_scartato`` (``d >= 0.25``).
+    Accanto, il SECONDO segnale (referto §11quinquies): ``conf_off`` (identita':
+    nessuno sconto) e ``ammessa_off`` (``conf_off >= min_conf``).
     """
-    # Copia speculare della selezione reale (vedi docstring): stessa argmax,
-    # stesso blend, stesse soglie -- MAI il veto.
+    # Copia speculare della selezione reale (vedi docstring): stessa argmax sui
+    # 1X2, stesso blend, stesse soglie -- MAI il veto.
     mercati = {
         f"Vittoria {home}": m["1"], "Pareggio": m["X"], f"Vittoria {away}": m["2"],
-        "Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"],
-        "GG": m["gg"], "NG": 1 - m["gg"]
     }
     best_mkt = max(mercati, key=mercati.get)
     poisson_prob = mercati[best_mkt]
@@ -1603,7 +1734,7 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
             else:
                 elo_disponibile = False
 
-    if best_mkt in ["Over 2.5", "Under 2.5", "GG", "NG"] or not elo_disponibile:
+    if not elo_disponibile:
         confidence = poisson_prob
         min_conf = 0.60
     else:
@@ -1627,6 +1758,61 @@ def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away
         "gate_avrebbe_scartato": disaccordo >= 0.25,
         "conf_off": conf_off,
         "ammessa_off": bool(conf_off is not None and conf_off >= min_conf),
+    }
+
+
+def riga_ombra_totali(m, home=None, away=None):
+    """Scelta Totali ombra per UNA partita candidata: solo registrazione, mai mostrata.
+
+    Per ogni candidata il registro ombra salva la scelta Totali che il selettore a
+    7 mercati (quello PRIMA della PR) avrebbe fatto: il Totale piu' probabile fra
+    Over 2.5, Under 2.5, GG e NG, con la sua confidence e l'ammissione a soglia
+    ``OMBRA_SOGLIA_TOTALI`` (0,60, la soglia dei Totali di allora). I Totali non
+    usano l'Elo: la confidence e' la probabilita' Poisson del mercato, e il veto
+    (d = 0) non li scarta mai, quindi l'ammissione e' ``confidence >= 0,60``.
+
+    ``vincente_globale`` dice se il selettore a 7 mercati l'avrebbe davvero
+    MOSTRATA: il suo argmax su tutti e sette i mercati deve essere proprio questo
+    Totale, e la scelta deve essere ammessa. Serve a separare, nel registro, le
+    scelte Totali che il vecchio Top Mix mostrava da quelle che restavano
+    candidate sotto la soglia o sotto un 1X2 piu' probabile.
+
+    Funzione PURA: nessuna richiesta HTTP, nessuna cache, nessun logging, nessuna
+    scrittura. Ritorna SEMPRE un dict (mai ``None``).
+    """
+    totali = {"Over 2.5": 1 - m["u25"], "Under 2.5": m["u25"],
+              "GG": m["gg"], "NG": 1 - m["gg"]}
+    best_tot = max(totali, key=totali.get)
+    confidence = totali[best_tot]
+    sette = {
+        f"Vittoria {home}": m["1"], "Pareggio": m["X"], f"Vittoria {away}": m["2"],
+        **totali,
+    }
+    best_globale = max(sette, key=sette.get)
+    ammessa = confidence >= OMBRA_SOGLIA_TOTALI
+    return {
+        "market": best_tot,
+        "mercato_standard": codice_mercato_selezionato(best_tot, home, away),
+        "confidence": confidence,
+        "poisson": confidence,
+        "ammessa": bool(ammessa),
+        "vincente_globale": bool(ammessa and best_globale == best_tot),
+    }
+
+
+def _riga_ombra(league, match, h_disp, a_disp, riga, dati_mancanti=None):
+    """Riga candidate del registro ombra: campi del match + scelta Totali ombra.
+
+    E' il canale verso ``build_ombra_entry``: non entra mai in una tabella visibile.
+    """
+    return {
+        "league": league, "giornata": match["matchday"],
+        "home": h_disp, "away": a_disp,
+        "match_id": match.get("id"), "utcDate": match["utcDate"],
+        "market": riga["market"], "mercato_standard": riga["mercato_standard"],
+        "confidence": riga["confidence"], "poisson": riga["poisson"],
+        "ammessa": riga["ammessa"], "vincente_globale": riga["vincente_globale"],
+        "dati_mancanti": bool(dati_mancanti),
     }
 
 
@@ -1654,12 +1840,12 @@ def _riga_top_mix(league, match, h_disp, a_disp, riga, dati_mancanti=None):
     return out
 
 
-def calcola_righe_top_mix(league, matches, engine):
+def calcola_righe_top_mix(league, matches, engine, ombra=None):
     """Righe Top Mix delle partite ``matches`` di una lega, per ENTRAMBI i motori.
 
     Per ogni partita: stesso Poisson a due teste, poi il selettore puro
-    (``seleziona_riga_top_mix``: argmax, blend, soglie 0,55/0,60, veto) viene
-    applicato DUE volte con due Elo diversi:
+    (``seleziona_riga_top_mix``: argmax sui 1X2, blend, soglie 0,55/0,60, veto)
+    viene applicato DUE volte con due Elo diversi:
 
     * ``current`` -> ``predict_elo_probs`` (``models/elo_engine.py``, post PR#24);
     * ``legacy``  -> ``predict_elo_probs_legacy`` (``models/elo_engine_legacy.py``,
@@ -1670,6 +1856,11 @@ def calcola_righe_top_mix(league, matches, engine):
     E' la stessa funzione che usa il replay walk-forward
     (``replay_legacy_topmix.py``), cosi' le righe ricostruite nascono dal
     medesimo codice di quelle live. Nessun I/O HTTP qui dentro.
+
+    ``ombra``: lista opzionale. Se e' passata, riceve PER OGNI partita candidata
+    (dopo lo scarto delle partite con nomi sconosciuti) la scelta Totali ombra
+    (``riga_ombra_totali``). Non entra nel risultato: e' il canale del registro
+    ombra, che non viene mai mostrato in UI.
     """
     team_stats, avg_h, avg_a, _ = engine
     righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}
@@ -1695,6 +1886,13 @@ def calcola_righe_top_mix(league, matches, engine):
 
         # Poisson a due teste: 1X2 da mercato normalizzato, O/U e GG da lambda base
         m_poisson = get_full_poisson_two_heads(h_s, a_s, avg_h, avg_a)
+
+        # Registro ombra dei Totali: la stessa partita, la scelta che il vecchio
+        # selettore avrebbe fatto sui Totali. Solo se il chiamante la vuole.
+        if ombra is not None:
+            ombra.append(_riga_ombra(league, match, h_disp, a_disp,
+                                     riga_ombra_totali(m_poisson, h_disp, a_disp),
+                                     dati_mancanti=senza_stats))
 
         # Elo agreement (solo per 1X2): qui e' I/O (engine/cache Elo), la
         # decisione resta nella funzione pura.
@@ -1731,7 +1929,8 @@ def classifica_top_mix(righe):
 
     Il vecchio tetto di dieci righe (slice sulla lista ordinata) e' stato
     tolto: si mostrano e si registrano TUTTE le partite sopra le soglie del
-    selettore (0,55 1X2 / 0,60 Totali), quante sono. Le soglie non cambiano.
+    selettore (0,55 sui 1X2 con Elo, 0,60 senza Elo: i Totali non entrano piu'
+    nel Top Mix visibile), quante sono. Le soglie non cambiano.
     """
     ordinate = sorted(righe, key=lambda x: x['prob'], reverse=True)
     for i, r in enumerate(ordinate):
@@ -1741,20 +1940,23 @@ def classifica_top_mix(righe):
 
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top Mix...")
 def fetch_and_calc_top_mix():
-    """Top Mix del turno, due tabelle: HTTP, motore, poi ``calcola_righe_top_mix``.
+    """Top Mix del turno, due tabelle + registro ombra: HTTP, motore, poi ``calcola_righe_top_mix``.
 
-    La selezione di riga (7 mercati, argmax, blend, soglie, veto) NON e' piu'
-    qui dentro: e' nella funzione pura ``seleziona_riga_top_mix``, testata in
+    La selezione di riga (argmax sui 1X2, blend, soglie, veto) NON e' qui dentro:
+    e' nella funzione pura ``seleziona_riga_top_mix``, testata in
     ``SoccerMath/test_topmix_selector_parity.py``; il calcolo per partita (due
-    motori Elo) e' in ``calcola_righe_top_mix``. Qui restano solo I/O e
-    assemblaggio. Igienizzati in precedenza (referto §4): timeout sulla GET,
-    fallback Elo marcato, coda di rate-limit solo FRA le leghe (l'ultima non
-    aspetta piu' nulla) e `rank` sulla riga.
+    motori Elo, piu' la scelta Totali ombra) e' in ``calcola_righe_top_mix``. Qui
+    restano solo I/O e assemblaggio. Igienizzati in precedenza (referto §4):
+    timeout sulla GET, fallback Elo marcato, coda di rate-limit solo FRA le leghe
+    (l'ultima non aspetta piu' nulla) e `rank` sulla riga.
 
-    Ritorna ``(top_current, top_legacy, missing)``: due liste gia' ordinate e
-    classificate, senza tetto di righe, e le leghe senza motore.
+    Ritorna ``(top_current, top_legacy, missing, ombra)``: due liste gia' ordinate
+    e classificate, senza tetto di righe; le leghe senza motore; e la lista
+    ``ombra`` con UNA scelta Totali per ogni partita candidata (non mostrata: va
+    solo nel registro ombra, vedi ``salva_registro_ombra``).
     """
     per_variante, missing = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}, []
+    ombra = []
     leghe = list(LEAGUES_CONFIG.keys())
     for i_lega, league in enumerate(leghe):
         if i_lega:
@@ -1771,12 +1973,12 @@ def fetch_and_calc_top_mix():
         except Exception as e:
             logging.warning(f"Errore fetch Top Mix {league}: {e}")
             continue
-        righe = calcola_righe_top_mix(league, matches, engine)
+        righe = calcola_righe_top_mix(league, matches, engine, ombra=ombra)
         for variante, lista in righe.items():
             per_variante[variante].extend(lista)
     top_current = classifica_top_mix(per_variante[MODEL_VARIANT_CURRENT])
     top_legacy = classifica_top_mix(per_variante[MODEL_VARIANT_LEGACY])
-    return top_current, top_legacy, missing
+    return top_current, top_legacy, missing, ombra
 
 
 def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
@@ -1812,6 +2014,7 @@ def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
         gate_off_confidence=(campi_off or {}).get(GATE_OFF_CONFIDENCE_FIELD),
         gate_off_ammessa=(campi_off or {}).get(GATE_OFF_AMMESSA_FIELD),
         model_variant=model_variant,
+        selector_version=SELECTOR_VERSION_CURRENT,
     )
     return args, kwargs
 
@@ -2335,7 +2538,7 @@ def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
     st.markdown(f"<div class='top-mix-model {css_class}'><b>{titolo}</b><br><small>{sottotitolo}</small></div>",
                 unsafe_allow_html=True)
     if not righe:
-        st.info("Nessuna partita sopra le soglie (0,55 1X2 / 0,60 Totali) per questo modello.")
+        st.info("Nessuna partita sopra le soglie sui 1X2 (0,55 con Elo, 0,60 senza Elo) per questo modello.")
         return
     st.caption(f"{len(righe)} partite sopra soglia (nessun tetto di righe).")
     for i, p in enumerate(righe):
@@ -2408,15 +2611,18 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
 with tab2:
     st.caption("Due modelli, due tabelle: **Attuale** (Elo post-fix PR#24) sopra, "
                "**Legacy** (Elo pre-fix, boost xG) sotto. Stesso Poisson, stesse soglie, "
-               "nessun tetto di righe. Entrambe scrivono nel Registro (campo `model_variant`).")
+               "nessun tetto di righe. Solo 1X2: i Totali (Over/Under 2.5, GG/NG) non entrano nel Top Mix. "
+               "Entrambe scrivono nel Registro (campo `model_variant`).")
     if st.button("🚀 Calcola Top Mix", type="primary"):
-        top_current, top_legacy, missing = fetch_and_calc_top_mix()
+        top_current, top_legacy, missing, ombra = fetch_and_calc_top_mix()
         # fetch_and_calc_top_mix e' cached (ttl=1800) e il suo `now` e' congelato:
         # si rifiltra contro l'orologio reale PRIMA di mostrare e di salvare, cosi'
         # nessuna partita gia' iniziata puo' entrare nel registro (problema
         # `cache_30min` in audit/results/topmix_registry_tracking.json).
         top_current, scartate_cur = righe_non_iniziate(top_current)
         top_legacy, scartate_leg = righe_non_iniziate(top_legacy)
+        # Stesso filtro sul registro ombra: nessuna partita gia' iniziata entra.
+        ombra, _scartate_ombra = righe_non_iniziate(ombra)
         scartate_inizio = scartate_cur + scartate_leg
         if scartate_inizio:
             st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
@@ -2455,6 +2661,13 @@ with tab2:
                            f"scrittura remota fallita (vedi log). Registro: {dettaglio}.")
             else:
                 st.success(f"✅ Top Mix nel registro: {dettaglio}.")
+        # Registro OMBRA dei Totali: una riga per partita candidata, la scelta che il
+        # vecchio selettore avrebbe fatto sui Totali. Non viene mostrata. Se la
+        # scrittura fallisce si dice SOLO che non e' avvenuta (mai il contenuto).
+        esito_ombra = salva_registro_ombra(ombra)
+        if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
+            st.warning(f"⚠️ Registro ombra non scritto: "
+                       f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
 
 with tab3:
     st.subheader(f"⚡ Elo - {camp_sel}")
@@ -2570,7 +2783,7 @@ with tab5:
             st.success(f"✅ Aggiornate {agg} partite!" if agg > 0 else f"ℹ️ Nessun nuovo risultato ({tot} in attesa).")
         else: st.error("API Key mancante!")
         
-    preds = load_predictions()
+    preds = righe_visibili(load_predictions())
     if not preds: st.warning("Nessuna predizione.")
     else:
         df_preds = pd.DataFrame(preds)
@@ -2659,7 +2872,7 @@ with tab5:
         _mostra_blocco_modello(
             attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
             f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
-            "Elo post-fix PR#24, soglie 0,55 1X2 / 0,60 Totali.")
+            "Elo post-fix PR#24, soglia 0,55 sui 1X2 (0,60 senza Elo). Totali fuori dal Top Mix.")
         _mostra_blocco_modello(
             legacy_records, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]} (Elo pre-fix PR#24)",
             f"Righe della tabella 🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}: "
@@ -2712,7 +2925,7 @@ with tab5:
         # maschere sono le stesse dei blocchi qui sopra.
         _mostra_registro_modello(
             df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
-            "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglie 0,55 1X2 / 0,60 Totali",
+            "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
             "top-mix-current")
         _mostra_registro_modello(
             df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
