@@ -1,6 +1,6 @@
 # Fattibilita' di una fonte di quote 1X2 dal vivo — referto di audit (sola lettura)
 
-Generato da `audit/live_odds_feasibility.py` (2026-10-09T00:08:09Z), branch `arena/edb67158-soccermath2-0`, commit `ca27760`. Nessuna modifica a `SoccerMath/`: tutti i file nuovi vivono in `audit/`.
+Generato da `audit/live_odds_feasibility.py` (2026-10-09T00:16:38Z), branch `arena/edb67158-soccermath2-0`, commit `5df4c02`. Nessuna modifica a `SoccerMath/`: tutti i file nuovi vivono in `audit/`.
 
 Comandi:
 
@@ -15,7 +15,7 @@ python audit/live_odds_feasibility.py      # questo referto (punti 1-5)
 
 | Voce | Esito | Comando / link | Evidenza |
 |---|---|---|---|
-| Branch partito da main dopo il merge della PR #49 | OK | git log --oneline -1; gh pr view 49 --json mergedAt | HEAD = ca27760; PR #49 mergiata il 2026-10-08T22:55:04Z (merge commit f77366b) |
+| Branch partito da main dopo il merge della PR #49 | OK | git log --oneline -1; gh pr view 49 --json mergedAt | HEAD = 5df4c02; PR #49 mergiata il 2026-10-08T22:55:04Z (merge commit f77366b) |
 | Diff vuoto all'inizio del lavoro | OK | git diff --name-only origin/main...HEAD | nessun file (branch allineato a main: 0 commit avanti, 0 indietro) |
 | Script della PR #49 presente | OK | ls -l audit/onex2_market_test.py | 68.666 byte; `python -m pytest audit/test_onex2_market_test.py`: 18 test verdi |
 | Secret ODDS_API_KEY esistente nel repository | OK | workflow temporaneo: ${{ secrets.ODDS_API_KEY != '' }} | SECRET_PRESENT = true; 6 chiamate su 6 hanno risposto HTTP 200 (con chiave assente o errata: 401) |
@@ -265,7 +265,7 @@ Motivi, tutti misurati in questo referto:
 | 10 | Abbinamento nomi della prossima giornata | NON OK | python audit/live_odds_match.py | 39/48 con clean_name (81.2%); 42/48 (87.5%) con il resolver di produzione |
 | 11 | Budget nel piano gratuito | OK | python audit/live_odds_feasibility.py | mese peggiore 127 crediti su 500 |
 | 12 | Diff finale limitato a audit/ | OK | git diff --name-only origin/main...HEAD | 19 file, cartelle: audit |
-| 13 | CI: Suite e Audit verdi, Replay saltato | OK | gh pr checks <numero PR> | Suite: success (run 37862012240) · Audit: success (run 37862012206) · Replay: skipped (run 37862012208) |
+| 13 | CI: Suite e Audit verdi, Replay saltato | OK | gh pr checks <numero PR> | Suite: success (run 37863334423) · Audit: success (run 37863334416) · Replay: skipped (run 37863334427) |
 
 ## 7. Limiti dichiarati
 
@@ -287,6 +287,6 @@ Motivi, tutti misurati in questo referto:
 | Il diff tocca solo audit/ | OK | git diff --name-only origin/main...HEAD: audit |
 | Nessun file di SoccerMath/ modificato | OK | il confronto fra book e l'abbinamento nomi sono sola lettura |
 | Nessun workflow temporaneo nel diff | OK | il workflow di prova e' stato rimosso prima della chiusura |
-| Suite test verde | OK | gh pr checks: Suite success (run 37862012240) |
-| Audit Top Mix verde | OK | gh pr checks: Audit success (run 37862012206) |
-| Replay saltato (o verde) | OK | gh pr checks: Replay skipped (passi 3-19 del job skipped) (run 37862012208) |
+| Suite test verde | OK | gh pr checks: Suite success (run 37863334423) |
+| Audit Top Mix verde | OK | gh pr checks: Audit success (run 37863334416) |
+| Replay saltato (o verde) | OK | gh pr checks: Replay skipped (passi 3-19 del job skipped) (run 37863334427) |
