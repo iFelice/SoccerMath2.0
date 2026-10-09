@@ -218,8 +218,8 @@ class TestFetchAndCalcTopMix(unittest.TestCase):
                                return_value={"stato": "assente", "indice": None}), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()  # azzera la cache st.cache_data
-            (top_mercato, top_current, top_legacy, missing, _ombra,
-             senza_quote) = app.fetch_and_calc_top_mix()
+            (top_mercato, top_current, top_legacy, missing, _ombra, senza_quote,
+             _letture) = app.fetch_and_calc_top_mix()
             # Questo test riguarda la FINESTRA sulle giornate, non le quote: il
             # file delle quote viene dichiarato assente (intercettando
             # ``carica_indice_quote_live``), cosi' l'esito non dipende dal fatto

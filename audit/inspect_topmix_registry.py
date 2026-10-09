@@ -414,12 +414,20 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     }
     # Il toast vive nel corpo modulo (tab2), non in una funzione.
     module_src = module_src_raw
-    facts["top_mix_success_toast"]["gated_on_remote_ok"] = _if_gates_call(
-        tree, "n_err_remoto", "st.warning", "st.success"
-    )
+    # Due forme accettate, perche' il gate si e' spostato con la scrittura unica:
+    # * ``n_err_remoto`` / ``esiti_save``: una chiamata ``save_prediction_entry``
+    #   per riga, e il messaggio contava le righe andate male in remoto;
+    # * ``esito_save`` (rifiniture dopo la PR #53): UNA ``save_predictions`` per
+    #   click, quindi il gate legge l'esito di QUELLA scrittura (locale + remoto)
+    #   e non piu' un conteggio per riga. Cio' che la guardia pretende e' lo
+    #   stesso: che ``st.success`` stia nel ramo "ha risposto" e ``st.warning``
+    #   nel ramo "non ha risposto", non che il messaggio sia incondizionato.
+    _gate_remoto = (_if_gates_call(tree, "n_err_remoto", "st.warning", "st.success")
+                    or _if_gates_call(tree, "esito_save", "st.warning", "st.success"))
+    facts["top_mix_success_toast"]["gated_on_remote_ok"] = _gate_remoto
     facts["top_mix_success_toast"]["gated_on_save_count"] = _if_gates_call(
         tree, "esiti_save", "st.info", "st.success"
-    ) or facts["top_mix_success_toast"]["gated_on_remote_ok"]
+    ) or _gate_remoto
     facts["analisi_rapida_calls_save"] = analisi is not None and "save_prediction_entry" in ast.unparse(analisi)
     facts["billy_calls_save"] = show is not None and "save_prediction_entry" in ast.unparse(show)
 

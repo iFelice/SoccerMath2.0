@@ -277,6 +277,43 @@ _PRIMA_FIELD_MAP = {
 }
 
 # ---------------------------------------------------------------------------
+# Righe in attesa SOTTO soglia: rinfresco dell'ultima registrazione
+# ---------------------------------------------------------------------------
+# Il Top Mix mostra (e scrive) solo le partite con probabilita' di mercato
+# sopra la soglia. Una riga che era stata registrata a 0,58 e che al calcolo
+# successivo e' scesa a 0,52 NON veniva piu' toccata: restava congelata
+# all'ultimo valore scritto mentre era sopra soglia, mentre le partite che
+# SALGONO vengono aggiornate. La misura "ultima registrazione" era quindi
+# tagliata verso l'alto per costruzione (vede solo i movimenti che hanno
+# tenuto la riga in tabella).
+#
+# ``aggiorna_righe_mercato_in_attesa`` chiude quel bias: a ogni pressione di
+# "Calcola Top Mix" riscrive i campi di ULTIMA registrazione di TUTTE le righe
+# di mercato ancora in attesa che hanno quote disponibili in questo turno,
+# anche se ora sono sotto soglia. ``sotto_soglia_ora`` dice in quale delle due
+# situazioni la riga si trova: ``True`` = e' stata aggiornata pur essendo scesa
+# sotto soglia, quindi NON e' una scelta oggi mostrata in tabella.
+#
+# Cosa NON fa, e perche':
+# * non crea nessuna riga per le partite sotto soglia (la tabella e il numero
+#   di scelte restano quelli del selettore: nessuna riga nuova = nessuna
+#   probabilita' e nessuna scelta inventata);
+# * non tocca mai i campi ``*_prima``: la prima registrazione e' un fatto
+#   storico e un aggiornamento "di servizio" non puo' riscriverlo;
+# * non tocca le righe gia' giudicate (✅/❌), che sono intoccabili per
+#   definizione.
+SOTTO_SOGLIA_ORA_FIELD = "sotto_soglia_ora"
+
+# Campi che il rinfresco di una riga in attesa riscrive: gli STESSI che l'upsert
+# scrive alla pressione del pulsante, piu' il flag. ``salvato_il`` e
+# ``salvato_il_originario`` seguono la stessa regola dell'upsert.
+CAMPI_ULTIMA_REGISTRAZIONE_MERCATO = (
+    "prob_sicuro", PROB_MERCATO_FIELD, QUOTA_MERCATO_FIELD, PROB_MODELLO_FIELD,
+    ACCORDO_MODELLO_FIELD, QUOTE_LIVE_ISTANTE_FIELD, MERCATO_FONTE_FIELD,
+    MERCATO_N_LIBRI_FIELD, SOTTO_SOGLIA_ORA_FIELD,
+)
+
+# ---------------------------------------------------------------------------
 # Variante del MODELLO: Top Mix a due motori (attuale / legacy)
 # ---------------------------------------------------------------------------
 # Dal Top Mix a due tabelle ogni riga dice con QUALE motore Elo e' stata
@@ -1355,6 +1392,36 @@ def dedup_key(entry: Any) -> Tuple[Any, str, str, str]:
             model_variant_read(entry))
 
 
+def _preserva_prima_registrazione(precedente: Any, aggiornato: Dict[str, Any]) -> None:
+    """Copia in ``aggiornato`` i campi della PRIMA registrazione di ``precedente``.
+
+    UN solo punto per la regola (la usano sia ``upsert_prediction_entry`` sia
+    ``upsert_prediction_entries``):
+
+    * ``salvato_il_originario`` = l'istante in cui la riga era stata scritta la
+      prima volta;
+    * i campi ``*_prima`` = i valori della prima scrittura. Se la riga li ha
+      gia' si preservano cosi' come sono; se NON li ha (riga scritta prima che
+      la regola esistesse) si usa il suo campo attuale, che e' il piu' vicino al
+      passato ancora disponibile: per questo le statistiche dichiarano quante
+      righe hanno una PRIMA registrazione ricostruita
+      (``prob_di_registrazione`` + ``compute_calibration_per_registrazione``).
+
+    Il rinfresco delle righe in attesa sotto soglia
+    (``aggiorna_righe_mercato_in_attesa``) NON passa di qui: i campi ``*_prima``
+    di quelle righe non si toccano mai, per vincolo della commessa.
+    """
+    if not is_dict(precedente) or not is_dict(aggiornato):
+        return
+    if precedente.get(SALVATO_IL_FIELD):
+        aggiornato.setdefault("salvato_il_originario", precedente[SALVATO_IL_FIELD])
+    for campo_attuale, campo_prima in _PRIMA_FIELD_MAP.items():
+        if campo_prima in precedente:                 # prima scrittura gia' registrata
+            aggiornato[campo_prima] = precedente[campo_prima]
+        elif campo_attuale in precedente:              # riga vecchia: si ricostruisce
+            aggiornato[campo_prima] = precedente[campo_attuale]
+
+
 def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
                             entry: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
     """Inserisce o aggiorna una previsione, senza mai toccarne una gia' giudicata.
@@ -1389,19 +1456,7 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
         aggiornato = dict(entry)
         # Conserva la prima scrittura: un ricalcolo non cancella quando la
         # previsione era stata presa.
-        if is_dict(p) and p.get(SALVATO_IL_FIELD):
-            aggiornato.setdefault("salvato_il_originario", p[SALVATO_IL_FIELD])
-        # Conserva i campi della PRIMA registrazione: prob_mercato, quota_mercato,
-        # prob_modello, accordo_modello, quote_live_istante. I campi attuali
-        # dell'entry nuova contengono l'ULTIMA registrazione.
-        for campo_attuale, campo_prima in _PRIMA_FIELD_MAP.items():
-            # Se l'entry vecchia ha gia' il campo _prima, preservalo
-            if is_dict(p) and campo_prima in p:
-                aggiornato[campo_prima] = p[campo_prima]
-            # Altrimenti, se l'entry vecchia ha il campo attuale, usalo come
-            # prima registrazione (righe scritte prima di questa regola)
-            elif is_dict(p) and campo_attuale in p:
-                aggiornato[campo_prima] = p[campo_attuale]
+        _preserva_prima_registrazione(p, aggiornato)
         lst[i] = aggiornato
         return lst, "aggiornata"
     if _altra_versione_stessa_chiave(lst, entry):
@@ -1458,18 +1513,169 @@ def upsert_prediction_entries(preds: Iterable[Dict[str, Any]],
                 azioni["gia_graduata"] = azioni.get("gia_graduata", 0) + 1
                 continue
             aggiornato = dict(entry)
-            if is_dict(p) and p.get(SALVATO_IL_FIELD):
-                aggiornato.setdefault("salvato_il_originario", p[SALVATO_IL_FIELD])
             # Conserva i campi della PRIMA registrazione (stessa regola
             # di upsert_prediction_entry).
-            for campo_attuale, campo_prima in _PRIMA_FIELD_MAP.items():
-                if is_dict(p) and campo_prima in p:
-                    aggiornato[campo_prima] = p[campo_prima]
-                elif is_dict(p) and campo_attuale in p:
-                    aggiornato[campo_prima] = p[campo_attuale]
+            _preserva_prima_registrazione(p, aggiornato)
             lst[i] = aggiornato
             azione = "aggiornata"
         azioni[azione] = azioni.get(azione, 0) + 1
+    return lst, azioni
+
+
+def _riga_mercato_in_attesa(entry: Any) -> bool:
+    """Riga del Registro che il rinfresco del turno puo' toccare.
+
+    Quattro condizioni, tutte letture di campi esistenti (nessuna chiave nuova,
+    nessun campo aggiunto):
+
+    * famiglia del selettore di MERCATO (``topmix_mercato_v3``): le righe del
+      modello storico non hanno i campi di mercato e non c'entrano nulla con
+      questo rinfresco;
+    * origine Top Mix visibile e NON ombra: Analisi Rapida, Billy e le righe
+      ombra restano dove sono;
+    * esito non ancora giudicato: ``✅``/``❌`` sono intoccabili (valgono denaro).
+
+    La variante deve essere ``current`` come nei record scritti dal Top Mix di
+    mercato: ``prob_modello`` e la scelta registrata viaggiano con quel motore,
+    e aggiornare una riga di un altro motore con la lettura di questo significherebbe
+    mescolare due modelli nella stessa riga.
+    """
+    if not is_dict(entry):
+        return False
+    if is_ombra(entry) or origin_of(entry) != ORIGIN_TOP_MIX:
+        return False
+    if famiglia_selettore(entry) != FAMIGLIA_SELETTORE_MERCATO:
+        return False
+    if model_variant_read(entry) != MODEL_VARIANT_CURRENT:
+        return False
+    return entry.get(ESITO_FIELD) not in (ESITO_VINTO, ESITO_PERSO)
+
+
+def aggiorna_righe_mercato_in_attesa(preds: Iterable[Dict[str, Any]],
+                                     letture: Iterable[Dict[str, Any]],
+                                     *,
+                                     salvato_il: Optional[str] = None,
+                                     ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    """Allinea i campi di ULTIMA registrazione delle righe di mercato IN ATTESA.
+
+    Perche' esiste (vincolo della commessa, rifinitura dopo la PR #53). Il Top
+    Mix mostra e scrive solo le partite sopra soglia: una riga registrata a
+    0,58 che al calcolo successivo scende a 0,52 non veniva piu' toccata e
+    restava congelata all'ultimo valore scritto mentre era sopra soglia, mentre
+    le partite che SALGONO vengono aggiornate. La misura "ultima registrazione"
+    era quindi tagliata verso l'alto per costruzione: vedeva solo i movimenti
+    che avevano tenuto la riga in tabella. Qui, a ogni pressione di "Calcola
+    Top Mix", le righe in attesa della famiglia mercato vengono allineate alla
+    lettura di mercato del turno ANCHE se sono ricadute sotto soglia, e
+    ``sotto_soglia_ora`` lo dichiara (``True``) anche quando i valori erano gia'
+    allineati.
+
+    Regole (nessuna chiave di dedup cambia, nessuna probabilita' ricalcolata):
+
+    * si parte dalle RIGHE del Registro (``_riga_mercato_in_attesa``), non dai
+      payload: una partita con quote ma senza riga in attesa NON produce nessuna
+      riga nuova — le scelte sotto soglia non entrano nel Registro, nessuna
+      probabilita' viene inventata (``senza_riga`` conta proprio quei payload,
+      per dire che il giro ha guardato anche loro);
+    * la lettura usata e' quella DELL'ESITO REGISTRATO (``per_esito``): la riga
+      dice "1", e qui si scrive cosa vale "1" adesso. Non si sostituisce la
+      scelta con l'argmax del momento, perche' la previsione da giudicare resta
+      quella registrata;
+    * si scrivono SOLO i campi di ``CAMPI_ULTIMA_REGISTRAZIONE_MERCATO`` e, se
+      qualcosa e' cambiato, ``salvato_il`` (+ ``salvato_il_originario`` alla
+      prima riscrittura, stessa regola dell'upsert). I campi ``*_prima``,
+      ``esito``, ``risultato_reale``, ``mercato_standard``, ``pronostico_sicuro``,
+      ``rank`` e ``calculation_id`` NON si toccano MAI;
+    * ``accordo_modello`` viene riallineato con la STESSA regola del selettore
+      letta sull'esito della riga (non con una regola nuova inventata qui);
+    * una riga gia' allineata non viene riscritta per niente, nemmeno nel
+      timestamp (``gia_allineata``): il rinfresco non aggiunge nessuna scrittura
+      quando non c'e' nulla da allineare. Le righe ammesse in tabella seguono
+      invece la regola dell'upsert (una riscrittura con timestamp nuovo a ogni
+      click), che questo giro non tocca.
+
+    ``letture``: dict con ``match_id`` e ``per_esito`` (l'output di
+    ``market_odds.letture_registrazione``, la forma con cui il Registro scrive:
+    ``prob_sicuro`` in percentuale, ``prob_mercato`` frazione de-roundata,
+    ``quota_mercato``, ``prob_modello`` in percentuale, ``sotto_soglia_ora``)
+    piu' i campi della lettura che valgono per tutta la partita
+    (``mercato_fonte``, ``mercato_n_libri``, ``quote_live_istante``). Li costruisce
+    ``calcola_righe_top_mix`` tramite ``market_odds.letture_registrazione``. Un campo
+    che la lettura non ha proprio (chiave assente in ``per_esito``) non viene toccato;
+    un campo che la lettura ha a ``None`` viene scritto come ``None``, perche' e'
+    esattamente cio' che scrivrebbe l'upsert: il ``prob_modello`` di un turno senza
+    modello e' "dato che non c'e'", non il valore del turno scorso.
+
+    Ritorna ``(lista_aggiornata, azioni)`` con ``"aggiornata"``,
+    ``"gia_allineata"``, ``"gia_graduata"``, ``"senza_riga"``,
+    ``"senza_lettura"`` (righe in attesa per cui il turno non ha quote:
+    toccare niente e' la risposta giusta), ``"esito_non_letto"`` e
+    ``"sotto_soglia"`` (quante righe portano il flag ``True``: e' il numero che
+    prima mancava all'appello, perche' sono esattamente le righe che il Top Mix non
+    aggiornava piu').
+    """
+    lst = list(preds or [])
+    per_match: Dict[str, Dict[str, Any]] = {}
+    scarti = 0
+    for lettura in letture or []:
+        if not is_dict(lettura) or lettura.get("match_id") is None:
+            scarti += 1
+            continue
+        per_match[str(lettura["match_id"])] = lettura      # ultima scrittura vince
+    usate: set = set()
+    azioni: Dict[str, int] = {}
+
+    def conta(nome: str, n: int = 1) -> None:
+        # Nessuna chiave a 0: un conteggio che dice "zero volte" e' rumore, e le
+        # chiavi presenti sono l'elenco di cio' che e' successo davvero.
+        if n > 0:
+            azioni[nome] = azioni.get(nome, 0) + n
+
+    conta("senza_chiave", scarti)
+    for i, p in enumerate(lst):
+        if is_ombra(p):
+            continue
+        if p.get(ESITO_FIELD) in (ESITO_VINTO, ESITO_PERSO):
+            if origin_of(p) == ORIGIN_TOP_MIX and famiglia_selettore(p) == FAMIGLIA_SELETTORE_MERCATO:
+                conta("gia_graduata")
+            continue
+        if not _riga_mercato_in_attesa(p):
+            continue
+        mid = str(p.get("match_id"))
+        lettura = per_match.get(mid)
+        if lettura is None:
+            conta("senza_lettura")
+            continue
+        usate.add(mid)
+        agg = (lettura.get("per_esito") or {}).get(str(p.get(MERCATO_FIELD) or ""))
+        if not is_dict(agg):
+            conta("esito_non_letto")
+            continue
+        prova = dict(p)
+        for campo in CAMPI_ULTIMA_REGISTRAZIONE_MERCATO:
+            if campo in agg:
+                prova[campo] = bool(agg[campo]) if campo == SOTTO_SOGLIA_ORA_FIELD else agg[campo]
+            elif campo in lettura:
+                prova[campo] = lettura[campo]
+        sotto = prova.get(SOTTO_SOGLIA_ORA_FIELD) is True
+        if all(prova.get(c) == p.get(c) for c in CAMPI_ULTIMA_REGISTRAZIONE_MERCATO):
+            # Nulla da riallineare: la riga resta dov'e', timestamp incluso.
+            # `salvato_il_originario` NON si aggiunge: quel campo marca le righe
+            # che sono state davvero riscritte, e una riga mai riscritta non deve
+            # sembrarlo (sarebbe un'informazione falsa sul passato della riga).
+            conta("gia_allineata")
+            if sotto:
+                conta("sotto_soglia")
+            continue
+        if p.get(SALVATO_IL_FIELD) and "salvato_il_originario" not in p:
+            prova["salvato_il_originario"] = p[SALVATO_IL_FIELD]
+        prova[SALVATO_IL_FIELD] = (lettura.get(SALVATO_IL_FIELD) or salvato_il
+                                   or datetime.now(TZ_ITALY).strftime("%d/%m/%Y %H:%M"))
+        lst[i] = prova
+        conta("aggiornata")
+        if sotto:
+            conta("sotto_soglia")
+    conta("senza_riga", sum(1 for mid in per_match if mid not in usate))
     return lst, azioni
 
 
@@ -1714,6 +1920,152 @@ def compute_calibration_stats(entries: Iterable[Dict[str, Any]],
         "gap": ((mean_p - hit) * 100.0) if (mean_p is not None and hit is not None) else None,
         "brier": brier,
         "famiglia": famiglia,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Affidabilita' per REGISTRAZIONE: prima (misura principale) e ultima
+# ---------------------------------------------------------------------------
+# Una riga di mercato porta due letture della stessa previsione: i valori della
+# PRIMA scrittura (campi ``*_prima``) e quelli dell'ULTIMA (campi attuali).
+# Non sono la stessa misura e non vanno sommate: la prima e' "cosa diceva il
+# mercato quando la partita e' entrata in tabella" (l'informazione che l'utente
+# aveva quando ha deciso di giocare), l'ultima e' "cosa dice il mercato adesso",
+# che dal rinfresco delle righe in attesa include anche le partite ricadute
+# sotto soglia. La commessa vuole la PRIMA come statistica principale.
+REGISTRAZIONE_PRIMA = "prima"
+REGISTRAZIONE_ULTIMA = "ultima"
+REGISTRAZIONI = (REGISTRAZIONE_PRIMA, REGISTRAZIONE_ULTIMA)
+
+
+def _prob_normalizzata(valore: Any) -> Optional[float]:
+    """Probabilita' in [0,1] da un valore che puo' essere frazione o percentuale.
+
+    Stessa convenzione di ``prob_of_entry``: i valori in (1, 100] sono percentuali,
+    quelli in [0, 1] frazioni (soglie 0,55/0,60: la zona ambigua non e' raggiunta
+    dai dati reali). ``None`` per cio' che non e' un numero finito entro 0 e 1
+    dopo la normalizzazione.
+    """
+    if isinstance(valore, bool) or not isinstance(valore, (int, float)):
+        return None
+    v = float(valore)
+    if v != v or v in (float("inf"), float("-inf")):     # NaN/inf: nessun numero, come in _as_goal
+        return None
+    p = v / 100.0 if v > 1.0 else v
+    return p if 0.0 <= p <= 1.0 else None
+
+
+def ha_prima_registrazione(entry: Any) -> bool:
+    """La riga ha una PRIMA registrazione SCRITTA (non ricostruita dall'ultima)?
+
+    ``True`` solo se ``prob_mercato_prima`` esiste ed e' un numero leggibile. Le
+    righe scritte prima che la regola dei campi ``*_prima`` esistesse rispondono
+    ``False``: per loro la "prima" e' il valore attuale, e va dichiarato (e' il
+    numero che la UI mostra come "n righe con prima registrazione ricostruita",
+    per non far leggere una ricostruzione come un dato).
+    """
+    return is_dict(entry) and _prob_normalizzata(entry.get(PROB_MERCATO_PRIMA_FIELD)) is not None
+
+
+def prob_di_registrazione(entry: Any,
+                          registrazione: str = REGISTRAZIONE_PRIMA,
+                          ) -> Tuple[Optional[float], bool]:
+    """``(probabilita' in [0,1], ricostruita?)`` della riga alla registrazione data.
+
+    * ``prima``: ``prob_mercato_prima``. Se il campo MANCA o non e' un numero —
+      le righe scritte prima che la regola esistesse non ce l'hanno — si ripiega
+      sul valore attuale (``prob_sicuro``), che e' la lettura piu' vicina al
+      passato ancora disponibile e va dichiarata come **ricostruita** (secondo
+      valore del dict): per quelle righe la misura "prima" coincide con
+      l'ultima, e va detto in UI (``"ricostruite"`` in
+      ``compute_calibration_per_registrazione``).
+    * ``ultima``: ``prob_mercato``, con lo stesso fallback su ``prob_sicuro``.
+      Qui il fallback non e' una ricostruzione: il campo attuale E' l'ultima
+      registrazione, per costruzione.
+
+    ``None`` al primo posto quando non c'e' nessun numero leggibile: nessuna
+    probabilita' viene inventata e la riga resta fuori da Brier e gap.
+    """
+    if not is_dict(entry):
+        return None, False
+    campo = PROB_MERCATO_PRIMA_FIELD if registrazione == REGISTRAZIONE_PRIMA else PROB_MERCATO_FIELD
+    p = _prob_normalizzata(entry.get(campo))
+    if p is not None:
+        return p, False
+    return _prob_normalizzata(entry.get(PROB_FIELD)), (registrazione == REGISTRAZIONE_PRIMA)
+
+
+def compute_calibration_per_registrazione(entries: Iterable[Dict[str, Any]],
+                                          registrazione: str = REGISTRAZIONE_PRIMA,
+                                          famiglia: Optional[str] = FAMIGLIA_SELETTORE_MERCATO,
+                                          ) -> Dict[str, Any]:
+    """Hit rate, Brier e gap prob-hit leggendo UNA delle due registrazioni.
+
+    Stesso sottoinsieme di ``compute_calibration_stats`` (visibili, non ombra,
+    eventualmente di una sola famiglia di selettore) e stesse regole, con la
+    differenza che la probabilita' non e' ``prob_sicuro`` bensi' quella della
+    registrazione richiesta (``prob_di_registrazione``): sulle righe aggiornate
+    le due letture divergono, ed e' li' che il confronto dice qualcosa.
+
+    Hit rate, probabilita' media, gap e Brier stanno tutti sulle stesse
+    ``decise con probabilita'`` (una riga giudicata senza probabilita' leggibile
+    non puo' entrare in un Brier): ``decise`` e' il totale delle righe giudicate,
+    ``con_probabilita`` quelle effettivamente usate nei tre numeri.
+
+    In piu' di ``compute_calibration_stats`` dichiara i due numeri che servono a
+    leggere il risultato senza fidarsi:
+
+    * ``"ricostruite"``: righe usate che NON hanno il campo ``*_prima`` e la cui
+      "prima registrazione" e' quindi ricostruita dall'ultima (righe scritte
+      prima di quella regola). Vanno contate e dette in UI: sono un limite della
+      misura, non un campione in piu';
+    * ``"sotto_soglia_ora"``: quante righe della famiglia portano
+      ``sotto_soglia_ora = True``, cioe' sono state rinfrescate pur essendo
+      ricadute sotto soglia (esistono solo perche' esiste quel rinfresco).
+    """
+    lst = _filtra_per_famiglia(
+        dedup_visibili_top_mix([e for e in (entries or []) if is_dict(e) and not is_ombra(e)]),
+        famiglia)
+    coppie: List[Tuple[float, int]] = []
+    ricostruite = 0
+    senza_probabilita = 0
+    decise = 0
+    sotto_soglia = 0
+    senza_prima = 0
+    for e in lst:
+        if e.get(SOTTO_SOGLIA_ORA_FIELD) is True:
+            sotto_soglia += 1
+        if not ha_prima_registrazione(e):
+            senza_prima += 1
+        y = outcome_of_entry(e)
+        if y is None:
+            continue
+        decise += 1
+        p, ricostruita = prob_di_registrazione(e, registrazione)
+        if p is None:
+            senza_probabilita += 1
+            continue
+        coppie.append((p, y))
+        ricostruite += 1 if ricostruita else 0
+    n = len(coppie)
+    hit = (sum(y for _, y in coppie) / n) if n else None
+    mean_p = (sum(p for p, _ in coppie) / n) if n else None
+    return {
+        "registrazione": registrazione,
+        "famiglia": famiglia,
+        "total": len(lst),
+        "decise": decise,
+        "con_probabilita": n,
+        "senza_probabilita": senza_probabilita,
+        "hit_rate": (hit * 100.0) if hit is not None else None,
+        "prob_media": (mean_p * 100.0) if mean_p is not None else None,
+        "gap": ((mean_p - hit) * 100.0) if (mean_p is not None and hit is not None) else None,
+        "brier": (sum((p - y) ** 2 for p, y in coppie) / n) if n else None,
+        "ricostruite": ricostruite,
+        # Tutte le righe della famiglia senza una prima registrazione SCRITTA,
+        # giudicate e no: e' il numero che l'UI deve dichiarare.
+        "senza_prima_registrazione": senza_prima,
+        "sotto_soglia_ora": sotto_soglia,
     }
 
 

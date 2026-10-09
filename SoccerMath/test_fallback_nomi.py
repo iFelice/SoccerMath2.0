@@ -170,7 +170,11 @@ class TestTopMixRosterSenzaStats(RipristinaLogging, unittest.TestCase):
     def test_riga_invariata_più_marcatore_e_warning(self):
         righe, cattura = _gira_top_mix(self, [_match(1, "Köln", "Bayern")], self.STATS)
         log = cattura.testo()
-        attese = [MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY, "mercato", "senza_quote"]
+        # "letture" e' il canale del rinfresco del Registro (rifinitura dopo la
+        # PR #53): la lettura di mercato di ogni partita con quote valide, anche
+        # sotto soglia. Non e' una tabella e non aggiunge righe al Registro.
+        attese = [MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY, "letture", "mercato",
+                  "senza_quote"]
         self.assertEqual(attese, sorted(righe),
                          "calcola_righe_top_mix restituisce anche le chiavi di mercato")
         self.assertEqual([], righe["mercato"], "senza quote: nessuna riga di mercato")

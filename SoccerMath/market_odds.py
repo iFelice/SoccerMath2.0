@@ -287,6 +287,98 @@ def probabilita_mercato(
     }
 
 
+def _probabilita_num(valore: Any) -> Optional[float]:
+    """Probabilita' come numero finito in [0,1], o ``None`` se non lo e'.
+
+    E' il vaglio che il selettore di ``app.seleziona_riga_top_mix_mercato`` fa
+    alle sue probabilita' (niente bool, perche' ``True`` varrebbe 1, niente NaN/inf,
+    niente fuori range): qui diventa una funzione perche' lo usano piu' punti
+    (``letture_registrazione`` e ``margine_quota``) e non devono poter divergere.
+    Un numero che non passa questo test NON viene trasformato in 0: chi chiama
+    riceve ``None`` e scrive "dato che non c'e'".
+    """
+    if isinstance(valore, bool) or not isinstance(valore, (int, float)):
+        return None
+    v = float(valore)
+    if not math.isfinite(v) or not (0.0 <= v <= 1.0):
+        return None
+    return v
+
+
+def letture_registrazione(prob_mercato: Optional[Dict[str, Any]],
+                          odds_mercato: Optional[Dict[str, Any]] = None,
+                          prob_modello: Optional[Dict[str, Any]] = None,
+                          soglia: float = SOGLIA_TOPMIX_MERCATO,
+                          soglia_accordo: float = SOGLIA_ACCORDO,
+                          ) -> Dict[str, Dict[str, Any]]:
+    """Campi di ULTIMA registrazione per CIASCUN esito 1/X/2 — nessuna scelta.
+
+    Perche' esiste: una riga gia' nel Registro puo' portare un esito che il
+    selettore non sceglierebbe piu', o che e' ricaduto sotto soglia.
+    ``seleziona_riga_top_mix_mercato`` non e' utilizzabile li' per due motivi:
+    sceglie l'argmax (e qui l'argomento e' la riga registrata, non il mercato di
+    adesso) e ferma le partite sotto soglia (e il rinfresco deve vederle anche
+    li'). Qui non c'e' nessuna ammissione: solo la lettura corrente del mercato
+    su un esito dato, che e' il payload con cui
+    ``prediction_registry.aggiorna_righe_mercato_in_attesa`` allinea le righe in
+    attesa. La SCELTA resta in un solo punto (il selettore), e questa funzione
+    non viene usata per decidere cosa entra in tabella.
+
+    La forma dei valori e' quella del percorso di scrittura, perche' un
+    rinfresco non puo' scrivere lo stesso numero in un altro modo:
+
+    * ``prob_sicuro``      = ``round(p * 100, 1)`` (percentuale, come ``prob_val``);
+    * ``prob_mercato``     = ``round(prob_sicuro / 100, 6)`` (frazione de-roundata,
+      come ``argomenti_registro_top_mix_mercato``);
+    * ``quota_mercato``    = quota decimale > 1 della STESSA fonte, ``None`` se
+      non c'e' (una quota mancante non diventa 0 e non viene inventata);
+    * ``prob_modello``     = ``round(pm * 100, 1)`` (percentuale, come
+      ``prob_modello_val``), ``None`` senza numero del modello;
+    * ``accordo_modello``  = la STESSA regola del selettore (modello e mercato
+      entrambi >= ``soglia_accordo`` sullo STESSO esito, con l'argmax del modello
+      su quell'esito), letta pero' sull'esito della riga: per l'esito che il
+      selettore sceglierebbe (l'argmax del mercato) il valore coincide con
+      ``accordo`` di ``seleziona_riga_top_mix_mercato``;
+    * ``sotto_soglia_ora`` = ``p < soglia``: il flag che dice se questa partita
+      OGGI sarebbe in tabella.
+
+    Un esito senza probabilita' valida non compare nel risultato: nessuna chiave
+    inventata, nessun 0 al posto di un dato che non c'e'.
+
+    Ritorna ``{"1": {...}, "X": {...}, "2": {...}}`` (solo gli esiti leggibili).
+    """
+    # Argmax del modello con lo spareggio del primo massimo (la stessa
+    # convenzione di `max()` e di `np.argmax` usata dalla PR #49, e lo stesso
+    # spareggio del selettore: -1.0 per i valori non leggibili).
+    valori_modello: List[float] = []
+    for esito in ESITI:
+        v = _probabilita_num((prob_modello or {}).get(esito))
+        valori_modello.append(v if v is not None else -1.0)
+    k_modello = 0
+    for i in range(1, len(valori_modello)):
+        if valori_modello[i] > valori_modello[k_modello]:
+            k_modello = i
+    esito_modello = ESITI[k_modello] if any(v >= 0.0 for v in valori_modello) else None
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for esito in ESITI:
+        p = _probabilita_num((prob_mercato or {}).get(esito))
+        if p is None:
+            continue
+        prob_val = round(p * 100.0, 1)
+        pm = _probabilita_num((prob_modello or {}).get(esito))
+        out[esito] = {
+            "prob_sicuro": prob_val,
+            "prob_mercato": round(prob_val / 100.0, 6),
+            "quota_mercato": _quota_num((odds_mercato or {}).get(esito)),
+            "prob_modello": (None if pm is None else round(pm * 100.0, 1)),
+            "accordo_modello": bool(esito_modello == esito and pm is not None
+                                     and pm >= soglia_accordo and p >= soglia_accordo),
+            "sotto_soglia_ora": bool(p < soglia),
+        }
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 2. Lettura del file scritto dal workflow
 # ---------------------------------------------------------------------------
@@ -520,7 +612,27 @@ AVVISO_INDIPENDENZA = (
 )
 
 
-def multipla(righe: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def margine_quota(quota: Any, probabilita: Any) -> Optional[float]:
+    """Margine ``quota * probabilita - 1`` su due numeri che possono mancare.
+
+    ``None`` se uno dei due non e' un numero finito utile o se la quota non e'
+    maggiore di 1,0: un margine calcolato su una quota assente o assurda sarebbe
+    un numero inventato, e in UI significa "il bookmaker paga meno del giusto"
+    solo se la quota e' davvero una quota decimale.
+
+    Perche' esiste una formula separata: e' l'unica parte della multipla che
+    confronta il mercato con il prezzo di UN altro (il tuo bookmaker), quindi va
+    letta da sola nei test senza dover rifare tutto il prodotto delle righe.
+    """
+    q = _quota_num(quota)
+    p = _probabilita_num(probabilita)
+    if q is None or p is None:
+        return None
+    return q * p - 1.0
+
+
+def multipla(righe: Sequence[Dict[str, Any]],
+             quota_bookmaker: Any = None) -> Dict[str, Any]:
     """Multipla di 1..5 righe del Top Mix di mercato.
 
     Ogni riga deve portare ``prob`` (probabilita' di mercato, frazione in
@@ -532,6 +644,24 @@ def multipla(righe: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     * ``quota_offerta`` = prodotto delle quote selezionate;
     * ``edge`` = quota_offerta * probabilita_combinata - 1 (positivo = la quota
       offerta paga piu' della quota equa).
+
+    ``quota_bookmaker`` (OPZIONALE, novita' delle rifiniture): la quota della
+    multipla offerta dal bookmaker in cui si gioca. Se data, aggiunge
+
+    * ``margine`` = ``quota_bookmaker * probabilita_combinata - 1``.
+
+    Perche' il campo opzionale e non il confronto con ``edge``: ``quota_offerta``
+    e' il prodotto delle stesse quote da cui le probabilita' sono state de-vigate,
+    quindi il suo ``edge`` NON e' informazione nuova — e' il margine composto
+    della fonte (Pinnacle o la media dei libri), sempre negativo, uguale per
+    tutte le multiple dello stesso giro. Dire "il tuo bookmaker paga X% meno
+    della quota equa" invece e' una scelta concreta sull'offerta che si ha
+    davanti: per questo la quota la inserisce l'utente, e se non la inserisce
+    nessun margine viene mostrato (``margine = None``).
+
+    Se ``quota_bookmaker`` c'e' ma non e' una quota decimale valida, il margine
+    resta ``None`` e ``errore_quota_bookmaker`` dice perche': un campo compilato
+    a meta' non deve produrre un numero falso.
 
     Ritorna ``{"ok": False, "errore": ...}`` se la selezione non e' valida:
     nessun numero viene inventato.
@@ -565,7 +695,7 @@ def multipla(righe: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     if prob_parziale <= 0.0:
         return {"ok": False, "errore": "Probabilita' combinata non positiva."}
     quota_equa = 1.0 / prob_parziale
-    return {
+    out = {
         "ok": True,
         "n_righe": len(lista),
         "righe": dettagli,
@@ -575,4 +705,17 @@ def multipla(righe: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         "quota_offerta": quota_parziale,
         "edge": quota_parziale * prob_parziale - 1.0,
         "avviso": AVVISO_INDIPENDENZA,
+        # --- margine sul prezzo del bookmaker (campo OPZIONALE) ---
+        "quota_bookmaker": None,
+        "margine": None,
     }
+    if quota_bookmaker is not None:
+        q = _quota_num(quota_bookmaker)
+        if q is None:
+            out["errore_quota_bookmaker"] = (
+                f"Quota del bookmaker non utilizzabile ({quota_bookmaker!r}): serve un numero "
+                "finito maggiore di 1,0. Il margine non e' stato calcolato.")
+        else:
+            out["quota_bookmaker"] = q
+            out["margine"] = margine_quota(q, prob_parziale)
+    return out
