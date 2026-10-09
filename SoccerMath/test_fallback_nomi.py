@@ -80,15 +80,28 @@ class _CatturaLog:
     ``assertLogs`` fallisce se nessun record arriva: qui l'ASSSENZA di avvisi
     e' essa stessa un esito da verificare, quindi la cattura non puo' esigere
     almeno un record.
+
+    ``IGNORA`` esclude i logger estranei alla risoluzione dei nomi: da quando il
+    Top Mix legge le quote dal vivo, ``market_odds`` avvisa se
+    ``database/live_odds.json`` non e' ancora stato scritto dal workflow. E' lo
+    stato atteso di una macchina senza quel file e non dice nulla sui nomi,
+    quindi qui non deve comparire (i suoi avvisi sono verificati in
+    ``test_quote_live.py``).
     """
+
+    IGNORA = frozenset({"market_odds"})
 
     def __init__(self):
         self.output = []
 
     def __enter__(self):
         self._handler = logging.Handler()
-        self._handler.emit = lambda record: self.output.append(
-            f"{record.levelname}:{record.name}:{record.getMessage()}")
+
+        def _emit(record):
+            if record.name not in self.IGNORA:
+                self.output.append(f"{record.levelname}:{record.name}:{record.getMessage()}")
+
+        self._handler.emit = _emit
         self._root = logging.getLogger()
         self._root.addHandler(self._handler)
         return self
@@ -157,8 +170,10 @@ class TestTopMixRosterSenzaStats(RipristinaLogging, unittest.TestCase):
     def test_riga_invariata_più_marcatore_e_warning(self):
         righe, cattura = _gira_top_mix(self, [_match(1, "Köln", "Bayern")], self.STATS)
         log = cattura.testo()
-        attese = [MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY]
-        self.assertEqual(attese, sorted(righe))
+        attese = [MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY, "mercato", "senza_quote"]
+        self.assertEqual(attese, sorted(righe),
+                         "calcola_righe_top_mix restituisce anche le chiavi di mercato")
+        self.assertEqual([], righe["mercato"], "senza quote: nessuna riga di mercato")
         for r in righe[MODEL_VARIANT_CURRENT]:
             self.assertEqual(["Koln"], r["dati_mancanti"],
                              "marcatore sul lato senza statistiche (nome pulito)")
@@ -195,6 +210,8 @@ class TestAnalisiRapidaNomi(RipristinaLogging, unittest.TestCase):
                                side_effect=lambda *a, **k: salvate.append((a, k)) or {"azione": "aggiunta"}), \
              mock.patch.object(app, "_roster_stagione",
                                return_value=set(roster) if roster is not None else None), \
+             mock.patch.object(app, "carica_indice_quote_live",
+                               return_value={"indice": {}}), \
              mock.patch.object(app.st, "warning") as warn, \
              mock.patch.object(app.st, "info") as info, \
              _CatturaLog() as cattura:

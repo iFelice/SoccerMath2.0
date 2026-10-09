@@ -101,7 +101,27 @@ jobs:
             SoccerMath/test_legacy_elo_engine.py \
             audit/test_elo_drift_triage.py \
             audit/test_elo_conversion_audit.py \
+            audit/test_replay_topmix_mercato.py \
+            audit/test_live_odds_match.py \
+            SoccerMath/test_quote_live.py \
+            SoccerMath/test_topmix_mercato.py \
+            SoccerMath/test_update_live_odds.py \
+            SoccerMath/test_alias_quote_live.py \
             -q --tb=short
+
+      # Punto 8 della commessa "quote live": replay OFFLINE del selettore di
+      # mercato sui CSV storici (quote B365 pre-chiusura, come la PR #49).
+      # Nessuna rete, nessuna scrittura nel Registro; gli artefatti finiscono in
+      # $AUDIT_OUT (non versionato) cosi' il guard finale `git diff` resta pulito.
+      # Esce con codice 1 se i numeri della PR #49 non tornano: le differenze
+      # vanno riportate, non corrette.
+      - name: Replay offline del Top Mix di mercato (topmix_mercato_v3)
+        if: steps.salta.outputs.skip != 'true'
+        run: |
+          python audit/replay_topmix_mercato.py \
+            --report "$AUDIT_OUT/replay_topmix_mercato.md" \
+            --json "$AUDIT_OUT/replay_topmix_mercato.json" \
+            --righe "$AUDIT_OUT/replay_topmix_mercato_rows.csv"
 
       - name: GET JSONBin Schalke–Bayern (sola lettura, mai PUT)
         if: steps.salta.outputs.skip != 'true'
@@ -166,6 +186,28 @@ jobs:
             echo
             echo "SHA: \`${{ github.sha }}\`"
             echo
+            if [ -f "$AUDIT_OUT/replay_topmix_mercato.json" ]; then
+              python - <<'PY'
+          import json, os
+          p = os.path.join(os.environ["AUDIT_OUT"], "replay_topmix_mercato.json")
+          d = json.load(open(p, encoding="utf-8"))
+          r = d["riassunto"]
+          print("### Replay offline del Top Mix di mercato (`topmix_mercato_v3`)")
+          print()
+          print(f"- campione: **{r['righe_campione']}** righe (2024/25 + 2025/26, quote B365 pre)")
+          print(f"- de-vig di produzione vs colonne PR #49: scarto max `{d['max_scarto_devig']:.2e}`")
+          print()
+          print("| Voce | n PR #49 | n replay | hit PR #49 | hit replay | coincide |")
+          print("|---|---|---|---|---|---|")
+          for riga in d["confronto"]:
+              print(f"| {riga['voce']} | {riga['n_pr49']} | {riga['n_replay']} | "
+                    f"{riga['hit_pr49']:.4f} | {riga['hit_replay']:.4f} | "
+                    f"{'SÌ' if riga['coincide'] else 'NO'} |")
+          print()
+          print(f"**Esito: {'PARITÀ con la PR #49' if d['parita'] else 'DIFFERENZE PRESENTI (non corrette)'}**")
+          print()
+          PY
+            fi
             if [ -f "$AUDIT_OUT/schalke_bayern_921.json" ]; then
               python - <<'PY'
           import json, os

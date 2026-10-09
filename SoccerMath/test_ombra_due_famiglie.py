@@ -101,8 +101,11 @@ class TestFamigliaRetrocompatibile(unittest.TestCase):
         self.assertEqual("", R.famiglia_ombra({"mercato_standard": "1"}))
 
     def test_costanti_ombra_per_famiglia_coerenti(self):
+        # Tre famiglie dal Top Mix di mercato: OU/GGNG (righe ombra Totali) e
+        # 1X2 (le scelte dei due modelli, passate in ombra dalle quote live).
         self.assertEqual({R.OMBRA_FAMIGLIA_OU25: R.SELECTOR_VERSION_OMBRA_OU25,
-                          R.OMBRA_FAMIGLIA_GGNG: R.SELECTOR_VERSION_OMBRA_GGNG},
+                          R.OMBRA_FAMIGLIA_GGNG: R.SELECTOR_VERSION_OMBRA_GGNG,
+                          R.OMBRA_FAMIGLIA_1X2: R.SELECTOR_VERSION_OMBRA_1X2},
                          R.SELECTOR_VERSION_OMBRA_BY_FAMIGLIA)
         self.assertNotIn(R.SELECTOR_VERSION_CURRENT, R.SELECTOR_VERSION_OMBRA_BY_FAMIGLIA.values())
         self.assertFalse(hasattr(R, "SELECTOR_VERSION_OMBRA"))

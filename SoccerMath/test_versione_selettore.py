@@ -32,23 +32,45 @@ import prediction_registry as R  # noqa: E402
 
 APP = os.path.join(HERE, "app.py")
 ELO = os.path.join(HERE, "models", "elo_engine.py")
+MERCATO = os.path.join(HERE, "market_odds.py")
 
 #: Funzioni (file, nome) e costanti (file, nome) che determinano probabilita' e selezione.
+#: Dalla PR delle quote live il Top Mix VISIBILE sceglie sul mercato: entrano
+#: nell'impronta anche il selettore di mercato, la costruzione della sua riga e
+#: il de-vig (``market_odds``), perche' sono loro a produrre la probabilita' che
+#: decide. Le funzioni del modello restano: la probabilita' del Drago e il
+#: segnale "d'accordo" fanno parte della riga visibile.
 FUNZIONI = (
     (APP, "get_full_poisson_two_heads"),
     (APP, "blend_elo_into_1x2"),
     (APP, "seleziona_riga_top_mix"),
+    (APP, "seleziona_riga_top_mix_mercato"),
     (APP, "_riga_top_mix"),
+    (APP, "_riga_top_mix_mercato"),
     (ELO, "predict_elo_probs"),
+    (MERCATO, "devig_proporzionale"),
+    (MERCATO, "ternaria_h2h"),
+    (MERCATO, "probabilita_mercato"),
 )
 COSTANTI = (
     (APP, "POISSON_1X2_WEIGHT"),
     (APP, "TOP_MIX_ROUND_WINDOW_DAYS"),
+    (MERCATO, "SOGLIA_TOPMIX_MERCATO"),
+    (MERCATO, "SOGLIA_ACCORDO"),
+    (MERCATO, "BOOKMAKER_PRIMARIO"),
+    (MERCATO, "ESITI"),
 )
 
 #: Impronta di ciascuna versione del selettore (append-only).
+#: ``topmix_1x2_gate025_ens06_v2`` e' l'impronta calcolata sull'insieme di
+#: funzioni/costanti DI ALLORA (senza mercato): resta in tabella come storia, ma
+#: non e' ricalcolabile col codice di oggi (l'insieme e' cambiato).
 IMPRONTE = {
     "topmix_1x2_gate025_ens06_v2": "f2a287f0f70bba9eab5c1811ac661fb98a19f6796f9ead6e23d5af9e03e10222",
+    # v3: il Top Mix VISIBILE sceglie sul mercato (de-vig proporzionale, soglia
+    # 0,55) e l'impronta copre anche ``market_odds``. Le probabilita' del modello
+    # non sono cambiate: sono cambiati il selettore visibile e la sua riga.
+    "topmix_mercato_v3": "1d2787b0f45b0f91a6ba651809b6e9ecdb2ba7dec35972dafdb40814186a4bb5",
 }
 
 
@@ -70,8 +92,12 @@ def impronta_da_sorgenti(sorgenti: dict, funzioni=FUNZIONI, costanti=COSTANTI) -
         fn = next(n for n in alberi[percorso].body if isinstance(n, ast.FunctionDef) and n.name == nome)
         parti.append(ast.dump(_senza_docstring(fn), annotate_fields=True, include_attributes=False))
     for percorso, nome in costanti:
+        # ``Assign`` (``X = 1``) e ``AnnAssign`` (``X: int = 1``): entrambe
+        # definiscono la costante, entrambe entrano nell'impronta.
         asg = next(n for n in alberi[percorso].body
-                   if isinstance(n, ast.Assign) and any(getattr(t, "id", None) == nome for t in n.targets))
+                   if isinstance(n, (ast.Assign, ast.AnnAssign))
+                   and any(getattr(t, "id", None) == nome
+                           for t in (n.targets if isinstance(n, ast.Assign) else [n.target])))
         parti.append(ast.dump(asg.value, annotate_fields=True, include_attributes=False))
     return hashlib.sha256("\n".join(parti).encode("utf-8")).hexdigest()
 
@@ -82,6 +108,12 @@ def impronta_attuale() -> str:
         with open(percorso, encoding="utf-8") as f:
             sorgenti[percorso] = f.read()
     return impronta_da_sorgenti(sorgenti)
+
+
+#: Impronte storiche NON ricalcolabili col codice di oggi (l'insieme di
+#: funzioni/costanti dell'impronta e' cambiato con la versione). Il test le
+#: accetta senza confronto; la versione IN PROVA deve invece coincidere.
+IMPRONTE_STORICHE_NON_RICALCOLABILI = frozenset({"topmix_1x2_gate025_ens06_v2"})
 
 
 class TestRegolaVersioneSelettore(unittest.TestCase):
@@ -99,22 +131,47 @@ class TestRegolaVersioneSelettore(unittest.TestCase):
             with open(percorso, encoding="utf-8") as f:
                 self.assertIn(f"def {nome}(", f.read(), f"{nome} non trovata in {percorso}")
 
+    def _sorgenti_base(self):
+        return {percorso: open(percorso, encoding="utf-8").read()
+                for percorso in {p for p, _ in FUNZIONI + COSTANTI}}
+
     def test_una_modifica_di_codice_cambia_l_impronta(self):
-        with open(APP, encoding="utf-8") as f:
-            testo = f.read()
-        base = {APP: testo, ELO: open(ELO, encoding="utf-8").read()}
-        cambiato = testo.replace("POISSON_1X2_WEIGHT = 0.25", "POISSON_1X2_WEIGHT = 0.30", 1)
-        self.assertNotEqual(testo, cambiato, "fixture non valida: la costante non e' quella attesa")
+        base = self._sorgenti_base()
+        cambiato = base[APP].replace("POISSON_1X2_WEIGHT = 0.25", "POISSON_1X2_WEIGHT = 0.30", 1)
+        self.assertNotEqual(base[APP], cambiato, "fixture non valida: la costante non e' quella attesa")
         self.assertNotEqual(impronta_da_sorgenti(base),
                             impronta_da_sorgenti({**base, APP: cambiato}))
 
+    def test_la_soglia_del_mercato_cambia_l_impronta(self):
+        """La soglia del selettore di mercato fa parte dell'impronta."""
+        base = self._sorgenti_base()
+        cambiato = base[MERCATO].replace("SOGLIA_TOPMIX_MERCATO = 0.55",
+                                         "SOGLIA_TOPMIX_MERCATO = 0.60", 1)
+        self.assertNotEqual(base[MERCATO], cambiato,
+                            "fixture non valida: la costante non e' quella attesa")
+        self.assertNotEqual(impronta_da_sorgenti(base),
+                            impronta_da_sorgenti({**base, MERCATO: cambiato}))
+
+    def test_la_soglia_di_accordo_cambia_l_impronta(self):
+        base = self._sorgenti_base()
+        cambiato = base[MERCATO].replace("SOGLIA_ACCORDO = 0.55", "SOGLIA_ACCORDO = 0.60", 1)
+        self.assertNotEqual(base[MERCATO], cambiato)
+        self.assertNotEqual(impronta_da_sorgenti(base),
+                            impronta_da_sorgenti({**base, MERCATO: cambiato}))
+
+    def test_il_bookmaker_primario_cambia_l_impronta(self):
+        base = self._sorgenti_base()
+        cambiato = base[MERCATO].replace('BOOKMAKER_PRIMARIO = "pinnacle"',
+                                         'BOOKMAKER_PRIMARIO = "betfair_ex_eu"', 1)
+        self.assertNotEqual(base[MERCATO], cambiato)
+        self.assertNotEqual(impronta_da_sorgenti(base),
+                            impronta_da_sorgenti({**base, MERCATO: cambiato}))
+
     def test_commento_e_docstring_non_cambiano_l_impronta(self):
-        with open(APP, encoding="utf-8") as f:
-            testo = f.read()
-        base = {APP: testo, ELO: open(ELO, encoding="utf-8").read()}
-        con_commento = testo.replace("def blend_elo_into_1x2(",
-                                     "# commento di prova sul blend\ndef blend_elo_into_1x2(", 1)
-        self.assertNotEqual(testo, con_commento)
+        base = self._sorgenti_base()
+        con_commento = base[APP].replace("def blend_elo_into_1x2(",
+                                         "# commento di prova sul blend\ndef blend_elo_into_1x2(", 1)
+        self.assertNotEqual(base[APP], con_commento)
         self.assertEqual(impronta_da_sorgenti(base),
                          impronta_da_sorgenti({**base, APP: con_commento}))
 

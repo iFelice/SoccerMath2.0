@@ -1,0 +1,191 @@
+name: Quote live (The Odds API)
+
+# Scarica le quote 1X2 dal vivo e scrive SoccerMath/database/live_odds.json,
+# l'UNICO file che l'app legge per il Top Mix di mercato. L'app non chiama mai
+# The Odds API: la chiave ODDS_API_KEY sta solo qui, nel secret del repository,
+# e non viene mai stampata (update_live_odds.py maschera ogni URL e passa ogni
+# messaggio di errore da un filtro che sostituisce la chiave con ***).
+#
+# COSTO: una chiamata per lega, regions=eu, markets=h2h = 1 credito a chiamata,
+# 5 crediti a giro (misurato in PR #50, audit/results/live_odds_feasibility.md
+# §4). Un giro al giorno sta nel piano gratuito da 500 crediti/mese.
+#
+# ROBUSTEZZA: se la quota crediti e' esaurita, se la chiave e' rifiutata o se
+# nessuna lega torna eventi, il file precedente NON viene sovrascritto con dati
+# vuoti (update_live_odds.py esce 1/2/3 e il passo fallisce in modo visibile).
+#
+# Trigger:
+#   - schedule '17 8 * * *' UTC: tutti i giorni alle 08:17, prima dei kickoff del
+#     turno (il primo kickoff osservato nello snapshot di PR #50 era alle 13:00
+#     UTC del sabato). Orario nominale: GitHub puo' ritardare i cron;
+#   - workflow_dispatch: avvio manuale (stesso comando, stessi costi);
+#   - pull_request: SOLO la prova in dry-run con risposta API SIMULATA
+#     (audit/data/live_odds_probe): nessuna chiamata di rete, 0 crediti, nessun
+#     secret necessario, nessuna scrittura. Verifica che il writer funzioni.
+
+on:
+  schedule:
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'SoccerMath/update_live_odds.py'
+      - 'SoccerMath/market_odds.py'
+      - 'SoccerMath/team_aliases.py'
+      - '.github/workflows/live_odds.yml'
+
+permissions:
+  contents: write
+
+# Stesso gruppo di update_database.yml / update_xg.yml: tutti e tre committano
+# dati sullo stesso branch, e i commit devono restare ordinati.
+concurrency:
+  group: soccermath-data
+  cancel-in-progress: false
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Prova offline sulla PR: writer reale, risposta API simulata, 0 crediti.
+  # -------------------------------------------------------------------------
+  dry-run:
+    name: Dry-run con risposta API simulata (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: "Dipendenze (solo requests: il writer non importa streamlit)"
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Dry-run su risposta simulata (nessuna rete, nessuna scrittura)
+        working-directory: SoccerMath
+        run: |
+          set -o pipefail
+          python update_live_odds.py \
+            --fixture ../audit/data/live_odds_probe \
+            --out /tmp/live_odds_dryrun.json \
+            --dry-run 2>&1 | tee /tmp/live_odds_dryrun.log
+          # La chiave NON deve comparire in nessun output (qui non e' nemmeno
+          # definita: la guardia resta, cosi' il passo ha senso anche se un
+          # giorno qualcuno la passa per errore).
+          if grep -qi 'apiKey=[A-Za-z0-9]\{8,\}' /tmp/live_odds_dryrun.log; then
+            echo "::error::una chiave non mascherata e' finita nel log"
+            exit 1
+          fi
+          echo "OK: dry-run completata senza scrivere e senza stampare chiavi."
+
+  # -------------------------------------------------------------------------
+  # Giro reale (cron + avvio manuale): scrive e committa live_odds.json.
+  # -------------------------------------------------------------------------
+  scarica:
+    name: Scarica quote e aggiorna live_odds.json
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # Esistenza del secret SENZA leggerne il valore: il test e' una
+      # disuguaglianza valutata dal runner, il valore non arriva mai nel log.
+      - name: Verifica ODDS_API_KEY (senza stamparla)
+        env:
+          CHIAVE: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          if [ -z "$CHIAVE" ]; then
+            echo "::error::ODDS_API_KEY mancante. Aggiungila in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "ODDS_API_KEY presente (valore non letto, non stampato)."
+
+      - name: Scarica le quote (una chiamata per lega, regions=eu, markets=h2h)
+        working-directory: SoccerMath
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        # Niente `set -e` sulla chiamata: il codice di uscita va letto e
+        # spiegato. 0 = scritto; 1 = nessun evento (file precedente conservato);
+        # 2 = quota crediti esaurita (file precedente conservato); 3 = chiave.
+        run: |
+          set +e
+          python update_live_odds.py 2>&1 | tee /tmp/live_odds.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          # I crediti residui sono nel log (sono header pubblici della risposta),
+          # la chiave no: ripubblicati come annotazioni per leggerli senza
+          # scaricare artifact.
+          grep -E '^(INFO|WARNING|ERROR)' /tmp/live_odds.log | tail -n 12 | while IFS= read -r line; do
+            echo "::warning title=quote-live::${line:0:900}"
+          done || true
+          case "$rc" in
+            0) echo "Quote scaricate." ;;
+            1) echo "::error::nessun evento da nessuna lega: live_odds.json NON sovrascritto" ;;
+            2) echo "::error::quota crediti esaurita: live_odds.json NON sovrascritto" ;;
+            3) echo "::error::ODDS_API_KEY assente o rifiutata: live_odds.json NON sovrascritto" ;;
+            *) echo "::error::update_live_odds.py uscito con $rc" ;;
+          esac
+          exit "$rc"
+
+      - name: Nessuna chiave nel file scritto
+        working-directory: SoccerMath
+        env:
+          CHIAVE: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          if [ ! -f database/live_odds.json ]; then
+            echo "live_odds.json assente (il giro non ha scritto): niente da controllare."
+            exit 0
+          fi
+          if [ -n "$CHIAVE" ] && grep -qF "$CHIAVE" database/live_odds.json; then
+            echo "::error::la chiave compare in live_odds.json"
+            exit 1
+          fi
+          echo "OK: nessuna chiave nel file."
+
+      - name: Commit e push (con retry se il branch si muove)
+        run: |
+          set -uo pipefail
+          BRANCH="${{ github.ref_name }}"
+          git config --global user.name "M4 Bot"
+          git config --global user.email "action@github.com"
+          git add -A -- 'SoccerMath/database/live_odds.json'
+          if git diff --cached --quiet; then
+            echo "Nessun cambiamento: niente da committare."
+            exit 0
+          fi
+          git commit -m "Auto-update quote live $(date -u +%Y-%m-%dT%H:%M)Z"
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:$BRANCH"; then
+              echo "Push ok."
+              exit 0
+            fi
+            echo "Push rifiutato ($BRANCH avanti): rebase e riprovo ($i/4)"
+            git fetch -q origin "$BRANCH"
+            if ! git rebase -q "origin/$BRANCH"; then
+              git rebase --abort
+              echo "::error::Conflitto su live_odds.json, serve intervento manuale"
+              exit 1
+            fi
+            sleep $((i * 8))
+          done
+          echo "::error::Push non riuscito dopo 4 tentativi"
+          exit 1

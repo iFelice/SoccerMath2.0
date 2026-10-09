@@ -590,14 +590,19 @@ class TestVersioni(unittest.TestCase):
 
     def test_costanti_di_versione(self):
         self.assertEqual("topmix_gate025_ens06_v1", R.SELECTOR_VERSION_PRE_1X2)
-        self.assertEqual("topmix_1x2_gate025_ens06_v2", R.SELECTOR_VERSION_CURRENT)
+        self.assertEqual("topmix_1x2_gate025_ens06_v2", R.SELECTOR_VERSION_MODELLO_1X2)
+        self.assertEqual("topmix_mercato_v3", R.SELECTOR_VERSION_CURRENT)
         self.assertEqual("topmix_ombra_ou25_v1", R.SELECTOR_VERSION_OMBRA_OU25)
         self.assertEqual("topmix_ombra_ggng_v1", R.SELECTOR_VERSION_OMBRA_GGNG)
         self.assertEqual({R.OMBRA_FAMIGLIA_OU25: R.SELECTOR_VERSION_OMBRA_OU25,
-                          R.OMBRA_FAMIGLIA_GGNG: R.SELECTOR_VERSION_OMBRA_GGNG},
+                          R.OMBRA_FAMIGLIA_GGNG: R.SELECTOR_VERSION_OMBRA_GGNG,
+                          R.OMBRA_FAMIGLIA_1X2: R.SELECTOR_VERSION_OMBRA_1X2},
                          R.SELECTOR_VERSION_OMBRA_BY_FAMIGLIA)
-        self.assertEqual(4, len({R.SELECTOR_VERSION_PRE_1X2, R.SELECTOR_VERSION_CURRENT,
-                                 R.SELECTOR_VERSION_OMBRA_OU25, R.SELECTOR_VERSION_OMBRA_GGNG}))
+        # cinque versioni distinte: v1, v2 (modello), v3 (mercato, corrente) e
+        # le tre famiglie di ombra... di cui la 1X2 nuova.
+        self.assertEqual(5, len({R.SELECTOR_VERSION_PRE_1X2, R.SELECTOR_VERSION_CURRENT,
+                                 R.SELECTOR_VERSION_OMBRA_OU25, R.SELECTOR_VERSION_OMBRA_GGNG,
+                                 R.SELECTOR_VERSION_OMBRA_1X2}))
 
     def test_analisi_rapida_e_billy_restano_sulla_versione_storica(self):
         for origin in (R.ORIGIN_ANALISI_RAPIDA, R.ORIGIN_BILLY):
@@ -618,7 +623,9 @@ class TestVersioni(unittest.TestCase):
                 "prob": 0.6123, "prob_val": 61.2, "poisson": 58.0, "elo": 62.3,
                 "elo_disponibile": True, "rank": 3}
         _args, kwargs = app.argomenti_registro_top_mix(riga)
-        self.assertEqual(R.SELECTOR_VERSION_CURRENT, kwargs["selector_version"])
+        # dal Top Mix di mercato le righe dei modelli vanno in OMBRA
+        self.assertEqual(R.SELECTOR_VERSION_OMBRA_1X2, kwargs["selector_version"])
+        self.assertEqual(R.ORIGIN_TOP_MIX_OMBRA, kwargs["origin"])
 
 
 # ============================================ 9. guardie sull'interfaccia
@@ -662,7 +669,8 @@ class TestGuardieInterfaccia(unittest.TestCase):
         self.assertEqual(1, len(chiamate))
 
     def test_calcola_richiamato_con_il_canale_ombra_una_sola_volta(self):
-        self.assertEqual(1, self.src.count("calcola_righe_top_mix(league, matches, engine, ombra=ombra)"))
+        self.assertEqual(1, self.src.count(
+            "calcola_righe_top_mix(league, matches, engine, ombra=ombra, quote=quote)"))
 
 
 if __name__ == "__main__":

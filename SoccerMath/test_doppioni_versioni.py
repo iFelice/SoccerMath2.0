@@ -29,7 +29,7 @@ from prediction_registry import (  # noqa: E402
     ORIGIN_ANALISI_RAPIDA,
     ORIGIN_TOP_MIX,
     ORIGIN_TOP_MIX_OMBRA,
-    SELECTOR_VERSION_CURRENT,
+    SELECTOR_VERSION_MODELLO_1X2,
     SELECTOR_VERSION_PRE_1X2,
     chiave_tabella_mercato,
     compute_calibration_stats,
@@ -40,8 +40,12 @@ from prediction_registry import (  # noqa: E402
     upsert_prediction_entry,
 )
 
-V1 = SELECTOR_VERSION_PRE_1X2     # "topmix_gate025_ens06_v1"
-V2 = SELECTOR_VERSION_CURRENT     # "topmix_1x2_gate025_ens06_v2"
+V1 = SELECTOR_VERSION_PRE_1X2         # "topmix_gate025_ens06_v1"
+# La regola dei doppioni fra versioni vale DENTRO la stessa famiglia di
+# selettore: v1 e v2 sono due versioni del selettore del MODELLO. v3 e' un
+# selettore DIVERSO (quello del mercato): la sua coesistenza con le righe del
+# modello e' verificata in test_topmix_mercato.py.
+V2 = SELECTOR_VERSION_MODELLO_1X2     # "topmix_1x2_gate025_ens06_v2"
 
 
 def riga(match_id=1, versione=V1, variante=MODEL_VARIANT_CURRENT, mercato="1", prob=64.5,

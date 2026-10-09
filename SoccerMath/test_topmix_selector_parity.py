@@ -446,11 +446,19 @@ def _esegui(vecchio: bool, elemi):
         ns["MODEL_VARIANT_LEGACY"] = "legacy"
         ns["predict_elo_probs_legacy"] = _elo_legacy_stub(mondo)
         ns["_roster_stagione"] = lambda lega, stagione: None
+        # Quote dal vivo ASSENTI nel namespace di parita': il confronto col
+        # fixture storico riguarda le scelte del MODELLO, e senza quote il
+        # percorso di mercato non produce righe (top_mercato e senza_quote
+        # vuote). E' la stessa situazione del replay walk-forward.
+        ns["carica_indice_quote_live"] = lambda: None
         for _nome, testo in _blocchi_nuovi():
             exec(testo, ns)
-        top_current, top_legacy, missing, ombra = ns["fetch_and_calc_top_mix"]()
-        completo = {"top_current": top_current, "top_legacy": top_legacy,
-                    "missing": missing, "ombra": ombra}
+        (top_mercato, top_current, top_legacy, missing, ombra,
+         senza_quote) = ns["fetch_and_calc_top_mix"]()
+        assert top_mercato == [] and senza_quote == [], "senza quote non ci sono righe di mercato"
+        completo = {"top_mercato": top_mercato, "top_current": top_current,
+                    "top_legacy": top_legacy, "missing": missing, "ombra": ombra,
+                    "senza_quote": senza_quote}
         # Differenza DICHIARATA: il tetto [:10] non c'e' piu'. Per il confronto
         # col fixture PRE si guardano le prime 10 righe della tabella current.
         top = top_current[:10]
