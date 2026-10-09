@@ -1,0 +1,767 @@
+{
+ "schema": "soccermath_live_odds_v1",
+ "generato_il": "2026-10-09T17:02:35Z",
+ "fonte": "the-odds-api",
+ "piano": "starter (500 crediti/mese)",
+ "regioni": "eu",
+ "mercato": "h2h",
+ "formato_quote": "decimal",
+ "modalita": "rete",
+ "crediti": {
+  "quota_mensile": 500,
+  "usati_dall_ultimo_reset": 48,
+  "residui": 452,
+  "costo_ultima_chiamata": 1,
+  "costo_giro_completo": 5,
+  "fonte": "header x-requests-* dell'ultima chiamata"
+ },
+ "n_leghe_ok": 5,
+ "n_leghe_richieste": 5,
+ "n_eventi": 96,
+ "leghe": {
+  "Serie A": {
+   "sport_key": "soccer_italy_serie_a",
+   "scaricato_il": "2026-10-09T17:02:35Z",
+   "http_status": 200,
+   "crediti": {
+    "usati_dall_ultimo_reset": 44,
+    "residui": 456,
+    "costo_ultima_chiamata": 1
+   },
+   "n_eventi": 20,
+   "eventi": [
+    {
+     "id": "2f8e871a0f7f66ae22938028645e1066",
+     "commence_time": "2026-10-10T13:00:00Z",
+     "home_team": "Genoa",
+     "away_team": "Fiorentina",
+     "libri": []
+    },
+    {
+     "id": "1a01b0611dacd334e1558a5097e05023",
+     "commence_time": "2026-10-10T16:00:00Z",
+     "home_team": "Inter Milan",
+     "away_team": "Parma",
+     "libri": []
+    },
+    {
+     "id": "40c1bd70fee927f9bfa8901edab02b48",
+     "commence_time": "2026-10-10T18:45:00Z",
+     "home_team": "Napoli",
+     "away_team": "Frosinone",
+     "libri": []
+    },
+    {
+     "id": "2547c0dbddd26d23fa532228e36348cb",
+     "commence_time": "2026-10-11T10:30:00Z",
+     "home_team": "Como",
+     "away_team": "AS Roma",
+     "libri": []
+    },
+    {
+     "id": "946716d7e5e52822f08be8cb95193d9d",
+     "commence_time": "2026-10-11T13:00:00Z",
+     "home_team": "Lecce",
+     "away_team": "Bologna",
+     "libri": []
+    },
+    {
+     "id": "c0f72699f32ec193b64fd54092fe268d",
+     "commence_time": "2026-10-11T13:00:00Z",
+     "home_team": "Lazio",
+     "away_team": "Monza",
+     "libri": []
+    },
+    {
+     "id": "1cf64166dda1e0da8b325161deb39662",
+     "commence_time": "2026-10-11T16:00:00Z",
+     "home_team": "Sassuolo",
+     "away_team": "AC Milan",
+     "libri": []
+    },
+    {
+     "id": "407f7d03157d1dfad384876e6a6bc910",
+     "commence_time": "2026-10-11T18:45:00Z",
+     "home_team": "Cagliari",
+     "away_team": "Juventus",
+     "libri": []
+    },
+    {
+     "id": "0f2e7ff90b994f31d5cd48a9680943e1",
+     "commence_time": "2026-10-12T16:30:00Z",
+     "home_team": "Atalanta BC",
+     "away_team": "Venezia",
+     "libri": []
+    },
+    {
+     "id": "f4a28510bb0c835280a2aca709c19d50",
+     "commence_time": "2026-10-12T18:45:00Z",
+     "home_team": "Torino",
+     "away_team": "Udinese",
+     "libri": []
+    },
+    {
+     "id": "7d3160040958fe21778fd5ee485666c3",
+     "commence_time": "2026-10-16T18:45:00Z",
+     "home_team": "Frosinone",
+     "away_team": "Sassuolo",
+     "libri": []
+    },
+    {
+     "id": "907639dade64cca45d1ab639195d201e",
+     "commence_time": "2026-10-17T13:00:00Z",
+     "home_team": "Venezia",
+     "away_team": "Napoli",
+     "libri": []
+    },
+    {
+     "id": "bfefc309177723410230fee52f650315",
+     "commence_time": "2026-10-17T16:00:00Z",
+     "home_team": "Bologna",
+     "away_team": "Inter Milan",
+     "libri": []
+    },
+    {
+     "id": "18d478f469da3bcc654dd4555b85c7e3",
+     "commence_time": "2026-10-17T18:45:00Z",
+     "home_team": "AS Roma",
+     "away_team": "Genoa",
+     "libri": []
+    },
+    {
+     "id": "367da93aa21a1e13eeafb94fd2263c75",
+     "commence_time": "2026-10-18T10:30:00Z",
+     "home_team": "Udinese",
+     "away_team": "Lecce",
+     "libri": []
+    },
+    {
+     "id": "3ea32a0aa44a5f0ef7fd088155430087",
+     "commence_time": "2026-10-18T13:00:00Z",
+     "home_team": "Fiorentina",
+     "away_team": "Como",
+     "libri": []
+    },
+    {
+     "id": "f9403dd597edbfaa73abdc974e55344c",
+     "commence_time": "2026-10-18T16:00:00Z",
+     "home_team": "AC Milan",
+     "away_team": "Atalanta BC",
+     "libri": []
+    },
+    {
+     "id": "4c4026e2782f09d6f0ff2bde2a390513",
+     "commence_time": "2026-10-18T18:45:00Z",
+     "home_team": "Juventus",
+     "away_team": "Lazio",
+     "libri": []
+    },
+    {
+     "id": "ce94aca384a20f6af459366da6e1dd21",
+     "commence_time": "2026-10-19T16:30:00Z",
+     "home_team": "Monza",
+     "away_team": "Cagliari",
+     "libri": []
+    },
+    {
+     "id": "07014d9adc65ca39710bd9f0c7c0d3f0",
+     "commence_time": "2026-10-19T18:45:00Z",
+     "home_team": "Parma",
+     "away_team": "Torino",
+     "libri": []
+    }
+   ],
+   "errore": null
+  },
+  "Premier League": {
+   "sport_key": "soccer_epl",
+   "scaricato_il": "2026-10-09T17:02:35Z",
+   "http_status": 200,
+   "crediti": {
+    "usati_dall_ultimo_reset": 45,
+    "residui": 455,
+    "costo_ultima_chiamata": 1
+   },
+   "n_eventi": 20,
+   "eventi": [
+    {
+     "id": "b870dcfba5e5920d3f1551a3aa1ea435",
+     "commence_time": "2026-10-10T11:30:00Z",
+     "home_team": "Arsenal",
+     "away_team": "Leeds United",
+     "libri": []
+    },
+    {
+     "id": "02e6c0ccb11bb7ce78989ce49d67110b",
+     "commence_time": "2026-10-10T14:00:00Z",
+     "home_team": "Aston Villa",
+     "away_team": "Brentford",
+     "libri": []
+    },
+    {
+     "id": "45d4a466e32cd2b4ea535207923ceaf5",
+     "commence_time": "2026-10-10T14:00:00Z",
+     "home_team": "Chelsea",
+     "away_team": "Bournemouth",
+     "libri": []
+    },
+    {
+     "id": "380b8f24ec5430fb545a7490c1017285",
+     "commence_time": "2026-10-10T14:00:00Z",
+     "home_team": "Sunderland",
+     "away_team": "Brighton and Hove Albion",
+     "libri": []
+    },
+    {
+     "id": "288b4ff00c79daa712c911c564fe1be7",
+     "commence_time": "2026-10-10T14:00:00Z",
+     "home_team": "Ipswich Town",
+     "away_team": "Fulham",
+     "libri": []
+    },
+    {
+     "id": "22c9b2c43cbe1334381269550dab78e6",
+     "commence_time": "2026-10-10T16:30:00Z",
+     "home_team": "Manchester United",
+     "away_team": "Tottenham Hotspur",
+     "libri": []
+    },
+    {
+     "id": "86effab5c6e7bfd58c8e88b1fb7c6ba9",
+     "commence_time": "2026-10-11T13:00:00Z",
+     "home_team": "Crystal Palace",
+     "away_team": "Nottingham Forest",
+     "libri": []
+    },
+    {
+     "id": "0bdae4d304810578e47386606bff7106",
+     "commence_time": "2026-10-11T13:00:00Z",
+     "home_team": "Hull City",
+     "away_team": "Everton",
+     "libri": []
+    },
+    {
+     "id": "6dbab232dd8d2aed0cb1d6f7978fb7b1",
+     "commence_time": "2026-10-11T15:30:00Z",
+     "home_team": "Liverpool",
+     "away_team": "Manchester City",
+     "libri": []
+    },
+    {
+     "id": "acd5bd945dd953ad1e300df5bfe696f9",
+     "commence_time": "2026-10-12T19:00:00Z",
+     "home_team": "Coventry City",
+     "away_team": "Newcastle United",
+     "libri": []
+    },
+    {
+     "id": "764e6513cb3f348881503df70ccb90e0",
+     "commence_time": "2026-10-17T11:30:00Z",
+     "home_team": "Everton",
+     "away_team": "Chelsea",
+     "libri": []
+    },
+    {
+     "id": "8f1945e7272bc7e89016439f5ab321c7",
+     "commence_time": "2026-10-17T14:00:00Z",
+     "home_team": "Brentford",
+     "away_team": "Liverpool",
+     "libri": []
+    },
+    {
+     "id": "7895f97f2f9577f3b13287a3d086859d",
+     "commence_time": "2026-10-17T14:00:00Z",
+     "home_team": "Fulham",
+     "away_team": "Hull City",
+     "libri": []
+    },
+    {
+     "id": "bf2142d1ca76ba2fc9e61afce80f86c0",
+     "commence_time": "2026-10-17T14:00:00Z",
+     "home_team": "Manchester City",
+     "away_team": "Ipswich Town",
+     "libri": []
+    },
+    {
+     "id": "d1bbbdcd3d430e70091b518369b559cf",
+     "commence_time": "2026-10-17T16:30:00Z",
+     "home_team": "Newcastle United",
+     "away_team": "Aston Villa",
+     "libri": []
+    },
+    {
+     "id": "dfd5d6648be46426e418801584d46a68",
+     "commence_time": "2026-10-18T13:00:00Z",
+     "home_team": "Bournemouth",
+     "away_team": "Sunderland",
+     "libri": []
+    },
+    {
+     "id": "9fc08b390a49c4434f7cf631a0bb88fb",
+     "commence_time": "2026-10-18T13:00:00Z",
+     "home_team": "Brighton and Hove Albion",
+     "away_team": "Crystal Palace",
+     "libri": []
+    },
+    {
+     "id": "676b3b0b609e9cf565da450786618d26",
+     "commence_time": "2026-10-18T13:00:00Z",
+     "home_team": "Leeds United",
+     "away_team": "Manchester United",
+     "libri": []
+    },
+    {
+     "id": "f696a248965373d9071dc0662e5c58a8",
+     "commence_time": "2026-10-18T15:30:00Z",
+     "home_team": "Nottingham Forest",
+     "away_team": "Arsenal",
+     "libri": []
+    },
+    {
+     "id": "9baaf4e48b041cfef04e70e42532502e",
+     "commence_time": "2026-10-19T19:00:00Z",
+     "home_team": "Tottenham Hotspur",
+     "away_team": "Coventry City",
+     "libri": []
+    }
+   ],
+   "errore": null
+  },
+  "La Liga": {
+   "sport_key": "soccer_spain_la_liga",
+   "scaricato_il": "2026-10-09T17:02:35Z",
+   "http_status": 200,
+   "crediti": {
+    "usati_dall_ultimo_reset": 46,
+    "residui": 454,
+    "costo_ultima_chiamata": 1
+   },
+   "n_eventi": 20,
+   "eventi": [
+    {
+     "id": "4e4c6763037ffc0e1dfe92ed16287b6d",
+     "commence_time": "2026-10-09T19:00:00Z",
+     "home_team": "Málaga",
+     "away_team": "Espanyol",
+     "libri": []
+    },
+    {
+     "id": "349c47668fdd909039a9408c14cad8bc",
+     "commence_time": "2026-10-10T12:00:00Z",
+     "home_team": "Rayo Vallecano",
+     "away_team": "Athletic Bilbao",
+     "libri": []
+    },
+    {
+     "id": "3869391e3dbdcaa74153b11df56a3fe5",
+     "commence_time": "2026-10-10T14:15:00Z",
+     "home_team": "Alavés",
+     "away_team": "Atlético Madrid",
+     "libri": []
+    },
+    {
+     "id": "edb80d633a1906e5865ab70cc9b540ea",
+     "commence_time": "2026-10-10T16:30:00Z",
+     "home_team": "Barcelona",
+     "away_team": "Getafe",
+     "libri": []
+    },
+    {
+     "id": "551f242223b1625f458d1a2ea212a0c3",
+     "commence_time": "2026-10-10T19:00:00Z",
+     "home_team": "Real Madrid",
+     "away_team": "Villarreal",
+     "libri": []
+    },
+    {
+     "id": "7daf7edaf572eba3ac86196c663d67d3",
+     "commence_time": "2026-10-11T12:00:00Z",
+     "home_team": "Elche CF",
+     "away_team": "Celta Vigo",
+     "libri": []
+    },
+    {
+     "id": "2997b68cc93f62d8a1dee9f06bedbefd",
+     "commence_time": "2026-10-11T14:15:00Z",
+     "home_team": "Real Sociedad",
+     "away_team": "Deportivo La Coruña",
+     "libri": []
+    },
+    {
+     "id": "984691837d31fd0c59c088f377f55f75",
+     "commence_time": "2026-10-11T16:30:00Z",
+     "home_team": "Real Betis",
+     "away_team": "CA Osasuna",
+     "libri": []
+    },
+    {
+     "id": "66a4f4201806b928c9007116727fdd61",
+     "commence_time": "2026-10-11T19:00:00Z",
+     "home_team": "Real Racing Club de Santander",
+     "away_team": "Valencia",
+     "libri": []
+    },
+    {
+     "id": "529fc26c7774d5b469932e275c668921",
+     "commence_time": "2026-10-12T19:00:00Z",
+     "home_team": "Levante",
+     "away_team": "Sevilla",
+     "libri": []
+    },
+    {
+     "id": "19ee731602634e5c9e3106630e087464",
+     "commence_time": "2026-10-16T19:00:00Z",
+     "home_team": "Deportivo La Coruña",
+     "away_team": "Levante",
+     "libri": []
+    },
+    {
+     "id": "6436925dd15916d7041ba32b60000d48",
+     "commence_time": "2026-10-17T12:00:00Z",
+     "home_team": "Espanyol",
+     "away_team": "Atlético Madrid",
+     "libri": []
+    },
+    {
+     "id": "aef660734585649651415961a9d177c6",
+     "commence_time": "2026-10-17T14:15:00Z",
+     "home_team": "Villarreal",
+     "away_team": "Elche CF",
+     "libri": []
+    },
+    {
+     "id": "846e496fc232b2fc20214754836727d0",
+     "commence_time": "2026-10-17T16:30:00Z",
+     "home_team": "Real Betis",
+     "away_team": "Barcelona",
+     "libri": []
+    },
+    {
+     "id": "f00cd1ea41fa39149729d14ebc07aa6c",
+     "commence_time": "2026-10-17T19:00:00Z",
+     "home_team": "Valencia",
+     "away_team": "Athletic Bilbao",
+     "libri": []
+    },
+    {
+     "id": "1f566f17c50fe5162724ec2863d2207b",
+     "commence_time": "2026-10-18T12:00:00Z",
+     "home_team": "CA Osasuna",
+     "away_team": "Real Racing Club de Santander",
+     "libri": []
+    },
+    {
+     "id": "aabe899ecc4c19a1fafe5440151b62e4",
+     "commence_time": "2026-10-18T14:15:00Z",
+     "home_team": "Celta Vigo",
+     "away_team": "Alavés",
+     "libri": []
+    },
+    {
+     "id": "1051298b4aca6f07113309bff598a5c1",
+     "commence_time": "2026-10-18T16:30:00Z",
+     "home_team": "Málaga",
+     "away_team": "Real Sociedad",
+     "libri": []
+    },
+    {
+     "id": "eccd63bf768e2f2a358b871d3f33a63d",
+     "commence_time": "2026-10-18T19:00:00Z",
+     "home_team": "Real Madrid",
+     "away_team": "Sevilla",
+     "libri": []
+    },
+    {
+     "id": "4a88bc4de574d43ef34677fd8d78722f",
+     "commence_time": "2026-10-19T19:00:00Z",
+     "home_team": "Getafe",
+     "away_team": "Rayo Vallecano",
+     "libri": []
+    }
+   ],
+   "errore": null
+  },
+  "Bundesliga": {
+   "sport_key": "soccer_germany_bundesliga",
+   "scaricato_il": "2026-10-09T17:02:35Z",
+   "http_status": 200,
+   "crediti": {
+    "usati_dall_ultimo_reset": 47,
+    "residui": 453,
+    "costo_ultima_chiamata": 1
+   },
+   "n_eventi": 18,
+   "eventi": [
+    {
+     "id": "3fb63658405d468954f57745cd115118",
+     "commence_time": "2026-10-09T18:30:00Z",
+     "home_team": "Borussia Dortmund",
+     "away_team": "Werder Bremen",
+     "libri": []
+    },
+    {
+     "id": "3b71160ad20dba786c4f92e33c987d80",
+     "commence_time": "2026-10-10T13:30:00Z",
+     "home_team": "Augsburg",
+     "away_team": "Bayern Munich",
+     "libri": []
+    },
+    {
+     "id": "418f8c26d46eaabd829f2e265673b855",
+     "commence_time": "2026-10-10T13:30:00Z",
+     "home_team": "FSV Mainz 05",
+     "away_team": "Bayer Leverkusen",
+     "libri": []
+    },
+    {
+     "id": "2fd48be0a24ed906187067d4170bf010",
+     "commence_time": "2026-10-10T13:30:00Z",
+     "home_team": "Union Berlin",
+     "away_team": "Elversberg",
+     "libri": []
+    },
+    {
+     "id": "f03c08c0ae5fd66c2d2df2053115bb94",
+     "commence_time": "2026-10-10T13:30:00Z",
+     "home_team": "TSG Hoffenheim",
+     "away_team": "Hamburger SV",
+     "libri": []
+    },
+    {
+     "id": "9aade3e736c3d113dab19e641c43e272",
+     "commence_time": "2026-10-10T13:30:00Z",
+     "home_team": "SC Paderborn",
+     "away_team": "VfB Stuttgart",
+     "libri": []
+    },
+    {
+     "id": "01cb7a67c8ae71201ec27297455fc0e8",
+     "commence_time": "2026-10-10T16:30:00Z",
+     "home_team": "RB Leipzig",
+     "away_team": "Eintracht Frankfurt",
+     "libri": []
+    },
+    {
+     "id": "a8801462cb97a43570956e4b3ef4aedf",
+     "commence_time": "2026-10-11T13:30:00Z",
+     "home_team": "1. FC Köln",
+     "away_team": "Borussia Monchengladbach",
+     "libri": []
+    },
+    {
+     "id": "eaf509fb37413b7d055cd394667792b3",
+     "commence_time": "2026-10-11T15:30:00Z",
+     "home_team": "SC Freiburg",
+     "away_team": "FC Schalke 04",
+     "libri": []
+    },
+    {
+     "id": "947bd5d924835af090d9cdc7bbdf10f6",
+     "commence_time": "2026-10-16T18:30:00Z",
+     "home_team": "Eintracht Frankfurt",
+     "away_team": "1. FC Köln",
+     "libri": []
+    },
+    {
+     "id": "0bf757f3bd903496ce2fa27bd0481869",
+     "commence_time": "2026-10-17T13:30:00Z",
+     "home_team": "Elversberg",
+     "away_team": "Augsburg",
+     "libri": []
+    },
+    {
+     "id": "d8eac776adb07b0e7f01d8736d097291",
+     "commence_time": "2026-10-17T13:30:00Z",
+     "home_team": "Union Berlin",
+     "away_team": "Borussia Dortmund",
+     "libri": []
+    },
+    {
+     "id": "606d65d57a9a6d8f9b53faee1ad10009",
+     "commence_time": "2026-10-17T13:30:00Z",
+     "home_team": "FC Schalke 04",
+     "away_team": "FSV Mainz 05",
+     "libri": []
+    },
+    {
+     "id": "221916b8b36706ec52aa655a64e5f1d2",
+     "commence_time": "2026-10-17T13:30:00Z",
+     "home_team": "Hamburger SV",
+     "away_team": "VfB Stuttgart",
+     "libri": []
+    },
+    {
+     "id": "9a422e1aad1053828eaf629a58d901de",
+     "commence_time": "2026-10-17T13:30:00Z",
+     "home_team": "Werder Bremen",
+     "away_team": "SC Paderborn",
+     "libri": []
+    },
+    {
+     "id": "9a64448205fdc4b95f45641bb946706c",
+     "commence_time": "2026-10-17T16:30:00Z",
+     "home_team": "Bayern Munich",
+     "away_team": "RB Leipzig",
+     "libri": []
+    },
+    {
+     "id": "096d800bcc95c547ef592cbef624d080",
+     "commence_time": "2026-10-18T13:30:00Z",
+     "home_team": "Bayer Leverkusen",
+     "away_team": "SC Freiburg",
+     "libri": []
+    },
+    {
+     "id": "fd9b8c185737a15615aa0c9daaa3dfbf",
+     "commence_time": "2026-10-18T15:30:00Z",
+     "home_team": "Borussia Monchengladbach",
+     "away_team": "TSG Hoffenheim",
+     "libri": []
+    }
+   ],
+   "errore": null
+  },
+  "Ligue 1": {
+   "sport_key": "soccer_france_ligue_one",
+   "scaricato_il": "2026-10-09T17:02:35Z",
+   "http_status": 200,
+   "crediti": {
+    "usati_dall_ultimo_reset": 48,
+    "residui": 452,
+    "costo_ultima_chiamata": 1
+   },
+   "n_eventi": 18,
+   "eventi": [
+    {
+     "id": "17694e68f399fdf9c5030021ec9bb595",
+     "commence_time": "2026-10-09T18:45:00Z",
+     "home_team": "RC Lens",
+     "away_team": "Lyon",
+     "libri": []
+    },
+    {
+     "id": "2c173b3bd3a1491f17fcad1012019c4f",
+     "commence_time": "2026-10-10T15:15:00Z",
+     "home_team": "Lille",
+     "away_team": "Le Havre",
+     "libri": []
+    },
+    {
+     "id": "c2c64ebfc5810226f807c1920d580392",
+     "commence_time": "2026-10-10T18:45:00Z",
+     "home_team": "AS Monaco",
+     "away_team": "Toulouse",
+     "libri": []
+    },
+    {
+     "id": "007dc2ff845c33e3e18f2bd2bc126304",
+     "commence_time": "2026-10-10T18:45:00Z",
+     "home_team": "Brest",
+     "away_team": "Angers",
+     "libri": []
+    },
+    {
+     "id": "2849460eb4d15adbb20ec15927a0fd4a",
+     "commence_time": "2026-10-10T18:45:00Z",
+     "home_team": "Paris Saint Germain",
+     "away_team": "Le Mans FC",
+     "libri": []
+    },
+    {
+     "id": "3aa72885e0aa107c62843749f7930a9a",
+     "commence_time": "2026-10-10T18:45:00Z",
+     "home_team": "Lorient",
+     "away_team": "Paris FC",
+     "libri": []
+    },
+    {
+     "id": "5d3606630a2d3a218a6340d082c1bdc6",
+     "commence_time": "2026-10-11T13:00:00Z",
+     "home_team": "Nice",
+     "away_team": "Strasbourg",
+     "libri": []
+    },
+    {
+     "id": "34f584ab922e220dc4f3b81217959d6d",
+     "commence_time": "2026-10-11T15:15:00Z",
+     "home_team": "Rennes",
+     "away_team": "Auxerre",
+     "libri": []
+    },
+    {
+     "id": "cb7067ac191abf32ad49dad45e46f639",
+     "commence_time": "2026-10-11T18:45:00Z",
+     "home_team": "Troyes",
+     "away_team": "Marseille",
+     "libri": []
+    },
+    {
+     "id": "66c168c030f3faad3983fcadc3060009",
+     "commence_time": "2026-10-16T18:45:00Z",
+     "home_team": "Le Mans FC",
+     "away_team": "Toulouse",
+     "libri": []
+    },
+    {
+     "id": "f3034246520a2ee4ff0ac0d5074966f8",
+     "commence_time": "2026-10-17T15:15:00Z",
+     "home_team": "Strasbourg",
+     "away_team": "Paris Saint Germain",
+     "libri": []
+    },
+    {
+     "id": "ad25a350c89b64715e15c59cde5653d3",
+     "commence_time": "2026-10-17T18:45:00Z",
+     "home_team": "Lille",
+     "away_team": "Brest",
+     "libri": []
+    },
+    {
+     "id": "b077aa049133c0358bcd643bfee48da3",
+     "commence_time": "2026-10-17T18:45:00Z",
+     "home_team": "Troyes",
+     "away_team": "RC Lens",
+     "libri": []
+    },
+    {
+     "id": "c7a60aa94470fe959fbf6b0c68060fc1",
+     "commence_time": "2026-10-18T13:00:00Z",
+     "home_team": "Angers",
+     "away_team": "Marseille",
+     "libri": []
+    },
+    {
+     "id": "53f5fe7ed0ba0fbf6345c73270e4cd00",
+     "commence_time": "2026-10-18T15:15:00Z",
+     "home_team": "Lorient",
+     "away_team": "AS Monaco",
+     "libri": []
+    },
+    {
+     "id": "d637845b9760bb02b55bbbaa32b5c21e",
+     "commence_time": "2026-10-18T15:15:00Z",
+     "home_team": "Le Havre",
+     "away_team": "Auxerre",
+     "libri": []
+    },
+    {
+     "id": "27f7222d2abde93fc6e8d17b5b05b272",
+     "commence_time": "2026-10-18T15:15:00Z",
+     "home_team": "Paris FC",
+     "away_team": "Rennes",
+     "libri": []
+    },
+    {
+     "id": "471f891b1f6516a864ad94c8eb649f5e",
+     "commence_time": "2026-10-18T18:45:00Z",
+     "home_team": "Lyon",
+     "away_team": "Nice",
+     "libri": []
+    }
+   ],
+   "errore": null
+  }
+ },
+ "errori": [],
+ "leghe_mancanti_rispetto_a_prima": []
+}
