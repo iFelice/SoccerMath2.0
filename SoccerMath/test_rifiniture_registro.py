@@ -19,6 +19,7 @@ funzioni pure. Il giro completo (pulsante, HTTP finto, scrittura unica) e' in
 """
 
 import math
+import ast
 import os
 import sys
 import unittest
@@ -654,6 +655,141 @@ class TestRifinitureNelCodiceDellApp(unittest.TestCase):
         self.assertIn("hit rate", blocco.lower())
         self.assertIn("_mostra_statistiche_registrazione(all_records)", self.src)
 
+
+class TestLayoutArchivioModelloStorico(unittest.TestCase):
+    """Punto 5 (layout): l'archivio del modello storico sta in un riquadro chiuso.
+
+    Guardia sull'albero sintattico di ``app.py``, non su una fetta di testo:
+    "dentro il riquadro" vuol dire che l'elemento sta nel corpo del
+    ``with st.expander(...)``, quindi un reindent, un commento di troppo o una
+    seconda chiamata non possono far credere il contrario. Il comportamento vivo
+    (riquadro chiuso, niente tabelle vuote in pagina) e' provato da
+    ``test_apptest_top_mix.py::test_b_archivio_modello_storico_in_riquadro``.
+    """
+
+    TITOLO = "Modello storico (archivio fino al"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
+        cls.albero = ast.parse(cls.src)
+        cls.tab5 = cls.src[cls.src.index("with tab5:"):]
+
+    # ------------------------------------------------------------------ aiuti
+    def _riquadro(self):
+        for nodo in ast.walk(self.albero):
+            if isinstance(nodo, ast.With) and nodo.items:
+                testo = ast.get_source_segment(self.src, nodo.items[0].context_expr) or ""
+                if self.TITOLO in testo:
+                    return nodo
+        return None
+
+    @staticmethod
+    def _conteggio(nodo, nome):
+        n = 0
+        for c in ast.walk(nodo):
+            if not isinstance(c, ast.Call):
+                continue
+            f = c.func
+            if (isinstance(f, ast.Name) and f.id == nome) or \
+               (isinstance(f, ast.Attribute) and f.attr == nome):
+                n += 1
+        return n
+
+    # ------------------------------------------------------------------- prova
+    def test_il_riquadro_c_e_ed_e_chiuso_per_default(self):
+        riq = self._riquadro()
+        self.assertIsNotNone(riq, "l'archivio del modello storico deve stare in uno st.expander")
+        chiamata = riq.items[0].context_expr
+        testo = ast.get_source_segment(self.src, chiamata)
+        self.assertIn(self.TITOLO, testo)
+        self.assertIn("CONFINE_FAMIGLIA_MERCATO", testo,
+                      "la data del titolo e' quella del confine delle famiglie, non una copia")
+        self.assertEqual([], [k.arg for k in chiamata.keywords],
+                          "nessun parametro di apertura: st.expander e' chiuso per default")
+        # uno solo: due riquadri con lo stesso titolo vorrebbe dire tabelle duplicate
+        titoli = [ast.get_source_segment(self.src, n.items[0].context_expr) or ""
+                  for n in ast.walk(self.albero) if isinstance(n, ast.With) and n.items]
+        self.assertEqual(1, sum(1 for t in titoli if self.TITOLO in t),
+                         f"un solo riquadro per l'archivio, trovati: {titoli}")
+
+    def test_dentro_il_riquadro_ci_sta_tutto_il_modello_storico(self):
+        riq = self._riquadro()
+        self.assertIsNotNone(riq)
+        self.assertEqual(2, self._conteggio(riq, "_mostra_registro_modello"),
+                         "le DUE tabelle dei motori stanno nel riquadro, non in pagina")
+        self.assertEqual(2, self._conteggio(riq, "_mostra_blocco_modello"),
+                         "e ci stanno anche i due blocchi di statistiche, che contano "
+                         "le stesse righe delle tabelle")
+        # due chiamate perche' due sono i rami: una per motore se i motori sono
+        # piu' d'uno, un'unica affidabilita' di famiglia se nel filtro resta un
+        # solo motore. In nessun caso si chiama fuori dal riquadro.
+        self.assertEqual(2, self._conteggio(riq, "_mostra_affidabilita"))
+        self.assertEqual(2, self.tab5.count("_mostra_affidabilita("),
+                         "l'affidabilita' del modello si chiama solo nei due rami qui "
+                         "dentro: nessun blocco di affidabilita' resta in apertura")
+        self.assertEqual(1, self._conteggio(riq, "_metriche_famiglia_registro"),
+                         "l'intestazione di famiglia con i cinque numeri e' del riquadro")
+        self.assertIn("schede_vecchie", ast.get_source_segment(self.src, riq),
+                      "il dettaglio 'scheda vecchia' resta dichiarato, dentro il riquadro")
+        self.assertIn("FAMIGLIA_SELETTORE_MODELLO", ast.get_source_segment(self.src, riq))
+
+    def test_fuori_dal_riquadro_restano_mercato_e_ombra(self):
+        riq = self._riquadro()
+        self.assertIsNotNone(riq)
+        corpo = ast.get_source_segment(self.src, riq)
+        fuori = self.tab5_fuori_riquadro()
+        for nome in ("_mostra_registro_mercato", "_mostra_statistiche_registrazione",
+                     "load_ombra_rows"):
+            self.assertEqual(0, self._conteggio(riq, nome),
+                             f"{nome} non deve finire nel riquadro chiuso")
+            self.assertIn(nome + "(", fuori, f"{nome} deve restare in apertura")
+        self.assertIn("FAMIGLIA_SELETTORE_MERCATO", fuori.split("st.expander", 1)[0],
+                      "la famiglia mercato si renderizza PRIMA del riquadro: e' cio' che "
+                      "si vede aprendo il tab")
+
+    def test_le_tabelle_dei_motori_incrociano_la_famiglia(self):
+        """Le due tabelle sono l'archivio: variante E famiglia di selettore.
+
+        Le righe del mercato portano ``model_variant = current`` perche' le scrive
+        lo stesso codice di scrittura: tagliare solo sulla variante le avrebbe
+        messe nell'archivio del modello, smentendo il titolo del riquadro e
+        sballando i totali rispetto all'intestazione di famiglia.
+        """
+        self.assertIn('maschera_attuale = maschera_attuale & maschera_modello', self.tab5)
+        self.assertIn('maschera_legacy = maschera_legacy & maschera_modello', self.tab5)
+        self.assertIn('resto_records = df_display[maschera_resto].to_dict("records")', self.tab5)
+        self.assertIn('resto = df_display[maschera_resto]', self.tab5)
+        # la terza tabella di controllo esiste solo se ha righe: non e' mai vuota
+        i = self.tab5.index("resto = df_display[maschera_resto]")
+        self.assertIn("if len(resto):", self.tab5[i:i + 200])
+        # e la tabella di controllo sta FUORI dal riquadro: un'anomalia dei dati
+        # nascosta in un box chiuso non la vede nessuno
+        riq = self._riquadro()
+        self.assertEqual(0, self._conteggio(riq, "dataframe") if riq else 0,
+                         "nel riquadro non si costruisce nessuna tabella all'infuori "
+                         "delle due dei motori (quella di controllo sta fuori)")
+
+    def tab5_fuori_riquadro(self):
+        """Il tab5 SENZA il corpo del riquadro: cio' che si vede in apertura."""
+        corpo = ast.get_source_segment(self.src, self._riquadro())
+        return self.tab5.replace(corpo, "", 1)
+
+    def test_il_loop_misto_non_c_e_piu_e_la_didascalia_descrive_il_layout(self):
+        for token in ("for _fam, _etichetta, _nota in (", "parti_variante_modello =",
+                      "righe_famiglia_modello ="):
+            self.assertFalse(token in self.src,
+                             "e' tornato il vecchio giro misto sulle due famiglie: "
+                             f"cerca {token!r} in app.py")
+        # la didascalia che parlava di "due tabelle" descrive il layout attuale
+        self.assertFalse("titolo delle due tabelle)" in self.src,
+                         "la didascalia parla ancora del vecchio layout a due tabelle")
+        i = self.src.index('"**Come sono state scritte le righe**')
+        didascalia = self.src[i:self.src.index("        )\n", i)]
+        self.assertIn("riquadro chiuso", didascalia)
+        self.assertIn("archivio del modello storico", didascalia)
+        for etichetta in ("MODEL_LABEL_CURRENT", "MODEL_LABEL_PRE_FIX", "MODEL_LABEL_LEGACY"):
+            self.assertIn(etichetta, didascalia, "le tre etichette della scheda restano")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

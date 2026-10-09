@@ -19,7 +19,17 @@ Cosa prova, in un solo giro:
   calcolatore e NON scrive nulla e NON rifà chiamate (la scrittura vive solo nel
   blocco del pulsante);
 * il campo "Quota offerta dal tuo bookmaker" parte vuoto e senza margine; pieno,
-  il margine e' ``quota * probabilita' combinata - 1``.
+  il margine e' ``quota * probabilita' combinata - 1``;
+* (punto 5) le DUE tabelle del modello storico -- con i loro blocchi e la loro
+  intestazione di famiglia -- stanno in un ``st.expander`` CHIUSO, e con il filtro
+  "In Attesa" non resta nessuna tabella vuota del modello storico fuori dal
+  riquadro: in apertura si vedono solo il Mercato e il registro ombra.
+
+Due metodi, uno Stato dell'arte per volta: ``test_a_...`` gira il pulsante,
+``test_b_...`` guarda il layout del Registro. Condividono l'AppTest costruito in
+``setUpClass`` (farne girare un secondo costerebbe altri ~70 s di import) e
+nessuno dei due dipende dall'ordine: ``test_b`` parte dal Registro del fixture,
+che gia' contiene una riga per famiglia.
 
 Come si evita l'HTTP senza toccare ``app.py``: ``fetch_and_calc_top_mix`` e'
 ``@st.cache_data``, quindi mockpare LA FUNZIONE non funziona (il decoratore la
@@ -161,9 +171,35 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
             pr.QUOTE_LIVE_ISTANTE_PRIMA_FIELD: "2026-01-01T00:00:00Z",
         }
         cls.salvato_il_prima = cls.riga_112["salvato_il"]
+
+        # Una riga del MODELLO STORICO (selettore 1X2 di prima del mercato), ancora
+        # in attesa: serve al punto 5, perche' le due tabelle dell'archivio devono
+        # stare nel riquadro chiuso e NON in apertura. E' del motore attuale
+        # (``model_variant``), quindi finisce nella tabella 🟢; la 🟠 Legacy resta
+        # vuota ed e' esattamente il caso "tabella vuota" dell'enunciato.
+        cls.istante_storico = (ora - timedelta(days=30)).strftime("%d/%m/%Y %H:%M")
+        cls.riga_storico = {
+            "match_id": 901, "home": "Milan", "away": "Juventus",
+            "campionato": "Serie A", "giornata": 7,
+            "data": cls.istante_storico,
+            "pronostico_sicuro": "1 - Top Mix", "mercato_standard": "1",
+            "top3": [], "prob_sicuro": 61.0, "risultati_attesi": "",
+            "risultato_reale": None, "esito": "⏳", "tipo": "Top Mix",
+            "stagione": "2026/27", "salvato_il": cls.istante_storico,
+            "origin": "top_mix",
+            # La versione di selettore decide la FAMIGLIA (``famiglia_selettore``):
+            # una versione pre-mercato = modello storico, a prescindere dai campi
+            # di mercato che la riga non ha.
+            "selector_version": "topmix_1x2_gate025_ens06_v2",
+            "model_variant": pr.MODEL_VARIANT_CURRENT,
+            "rank": 1, "kickoff_utc": _iso(ora - timedelta(days=30)),
+            "data_snapshot_sha": "fixture", "calculation_id": "fixture901",
+            "model_version": pr.MODEL_VERSION_CURRENT,
+        }
         cls.prediction_file = cls.tmp / "predictions.json"
         cls.prediction_file.write_text(
-            json.dumps({"data": [cls.riga_112]}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"data": [cls.riga_112, cls.riga_storico]},
+                       ensure_ascii=False), encoding="utf-8")
 
         # --- le parti dell'app che si sostituiscono (e si restaurano) ---
         cls._patches = []
@@ -239,8 +275,9 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         return json.loads(self.prediction_file.read_text(encoding="utf-8"))["data"]
 
     # ------------------------------------------------------------------- prova
-    def test_click_top_mix(self):
+    def test_a_click_top_mix(self):
         import market_odds as mo
+        import prediction_registry as pr
 
         self.assertEqual([], self.scritture, "aprire la pagina non scrive il Registro")
         self.assertEqual([], self.chiamate, "aprire la pagina non chiama la rete")
@@ -266,11 +303,11 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
 
         # --- 3) la riga sotto soglia viene riallineata ----------------------
         registro = self.righe_registro()
-        self.assertEqual(3, len(registro),
-                         "2 righe ammesse + la 112 gia' registrata: sotto soglia non "
-                         "nasce nessuna riga nuova")
+        self.assertEqual(4, len(registro),
+                         "2 righe ammesse + la 112 gia' registrata + la riga del "
+                         "modello storico: sotto soglia non nasce nessuna riga nuova")
         by_id = {int(r["match_id"]): r for r in registro}
-        self.assertEqual({111, 112, 113}, set(by_id))
+        self.assertEqual({111, 112, 113, 901}, set(by_id))
         riga = by_id[112]
 
         # Il numero atteso viene dalla STESSA funzione di produzione sulle STESSE
@@ -297,6 +334,19 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         # Le righe ammesse portano il flag a False (sopra soglia per definizione)
         self.assertFalse(by_id[111]["sotto_soglia_ora"])
         self.assertFalse(by_id[113]["sotto_soglia_ora"])
+
+        # --- 3b) la riga del MODELLO STORICO non la tocca nessuno -------------
+        # Il rinfresco delle righe in attesa riguarda la famiglia mercato: una riga
+        # del modello storico e' in attesa anch'essa, ma non ha campi di mercato da
+        # riallineare, e il click non deve scriverle niente addosso (nemmeno il
+        # timestamp).
+        storico = by_id[901]
+        self.assertEqual(61.0, storico["prob_sicuro"])
+        self.assertEqual(self.istante_storico, storico["salvato_il"],
+                         "la riga del modello storico non viene riscritta dal click")
+        self.assertNotIn("sotto_soglia_ora", storico,
+                         "il flag di mercato non finisce nelle righe di altra famiglia")
+        self.assertNotIn(pr.PROB_MERCATO_FIELD, storico)
 
         # --- 4) multipla: tabella e calcolatore restano visibili ------------
         mss = [m for m in self.at.multiselect if m.key == "multipla_selezione"]
@@ -355,13 +405,138 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         self.assertLessEqual(len(self.scritture), 1,
                              f"secondo click: scritture {self.scritture}, attesa <= 1")
         registro2 = self.righe_registro()
-        self.assertEqual(3, len(registro2), "il secondo click non duplica nessuna riga")
+        self.assertEqual(4, len(registro2), "il secondo click non duplica nessuna riga")
         again = {int(r["match_id"]): r for r in registro2}[112]
         self.assertAlmostEqual(self.prima_prob, again["prob_mercato_prima"], places=6,
                                msg="e i campi _prima restano la prima scrittura, sempre")
         self.assertEqual(self.salvato_il_prima, again["salvato_il_originario"])
         self.assertTrue(again["sotto_soglia_ora"])
 
+
+    # ------------------------------------------------- 5) layout del Registro
+    def test_b_archivio_modello_storico_in_riquadro(self):
+        """Punto 5: le due tabelle del modello storico stanno in un riquadro CHIUSO.
+
+        Nessuna premessa sul click: il fixture del Registro ha gia' una riga per
+        famiglia, entrambe in attesa, che e' esattamente lo scenario
+        dell'enunciato -- con il filtro "In Attesa" le tabelle del modello storico
+        sono quelle che resterebbero in vista a dire "nessuna riga".
+        """
+        eta = [x for x in self.at.selectbox if x.label == "Esito"]
+        self.assertEqual(1, len(eta), "un solo filtro 'Esito' nel Registro")
+        self.assertIn("In Attesa (⏳)", [str(o) for o in eta[0].options])
+        eta[0].select("In Attesa (⏳)")
+        self.at.run()
+        self.eccezioni("filtro In Attesa sul Registro")
+
+        # --- il riquadro: uno con quel titolo, chiuso per default ---
+        # In pagina c'e' anche l'expander "🔧 Diagnostica" (roba sua, non del
+        # Registro): si cerca il riquadro per titolo, e si esclude che ce ne siano
+        # due con lo stesso titolo.
+        etichette = [str(x.label) for x in self.at.expander]
+        archivio = [x for x in self.at.expander
+                    if str(x.label) == "Modello storico (archivio fino al 09/10/2026)"]
+        self.assertEqual(1, len(archivio), f"riquadri in pagina: {etichette}")
+        archivio = archivio[0]
+        self.assertFalse(archivio.proto.expanded,
+                         "deve essere CHIUSO per default: e' archivio, non lavoro")
+        dentro = {id(n) for n in archivio}
+
+        def _fuori(nodi):
+            return [n for n in nodi if id(n) not in dentro]
+
+        def _testi(nodi):
+            return " · ".join(str(getattr(n, "value", "")) for n in nodi)
+
+        # --- tutto quello che riguarda i due motori sta DENTRO ---
+        md_dentro = _testi(archivio.markdown) + " · " + _testi(archivio.caption)
+        self.assertIn("Drago a 2 Teste", md_dentro, "l'intestazione del motore attuale")
+        self.assertIn("Legacy", md_dentro, "l'intestazione del motore legacy")
+        self.assertIn("Nessuna riga di questo motore con i filtri attivi.",
+                      _testi(archivio.info),
+                      "il motore senza righe lo dice DENTRO il riquadro, non in pagina")
+
+        # --- e niente di tutto questo resta FUORI, visibile in apertura ---
+        md_fuori = _testi(_fuori(self.at.markdown)) + " · " + _testi(_fuori(self.at.caption))
+        for parola in ("Drago a 2 Teste", "Elo pre-fix", "Nessuna riga di questo motore",
+                       "Modello storico (fino al"):
+            self.assertNotIn(parola, md_fuori,
+                             "il riquadro chiuso ci mette davvero la famiglia del modello "
+                             f"storico: {parola!r} non si deve vedere fuori")
+        self.assertEqual([], [str(i.value) for i in _fuori(self.at.info)
+                              if "questo motore" in str(i.value)],
+                         "nessuna tabella vuota del modello storico in apertura")
+
+        # --- le TABELLE: quelle tagliate per motore stanno nel riquadro ---
+        # La tabella di un motore ha le colonne del Registro storico; quella del
+        # mercato ne ha altre in piu' (P modello, D'accordo, Stato) e non si
+        # confonde con essa.
+        def _colonne(d):
+            return [str(c) for c in list(d.value.columns)]
+
+        def _tabelle(nodi):
+            return [d for d in nodi
+                    if "esito" in _colonne(d)
+                    and "stato_col" not in _colonne(d) and "Stato" not in _colonne(d)]
+
+        fuori = _tabelle(_fuori(self.at.dataframe))
+        self.assertEqual([], [list(d.value["home"]) for d in fuori],
+                         "fuori dal riquadro non c'e' nessuna tabella di un motore")
+        dentro_t = _tabelle(archivio.dataframe)
+        self.assertEqual(1, len(dentro_t),
+                         "una sola tabella del modello storico renderizzata: la 🟢 ha "
+                         "righe, la 🟠 vuota e' un messaggio e non una tabella")
+        self.assertEqual(["Milan"], sorted(dentro_t[0].value["home"].tolist()),
+                         "l'archivio contiene solo righe del modello storico: quelle di "
+                         "mercato -- che pur portano ``model_variant = current``, perche' "
+                         "le scrive lo stesso codice -- non ci entrano, perche' il taglio "
+                         "per motore incrocia la famiglia di selettore")
+
+        # --- in apertura restano il Mercato e il registro ombra ---
+        # L'ombra la si cerca su tutto il testo fuori dal riquadro, warning e
+        # info inclusi: qui nell'ambiente di test il backend e' spento e la
+        # sezione si vede proprio attraverso l'avviso ("Registro ombra non
+        # leggibile: ..."), che e' un altro modo dello stesso blocco di esserci.
+        testi_fuori = (md_fuori + " · " + _testi(_fuori(self.at.info))
+                       + " · " + _testi(_fuori(self.at.warning)))
+        self.assertIn("Mercato (topmix_mercato_v3)", md_fuori)
+        self.assertIn("Affidabilita' per registrazione", md_fuori,
+                      "le statistiche per registrazione della famiglia mercato restano visibili")
+        self.assertIn("Registro ombra", testi_fuori,
+                      "la sezione del registro ombra resta fuori dal riquadro")
+        self.assertNotIn("Registro ombra", md_dentro + _testi(archivio.info),
+                         "e non si spostare dentro l'archivio: e' la parte che cresce")
+        tabelle_mercato = [d for d in _fuori(self.at.dataframe) if "esito" in _colonne(d)]
+        self.assertEqual(1, len(tabelle_mercato),
+                         "la tabella del mercato e' l'unica tabella di registro visibile in apertura")
+        # Qui NON si usa un elenco esatto di squadre: se il test del click ha gia'
+        # girato, le righe di mercato in attesa sono tre. Cio' che deve valere in
+        # ogni ordine e' che la riga del Registro storico resti fuori.
+        case = tabelle_mercato[0].value["home"].tolist()
+        self.assertIn("Torino", case, "la riga di mercato in attesa resta in vista")
+        self.assertNotIn("Milan", case,
+                         "e la riga del modello storico non finisce nella tabella del mercato")
+
+        # --- secondo giro: famiglia del modello VuOTA di righe ---
+        # E' il caso reale di oggi (l'archivio non cresce piu'), e passa dal ramo
+        # opposto di ``_metriche_famiglia_registro``: nessun numero e nessuna
+        # tabella, solo la riga che lo dice. Vale lo stesso requisito: quel "lo
+        # dice" deve stare dentro il riquadro.
+        [x for x in self.at.selectbox if x.label == "Esito"][0].select("Vinte (✅)")
+        self.at.run()
+        self.eccezioni("filtro Vinte sul Registro")
+        archivio = [x for x in self.at.expander if str(x.label).startswith("Modello storico")][0]
+        dentro = {id(n) for n in archivio}          # i closures qui sotto leggono `dentro`
+        self.assertEqual([], [str(i.value) for i in _fuori(self.at.info)
+                              if "questo motore" in str(i.value)],
+                         "a famiglia vuota non compare nessuna tabella di motore in pagina")
+        self.assertEqual([], _tabelle(_fuori(self.at.dataframe)),
+                         "e nessuna tabella di motore, vuota o piena che sia")
+        self.assertIn("Nessuna riga di questa famiglia nel Registro visibile",
+                      _testi(archivio.markdown) + " · " + _testi(archivio.caption),
+                      "il riquadro dice lui che la famiglia e' vuota, senza inventare totali")
+        self.assertIn("Mercato (topmix_mercato_v3)", _testi(_fuori(self.at.markdown)),
+                      "la famiglia mercato conserva la sua intestazione")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

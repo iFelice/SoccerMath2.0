@@ -315,10 +315,24 @@ class TestProblema2_EtichetteRegistro(unittest.TestCase):
             self.assertNotIn(r, modello)
 
     def test_model_variant_nelle_tabelle_modello_storico(self):
-        """Drago/Legacy sono separati solo dentro il modello storico."""
+        """Drago/Legacy sono separati solo dentro il modello storico.
+
+        Aggiornata al punto 5 delle "rifiniture": il taglio sulla famiglia non sta
+        piu' nel filtro dell'affidabilita' (``famiglia_selettore(r) ==
+        FAMIGLIA_SELETTORE_MODELLO``, scritto due volte dentro il loop sulle
+        famiglie) ma nelle DUE MASCHERE dei motori. E' piu' forte, non piu' debole:
+        le tabelle dell'archivio, i loro blocchi e l'affidabilita' partono dallo
+        stesso insieme, quindi nessun numero del riquadro puo' contare righe che il
+        riquadro non mostra (prima le tabelle "del modello" includevano anche tutte
+        le righe di mercato, che portano ``model_variant = current``).
+        """
         app_src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
-        # Il blocco affidabilita per motore è solo sulla famiglia modello
-        self.assertIn("famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO", app_src)
+        self.assertIn("maschera_modello = ~maschera_mercato", app_src)
+        self.assertIn("maschera_attuale = maschera_attuale & maschera_modello", app_src)
+        self.assertIn("maschera_legacy = maschera_legacy & maschera_modello", app_src)
+        # la famiglia si decide UNA volta sola, con la funzione di produzione
+        self.assertIn("lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO",
+                      app_src)
 
     def test_confine_famiglia_dichiarato(self):
         """Il confine famiglia mercato è dichiarato esplicitamente."""

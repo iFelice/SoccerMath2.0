@@ -3383,7 +3383,12 @@ REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_s
 
 
 def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420):
-    """Una delle DUE tabelle del Registro: solo le righe di un motore.
+    """Una delle DUE tabelle del Registro storico: le righe di UN motore.
+
+    Il taglio lo fa chi chiama, e incrocia le due domande: motore (``variante``)
+    e famiglia di selettore. Una riga del mercato porta ``model_variant =
+    current`` perche' le scrive lo stesso codice di scrittura, quindi la sola
+    variante la farebbe comparire qui, dentro l'archivio del modello storico.
 
     L'etichetta del modello sta nell'intestazione, come nel Top Mix: dentro la
     tabella la colonna della variante sarebbe la stessa parola ripetuta su ogni
@@ -3506,6 +3511,43 @@ def _mostra_statistiche_registrazione(records):
         st.caption("🔄 Nessuna riga con il flag ``sotto_soglia_ora``: nessun rinfresco ha "
                    "incontrato una riga in attesa scesa sotto soglia (o il Registro non ha "
                    "ancora righe scritte da questo codice).")
+
+
+def _metriche_famiglia_registro(records, famiglia, etichetta, nota):
+    """Intestazione di FAMIGLIA del Registro: titolo, nota e i cinque numeri.
+
+    Un posto solo per la coppia "titolo di famiglia + Totali/Vinte/Perse-Brier-gap",
+    perche' la usano sia la famiglia Mercato (visibile in apertura) sia il Modello
+    storico (che dal punto 5 della commessa sta dentro l'archivio, nel riquadro
+    chiuso): le due intestazioni non possono divergere per come contano, e ognuna
+    conta SOLO la propria famiglia. Sommarle conterebbe due volte la stessa
+    partita quando le due scelte coincidono (PR #49 §4d: 1144 su 1302) e
+    mescolerebbe due probabilita' diverse nello stesso Brier.
+
+    Ritorna True se la famiglia ha righe. Senza righe lo dice una volta e non
+    espone nessun numero: nessun totale a zero, nessun Brier inventato.
+    """
+    _stat = compute_stats(records, famiglia=famiglia)
+    _cal = compute_calibration_stats(records, famiglia=famiglia)
+    st.markdown(f"###### {FAMIGLIA_ICONA[famiglia]} {etichetta}")
+    st.caption(nota)
+    if not _stat["total"]:
+        st.caption("Nessuna riga di questa famiglia nel Registro visibile "
+                   "(con i filtri selezionati).")
+        return False
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Totale", _stat["total"])
+    c2.metric("Vinte", f"{_stat['wins']} ({_stat['win_rate']:.1f}%)",
+              help="Percentuale sulle sole partite gia' giudicate.")
+    c3.metric("Perse / Attesa", f"{_stat['losses']} / {_stat['pending']}")
+    c4.metric("Brier medio",
+              f"{_cal['brier']:.4f}" if _cal["brier"] is not None else "n/d",
+              help="Media di (probabilita' dichiarata - esito)^2 sulle "
+                   "partite giudicate. Calcolato SOLO su questa famiglia: "
+                   "mescolare modello e mercato non descriverebbe nessuno dei due.")
+    c5.metric("Gap prob - hit",
+              f"{_cal['gap']:+.1f} pp" if _cal["gap"] is not None else "n/d")
+    return True
 
 
 def _mostra_registro_mercato(righe, altezza=420):
@@ -3873,8 +3915,9 @@ with tab5:
         # valori mancanti/non validi diventano NaT e finiscono in fondo.
         df_preds['data'] = build_registry_datetime_column(df_preds['data'])
 
-        # NIENTE filtro "Modello": le due tabelle del Registro sono gia' una per
-        # motore (Attuale / Legacy). Un filtro in piu' potrebbe svuotarne una e
+        # NIENTE filtro "Modello": le due tabelle dell'archivio del modello
+        # storico (Attuale / Legacy) sono gia' una per motore, e stanno nel
+        # riquadro chiuso qui sotto. Un filtro in piu' potrebbe svuotarne una e
         # far credere che quel motore non abbia righe.
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         with f_col1:
@@ -3898,8 +3941,8 @@ with tab5:
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
         if filter_origine != "Tutti": df_preds = df_preds[df_preds["origine"] == filter_origine]
-        # Nessun filtro sulla variante: le due tabelle piu' sotto sono gia' una
-        # per motore, e nessuna riga viene nascosta da un filtro in piu'.
+        # Nessun filtro sulla variante: le due tabelle dell'archivio sono gia'
+        # una per motore, e nessuna riga viene nascosta da un filtro in piu'.
 
         # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
         df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
@@ -3909,8 +3952,30 @@ with tab5:
         # DataFrame di pandas invece crea la colonna con NaN, e `str(nan)` e'
         # "nan": le righe senza campo sparivano dal blocco legacy (bug corretto
         # anche dentro `model_variant_read`, ma qui non si passa piu' di li').
+        # FAMIGLIE prima, motori dentro la famiglia: dal 09/10/2026 il Registro
+        # visibile ha DUE famiglie di selettore e le righe del mercato portano
+        # `model_variant = current` perche' le scrive lo stesso codice di
+        # scrittura. Tagliare solo sulla variante, quindi, metterebbe le scelte di
+        # mercato nelle tabelle intitolate a un motore del modello storico: qui le
+        # due maschere dei motori si incrociano con la famiglia, cosi' l'archivio
+        # contiene davvero solo l'archivio (e i suoi totali tornano con
+        # l'intestazione della famiglia).
+        maschera_mercato = df_display.apply(
+            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
+        maschera_modello = ~maschera_mercato
+        # Variante letta fuori dai due motori, DENTRO il modello storico: e' il
+        # materiale della terza tabella di controllo. Le righe del mercato non
+        # entrano qui per costruzione: stanno gia' tutte nella loro tabella,
+        # qualunque variante portino.
+        maschera_resto = (~(df_display["variante_codice"].isin(
+            [MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY]))) & maschera_modello
         maschera_attuale = df_display["variante_codice"] == MODEL_VARIANT_CURRENT
         maschera_legacy = df_display["variante_codice"] == MODEL_VARIANT_LEGACY
+        # ...e qui le stesse due maschere diventano quelle DELL'ARCHIVIO: i blocchi
+        # statistica, le due tabelle e l'affidabilita' le leggono entrambe, quindi
+        # nessun numero del riquadro puo' parlare di righe che non mostra.
+        maschera_attuale = maschera_attuale & maschera_modello
+        maschera_legacy = maschera_legacy & maschera_modello
         # DUE blocchi, uno per motore, con le STESSE righe delle due tabelle piu'
         # sotto. La fetta "scheda vecchia" del Registro non e' un terzo modello:
         # sono righe della tabella Legacy, quindi contano nel blocco Legacy e
@@ -3918,62 +3983,79 @@ with tab5:
         attuale_records = df_display[maschera_attuale].to_dict("records")
         legacy_records = df_display[maschera_legacy].to_dict("records")
         parti_variante = {MODEL_VARIANT_CURRENT: attuale_records, MODEL_VARIANT_LEGACY: legacy_records}
-        resto_records = df_display[~(maschera_attuale | maschera_legacy)].to_dict("records")
+        resto_records = df_display[maschera_resto].to_dict("records")
         if resto_records:
             # Variante non riconosciuta: non si nasconde (vedi la terza tabella).
             parti_variante["altro"] = resto_records
         all_records = df_display.to_dict("records")
         schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
-        # NESSUN totale unico: dal 09/10/2026 il Registro visibile contiene due
-        # FAMIGLIE di selettore (le scelte storiche del MODELLO e quelle del
-        # MERCATO). Sommarle conterebbe due volte la stessa partita quando le
-        # due scelte coincidono (PR #49 §4d: 1144 su 1302) e mescolerebbe due
-        # probabilita' diverse nello stesso Brier. Una intestazione per famiglia,
-        # ciascuna con il proprio totale, win rate e Brier.
-        for _fam, _etichetta, _nota in (
-            (FAMIGLIA_SELETTORE_MODELLO,
-             f"Modello storico (fino al {CONFINE_FAMIGLIA_MERCATO})",
-             "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
-             "di mercato. Da questa data le nuove scelte del modello vanno nel "
-             "registro ombra, quindi questa famiglia non cresce piu'."),
-            (FAMIGLIA_SELETTORE_MERCATO,
-             f"Mercato (topmix_mercato_v3) — dal {CONFINE_FAMIGLIA_MERCATO}",
-             "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
-             "soglia 0,55, fonte Pinnacle o media dei libri."),
-        ):
-            _stat = compute_stats(all_records, famiglia=_fam)
-            _cal = compute_calibration_stats(all_records, famiglia=_fam)
-            st.markdown(f"###### {FAMIGLIA_ICONA[_fam]} {_etichetta}")
-            st.caption(_nota)
-            if not _stat["total"]:
-                st.caption("Nessuna riga di questa famiglia nel Registro visibile "
-                           "(con i filtri selezionati).")
-                continue
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Totale", _stat["total"])
-            c2.metric("Vinte", f"{_stat['wins']} ({_stat['win_rate']:.1f}%)",
-                      help="Percentuale sulle sole partite gia' giudicate.")
-            c3.metric("Perse / Attesa", f"{_stat['losses']} / {_stat['pending']}")
-            c4.metric("Brier medio",
-                      f"{_cal['brier']:.4f}" if _cal["brier"] is not None else "n/d",
-                      help="Media di (probabilita' dichiarata - esito)^2 sulle "
-                           "partite giudicate. Calcolato SOLO su questa famiglia: "
-                           "mescolare modello e mercato non descriverebbe nessuno dei due.")
-            c5.metric("Gap prob - hit",
-                      f"{_cal['gap']:+.1f} pp" if _cal["gap"] is not None else "n/d")
+        # NESSUN totale unico: una intestazione per famiglia, ciascuna con il
+        # proprio totale, win rate e Brier (``_metriche_famiglia_registro``).
+        #
+        # LAYOUT del tab, punto 5 della commessa "rifiniture": in apertura si
+        # vedono SOLO la famiglia Mercato e il registro ombra. Il modello storico
+        # non riceve piu' righe dal 09/10/2026 (le nuove scelte di Drago e Legacy
+        # finiscono nel registro ombra), quindi le sue statistiche e le sue DUE
+        # tabelle stanno in un ``st.expander`` CHIUSO per default: restano
+        # consultabili riga per riga, ma non occupano la pagina e - con un filtro
+        # "In Attesa" attivo - non lasciano in vista due intestazioni di motore con
+        # la scritta "nessuna riga", che era rumore puro.
+        if _metriche_famiglia_registro(
+                all_records, FAMIGLIA_SELETTORE_MERCATO,
+                f"Mercato (topmix_mercato_v3) — dal {CONFINE_FAMIGLIA_MERCATO}",
+                "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
+                "soglia 0,55, fonte Pinnacle o media dei libri."):
+            # Hit rate, Brier e gap letti alle DUE registrazioni (la prima e' la
+            # misura principale, l'ultima il dato di supporto). Ha senso solo qui:
+            # il modello storico ha UNA sola lettura perche' la sua riga non viene
+            # piu' aggiornata, quindi "prima o ultima?" non e' una domanda.
+            _mostra_statistiche_registrazione(all_records)
 
-            # --- Statistiche PER REGISTRAZIONE: solo la famiglia mercato ---
-            # Il modello storico ha UNA sola lettura (la riga non viene piu'
-            # aggiornata), quindi la domanda "prima o ultima?" non si pone: le
-            # due registrazioni esistono solo perche' il Top Mix di mercato
-            # riscrive i campi attuali a ogni turno.
-            if _fam == FAMIGLIA_SELETTORE_MERCATO:
-                _mostra_statistiche_registrazione(all_records)
+        # --- TABELLA DEL REGISTRO: famiglia MERCATO (una sola, visibile) ---
+        df_mercato = df_display[maschera_mercato]
+        if not df_mercato.empty:
+            _mostra_registro_mercato(df_mercato)
+        else:
+            st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
 
-            # --- Sotto-famiglia MODELLO STORICO: blocchi Drago/Legacy ---
-            if _fam == FAMIGLIA_SELETTORE_MODELLO:
-                # Blocchi per motore, DENTRO la famiglia del modello
+        # La SCHEDA del record (con quale versione di pipeline la riga e' stata
+        # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
+        # non compare piu' come colonna: si dice a parole, una volta. Le tre
+        # etichette qui sotto descrivono le righe dell'ARCHIVIO del modello
+        # storico, cioe' il riquadro chiuso che segue: li' il titolo del riquadro
+        # dice il MOTORE, non la scheda.
+        st.caption(
+            "**Come sono state scritte le righe** (non e' il motore: quello titola "
+            "le due tabelle dell'archivio del modello storico, nel riquadro chiuso "
+            "qui sotto) · "
+            f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
+            f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
+            f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
+            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
+        )
+
+        st.divider()
+
+        # --- ARCHIVIO DEL MODELLO STORICO: riquadro CHIUSO per default ---
+        # Dentro ci sta tutto quello che riguarda i due motori: intestazione della
+        # famiglia, i due blocchi, l'affidabilita' e le DUE tabelle. Fuori resta
+        # solo la tabella di controllo delle varianti non riconosciute, perche
+        # nascondere in un riquadro chiuso un'anomalia dei dati vorrebbe dire non
+        # accorgersene mai (e infatti non e' mai una tabella vuota: esiste solo se
+        # ha righe).
+        with st.expander(f"Modello storico (archivio fino al {CONFINE_FAMIGLIA_MERCATO})"):
+            if _metriche_famiglia_registro(
+                    all_records, FAMIGLIA_SELETTORE_MODELLO,
+                    f"Modello storico (fino al {CONFINE_FAMIGLIA_MERCATO})",
+                    "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
+                    "di mercato. Da quella data le nuove scelte del modello vanno nel "
+                    "registro ombra: questa famiglia non cresce piu', ed e' il perche' "
+                    "stia in un archivio chiuso e non in apertura di pagina."):
+                # Blocchi per motore, DENTRO la famiglia del modello, con le STESSE
+                # righe delle due tabelle piu' sotto (la stessa maschera, gia'
+                # tagliata sulla famiglia): nessun numero del riquadro puo' parlare
+                # di righe che il riquadro non mostra.
                 _mostra_blocco_modello(
                     attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
                     f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
@@ -3995,58 +4077,37 @@ with tab5:
                         "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
                         "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
                     )
-                # Affidabilita' (Brier) per motore DENTRO la famiglia modello
-                righe_famiglia_modello = [r for r in all_records
-                                          if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
-                parti_variante_modello = {k: [r for r in v
-                                              if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
-                                          for k, v in parti_variante.items()}
-                if len(parti_variante_modello) > 1:
-                    for v in sorted(parti_variante_modello, key=lambda v: v != MODEL_VARIANT_CURRENT):
-                        _mostra_affidabilita(parti_variante_modello[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
+                # Affidabilita' (Brier) per motore DENTRO la famiglia modello. Le
+                # parti sono gia' tagliate sulla famiglia dalle maschere, quindi
+                # ``parti_variante`` qui e' esattamente quello che prima si
+                # riformava con ``parti_variante_modello``: un filtro in meno,
+                # gli stessi numeri.
+                if len(parti_variante) > 1:
+                    for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
+                        _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
                 else:
-                    _mostra_affidabilita(righe_famiglia_modello)
+                    _mostra_affidabilita(attuale_records + legacy_records + resto_records)
 
-        # La SCHEDA del record (con quale versione di pipeline la riga e' stata
-        # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
-        # non compare piu' come colonna: si dice a parole, una volta.
-        st.caption(
-            "**Come sono state scritte le righe** (non e' il motore, che e' il titolo delle due tabelle): "
-            f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
-            f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
-            f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
-            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
-        )
+                # Le DUE tabelle del Registro storico, una per motore
+                _mostra_registro_modello(
+                    df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+                    "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
+                    "top-mix-current")
+                _mostra_registro_modello(
+                    df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
+                    "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
+                    "top-mix-legacy")
 
-        # --- TABELLE DEL REGISTRO: organizzate per FAMIGLIA ---
-        # Famiglia MERCATO: una tabella sola con probabilita' del modello e accordo
-        maschera_mercato = df_display.apply(
-            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
-        df_mercato = df_display[maschera_mercato]
-        if not df_mercato.empty:
-            _mostra_registro_mercato(df_mercato)
-        else:
-            st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
-
-        st.divider()
-
-        # Famiglia MODELLO STORICO: due tabelle, una per motore
-        _mostra_registro_modello(
-            df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
-            "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
-            "top-mix-current")
-        _mostra_registro_modello(
-            df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
-            "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
-            "top-mix-legacy")
         # Una riga con una variante fuori dalle due non sparisce dal Registro:
         # finisce in una terza tabella di controllo, cosi' il totale mostrato
-        # resta verificabile a occhio.
-        resto = df_display[~(maschera_attuale | maschera_legacy)]
+        # resta verificabile a occhio. Sta FUORI dall'archivio (vedi sopra) e non
+        # e' mai una tabella vuota.
+        resto = df_display[maschera_resto]
         if len(resto):
             st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
                        f"mostrate a parte, non nascoste.")
             st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)
+
 
         # --- REGISTRO OMBRA: statistiche read-only ---
         # "Aggiorna Risultati" giudica anche le righe ombra (aggiorna_esiti_ombra,
