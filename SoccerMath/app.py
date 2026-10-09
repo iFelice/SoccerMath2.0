@@ -95,6 +95,9 @@ from prediction_registry import (
     MERCATO_FONTE_FIELD, MERCATO_N_LIBRI_FIELD, PROB_MERCATO_FIELD,
     QUOTA_MERCATO_FIELD, ACCORDO_MODELLO_FIELD, PROB_MODELLO_FIELD,
     QUOTE_LIVE_ISTANTE_FIELD,
+    PROB_MERCATO_PRIMA_FIELD, QUOTA_MERCATO_PRIMA_FIELD,
+    PROB_MODELLO_PRIMA_FIELD, ACCORDO_MODELLO_PRIMA_FIELD,
+    QUOTE_LIVE_ISTANTE_PRIMA_FIELD,
     OMBRA_FIELD, OMBRA_MERCATO_FIELD, OMBRA_CONFIDENCE_FIELD, OMBRA_AMMESSA_FIELD,
     OMBRA_SOGLIA_FIELD, OMBRA_VINCENTE_GLOBALE_FIELD, OMBRA_DATI_MANCANTI_FIELD,
     OMBRA_SOGLIA_TOTALI,
@@ -619,6 +622,15 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
         entry[ACCORDO_MODELLO_FIELD] = bool(accordo_modello)
         entry[PROB_MODELLO_FIELD] = prob_modello
         entry[QUOTE_LIVE_ISTANTE_FIELD] = quote_live_istante
+        # Prima registrazione: all prima scrittura, i campi _prima sono
+        # identici ai campi attuali. Nell'upsert, questi campi vengono
+        # preservati quando la riga viene aggiornata (ultima registrazione
+        # nei campi attuali, prima registrazione nei campi _prima).
+        entry[PROB_MERCATO_PRIMA_FIELD] = prob_mercato
+        entry[QUOTA_MERCATO_PRIMA_FIELD] = quota_mercato
+        entry[PROB_MODELLO_PRIMA_FIELD] = prob_modello
+        entry[ACCORDO_MODELLO_PRIMA_FIELD] = bool(accordo_modello)
+        entry[QUOTE_LIVE_ISTANTE_PRIMA_FIELD] = quote_live_istante
     return entry
 
 
@@ -3316,6 +3328,55 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
     )
 
 
+# Colonne della tabella Registro per la famiglia MERCATO: include probabilita'
+# del modello e segnale d'accordo, se registrati.
+REGISTRO_MERCATO_COLONNE = ["data", "stagione", "campionato", "home", "away",
+                            "mercato_standard", "prob_sicuro",
+                            "prob_modello_col", "accordo_col",
+                            "risultato_reale", "esito", "origine"]
+
+
+def _mostra_registro_mercato(righe, altezza=420):
+    """Tabella Registro per la famiglia MERCATO (topmix_mercato_v3).
+
+    Mostra la probabilita' di mercato (prob_sicuro), la probabilita' del
+    modello (Drago) se registrata, e il segnale d'accordo. Se i campi
+    mancano, lo dice esplicitamente.
+    """
+    st.markdown(f"<div class='top-mix-model top-mix-mercato'><b>🌟 Mercato (topmix_mercato_v3)</b>"
+                f" — {len(righe)} righe"
+                f"<br><small>Scelte del mercato: de-vig proporzionale, soglia 0,55.</small></div>",
+                unsafe_allow_html=True)
+    if righe.empty:
+        st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
+        return
+    # Prepara le colonne per il modello e l'accordo
+    df = righe.copy()
+    if "prob_modello" in df.columns:
+        df["prob_modello_col"] = df["prob_modello"].apply(
+            lambda x: f"{x:.1f}%" if x is not None else "n/d")
+    else:
+        df["prob_modello_col"] = "non registrato"
+    if "accordo_modello" in df.columns:
+        df["accordo_col"] = df["accordo_modello"].apply(
+            lambda x: "✅" if x else "—" if x is not None else "non registrato")
+    else:
+        df["accordo_col"] = "non registrato"
+
+    colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
+    st.dataframe(
+        df[colonne].sort_values(by="data", ascending=False, na_position="last"),
+        width="stretch",
+        height=altezza,
+        column_config={
+            "data": st.column_config.DatetimeColumn(None, format="DD/MM/YYYY HH:mm"),
+            "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
+            "prob_modello_col": st.column_config.TextColumn("P modello Drago %"),
+            "accordo_col": st.column_config.TextColumn("D'accordo"),
+        },
+    )
+
+
 with tab2:
     st.caption("Una tabella sola, basata sul **mercato**: la scelta (1/X/2) e' quella con la "
                "probabilita' di mercato piu' alta, ammessa se supera il **55%**. Accanto, la "
@@ -3325,6 +3386,10 @@ with tab2:
                "l'app non chiama nessuna API di quote. "
                "Le scelte 1X2 di Drago e Legacy non sono piu' in tabella: continuano a essere "
                "registrate nel registro ombra (`sm:registro:ombra`).")
+    # --- Pulsante "Calcola Top Mix": calcola, salva nel registro e persisti ---
+    # Il risultato va in session_state cosi' un rerun (es. selezione di una riga
+    # nel multiselect della multipla) non azzera la sezione. La scrittura nel
+    # Registro avviene SOLO qui, alla pressione esplicita del pulsante.
     if st.button("🚀 Calcola Top Mix", type="primary"):
         (top_mercato, top_current, top_legacy, missing, ombra,
          senza_quote) = fetch_and_calc_top_mix()
@@ -3338,29 +3403,17 @@ with tab2:
         # Stesso filtro sul registro ombra: nessuna partita gia' iniziata entra.
         ombra, _scartate_ombra = righe_non_iniziate(ombra)
         senza_quote, _scartate_sq = righe_non_iniziate(senza_quote)
-        scartate_inizio = scartate_mkt + scartate_cur + scartate_leg
-        if scartate_inizio:
-            st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
-        if missing: st.warning(f"⚠️ Mancanti: {', '.join(missing)}")
 
-        # --- partite senza quote: escluse dal Top Mix e SEGNALATE per nome ---
-        if senza_quote:
-            st.warning(
-                f"⚠️ {len(senza_quote)} partite SENZA quote di mercato: escluse dal Top Mix "
-                f"(nessuna probabilita' inventata). "
-                + "; ".join(f"{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})"
-                            for r in senza_quote))
+        # --- Persisti in session_state: sopravvive ai rerun ---
+        st.session_state["topmix_mercato"] = top_mercato
+        st.session_state["topmix_current"] = top_current
+        st.session_state["topmix_legacy"] = top_legacy
+        st.session_state["topmix_missing"] = missing
+        st.session_state["topmix_ombra"] = ombra
+        st.session_state["topmix_senza_quote"] = senza_quote
+        st.session_state["topmix_scartate_inizio"] = scartate_mkt + scartate_cur + scartate_leg
 
-        stato_quote = carica_indice_quote_live()
-        # Un messaggio per ogni stato del file: "non c'e'", "non si legge" e
-        # "c'e' ma non ha la chiave leghe" si riparano in modi diversi.
-        _avviso_stato_quote(stato_quote, "Top Mix")
-        # Nomi della fonte non riconosciuti: problema a monte, avviso separato.
-        _mostra_non_abbinati_fonte(stato_quote, "Top Mix")
-        _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
-        calcolatore_multipla(top_mercato)
-
-        # --- Registro VISIBILE: solo le scelte del mercato (topmix_mercato_v3) ---
+        # --- Scrittura Registro: solo su click, mai su rerun ---
         esiti_save = []
         for p in top_mercato:
             if not p.get('match_id'):
@@ -3397,6 +3450,34 @@ with tab2:
         if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
             st.warning(f"⚠️ Registro ombra non scritto: "
                        f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
+
+    # --- Visualizzazione risultati da session_state (sopravvive ai rerun) ---
+    # Tabella e calcolatore restano visibili finché l'utente non ricarica la
+    # pagina o non preme di nuovo "Calcola Top Mix". La scrittura nel Registro
+    # NON avviene qui: e' stata fatta nel blocco "if st.button" sopra.
+    if "topmix_mercato" in st.session_state:
+        top_mercato = st.session_state["topmix_mercato"]
+        missing = st.session_state.get("topmix_missing", [])
+        senza_quote = st.session_state.get("topmix_senza_quote", [])
+        scartate_inizio = st.session_state.get("topmix_scartate_inizio", 0)
+
+        if scartate_inizio:
+            st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
+        if missing:
+            st.warning(f"⚠️ Mancanti: {', '.join(missing)}")
+
+        if senza_quote:
+            st.warning(
+                f"⚠️ {len(senza_quote)} partite SENZA quote di mercato: escluse dal Top Mix "
+                f"(nessuna probabilita' inventata). "
+                + "; ".join(f"{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})"
+                            for r in senza_quote))
+
+        stato_quote = carica_indice_quote_live()
+        _avviso_stato_quote(stato_quote, "Top Mix")
+        _mostra_non_abbinati_fonte(stato_quote, "Top Mix")
+        _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
+        calcolatore_multipla(top_mercato)
 
 with tab3:
     st.subheader(f"⚡ Elo - {camp_sel}")
@@ -3597,28 +3678,6 @@ with tab5:
         all_records = df_display.to_dict("records")
         schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
-        _mostra_blocco_modello(
-            attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
-            f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
-            "Elo post-fix PR#24, soglia 0,55 sui 1X2 (0,60 senza Elo). Totali fuori dal Top Mix.")
-        _mostra_blocco_modello(
-            legacy_records, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]} (Elo pre-fix PR#24)",
-            f"Righe della tabella 🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}: "
-            "Elo pre-fix con boost xG retroattivo, stesse soglie.")
-        # Il dettaglio delle schede NON e' un modello: e' la sotto-fetta del
-        # blocco legacy scritta prima del versionamento dei record.
-        if schede_vecchie:
-            st.caption(
-                f"📜 Di cui **{len(schede_vecchie)}** con la **scheda vecchia** (record scritto "
-                "prima del versionamento, senza `model_version`): sono nella tabella Legacy e "
-                "contano qui, ma restano fuori dalle metriche del modello attuale.")
-        if any(r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD) for r in attuale_records):
-            st.caption(
-                f"ℹ️ {sum(1 for r in attuale_records if r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD))} "
-                "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
-                "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
-            )
-
         # NESSUN totale unico: dal 09/10/2026 il Registro visibile contiene due
         # FAMIGLIE di selettore (le scelte storiche del MODELLO e quelle del
         # MERCATO). Sommarle conterebbe due volte la stessa partita quando le
@@ -3627,12 +3686,12 @@ with tab5:
         # ciascuna con il proprio totale, win rate e Brier.
         for _fam, _etichetta, _nota in (
             (FAMIGLIA_SELETTORE_MODELLO,
-             f"Modello — fino al {CONFINE_FAMIGLIA_MERCATO}",
+             f"Modello storico (fino al {CONFINE_FAMIGLIA_MERCATO})",
              "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
              "di mercato. Da questa data le nuove scelte del modello vanno nel "
              "registro ombra, quindi questa famiglia non cresce piu'."),
             (FAMIGLIA_SELETTORE_MERCATO,
-             f"Mercato — dal {CONFINE_FAMIGLIA_MERCATO}",
+             f"Mercato (topmix_mercato_v3) — dal {CONFINE_FAMIGLIA_MERCATO}",
              "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
              "soglia 0,55, fonte Pinnacle o media dei libri."),
         ):
@@ -3657,24 +3716,41 @@ with tab5:
             c5.metric("Gap prob - hit",
                       f"{_cal['gap']:+.1f} pp" if _cal["gap"] is not None else "n/d")
 
-        # --- AFFIDABILITA' (Brier), non solo win rate ---
-        # `prob_sicuro` era gia' persistito: expose the calibration for free.
-        # Con due modelli nel registro la calibrazione si legge PER VARIANTE:
-        # mescolarle produrrebbe un Brier di nessuno dei due. Le parti sono le
-        # stesse dei due blocchi e delle due tabelle (calcolate una volta sola).
-        # L'affidabilita' per motore resta una lettura DENTRO la famiglia del
-        # modello: le righe del mercato non hanno un motore (il modello entra
-        # solo come probabilita' di confronto), quindi non vanno in questi blocchi.
-        righe_famiglia_modello = [r for r in all_records
-                                  if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
-        parti_variante = {k: [r for r in v
-                              if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
-                          for k, v in parti_variante.items()}
-        if len(parti_variante) > 1:
-            for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
-                _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
-        else:
-            _mostra_affidabilita(righe_famiglia_modello)
+            # --- Sotto-famiglia MODELLO STORICO: blocchi Drago/Legacy ---
+            if _fam == FAMIGLIA_SELETTORE_MODELLO:
+                # Blocchi per motore, DENTRO la famiglia del modello
+                _mostra_blocco_modello(
+                    attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+                    f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
+                    "Elo post-fix PR#24, soglia 0,55 sui 1X2 (0,60 senza Elo). Totali fuori dal Top Mix.")
+                _mostra_blocco_modello(
+                    legacy_records, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]} (Elo pre-fix PR#24)",
+                    f"Righe della tabella 🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}: "
+                    "Elo pre-fix con boost xG retroattivo, stesse soglie.")
+                # Il dettaglio delle schede NON e' un modello: e' la sotto-fetta del
+                # blocco legacy scritta prima del versionamento dei record.
+                if schede_vecchie:
+                    st.caption(
+                        f"📜 Di cui **{len(schede_vecchie)}** con la **scheda vecchia** (record scritto "
+                        "prima del versionamento, senza `model_version`): sono nella tabella Legacy e "
+                        "contano qui, ma restano fuori dalle metriche del modello attuale.")
+                if any(r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD) for r in attuale_records):
+                    st.caption(
+                        f"ℹ️ {sum(1 for r in attuale_records if r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD))} "
+                        "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
+                        "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
+                    )
+                # Affidabilita' (Brier) per motore DENTRO la famiglia modello
+                righe_famiglia_modello = [r for r in all_records
+                                          if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
+                parti_variante_modello = {k: [r for r in v
+                                              if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
+                                          for k, v in parti_variante.items()}
+                if len(parti_variante_modello) > 1:
+                    for v in sorted(parti_variante_modello, key=lambda v: v != MODEL_VARIANT_CURRENT):
+                        _mostra_affidabilita(parti_variante_modello[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
+                else:
+                    _mostra_affidabilita(righe_famiglia_modello)
 
         # La SCHEDA del record (con quale versione di pipeline la riga e' stata
         # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
@@ -3687,10 +3763,19 @@ with tab5:
             f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
         )
 
-        # DUE tabelle, una per motore (come nel Top Mix): prima erano righe di
-        # entrambi i modelli mescolate in un'unica tabella con una colonna
-        # "Modello", e per leggere un solo motore bisognava filtrare. Le due
-        # maschere sono le stesse dei blocchi qui sopra.
+        # --- TABELLE DEL REGISTRO: organizzate per FAMIGLIA ---
+        # Famiglia MERCATO: una tabella sola con probabilita' del modello e accordo
+        maschera_mercato = df_display.apply(
+            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
+        df_mercato = df_display[maschera_mercato]
+        if not df_mercato.empty:
+            _mostra_registro_mercato(df_mercato)
+        else:
+            st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
+
+        st.divider()
+
+        # Famiglia MODELLO STORICO: due tabelle, una per motore
         _mostra_registro_modello(
             df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
             "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
@@ -3707,3 +3792,91 @@ with tab5:
             st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
                        f"mostrate a parte, non nascoste.")
             st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)
+
+        # --- REGISTRO OMBRA: statistiche read-only ---
+        # "Aggiorna Risultati" giudica anche le righe ombra (aggiorna_esiti_ombra,
+        # stesse regole e stesse risposte HTTP). Qui mostriamo il loro stato,
+        # i Brier per selettore e il confronto con il mercato sulle stesse partite.
+        try:
+            from registry_store import load_ombra_rows
+            ombra_righe, ombra_fonte = load_ombra_rows(strict=True)
+            if ombra_righe:
+                st.divider()
+                st.markdown("###### 👻 Registro ombra (sola lettura)")
+                st.caption(
+                    f"Righe ombra: **{len(ombra_righe)}** (fonte: {ombra_fonte}). "
+                    "Drago e Legacy dal 09/10/2026 + Totali. "
+                    "'Aggiorna Risultati' le giudica con le stesse regole del Registro visibile.")
+
+                # Conteggio per stato
+                ombra_decise = [r for r in ombra_righe
+                                if r.get("esito") in ("✅", "❌")]
+                ombra_pending = [r for r in ombra_righe
+                                 if r.get("esito") in (None, "⏳")]
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Totale ombra", len(ombra_righe))
+                c2.metric("Giudicate", len(ombra_decise))
+                c3.metric("In attesa", len(ombra_pending))
+
+                # Statistiche per selettore (Drago / Legacy)
+                for _variante, _etichetta in (
+                    (MODEL_VARIANT_CURRENT, "Drago (ombra)"),
+                    (MODEL_VARIANT_LEGACY, "Legacy (ombra)"),
+                ):
+                    righe_v = [r for r in ombra_righe
+                               if r.get("model_variant") == _variante
+                               and r.get("selector_version") == SELECTOR_VERSION_OMBRA_1X2]
+                    if not righe_v:
+                        continue
+                    _stat_v = stats_all(righe_v)
+                    _cal_v = compute_calibration_stats(righe_v)
+                    st.markdown(f"**{_etichetta}** — {_stat_v['total']} righe "
+                                f"({_stat_v['decided']} giudicate)")
+                    if _cal_v["decise"]:
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("Hit rate", f"{_stat_v['win_rate']:.1f}%")
+                        c2.metric("Brier", f"{_cal_v['brier']:.4f}"
+                                  if _cal_v["brier"] is not None else "n/d")
+                        c3.metric("Gap", f"{_cal_v['gap']:+.1f} pp"
+                                  if _cal_v["gap"] is not None else "n/d")
+
+                # Confronto ombra vs mercato sulle stesse partite
+                mercato_per_match = {}
+                for r in all_records:
+                    mid = r.get("match_id")
+                    if mid and famiglia_selettore(r) == FAMIGLIA_SELETTORE_MERCATO:
+                        mercato_per_match[mid] = r
+
+                confronto = []
+                for r in ombra_decise:
+                    mid = r.get("match_id")
+                    if mid and mid in mercato_per_match:
+                        mkt = mercato_per_match[mid]
+                        if mkt.get("esito") in ("✅", "❌"):
+                            confronto.append({
+                                "match_id": mid,
+                                "ombra_hit": r.get("esito") == "✅",
+                                "mercato_hit": mkt.get("esito") == "✅",
+                                "ombra_prob": r.get("prob_sicuro"),
+                                "mercato_prob": mkt.get("prob_sicuro"),
+                            })
+
+                if confronto:
+                    st.markdown("**Confronto ombra 1X2 vs mercato (stesse partite giudicate)**")
+                    n_inter = len(confronto)
+                    hit_ombra = sum(1 for c in confronto if c["ombra_hit"])
+                    hit_mercato = sum(1 for c in confronto if c["mercato_hit"])
+                    brier_ombra = (sum((c["ombra_prob"] / 100.0 - (1 if c["ombra_hit"] else 0)) ** 2
+                                       for c in confronto) / n_inter) if n_inter else None
+                    brier_mercato = (sum((c["mercato_prob"] / 100.0 - (1 if c["mercato_hit"] else 0)) ** 2
+                                         for c in confronto) / n_inter) if n_inter else None
+                    c1, c2, c3, c4, c5 = st.columns(5)
+                    c1.metric("Partite in comune", n_inter)
+                    c2.metric("Hit ombra", f"{hit_ombra / n_inter * 100:.1f}%")
+                    c3.metric("Hit mercato", f"{hit_mercato / n_inter * 100:.1f}%")
+                    c4.metric("Brier ombra", f"{brier_ombra:.4f}" if brier_ombra is not None else "n/d")
+                    c5.metric("Brier mercato", f"{brier_mercato:.4f}" if brier_mercato is not None else "n/d")
+            else:
+                st.caption("👻 Registro ombra vuoto (nessuna riga trovata).")
+        except Exception as e:
+            st.warning(f"⚠️ Registro ombra non leggibile: {e}")

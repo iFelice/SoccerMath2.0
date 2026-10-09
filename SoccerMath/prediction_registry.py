@@ -251,6 +251,31 @@ ACCORDO_MODELLO_FIELD = "accordo_modello"      # modello e mercato >= 0,55 sullo
 PROB_MODELLO_FIELD = "prob_modello"            # blend Drago sullo stesso esito
 QUOTE_LIVE_ISTANTE_FIELD = "quote_live_istante"  # timestamp di acquisizione delle quote
 
+# --- Prima registrazione: campi PRESERVATI dall'upsert ---
+# Quando una riga viene aggiornata, questi campi conservano i valori della
+# PRIMA scrittura. I campi *_non_prima (prob_mercato, quota_mercato, ecc.)
+# contengono invece l'ULTIMA registrazione. Le righe scritte prima di questa
+# regola usano i valori attuali come prima registrazione, dichiarandolo.
+PROB_MERCATO_PRIMA_FIELD = "prob_mercato_prima"
+QUOTA_MERCATO_PRIMA_FIELD = "quota_mercato_prima"
+PROB_MODELLO_PRIMA_FIELD = "prob_modello_prima"
+ACCORDO_MODELLO_PRIMA_FIELD = "accordo_modello_prima"
+QUOTE_LIVE_ISTANTE_PRIMA_FIELD = "quote_live_istante_prima"
+
+PRIMA_FIELDS = (
+    PROB_MERCATO_PRIMA_FIELD, QUOTA_MERCATO_PRIMA_FIELD,
+    PROB_MODELLO_PRIMA_FIELD, ACCORDO_MODELLO_PRIMA_FIELD,
+    QUOTE_LIVE_ISTANTE_PRIMA_FIELD,
+)
+# Coppie (campo_attuale, campo_prima) per il copy nella prima scrittura.
+_PRIMA_FIELD_MAP = {
+    PROB_MERCATO_FIELD: PROB_MERCATO_PRIMA_FIELD,
+    QUOTA_MERCATO_FIELD: QUOTA_MERCATO_PRIMA_FIELD,
+    PROB_MODELLO_FIELD: PROB_MODELLO_PRIMA_FIELD,
+    ACCORDO_MODELLO_FIELD: ACCORDO_MODELLO_PRIMA_FIELD,
+    QUOTE_LIVE_ISTANTE_FIELD: QUOTE_LIVE_ISTANTE_PRIMA_FIELD,
+}
+
 # ---------------------------------------------------------------------------
 # Variante del MODELLO: Top Mix a due motori (attuale / legacy)
 # ---------------------------------------------------------------------------
@@ -1366,6 +1391,17 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
         # previsione era stata presa.
         if is_dict(p) and p.get(SALVATO_IL_FIELD):
             aggiornato.setdefault("salvato_il_originario", p[SALVATO_IL_FIELD])
+        # Conserva i campi della PRIMA registrazione: prob_mercato, quota_mercato,
+        # prob_modello, accordo_modello, quote_live_istante. I campi attuali
+        # dell'entry nuova contengono l'ULTIMA registrazione.
+        for campo_attuale, campo_prima in _PRIMA_FIELD_MAP.items():
+            # Se l'entry vecchia ha gia' il campo _prima, preservalo
+            if is_dict(p) and campo_prima in p:
+                aggiornato[campo_prima] = p[campo_prima]
+            # Altrimenti, se l'entry vecchia ha il campo attuale, usalo come
+            # prima registrazione (righe scritte prima di questa regola)
+            elif is_dict(p) and campo_attuale in p:
+                aggiornato[campo_prima] = p[campo_attuale]
         lst[i] = aggiornato
         return lst, "aggiornata"
     if _altra_versione_stessa_chiave(lst, entry):
@@ -1424,6 +1460,13 @@ def upsert_prediction_entries(preds: Iterable[Dict[str, Any]],
             aggiornato = dict(entry)
             if is_dict(p) and p.get(SALVATO_IL_FIELD):
                 aggiornato.setdefault("salvato_il_originario", p[SALVATO_IL_FIELD])
+            # Conserva i campi della PRIMA registrazione (stessa regola
+            # di upsert_prediction_entry).
+            for campo_attuale, campo_prima in _PRIMA_FIELD_MAP.items():
+                if is_dict(p) and campo_prima in p:
+                    aggiornato[campo_prima] = p[campo_prima]
+                elif is_dict(p) and campo_attuale in p:
+                    aggiornato[campo_prima] = p[campo_attuale]
             lst[i] = aggiornato
             azione = "aggiornata"
         azioni[azione] = azioni.get(azione, 0) + 1
