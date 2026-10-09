@@ -764,6 +764,11 @@ def build_checks(probe, bst, match, budget, stato, ci):
         "nuovo la giornata puo' cambiare.",
         "Terza fonte (OddsPapi): solo documentazione, nessuna prova. Non e' un'alternativa "
         "verificata.",
+        "Gli id dei run citati nella riga 13 del quadro di sintesi sono quelli dell'ultimo "
+        "commit di CODICE di questa PR (Suite 37863334423, Audit 37863334416, Replay "
+        "37863334427); i commit successivi aggiornano solo questo referto e i loro run "
+        "(Suite 37863946620, Audit 37863946329, Replay 37863946359) sono verdi con lo "
+        "stesso codice.",
     ]
     return {"prerequisiti": prereq, "raggiungibilita": ragg, "sintesi": sintesi,
             "raccomandazione": rec, "limiti": limiti}
