@@ -583,9 +583,12 @@ class TestControlloLiveCsv(unittest.TestCase):
     #     un ``now`` fermo nel passato: sarebbe il test, non il dato, a mentire.
     # --------------------------------------------------------------------------
     def _errore_data(self, adesso, giorni, coppia=("ProvaTolleranzaA", "ProvaTolleranzaB")):
-        """Errori DATA FUTURA per una riga giocata ``giorni`` giorni da ``adesso``.
+        """Errori DATA FUTURA per una riga giocata ``giorni`` giorni rispetto a ``adesso``.
 
-        La riga e' inventata e con nomi che non esistono in nessun altro file:
+        ``adesso`` e' l'orologio che il test stesso passa alla validazione, non
+        una data scritta nel sorgente: la riga viene spostata RISPETTO a lui,
+        cosi' il test dice la stessa cosa oggi e fra sei mesi. La riga e'
+        inventata e con nomi che non esistono in nessun altro file:
         nella copia del database reale l'unico errore possibile resta quello che
         si sta misurando, e il filtro sulla coppia lo isola del tutto.
         """
@@ -610,16 +613,22 @@ class TestControlloLiveCsv(unittest.TestCase):
 
         Il giro dati e' ogni 6 ore e la validazione succede nell'orologio di un
         ALTRO processo: una partita delle 23:00Z scritta alle 03:55Z successive ha
-        ``Date`` di ieri e un ``oggi`` di domani (o il contrario). Un giorno di
-        scarto non deve diventare un errore: e' la ragione della tolleranza
-        dichiarata in ``season_rosters.TOLLERANZA_DATA_FUTURA_GIORNI``.
+        ``Date`` di ieri e viene guardata con l'orologio di domani (o il
+        contrario). Un giorno di scarto non deve diventare un errore: e' la ragione
+        della tolleranza dichiarata in ``season_rosters.TOLLERANZA_DATA_FUTURA_GIORNI``.
         """
         adesso = datetime.now(timezone.utc)
         ieri = adesso - timedelta(days=1)
-        self.assertEqual([], self._errore_data(ieri, 0),
+        # Riga di OGGI (domenica sera, diciamo) validata con l'orologio di IERI:
+        # per quel finto `oggi` la partita e' a +1 giorno, cioe' esattamente la
+        # tolleranza. E' il caso della CI del 09/10, dove lo scarto era di 2.
+        self.assertEqual([], self._errore_data(ieri, SR.TOLLERANZA_DATA_FUTURA_GIORNI),
                          "riga di oggi con l'orologio di ieri: e' il caso del bot, non un difetto")
-        self.assertEqual([], self._errore_data(ieri, -1),
+        self.assertEqual([], self._errore_data(ieri, 0),
                          "riga di ieri con l'orologio di ieri: a maggior ragione valida")
+        self.assertEqual(1, len(self._errore_data(ieri, SR.TOLLERANZA_DATA_FUTURA_GIORNI + 1)),
+                         "due giorni di scarto devono restare un errore: e' lo scarto che la "
+                         "suite del 09/10 vedeva, e li' il dato era giusto ma il test fermo")
 
     def test_al_bordo_della_tolleranza_e_appena_oltre(self):
         adesso = datetime.now(timezone.utc)
