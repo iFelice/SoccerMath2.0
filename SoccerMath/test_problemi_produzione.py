@@ -69,6 +69,12 @@ def _entry_mercato(match_id="m1", home="A", away="B", prob_val=72.0,
         "accordo_modello": accordo_modello,
         "prob_modello": prob_modello,
         "quote_live_istante": quote_live_istante,
+        # Campi prima registrazione (aggiunti da build_prediction_entry)
+        "prob_mercato_prima": prob_mercato,
+        "quota_mercato_prima": quota_mercato,
+        "prob_modello_prima": prob_modello,
+        "accordo_modello_prima": accordo_modello,
+        "quote_live_istante_prima": quote_live_istante,
     }
 
 
@@ -475,35 +481,32 @@ class TestProblema4_RigheAggiornate(unittest.TestCase):
     def test_campi_cambiati_in_aggiornata(self):
         """Documentazione: quali campi cambiano in una riga aggiornata.
 
-        - prob_sicuro: SÌ (sovrascritto)
-        - quota_mercato: SÌ (sovrascritto)
-        - salvato_il: SÌ (nuovo timestamp)
-        - salvato_il_originario: AGGIUNTO (prima scrittura)
-        - prob_mercato: SÌ (sovrascritto)
-        - prob_modello: SÌ (sovrascritto)
-        - accordo_modello: SÌ (sovrascritto)
-        - quote_live_istante: SÌ (sovrascritto)
-        - risultato_reale: NO (resta None finché non giudicata)
-        - esito: NO (resta ⏳ finché non giudicata)
+        I campi attuali (prob_mercato, quota_mercato, ecc.) vengono
+        sovrascritti con i valori dell'ULTIMA registrazione. I campi _prima
+        conservano i valori della PRIMA registrazione.
         """
         sys.path.insert(0, HERE)
-        from prediction_registry import upsert_prediction_entry
+        from prediction_registry import (
+            upsert_prediction_entry,
+            PROB_MERCATO_PRIMA_FIELD, QUOTA_MERCATO_PRIMA_FIELD,
+            PROB_MODELLO_PRIMA_FIELD, ACCORDO_MODELLO_PRIMA_FIELD,
+            QUOTE_LIVE_ISTANTE_PRIMA_FIELD,
+        )
         old = _entry_mercato(prob_val=72.0, quota=1.39, prob_mercato=0.72,
                             prob_modello=68.5, accordo_modello=True,
-                            quota_mercato=1.39)
+                            quota_mercato=1.39, quote_live_istante="2026-10-09T18:00:00Z")
         old["salvato_il"] = "09/10/2026 18:00"
         preds, _ = upsert_prediction_entry([], old)
 
         new = _entry_mercato(prob_val=70.0, quota=1.43, prob_mercato=0.70,
                             prob_modello=67.0, accordo_modello=False,
-                            quota_mercato=1.43)
+                            quota_mercato=1.43, quote_live_istante="2026-10-09T19:00:00Z")
         new["salvato_il"] = "09/10/2026 19:30"
-        new["quote_live_istante"] = "2026-10-09T19:00:00Z"
         preds, azione = upsert_prediction_entry(preds, new)
         self.assertEqual(azione, "aggiornata")
 
         r = preds[0]
-        # Campi sovrascritti
+        # Campi sovrascritti (ultima registrazione)
         self.assertEqual(r["prob_sicuro"], 70.0)
         self.assertEqual(r["quota_mercato"], 1.43)
         self.assertEqual(r["salvato_il"], "09/10/2026 19:30")
@@ -511,11 +514,39 @@ class TestProblema4_RigheAggiornate(unittest.TestCase):
         self.assertEqual(r["prob_modello"], 67.0)
         self.assertEqual(r["accordo_modello"], False)
         self.assertEqual(r["quote_live_istante"], "2026-10-09T19:00:00Z")
+        # Campi PRIMA registrazione preservati (dalla prima scrittura)
+        self.assertAlmostEqual(r[PROB_MERCATO_PRIMA_FIELD], 0.72, places=6)
+        self.assertAlmostEqual(r[QUOTA_MERCATO_PRIMA_FIELD], 1.39, places=2)
+        self.assertAlmostEqual(r[PROB_MODELLO_PRIMA_FIELD], 68.5, places=1)
+        self.assertEqual(r[ACCORDO_MODELLO_PRIMA_FIELD], True)
+        self.assertEqual(r[QUOTE_LIVE_ISTANTE_PRIMA_FIELD], "2026-10-09T18:00:00Z")
         # salvato_il_originario aggiunto
         self.assertEqual(r["salvato_il_originario"], "09/10/2026 18:00")
         # Campi non toccati
         self.assertIsNone(r["risultato_reale"])
         self.assertEqual(r["esito"], "⏳")
+
+    def test_prima_fields_su_prima_scrittura(self):
+        """Alla prima scrittura, i campi _prima sono identici ai campi attuali."""
+        sys.path.insert(0, HERE)
+        from prediction_registry import (
+            upsert_prediction_entry,
+            PROB_MERCATO_PRIMA_FIELD, QUOTA_MERCATO_PRIMA_FIELD,
+            PROB_MODELLO_PRIMA_FIELD, ACCORDO_MODELLO_PRIMA_FIELD,
+            QUOTE_LIVE_ISTANTE_PRIMA_FIELD,
+        )
+        entry = _entry_mercato(prob_val=72.0, quota_mercato=1.39, prob_mercato=0.72,
+                               prob_modello=68.5, accordo_modello=True,
+                               quote_live_istante="2026-10-09T18:00:00Z")
+        preds, azione = upsert_prediction_entry([], entry)
+        self.assertEqual(azione, "aggiunta")
+
+        r = preds[0]
+        self.assertAlmostEqual(r[PROB_MERCATO_PRIMA_FIELD], 0.72, places=6)
+        self.assertAlmostEqual(r[QUOTA_MERCATO_PRIMA_FIELD], 1.39, places=2)
+        self.assertAlmostEqual(r[PROB_MODELLO_PRIMA_FIELD], 68.5, places=1)
+        self.assertEqual(r[ACCORDO_MODELLO_PRIMA_FIELD], True)
+        self.assertEqual(r[QUOTE_LIVE_ISTANTE_PRIMA_FIELD], "2026-10-09T18:00:00Z")
 
 
 class TestProblema5_TestSaltatiPR52(unittest.TestCase):

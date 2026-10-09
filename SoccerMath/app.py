@@ -95,6 +95,9 @@ from prediction_registry import (
     MERCATO_FONTE_FIELD, MERCATO_N_LIBRI_FIELD, PROB_MERCATO_FIELD,
     QUOTA_MERCATO_FIELD, ACCORDO_MODELLO_FIELD, PROB_MODELLO_FIELD,
     QUOTE_LIVE_ISTANTE_FIELD,
+    PROB_MERCATO_PRIMA_FIELD, QUOTA_MERCATO_PRIMA_FIELD,
+    PROB_MODELLO_PRIMA_FIELD, ACCORDO_MODELLO_PRIMA_FIELD,
+    QUOTE_LIVE_ISTANTE_PRIMA_FIELD,
     OMBRA_FIELD, OMBRA_MERCATO_FIELD, OMBRA_CONFIDENCE_FIELD, OMBRA_AMMESSA_FIELD,
     OMBRA_SOGLIA_FIELD, OMBRA_VINCENTE_GLOBALE_FIELD, OMBRA_DATI_MANCANTI_FIELD,
     OMBRA_SOGLIA_TOTALI,
@@ -619,6 +622,15 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
         entry[ACCORDO_MODELLO_FIELD] = bool(accordo_modello)
         entry[PROB_MODELLO_FIELD] = prob_modello
         entry[QUOTE_LIVE_ISTANTE_FIELD] = quote_live_istante
+        # Prima registrazione: all prima scrittura, i campi _prima sono
+        # identici ai campi attuali. Nell'upsert, questi campi vengono
+        # preservati quando la riga viene aggiornata (ultima registrazione
+        # nei campi attuali, prima registrazione nei campi _prima).
+        entry[PROB_MERCATO_PRIMA_FIELD] = prob_mercato
+        entry[QUOTA_MERCATO_PRIMA_FIELD] = quota_mercato
+        entry[PROB_MODELLO_PRIMA_FIELD] = prob_modello
+        entry[ACCORDO_MODELLO_PRIMA_FIELD] = bool(accordo_modello)
+        entry[QUOTE_LIVE_ISTANTE_PRIMA_FIELD] = quote_live_istante
     return entry
 
 
