@@ -64,6 +64,8 @@ from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_FIELD,
     MODEL_VARIANT_LEGACY,
+    SELECTOR_VERSION_CURRENT,
+    SELECTOR_VERSION_MODELLO_1X2,
     dedup_key,
     model_variant_of,
 )
@@ -495,7 +497,14 @@ class TestRowShape(_Base):
         self.assertEqual(self.click.commit.short, leg["data_snapshot_sha"])
         self.assertEqual(T.astimezone(app.ITALY_TZ).strftime("%d/%m/%Y %H:%M"), leg["salvato_il"])
         self.assertEqual(TARGET_KICKOFF.strftime("%Y-%m-%dT%H:%M:%SZ"), leg["kickoff_utc"])
+        # Il replay ricostruisce il Top Mix VISIBLE storico: origine e versione
+        # restano quelle, NON quelle di ombra che oggi porta
+        # ``argomenti_registro_top_mix`` (vedi docstring di entries_for_targets).
         self.assertEqual("top_mix", leg["origin"])
+        self.assertEqual("topmix_1x2_gate025_ens06_v2", SELECTOR_VERSION_MODELLO_1X2)
+        self.assertEqual(SELECTOR_VERSION_MODELLO_1X2, leg["selector_version"])
+        self.assertNotEqual(SELECTOR_VERSION_CURRENT, leg["selector_version"],
+                            "il replay non scrive la versione corrente (v3 di mercato)")
         self.assertEqual(9, leg["giornata"])
 
 

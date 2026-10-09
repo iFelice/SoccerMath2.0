@@ -34,6 +34,34 @@ from models.elo_engine import get_current_elo, get_elo_engine, get_elo_leaderboa
 from models.dixon_coles import get_dixon_coles_matrix, predict_dixon_coles_probs, get_dixon_coles_team_strengths
 from models.backtest import run_backtest, compare_models_backtest, detect_value_bets
 from display_names import display_name
+# Quote 1X2 dal vivo: l'app LEGGE il file scritto dal workflow live_odds.yml,
+# non chiama mai The Odds API (vincolo della commessa, verificato da
+# test_quote_live.py::TestLAppNonChiamaLaFonte).
+import market_odds
+from market_odds import (
+    AVVISO_INDIPENDENZA,
+    ESITI as ESITI_MERCATO,
+    FONTE_ASSENTE,
+    FONTE_MEDIA_LIBRI,
+    FONTE_PINNACLE,
+    MASSIMO_RIGHE_MULTIPLA,
+    MOTIVO_ASSENTE_DALLA_FONTE,
+    MOTIVO_TERNA_NON_VALIDA,
+    SOGLIA_ACCORDO,
+    SOGLIA_ORE_QUOTE,
+    STATO_ASSENTE,
+    STATO_NON_LEGGIBILE,
+    STATO_OK,
+    STATO_SENZA_LEGHE,
+    SOGLIA_TOPMIX_MERCATO,
+    carica_quote_live,
+    carica_quote_live_con_stato,
+    cerca_quote,
+    cerca_quote_con_motivo,
+    indice_partite,
+    multipla,
+    probabilita_mercato,
+)
 
 from config import (
     FOOTBALL_DATA_API_KEY, GROQ_API_KEY, ODDS_API_KEY, JSONBIN_API_KEY, JSONBIN_BIN_ID,
@@ -61,7 +89,12 @@ from prediction_registry import (
     SELECTOR_VERSION_CURRENT,
     SELECTOR_VERSION_PRE_1X2,
     SELECTOR_VERSION_OMBRA_BY_FAMIGLIA, OMBRA_FAMIGLIA_FIELD, OMBRA_FAMIGLIA_OU25, OMBRA_FAMIGLIA_GGNG,
+    OMBRA_FAMIGLIA_1X2, SELECTOR_VERSION_OMBRA_1X2,
     ORIGIN_TOP_MIX_OMBRA,
+    # --- Top Mix di mercato (topmix_mercato_v3): campi della riga visibile ---
+    MERCATO_FONTE_FIELD, MERCATO_N_LIBRI_FIELD, PROB_MERCATO_FIELD,
+    QUOTA_MERCATO_FIELD, ACCORDO_MODELLO_FIELD, PROB_MODELLO_FIELD,
+    QUOTE_LIVE_ISTANTE_FIELD,
     OMBRA_FIELD, OMBRA_MERCATO_FIELD, OMBRA_CONFIDENCE_FIELD, OMBRA_AMMESSA_FIELD,
     OMBRA_SOGLIA_FIELD, OMBRA_VINCENTE_GLOBALE_FIELD, OMBRA_DATI_MANCANTI_FIELD,
     OMBRA_SOGLIA_TOTALI,
@@ -74,6 +107,7 @@ from prediction_registry import (
     build_calculation_id,
     calibration_by_mercato,
     compute_calibration_stats,
+    compute_stats,
     esito_mercato,
     resolve_origin,
     righe_non_iniziate,
@@ -101,6 +135,10 @@ from prediction_registry import (
     # l'utente deve vedere (una riga nata prima del merge di PR#24 e' del
     # motore di allora, cioe' legacy).
     model_variant_read,
+    # --- famiglie del selettore: modello (fino al 09/10/2026) e mercato (dal) ---
+    FAMIGLIA_SELETTORE_MODELLO,
+    FAMIGLIA_SELETTORE_MERCATO,
+    famiglia_selettore,
 )
 from models.legacy_elo import predict_elo_probs_legacy
 
@@ -514,7 +552,10 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
                            gate_shadow_confidence=None, gate_shadow_ammessa=None,
                            gate_off_confidence=None, gate_off_ammessa=None,
                            model_variant=MODEL_VARIANT_CURRENT, salvato_il=None,
-                           selector_version=None):
+                           selector_version=None,
+                           prob_mercato=None, quota_mercato=None, mercato_fonte=None,
+                           mercato_n_libri=None, accordo_modello=None, prob_modello=None,
+                           quote_live_istante=None):
     """Costruisce il record del registro (nessun I/O): la forma della riga vive QUI.
 
     E' la stessa funzione per il salvataggio live (``save_prediction_entry``)
@@ -567,6 +608,17 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
     if gate_off_confidence is not None:
         entry[GATE_OFF_CONFIDENCE_FIELD] = gate_off_confidence
         entry[GATE_OFF_AMMESSA_FIELD] = bool(gate_off_ammessa)
+    # --- Top Mix di mercato (``topmix_mercato_v3``): campi OPZIONALI della riga
+    # visibile. Una riga scritta da una versione precedente non li ha e resta
+    # leggibile come prima: nessun campo esistente viene toccato.
+    if mercato_fonte is not None:
+        entry[MERCATO_FONTE_FIELD] = mercato_fonte
+        entry[MERCATO_N_LIBRI_FIELD] = mercato_n_libri
+        entry[PROB_MERCATO_FIELD] = prob_mercato
+        entry[QUOTA_MERCATO_FIELD] = quota_mercato
+        entry[ACCORDO_MODELLO_FIELD] = bool(accordo_modello)
+        entry[PROB_MODELLO_FIELD] = prob_modello
+        entry[QUOTE_LIVE_ISTANTE_FIELD] = quote_live_istante
     return entry
 
 
@@ -576,7 +628,10 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
                           snapshot_sha=None,
                           gate_shadow_confidence=None, gate_shadow_ammessa=None,
                           gate_off_confidence=None, gate_off_ammessa=None,
-                          model_variant=MODEL_VARIANT_CURRENT, selector_version=None):
+                          model_variant=MODEL_VARIANT_CURRENT, selector_version=None,
+                          prob_mercato=None, quota_mercato=None, mercato_fonte=None,
+                          mercato_n_libri=None, accordo_modello=None, prob_modello=None,
+                          quote_live_istante=None):
     """Scrive UNA previsione nel registro e dice cosa ha fatto.
 
     Due modifiche puntuali, entrambe richieste da
@@ -614,7 +669,10 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
         snapshot_sha=snapshot_sha,
         gate_shadow_confidence=gate_shadow_confidence, gate_shadow_ammessa=gate_shadow_ammessa,
         gate_off_confidence=gate_off_confidence, gate_off_ammessa=gate_off_ammessa,
-        model_variant=model_variant, selector_version=selector_version)
+        model_variant=model_variant, selector_version=selector_version,
+        prob_mercato=prob_mercato, quota_mercato=quota_mercato, mercato_fonte=mercato_fonte,
+        mercato_n_libri=mercato_n_libri, accordo_modello=accordo_modello,
+        prob_modello=prob_modello, quote_live_istante=quote_live_istante)
     preds, azione = upsert_prediction_entry(preds, entry)
     if azione in ("gia_graduata", "gia_presente_altra_versione"):
         # gia_graduata: la previsione e' gia' stata giudicata, NON si tocca.
@@ -656,8 +714,54 @@ def build_ombra_entry(riga, *, salvato_il=None, snapshot_sha=None):
     return entry
 
 
-def salva_registro_ombra(righe_ombra):
-    """Scrive le scelte Totali ombra nel registro OMBRA. Ritorna un esito (mai le righe).
+def build_ombra_modello_entry(riga, model_variant=MODEL_VARIANT_CURRENT, *,
+                              salvato_il=None, snapshot_sha=None):
+    """Record del registro OMBRA per la scelta 1X2 di UN motore (Drago o Legacy).
+
+    Dalla PR delle quote live il Top Mix visibile e' quello del mercato: le
+    scelte 1X2 dei due motori non spariscono, passano qui. La riga ha la STESSA
+    forma di una riga del Registro (``build_prediction_entry``) con:
+
+    * ``origin`` = ``top_mix_ombra`` e ``ombra`` = True (hash separato
+      ``sm:registro:ombra``: le letture del Registro visibile non la caricano);
+    * ``selector_version`` = ``SELECTOR_VERSION_OMBRA_1X2`` e
+      ``model_variant`` = ``current``/``legacy``: la chiave di dedup
+      ``(match_id, origin, selector_version, model_variant)`` separa le due
+      righe della stessa partita, quindi Drago e Legacy non si sovrascrivono
+      mai fra loro ne' con le righe ombra dei Totali (famiglie diverse);
+    * ``ombra_famiglia`` = ``1x2``, ``ombra_confidence`` = la confidence del
+      modello, ``ombra_ammessa`` = se superava la soglia del selettore
+      (0,55 con Elo / 0,60 senza): il confronto col mercato resta possibile.
+
+    Le regole anti-doppione sono quelle di sempre (``upsert_prediction_entries``:
+    una riga gia' giudicata non si tocca, un ricalcolo della stessa previsione
+    la sostituisce).
+    """
+    # ``argomenti_registro_top_mix`` porta gia' origine ombra e versione ombra.
+    args, kwargs = argomenti_registro_top_mix(riga, model_variant=model_variant)
+    entry = build_prediction_entry(*args, **kwargs, salvato_il=salvato_il,
+                                   snapshot_sha=snapshot_sha)
+    conf = riga.get("prob")
+    elo_disp = bool(riga.get("elo_disponibile", True))
+    soglia = 0.55 if elo_disp else 0.60
+    entry[OMBRA_FIELD] = True
+    entry[OMBRA_FAMIGLIA_FIELD] = OMBRA_FAMIGLIA_1X2
+    entry[OMBRA_MERCATO_FIELD] = riga.get("market")
+    entry[OMBRA_CONFIDENCE_FIELD] = (None if conf is None else round(float(conf), 6))
+    entry[OMBRA_AMMESSA_FIELD] = bool(conf is not None and float(conf) >= soglia)
+    entry[OMBRA_SOGLIA_FIELD] = soglia
+    entry[OMBRA_DATI_MANCANTI_FIELD] = bool(riga.get("dati_mancanti"))
+    return entry
+
+
+def salva_registro_ombra(righe_ombra, righe_modello=None):
+    """Scrive le righe ombra nel registro OMBRA. Ritorna un esito (mai le righe).
+
+    Due famiglie di righe, un solo blocco di scrittura:
+
+    * ``righe_ombra``: le scelte Totali (O/U 2.5 e GG/NG) di ogni candidata;
+    * ``righe_modello``: ``{variante: [righe]}`` con le scelte 1X2 di Drago e
+      Legacy, che dalla PR delle quote live non sono piu' il Top Mix visibile.
 
     Una lettura STRICT (se l'hash non si legge, non si scrive nulla: un ``[]``
     falso riscriverebbe l'ombra da zero), un upsert in blocco (le righe gia'
@@ -667,7 +771,10 @@ def salva_registro_ombra(righe_ombra):
     """
     from registry_store import esito_scrittura, load_ombra_rows, save_ombra_rows
     candidate = [r for r in (righe_ombra or []) if r.get("match_id") is not None]
-    if not candidate:
+    modello = []
+    for variante, lista in (righe_modello or {}).items():
+        modello.extend((variante, r) for r in (lista or []) if r.get("match_id") is not None)
+    if not candidate and not modello:
         return {"remoto": "nessuna_riga", "azioni": {}}
     try:
         esistenti, _fonte = load_ombra_rows(strict=True)
@@ -677,6 +784,8 @@ def salva_registro_ombra(righe_ombra):
     try:
         sha = snapshot_fingerprint(DATABASE_DIR)      # una volta sola per il blocco
         entries = [build_ombra_entry(r, snapshot_sha=sha) for r in candidate]
+        entries += [build_ombra_modello_entry(r, model_variant=v, snapshot_sha=sha)
+                    for v, r in modello]
         lista, azioni = upsert_prediction_entries(esistenti, entries)
     except Exception as e:
         # Il Top Mix visibile e' gia' salvato a questo punto: un errore dell'ombra
@@ -1690,6 +1799,126 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
     return None
 
 
+def seleziona_riga_top_mix_mercato(prob_mercato, odds_mercato=None, prob_modello=None,
+                                   fonte=None, n_libri=None, home=None, away=None):
+    """Riga Top Mix di UNA partita decisa dal MERCATO (selettore ``topmix_mercato_v3``).
+
+    Funzione PURA (stessi divieti di ``seleziona_riga_top_mix``: niente HTTP,
+    cache, logging o scritture): riceve probabilita' e quote gia' calcolate e
+    ritorna il dizionario della riga, oppure ``None`` se la partita non entra.
+
+    Regola (PR #49, ``audit/results/onex2_market_test.md`` §4 e §4d):
+
+    * esito = argmax delle tre probabilita' di mercato, nell'ordine 1, X, 2
+      (primo massimo: lo stesso spareggio di ``max()`` su dict e di
+      ``np.argmax`` usato dall'audit, cosi' i numeri del replay coincidono);
+    * ammissione: probabilita' di mercato >= ``SOGLIA_TOPMIX_MERCATO`` (0,55).
+      E' l'unica soglia della riga: il veto di produzione |Poisson-Elo| < 0,25
+      NON si applica, perche' la scelta e' del mercato, che non ha Elo;
+    * ``accordo`` (colonna "d'accordo"): modello e mercato sullo STESSO esito
+      ed entrambi >= ``SOGLIA_ACCORDO`` (0,55). Senza probabilita' del modello
+      l'accordo e' False: un'assenza non e' un consenso, come per l'Elo.
+
+    Perche' il mercato decide e il modello resta accanto (numeri PR #49):
+    scelte del mercato 1302 / 67,5%; del modello 1479 / 62,6%; del modello CON
+    accordo 1144 / 68,2%; del modello SENZA accordo 335 / 43,6%. Il modello
+    serve soprattutto a scartare, non a scegliere.
+
+    NESSUN FILTRO SULLE QUOTE BASSE: una quota 1,10 resta in tabella se il
+    mercato la da' come esito piu' probabile. La tabella individua le partite
+    piu' probabili; scegliere una quota minima resta una decisione dell'utente
+    (il calcolatore di multipla mostra l'edge, non lo giudica).
+
+    Parametri
+    ---------
+    prob_mercato : dict | None
+        Probabilita' de-vigate 1/X/2 (``market_odds.probabilita_mercato``).
+    odds_mercato : dict | None
+        Quote decimali della STESSA fonte delle probabilita'.
+    prob_modello : dict | None
+        Probabilita' blend del Drago (0,25 Poisson + 0,75 Elo) per 1/X/2, o
+        ``None`` se il modello non e' disponibile per questa partita.
+    fonte, n_libri : str | None, int | None
+        ``pinnacle`` / ``media_libri`` e quanti libri hanno una terna valida:
+        la riserva sulla media deve essere leggibile riga per riga.
+    home, away : str
+        Nomi display per le etichette "Vittoria {squadra}".
+
+    Ritorna ``dict | None`` con ``market``, ``mercato_standard``, ``esito``,
+    ``prob`` (probabilita' di mercato), ``prob_val``, ``quota``,
+    ``prob_modello``, ``prob_modello_val``, ``accordo``, ``fonte``, ``n_libri``.
+    """
+    if not isinstance(prob_mercato, dict):
+        return None
+    valori = []
+    for esito in ESITI_MERCATO:
+        v = prob_mercato.get(esito)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)):
+            return None
+        valori.append(float(v))
+
+    # argmax con spareggio sul primo massimo (ordine 1, X, 2)
+    k = 0
+    for i in range(1, len(valori)):
+        if valori[i] > valori[k]:
+            k = i
+    esito = ESITI_MERCATO[k]
+    prob = valori[k]
+    if prob < SOGLIA_TOPMIX_MERCATO:
+        return None
+
+    quota = None
+    if isinstance(odds_mercato, dict):
+        q = odds_mercato.get(esito)
+        if not isinstance(q, bool) and isinstance(q, (int, float)) and math.isfinite(float(q)) \
+                and float(q) > 1.0:
+            quota = float(q)
+
+    # Probabilita' del modello (Drago) per lo STESSO esito e segnale di accordo.
+    p_modello = None
+    if isinstance(prob_modello, dict):
+        v = prob_modello.get(esito)
+        if not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(float(v)):
+            p_modello = float(v)
+    accordo = False
+    if p_modello is not None:
+        # stesso esito = argmax del modello uguale a quello del mercato
+        m_valori = []
+        for e in ESITI_MERCATO:
+            mv = prob_modello.get(e)
+            m_valori.append(float(mv) if (not isinstance(mv, bool)
+                                          and isinstance(mv, (int, float))
+                                          and math.isfinite(float(mv))) else -1.0)
+        km = 0
+        for i in range(1, len(m_valori)):
+            if m_valori[i] > m_valori[km]:
+                km = i
+        stesso_esito = ESITI_MERCATO[km] == esito
+        accordo = bool(stesso_esito and p_modello >= SOGLIA_ACCORDO
+                       and prob >= SOGLIA_ACCORDO)
+
+    if esito == "1":
+        market = f"Vittoria {home}"
+    elif esito == "2":
+        market = f"Vittoria {away}"
+    else:
+        market = "Pareggio"
+
+    return {
+        "market": market,
+        "mercato_standard": esito,
+        "esito": esito,
+        "prob": prob,
+        "prob_val": round(prob * 100, 1),
+        "quota": quota,
+        "prob_modello": p_modello,
+        "prob_modello_val": (None if p_modello is None else round(p_modello * 100, 1)),
+        "accordo": accordo,
+        "fonte": fonte,
+        "n_libri": n_libri,
+    }
+
+
 def riga_top_mix_shadow(m, elo_probs=None, elo_disponibile=True, home=None, away=None):
     """Versione OMBRA del selettore per UNA candidate: gate come penalita' continua.
 
@@ -1858,8 +2087,43 @@ def _riga_top_mix(league, match, h_disp, a_disp, riga, dati_mancanti=None):
     return out
 
 
-def calcola_righe_top_mix(league, matches, engine, ombra=None):
-    """Righe Top Mix delle partite ``matches`` di una lega, per ENTRAMBI i motori.
+def _riga_top_mix_mercato(league, match, h_disp, a_disp, riga, quote_istante=None,
+                          dati_mancanti=None):
+    """Riga del Top Mix di MERCATO: campi del match + campi del selettore.
+
+    Stessa forma di ``_riga_top_mix`` piu' i campi che rendono la scelta del
+    mercato verificabile riga per riga: ``esito`` (1/X/2), ``quota`` (della
+    stessa fonte della probabilita'), ``prob_modello`` (Drago sullo stesso
+    esito), ``accordo``, ``fonte`` e ``n_libri`` (Pinnacle o media dei libri),
+    ``quote_live_istante`` (quando il workflow ha scaricato le quote).
+
+    ``dati_mancanti`` ha lo stesso significato di ``_riga_top_mix`` (stats di
+    default per una squadra del roster senza statistiche): qui riguarda solo la
+    colonna del modello, perche' la scelta e' del mercato.
+    """
+    out = {
+        "league": league, "giornata": match['matchday'],
+        "home": h_disp, "away": a_disp, "match_id": match.get("id"),
+        "utcDate": match['utcDate'],
+        "market": riga["market"],
+        "mercato_standard": riga["mercato_standard"],
+        "esito": riga["esito"],
+        "prob": riga["prob"], "prob_val": riga["prob_val"],
+        "quota": riga["quota"],
+        "prob_modello": riga["prob_modello"],
+        "prob_modello_val": riga["prob_modello_val"],
+        "accordo": bool(riga["accordo"]),
+        "fonte": riga["fonte"], "n_libri": riga["n_libri"],
+        "quote_live_istante": quote_istante,
+        "rank": None,
+    }
+    if dati_mancanti:
+        out["dati_mancanti"] = [pulito for _grezzo, pulito in dati_mancanti]
+    return out
+
+
+def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
+    """Righe Top Mix delle partite ``matches`` di una lega.
 
     Per ogni partita: stesso Poisson a due teste, poi il selettore puro
     (``seleziona_riga_top_mix``: argmax sui 1X2, blend, soglie 0,55/0,60, veto)
@@ -1879,9 +2143,26 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None):
     (dopo lo scarto delle partite con nomi sconosciuti) DUE righe ombra, una per
     famiglia di Totali (O/U 2.5 e GG/NG: ``righe_ombra_totali``). Non entra nel
     risultato: e' il canale del registro ombra, che non viene mai mostrato in UI.
+
+    ``quote``: indice delle quote dal vivo (``market_odds.indice_partite``, dal
+    file scritto dal workflow). Se e' ``None`` la lista ``"mercato"`` resta
+    vuota: e' il caso del replay walk-forward, che ricostruisce i click del
+    MODELLO e non ha quote live. Quando e' dato, per ogni partita si aggiunge:
+
+    * una riga in ``"mercato"`` se il mercato ha una terna valida e la sua
+      probabilita' massima supera 0,55 (``seleziona_riga_top_mix_mercato``);
+    * una voce in ``"senza_quote"`` se la partita NON ha quote (nessuna terna
+      valida o coppia di nomi assente dalla fonte): la partita e' esclusa dal
+      Top Mix e viene SEGNALATA, mai inventata.
+
+    Ritorna ``{"current": [...], "legacy": [...], "mercato": [...],
+    "senza_quote": [...]}``: le due liste del modello alimentano il registro
+    OMBRA, ``"mercato"`` e' il Top Mix visibile.
     """
     team_stats, avg_h, avg_a, _ = engine
-    righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}
+    righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: [], "mercato": [], "senza_quote": []}
+    indice_quote = (quote or {}).get("indice") if isinstance(quote, dict) else None
+    istante_quote = (quote or {}).get("generato_il") if isinstance(quote, dict) else None
     for match in matches:
         h = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?')
         a = match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
@@ -1939,6 +2220,46 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None):
         riga_legacy = seleziona_riga_top_mix(m_poisson, elo_legacy, elo_legacy_disponibile, h_disp, a_disp)
         if riga_legacy is not None:
             righe[MODEL_VARIANT_LEGACY].append(_riga_top_mix(league, match, h_disp, a_disp, riga_legacy, dati_mancanti=senza_stats))
+
+        # Top Mix VISIBILE: la scelta del mercato. Il modello (Drago) entra solo
+        # come probabilita' sullo stesso esito e come segnale "d'accordo".
+        if indice_quote is not None:
+            evento, motivo_assenza = cerca_quote_con_motivo(
+                indice_quote, h, a, match.get('utcDate'))
+            mkt = probabilita_mercato((evento or {}).get("libri") or [])
+            prob_mkt = mkt["probs"]
+            # Probabilita' del Drago (blend 0,25 Poisson + 0,75 Elo) su 1/X/2:
+            # la stessa funzione usata dalla PR #49 per il confronto.
+            prob_drago = blend_elo_into_1x2(m_poisson, h, a, league,
+                                            elo_probs=elo_probs,
+                                            elo_disponibile=elo_disponibile,
+                                            season=_stagione_da_utcdate(match.get('utcDate')))
+            if prob_mkt is None:
+                # Il motivo viene dalla regola che ha davvero scartato la
+                # partita (``cerca_quote_con_motivo``), non ricostruito qui: se
+                # l'evento c'e' ma la terna non vale il motivo e' quello, se
+                # l'evento manca per la finestra o per l'assenza dalla fonte il
+                # testo deve dirlo (si riparano in modi diversi).
+                motivo = (MOTIVO_TERNA_NON_VALIDA % mkt["n_libri_totale"]
+                          if evento else (motivo_assenza or MOTIVO_ASSENTE_DALLA_FONTE))
+                logging.warning("Top Mix mercato: %s vs %s (%s) SENZA quote: %s. "
+                                "Esclusa dal Top Mix.", h_disp, a_disp, league, motivo)
+                righe["senza_quote"].append({
+                    "league": league, "home": h_disp, "away": a_disp,
+                    "match_id": match.get("id"), "utcDate": match['utcDate'],
+                    "home_raw": h, "away_raw": a,
+                    "evento_trovato": bool(evento),
+                    "n_libri_totale": mkt["n_libri_totale"],
+                    "motivo": motivo,
+                })
+                continue
+            riga_mkt = seleziona_riga_top_mix_mercato(
+                prob_mkt, mkt["odds"], prob_drago, fonte=mkt["fonte"],
+                n_libri=mkt["n_libri"], home=h_disp, away=a_disp)
+            if riga_mkt is not None:
+                righe["mercato"].append(_riga_top_mix_mercato(
+                    league, match, h_disp, a_disp, riga_mkt,
+                    quote_istante=istante_quote, dati_mancanti=senza_stats))
     return righe
 
 
@@ -1956,25 +2277,86 @@ def classifica_top_mix(righe):
     return ordinate
 
 
+def carica_indice_quote_live():
+    """Indice delle quote dal vivo per il Top Mix di mercato (nessuna rete).
+
+    Legge ``SoccerMath/database/live_odds.json``, scritto SOLO dal workflow
+    ``.github/workflows/live_odds.yml``: l'app non chiama mai The Odds API.
+    Ritorna ``None`` se il file manca o non e' leggibile (il Top Mix di mercato
+    resta vuoto e l'UI lo dice), altrimenti un dict con ``indice``,
+    ``non_abbinati``, ``generato_il``, ``crediti`` e i conteggi.
+    """
+    payload, stato = carica_quote_live_con_stato(
+        percorso=os.path.join(str(DATABASE_DIR), market_odds.LIVE_ODDS_FILE))
+    stato_out = {
+        "stato": stato,
+        # ``indice`` resta None (non {}) quando il file non e' utilizzabile:
+        # "il file non c'e'" e "il file c'e' ma non contiene partite" sono due
+        # cose diverse, e ``calcola_righe_top_mix`` le distingue proprio su
+        # ``indice is None`` (nessuna riga di mercato E nessuna segnalazione nel
+        # primo caso, tutte le partite segnalate nel secondo).
+        "indice": None, "non_abbinati": [], "n_eventi": 0, "n_indicizzati": 0,
+        "generato_il": None, "eta_ore": None, "obsoleto": False, "dettaglio": None,
+        "crediti": {}, "fonte": None, "regioni": None,
+        "n_leghe_ok": None, "n_leghe_richieste": None,
+    }
+    if payload is None:
+        stato_out["dettaglio"] = _DETTAGLIO_STATO_QUOTE[stato]
+        return stato_out
+    dati = indice_partite(payload)
+    eta = market_odds.ore_da(payload.get("generato_il"))
+    stato_out.update({
+        "indice": dati["indice"],
+        "non_abbinati": dati["non_abbinati"],
+        "n_eventi": dati["n_eventi"],
+        "n_indicizzati": dati["n_indicizzati"],
+        "generato_il": payload.get("generato_il"),
+        "eta_ore": eta,
+        "obsoleto": bool(eta is not None and eta > SOGLIA_ORE_QUOTE),
+        "crediti": payload.get("crediti") or {},
+        "fonte": payload.get("fonte"),
+        "regioni": payload.get("regioni"),
+        "n_leghe_ok": payload.get("n_leghe_ok"),
+        "n_leghe_richieste": payload.get("n_leghe_richieste"),
+    })
+    for na in dati["non_abbinati"]:
+        logging.warning("Top Mix mercato: partita della fonte quote NON abbinata ai nomi "
+                        "del progetto: %s vs %s (%s)", na.get("home_raw"), na.get("away_raw"),
+                        na.get("lega"))
+    if stato_out["obsoleto"]:
+        logging.warning("Top Mix mercato: quote OBSOLETE, eta' %.1f h (soglia %d h), "
+                        "scaricate il %s.", eta, SOGLIA_ORE_QUOTE, payload.get("generato_il"))
+    return stato_out
+
+
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top Mix...")
 def fetch_and_calc_top_mix():
-    """Top Mix del turno, due tabelle + registro ombra: HTTP, motore, poi ``calcola_righe_top_mix``.
+    """Top Mix del turno: tabella di mercato + due modelli ombra. HTTP, motore, quote.
 
-    La selezione di riga (argmax sui 1X2, blend, soglie, veto) NON e' qui dentro:
-    e' nella funzione pura ``seleziona_riga_top_mix``, testata in
-    ``SoccerMath/test_topmix_selector_parity.py``; il calcolo per partita (due
-    motori Elo, piu' la scelta Totali ombra) e' in ``calcola_righe_top_mix``. Qui
-    restano solo I/O e assemblaggio. Igienizzati in precedenza (referto §4):
+    La selezione di riga NON e' qui dentro: e' nelle funzioni pure
+    ``seleziona_riga_top_mix`` (modello) e ``seleziona_riga_top_mix_mercato``
+    (mercato), testate rispettivamente in
+    ``SoccerMath/test_topmix_selector_parity.py`` e
+    ``SoccerMath/test_topmix_mercato.py``; il calcolo per partita (due motori
+    Elo, scelta Totali ombra, scelta di mercato) e' in ``calcola_righe_top_mix``.
+    Qui restano solo I/O e assemblaggio. Igienizzati in precedenza (referto §4):
     timeout sulla GET, fallback Elo marcato, coda di rate-limit solo FRA le leghe
     (l'ultima non aspetta piu' nulla) e `rank` sulla riga.
 
-    Ritorna ``(top_current, top_legacy, missing, ombra)``: due liste gia' ordinate
-    e classificate, senza tetto di righe; le leghe senza motore; e la lista
-    ``ombra`` con UNA scelta Totali per ogni partita candidata (non mostrata: va
-    solo nel registro ombra, vedi ``salva_registro_ombra``).
+    Ritorna ``(top_mercato, top_current, top_legacy, missing, ombra, senza_quote)``:
+
+    * ``top_mercato``  il Top Mix VISIBILE (scelte del mercato, una tabella sola);
+    * ``top_current`` / ``top_legacy``  le scelte 1X2 dei due motori: NON sono
+      piu' mostrate, vanno nel registro ombra (``salva_registro_ombra``);
+    * ``missing``      le leghe senza motore;
+    * ``ombra``        le scelte Totali per ogni partita candidata (non mostrate);
+    * ``senza_quote``  le partite senza alcuna quota: escluse dal Top Mix e
+      segnalate in UI (Analisi Rapida le elenca per nome).
     """
     per_variante, missing = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}, []
+    righe_mercato, senza_quote = [], []
     ombra = []
+    quote = carica_indice_quote_live()
     leghe = list(LEAGUES_CONFIG.keys())
     for i_lega, league in enumerate(leghe):
         if i_lega:
@@ -1991,18 +2373,29 @@ def fetch_and_calc_top_mix():
         except Exception as e:
             logging.warning(f"Errore fetch Top Mix {league}: {e}")
             continue
-        righe = calcola_righe_top_mix(league, matches, engine, ombra=ombra)
-        for variante, lista in righe.items():
-            per_variante[variante].extend(lista)
+        righe = calcola_righe_top_mix(league, matches, engine, ombra=ombra, quote=quote)
+        for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
+            per_variante[variante].extend(righe[variante])
+        righe_mercato.extend(righe["mercato"])
+        senza_quote.extend(righe["senza_quote"])
     top_current = classifica_top_mix(per_variante[MODEL_VARIANT_CURRENT])
     top_legacy = classifica_top_mix(per_variante[MODEL_VARIANT_LEGACY])
-    return top_current, top_legacy, missing, ombra
+    top_mercato = classifica_top_mix(righe_mercato)
+    return top_mercato, top_current, top_legacy, missing, ombra, senza_quote
 
 
 def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
     """Argomenti di ``save_prediction_entry`` / ``build_prediction_entry`` per la
-    riga Top Mix ``p``: UN solo posto decide come una riga del Top Mix diventa
+    riga Top Mix del MODELLO ``p``: UN solo posto decide come una riga diventa
     un record del registro (tab2 live e replay walk-forward usano questo).
+
+    Dalla PR delle quote live queste righe NON sono piu' il Top Mix visibile:
+    il Registro visibile ospita le scelte del mercato
+    (``argomenti_registro_top_mix_mercato``, ``SELECTOR_VERSION_CURRENT`` =
+    ``topmix_mercato_v3``). Le righe del modello vanno nel registro OMBRA con
+    ``SELECTOR_VERSION_OMBRA_1X2`` e la loro ``model_variant``: Drago e Legacy
+    restano due righe distinte della stessa partita (stesse regole
+    anti-doppione di prima, chiavi di dedup diverse, nessuna sovrascrittura).
 
     Gate shadow (referto §11quater): la riga GIOCATA porta anche i campi ombra
     (confidenza penalizzata dal disaccordo |P-E| e ammissione sotto il solo
@@ -2024,7 +2417,12 @@ def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
     )
     kwargs = dict(
         mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']),
-        origin=ORIGIN_TOP_MIX, rank=p.get("rank"),
+        # ORIGINE OMBRA: da questa PR le scelte del modello non sono piu' il
+        # Top Mix visibile, quindi la riga e' di ombra. Sta QUI (e non nel
+        # chiamante) perche' ``build_prediction_entry`` ricava da ``origin``
+        # sia ``tipo`` sia ``calculation_id``: chi costruisce la riga deve
+        # trovarla gia' giusta.
+        origin=ORIGIN_TOP_MIX_OMBRA, rank=p.get("rank"),
         kickoff_utc=p.get('utcDate'), prob_poisson=p.get('poisson'),
         prob_elo=p.get('elo'), elo_disponibile=p.get("elo_disponibile", True),
         gate_shadow_confidence=(campi_shadow or {}).get(GATE_SHADOW_CONFIDENCE_FIELD),
@@ -2032,6 +2430,42 @@ def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
         gate_off_confidence=(campi_off or {}).get(GATE_OFF_CONFIDENCE_FIELD),
         gate_off_ammessa=(campi_off or {}).get(GATE_OFF_AMMESSA_FIELD),
         model_variant=model_variant,
+        selector_version=SELECTOR_VERSION_OMBRA_1X2,
+    )
+    return args, kwargs
+
+
+def argomenti_registro_top_mix_mercato(p):
+    """Argomenti di registro per la riga del Top Mix di MERCATO ``p``.
+
+    Speculare a ``argomenti_registro_top_mix`` ma per la tabella visibile:
+    ``selector_version`` = ``SELECTOR_VERSION_CURRENT`` (``topmix_mercato_v3``),
+    ``model_variant`` = ``current`` (la scelta non dipende dal motore: il
+    modello entra solo come probabilita' di confronto e come segnale di
+    accordo), e i campi di mercato (fonte, numero di libri, quota, probabilita'
+    del modello, accordo, istante delle quote) che rendono la riga verificabile.
+
+    ``prob_sicuro`` resta la percentuale della probabilita' che DECIDE, cioe'
+    quella di mercato: il Registro e il grading leggono quel campo, e la
+    colonna "d'accordo" viaggia nei campi dedicati.
+    """
+    args = (
+        p['match_id'], p['home'], p['away'], p['league'], p['giornata'],
+        format_date_italy(p['utcDate'], "%d/%m/%Y %H:%M"),
+        f"{p['market']} - Top Mix", [], p['prob_val'], "",
+    )
+    kwargs = dict(
+        mercato_standard=p.get("mercato_standard") or codice_mercato_selezionato(p.get("market"), p['home'], p['away']),
+        origin=ORIGIN_TOP_MIX, rank=p.get("rank"),
+        kickoff_utc=p.get('utcDate'),
+        prob_modello=(None if p.get("prob_modello_val") is None else p["prob_modello_val"]),
+        prob_mercato=(None if p.get("prob_val") is None else round(p["prob_val"] / 100.0, 6)),
+        quota_mercato=p.get("quota"),
+        mercato_fonte=p.get("fonte"),
+        mercato_n_libri=p.get("n_libri"),
+        accordo_modello=bool(p.get("accordo")),
+        quote_live_istante=p.get("quote_live_istante"),
+        model_variant=MODEL_VARIANT_CURRENT,
         selector_version=SELECTOR_VERSION_CURRENT,
     )
     return args, kwargs
@@ -2058,6 +2492,22 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
     salvate = 0
     avvisi_sconosciuti = []
     stats_default = []
+    # Partite senza quote di mercato: l'Analisi Rapida non le sceglie (continua a
+    # usare il modello), ma le SEGNALA per nome. Sono le stesse partite escluse
+    # dal Top Mix di mercato: un'assenza di quote non deve passare in silenzio.
+    stato_quote = carica_indice_quote_live()
+    # SENZA ``or {}``: un indice vuoto ({}) e un indice assente (None) non sono
+    # la stessa cosa. Con ``or {}`` un file presente ma senza eventi diventava
+    # indistinguibile da un file assente e NESSUNA partita veniva segnalata.
+    indice_quote = (stato_quote or {}).get("indice")
+    _avviso_stato_quote(stato_quote, "Analisi Rapida")
+    if (stato_quote or {}).get("stato") == STATO_OK and (stato_quote or {}).get("obsoleto"):
+        st.error(f"⚠️ Analisi Rapida: quote OBSOLETE, eta' {stato_quote['eta_ore']:.1f} h "
+                 f"(soglia {SOGLIA_ORE_QUOTE} h), scaricate il "
+                 f"{stato_quote.get('generato_il') or 'n/d'}. Le segnalazioni "
+                 "'senza quote' restano valide, le probabilita' di mercato no.")
+    _mostra_non_abbinati_fonte(stato_quote, "Analisi Rapida")
+    senza_quote = []
     for match in matches:
         try:
             h, a = match['homeTeam'].get('shortName') or match['homeTeam'].get('name', '?'), match['awayTeam'].get('shortName') or match['awayTeam'].get('name', '?')
@@ -2067,6 +2517,17 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             h_disp, a_disp = display_name(h), display_name(a)
             m_id = match.get('id')
             if not m_id: continue
+            # ``indice_quote is not None`` e NON la sua verita': con un file
+            # valido ma SENZA eventi l'indice e' {} e ogni partita va segnalata.
+            # Prima la condizione era ``if indice_quote and ...``: {} e' falsy,
+            # quindi l'Analisi Rapida taceva proprio nel caso in cui nessuna
+            # partita ha quote. ``stato_quote is not None`` tiene fuori il caso
+            # "file non utilizzabile", gia' coperto dal messaggio sullo stato.
+            if (stato_quote is not None and indice_quote is not None
+                    and cerca_quote(indice_quote, h, a, match.get('utcDate')) is None):
+                senza_quote.append(f"{h_disp} vs {a_disp}")
+                logging.warning("Analisi Rapida: %s vs %s (%s) SENZA quote di mercato: "
+                                "esclusa dal Top Mix di mercato.", h_disp, a_disp, camp_sel)
             # Fallback sui nomi: mai silenziosi (stessa classificazione del
             # Top Mix). Caso (a): nome non nel roster della stagione = errore
             # a monte -> NESSUNA riga, avviso esplicito. Caso (b): roster
@@ -2140,6 +2601,10 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
         st.info(f"ℹ️ Analisi Rapida: statistiche di default (att=1.0 def=1.0) per: "
                 f"{', '.join(sorted(set(stats_default)))} (squadre del roster senza "
                 f"statistiche nel motore, per es. al debutto). Dettaglio nel log.")
+    if senza_quote:
+        st.warning(f"⚠️ Analisi Rapida: {len(senza_quote)} partite SENZA quote di mercato "
+                   f"(escluse dal Top Mix di mercato, nessuna probabilita' inventata): "
+                   f"{'; '.join(senza_quote)}.")
     return salvate
 
 @st.dialog("STRATEGIC ANALYSIS", width="large")
@@ -2551,26 +3016,242 @@ def _mostra_blocco_modello(records, titolo, sottotitolo):
     c4.metric("⏳ Attesa", s["pending"])
 
 
-def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
-    """Una delle due tabelle del Top Mix: intestazione esplicita + tutte le righe."""
-    st.markdown(f"<div class='top-mix-model {css_class}'><b>{titolo}</b><br><small>{sottotitolo}</small></div>",
-                unsafe_allow_html=True)
-    if not righe:
-        st.info("Nessuna partita sopra le soglie sui 1X2 (0,55 con Elo, 0,60 senza Elo) per questo modello.")
+COLONNE_TOP_MIX_MERCATO = ["Partita", "Esito", "P mercato %", "Quota mercato",
+                           "P modello Drago %", "D'accordo", "Fonte", "Eta' quote (h)"]
+
+
+# Messaggio per ciascuno stato del file delle quote. Dire "il file non c'e'"
+# quando il file c'e' ed e' corrotto nasconde un guasto reale: uno stato, un
+# testo. Sono usati sia dal Top Mix sia dall'Analisi Rapida.
+_DETTAGLIO_STATO_QUOTE = {
+    STATO_ASSENTE: (
+        f"{market_odds.LIVE_ODDS_FILE} non esiste: il workflow `live_odds.yml` non ha "
+        "ancora scritto (prima esecuzione, oppure quota di crediti esaurita prima del "
+        "primo giro)."),
+    STATO_NON_LEGGIBILE: (
+        f"{market_odds.LIVE_ODDS_FILE} ESISTE ma non e' leggibile o non e' JSON valido: "
+        "scrittura interrotta o file corrotto. Le quote non sono utilizzabili."),
+    STATO_SENZA_LEGHE: (
+        f"{market_odds.LIVE_ODDS_FILE} ESISTE ed e' JSON valido, ma non contiene la "
+        "chiave 'leghe': schema diverso dall'atteso "
+        f"(`{market_odds.SCHEMA_LIVE_ODDS}`). Le quote non sono utilizzabili."),
+    STATO_OK: "",
+}
+
+
+def _eta_quote_riga(p):
+    """Eta' in ore delle quote di UNA riga (None -> ``'n/d'``).
+
+    Un timestamp non interpretabile NON diventa "0 ore": tornerebbe una quota
+    vecchia spacciata per fresca.
+    """
+    eta = market_odds.ore_da(p.get("quote_live_istante"))
+    return "n/d" if eta is None else round(eta, 1)
+
+
+def _mostra_non_abbinati_fonte(stato_quote, dove):
+    """Elenca i nomi squadra della FONTE QUOTE che il progetto non riconosce.
+
+    E' un avviso DIVERSO da quello sulle partite del calendario senza quote, e
+    deve restare separato: qui il problema e' a monte (un nome della fonte fuori
+    tabella, quindi un alias da aggiungere in ``team_aliases.py``), la' la
+    partita e' nota ma la fonte non la copre. Confonderli farebbe cercare un
+    alias dove non manca.
+    """
+    non_abbinati = (stato_quote or {}).get("non_abbinati") or []
+    if not non_abbinati:
         return
-    st.caption(f"{len(righe)} partite sopra soglia (nessun tetto di righe).")
-    for i, p in enumerate(righe):
-        dt = format_date_italy(p['utcDate'], "%d/%m %H:%M")
-        # Un'Elo assente non e' un consenso: lo si dice, in UI e nel registro.
-        badge_elo = "" if p.get("elo_disponibile", True) else " · <small>⚠️ Elo n/d · soglia 60%</small>"
-        # Stats di default (caso b): squadra del roster senza statistiche nel
-        # motore (per es. neopromossa prima del debutto). Il Poisson della riga
-        # ha usato att=1.0 def=1.0 per quelle squadre: si vede.
-        badge_dati = ""
-        if p.get("dati_mancanti"):
-            badge_dati = (" · <small>⚠️ stats di default (nessun dato: "
-                          + ", ".join(p["dati_mancanti"]) + ")</small>")
-        st.markdown(f"<div class='top-mix-row'><div><b>#{p.get('rank') or i + 1}</b> - {p['home']} vs {p['away']}<br><small>🏆 {p['league']} | 🕒 {dt}{badge_elo}{badge_dati}</small></div><div style='text-align: right; color: #28a745; font-weight: 800;'>{p['market']}<br><small>{p['prob_val']}%</small></div></div>", unsafe_allow_html=True)
+    def _lato(n):
+        parti = []
+        if not n.get("home_riconosciuto"):
+            parti.append(f"casa {n.get('home_raw')!r}")
+        if not n.get("away_riconosciuto"):
+            parti.append(f"trasferta {n.get('away_raw')!r}")
+        return " e ".join(parti) or "coppia non risolta"
+    st.warning(
+        f"⚠️ {dove}: {len(non_abbinati)} partite della FONTE QUOTE con nomi squadra "
+        "non riconosciuti dal progetto (nessun fuzzy matching: vanno aggiunti in "
+        "`team_aliases.py`). "
+        + "; ".join(f"{n.get('home_raw')} vs {n.get('away_raw')} "
+                    f"({n.get('lega') or '?'}: {_lato(n)})" for n in non_abbinati))
+
+
+def _avviso_stato_quote(stato_quote, dove):
+    """Avviso sullo stato del file delle quote. Ritorna ``True`` se ha avvisato.
+
+    Un messaggio diverso per ogni stato: l'assenza, la corruzione e lo schema
+    sbagliato si riparano in modi diversi, e l'utente non deve indovinare quale
+    dei tre e' capitato.
+    """
+    stato = (stato_quote or {}).get("stato")
+    if stato == STATO_OK:
+        return False
+    st.warning(f"⚠️ {dove}: {_DETTAGLIO_STATO_QUOTE.get(stato, stato)}. "
+               "Nessuna probabilita' di mercato viene inventata: l'Analisi Rapida "
+               "usa solo il modello e il Top Mix di mercato resta vuoto.")
+    return True
+
+
+def _etichetta_fonte_mercato(riga):
+    """Fonte della probabilita' di mercato, leggibile riga per riga.
+
+    ``pinnacle`` = de-vig di Pinnacle (fonte primaria); ``media_libri`` =
+    riserva sulla media dei libri disponibili, con il numero di libri: la
+    riserva non deve mai passare per una quota di Pinnacle che non c'e'.
+    """
+    fonte = riga.get("fonte")
+    n = riga.get("n_libri")
+    if fonte == FONTE_PINNACLE:
+        return "Pinnacle"
+    if fonte == FONTE_MEDIA_LIBRI:
+        return f"media di {n} libri" if n else "media dei libri"
+    return fonte or "n/d"
+
+
+def tabella_top_mix_mercato(righe):
+    """DataFrame della TABELLA UNICA del Top Mix: una riga per partita.
+
+    Colonne richieste dalla commessa: partita, esito scelto (1/X/2) dal mercato,
+    probabilita' di mercato, quota di mercato, probabilita' del modello (Drago)
+    per lo stesso esito, segnale "d'accordo si'/no". Accanto, la fonte della
+    probabilita' (Pinnacle o media dei libri): senza di essa una riga di riserva
+    sarebbe indistinguibile da una riga Pinnacle.
+
+    Nessuna percentuale viene ricalcolata qui: sono i campi della riga prodotti
+    da ``seleziona_riga_top_mix_mercato``.
+    """
+    return pd.DataFrame([
+        {
+            "Partita": f"{p['home']} vs {p['away']}",
+            "Lega": p["league"],
+            "Inizio": format_date_italy(p["utcDate"], "%d/%m %H:%M"),
+            "Esito": p["esito"],
+            "P mercato %": p["prob_val"],
+            "Quota mercato": p["quota"],
+            "P modello Drago %": p["prob_modello_val"],
+            "D'accordo": "sì" if p.get("accordo") else "no",
+            "Fonte": _etichetta_fonte_mercato(p),
+            # Eta' delle quote riga per riga: la probabilita' di mercato vale
+            # all'istante in cui il workflow l'ha scaricata, e l'utente deve
+            # poterlo leggere sulla riga, non solo nell'intestazione.
+            "Eta' quote (h)": _eta_quote_riga(p),
+        }
+        for p in righe
+    ])[COLONNE_TOP_MIX_MERCATO + ["Lega", "Inizio"]] if righe else pd.DataFrame(
+        columns=COLONNE_TOP_MIX_MERCATO + ["Lega", "Inizio"])
+
+
+def _mostra_tabella_top_mix_mercato(righe, quote_meta=None):
+    """La TABELLA UNICA del Top Mix (mercato) + il calcolatore di multipla.
+
+    Nessun'altra tabella di scelte: Drago e Legacy non hanno una tabella
+    visibile (le loro righe vanno nel registro ombra). Quando il file delle
+    quote manca o non copre il turno lo si dice esplicitamente, invece di
+    mostrare una tabella vuota che sembrerebbe "nessuna partita probabile".
+    """
+    st.markdown("##### 🌟 Top Mix — scelte del mercato")
+    meta = quote_meta if isinstance(quote_meta, dict) else {}
+    stato = meta.get("stato")
+    if stato == STATO_OK:
+        crediti = meta.get("crediti") or {}
+        eta = meta.get("eta_ore")
+        st.caption(
+            f"Quote scaricate il **{meta.get('generato_il') or 'n/d'}** "
+            + (f"(eta' **{eta:.1f} h**)" if eta is not None else "(eta' n/d)") + ", "
+            f"{meta.get('fonte') or 'the-odds-api'}, regioni {meta.get('regioni') or 'eu'}, "
+            f"{meta.get('n_leghe_ok')}/{meta.get('n_leghe_richieste')} leghe con eventi, "
+            f"crediti residui {crediti.get('residui', 'n/d')} su "
+            f"{crediti.get('quota_mensile', 500)}. "
+            f"Soglia di ammissione: probabilita' di mercato ≥ "
+            f"{SOGLIA_TOPMIX_MERCATO:.2f}. Nessun filtro sulle quote basse: la tabella "
+            f"individua le partite piu' probabili, la quota minima la decide l'utente.")
+        if meta.get("obsoleto"):
+            # Quote vecchie: le righe RESTANO visibili (meglio una quota vecchia
+            # dichiarata che una tabella vuota senza spiegazione), ma l'eta' si
+            # legge qui e su ogni riga, non va indovinata.
+            st.error(
+                f"⚠️ Quote OBSOLETE: eta' {eta:.1f} h, oltre la soglia di "
+                f"{SOGLIA_ORE_QUOTE} h (scaricate il {meta.get('generato_il') or 'n/d'}). "
+                "Il workflow `live_odds.yml` non ha scritto di recente, oppure la sua "
+                "quota di crediti e' esaurita e il file precedente e' stato conservato. "
+                "Le probabilita' di mercato qui sotto sono quelle di allora.")
+    elif stato is not None:
+        st.caption(_DETTAGLIO_STATO_QUOTE.get(stato, stato))
+    else:
+        st.caption("File delle quote non disponibile: il workflow `live_odds.yml` non ha "
+                   "ancora scritto `SoccerMath/database/live_odds.json` (oppure la quota "
+                   "crediti era esaurita e il file precedente e' stato conservato).")
+    if not righe:
+        st.info("Nessuna partita con probabilita' di mercato ≥ "
+                f"{SOGLIA_TOPMIX_MERCATO:.2f} in questo turno"
+                + ("" if stato == STATO_OK else " (nessuna quota disponibile)."))
+        return
+    n_accordo = sum(1 for p in righe if p.get("accordo"))
+    st.caption(f"{len(righe)} partite sopra soglia (nessun tetto di righe) · "
+               f"{n_accordo} con il modello d'accordo · {len(righe) - n_accordo} senza accordo. "
+               f"Nessuna tabella Legacy o Drago separata: le scelte dei due motori vanno nel "
+               f"registro ombra.")
+    st.dataframe(tabella_top_mix_mercato(righe), width="stretch", height=420, hide_index=True)
+
+
+def righe_multipla(righe, etichette):
+    """Le righe del Top Mix di mercato scelte per la multipla (per etichetta)."""
+    per_etichetta = {etichetta_riga_multipla(p): p for p in righe}
+    return [per_etichetta[e] for e in etichette if e in per_etichetta]
+
+
+def etichetta_riga_multipla(p):
+    """Etichetta univoca di una riga nel selettore della multipla."""
+    return (f"#{p.get('rank') or '-'} {p['home']} vs {p['away']} — {p['esito']} "
+            f"({p['prob_val']}% @ {p['quota'] if p.get('quota') is not None else 'n/d'})")
+
+
+def calcolatore_multipla(righe):
+    """Calcolatore di multipla del Top Mix di mercato (fino a 5 righe).
+
+    Mostra probabilita' combinata, quota equa combinata (1/probabilita') e
+    confronto con la quota offerta (prodotto delle quote selezionate), con
+    l'edge risultante. L'avviso sull'indipendenza e' SEMPRE mostrato: non e' una
+    nota a pie' di pagina opzionale, e' l'ipotesi su cui si regge il calcolo.
+
+    Non giudica le quote basse: una quota 1,10 entra nella multipla come
+    qualsiasi altra, l'edge dice quanto paga. La scelta di una quota minima
+    resta dell'utente.
+    """
+    st.markdown("##### 🎟️ Calcolatore di multipla")
+    if not righe:
+        st.info("Nessuna riga nel Top Mix di mercato: la multipla non si puo' comporre.")
+        return
+    etichette = [etichetta_riga_multipla(p) for p in righe]
+    scelte = st.multiselect(
+        "Seleziona fino a 5 righe", etichette,
+        max_selections=MASSIMO_RIGHE_MULTIPLA,
+        help=f"Massimo {MASSIMO_RIGHE_MULTIPLA} righe. Probabilita' e quota vengono "
+             f"dalla stessa fonte (Pinnacle o media dei libri).",
+        key="multipla_selezione",
+    )
+    st.caption(AVVISO_INDIPENDENZA)
+    if not scelte:
+        return
+    selezionate = righe_multipla(righe, scelte)
+    esito = multipla([{"partita": f"{p['home']} vs {p['away']}", "esito": p["esito"],
+                       "prob": p["prob"], "quota": p["quota"]} for p in selezionate])
+    if not esito.get("ok"):
+        st.error(esito.get("errore") or "Selezione non valida.")
+        return
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Probabilita' combinata", f"{esito['probabilita_combinata'] * 100:.2f}%")
+    c2.metric("Quota equa (1/prob)", f"{esito['quota_equa']:.2f}")
+    c3.metric("Quota offerta", f"{esito['quota_offerta']:.2f}")
+    c4.metric("Edge", f"{esito['edge'] * 100:+.2f}%",
+              help="quota offerta / quota equa - 1. Positivo: la quota offerta "
+                   "paga piu' della quota equa ricavata dalle probabilita' di mercato.")
+    st.dataframe(pd.DataFrame(esito["righe"]).rename(columns={
+        "n": "#", "partita": "Partita", "esito": "Esito", "prob": "Probabilita'",
+        "quota": "Quota"}), width="stretch", hide_index=True)
+    if esito["edge"] < 0:
+        st.info("Edge negativo: la quota offerta paga MENO della quota equa. "
+                "E' la situazione normale (margine del bookmaker), non un errore.")
 
 
 # Nomi dei due modelli come li chiama il progetto (solo UI/etichette).
@@ -2579,6 +3260,15 @@ def _mostra_tabella_top_mix(righe, titolo, sottotitolo, css_class):
 # delle SCHEDE del record restano quelli dei referti: qui si cambia come si
 # chiamano i due motori in pagina, non cosa contengono i dati.
 NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", MODEL_VARIANT_LEGACY: "Legacy"}
+
+# Confine fra le due FAMIGLIE di selettore nel Registro visibile: prima di questa
+# data le righe Top Mix visibili sono scelte del MODELLO (v1/v2), da questa data
+# sono scelte del MERCATO (``topmix_mercato_v3``). Il confine NON e' dedotto dai
+# dati: e' la data in cui il selettore visibile e' cambiato, e dichiararlo evita
+# che un filtro per stagione o per data faccia credere che una famiglia sia
+# vuota perche' i dati mancano.
+CONFINE_FAMIGLIA_MERCATO = "09/10/2026"
+FAMIGLIA_ICONA = {FAMIGLIA_SELETTORE_MODELLO: "🧠", FAMIGLIA_SELETTORE_MERCATO: "🌟"}
 
 # Colonne delle due tabelle del Registro, in un posto solo: cosi' le due
 # tabelle non possono divergere fra loro.
@@ -2627,39 +3317,56 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
 
 
 with tab2:
-    st.caption("Due modelli, due tabelle: **Attuale** (Elo post-fix PR#24) sopra, "
-               "**Legacy** (Elo pre-fix, boost xG) sotto. Stesso Poisson, stesse soglie, "
-               "nessun tetto di righe. Solo 1X2: i Totali (Over/Under 2.5, GG/NG) non entrano nel Top Mix. "
-               "Entrambe scrivono nel Registro (campo `model_variant`).")
+    st.caption("Una tabella sola, basata sul **mercato**: la scelta (1/X/2) e' quella con la "
+               "probabilita' di mercato piu' alta, ammessa se supera il **55%**. Accanto, la "
+               "probabilita' del modello (Drago) sullo stesso esito e il segnale **d'accordo** "
+               "(modello e mercato entrambi ≥ 55% sullo stesso esito). "
+               "Le quote arrivano dal file scritto ogni giorno dal workflow `live_odds.yml`: "
+               "l'app non chiama nessuna API di quote. "
+               "Le scelte 1X2 di Drago e Legacy non sono piu' in tabella: continuano a essere "
+               "registrate nel registro ombra (`sm:registro:ombra`).")
     if st.button("🚀 Calcola Top Mix", type="primary"):
-        top_current, top_legacy, missing, ombra = fetch_and_calc_top_mix()
+        (top_mercato, top_current, top_legacy, missing, ombra,
+         senza_quote) = fetch_and_calc_top_mix()
         # fetch_and_calc_top_mix e' cached (ttl=1800) e il suo `now` e' congelato:
         # si rifiltra contro l'orologio reale PRIMA di mostrare e di salvare, cosi'
         # nessuna partita gia' iniziata puo' entrare nel registro (problema
         # `cache_30min` in audit/results/topmix_registry_tracking.json).
+        top_mercato, scartate_mkt = righe_non_iniziate(top_mercato)
         top_current, scartate_cur = righe_non_iniziate(top_current)
         top_legacy, scartate_leg = righe_non_iniziate(top_legacy)
         # Stesso filtro sul registro ombra: nessuna partita gia' iniziata entra.
         ombra, _scartate_ombra = righe_non_iniziate(ombra)
-        scartate_inizio = scartate_cur + scartate_leg
+        senza_quote, _scartate_sq = righe_non_iniziate(senza_quote)
+        scartate_inizio = scartate_mkt + scartate_cur + scartate_leg
         if scartate_inizio:
             st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
         if missing: st.warning(f"⚠️ Mancanti: {', '.join(missing)}")
-        tabelle = (
-            (MODEL_VARIANT_CURRENT, top_current, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
-             "Elo attuale (models/elo_engine.py, post-fix PR#24)", "top-mix-current"),
-            (MODEL_VARIANT_LEGACY, top_legacy, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
-             "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo)", "top-mix-legacy"),
-        )
+
+        # --- partite senza quote: escluse dal Top Mix e SEGNALATE per nome ---
+        if senza_quote:
+            st.warning(
+                f"⚠️ {len(senza_quote)} partite SENZA quote di mercato: escluse dal Top Mix "
+                f"(nessuna probabilita' inventata). "
+                + "; ".join(f"{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})"
+                            for r in senza_quote))
+
+        stato_quote = carica_indice_quote_live()
+        # Un messaggio per ogni stato del file: "non c'e'", "non si legge" e
+        # "c'e' ma non ha la chiave leghe" si riparano in modi diversi.
+        _avviso_stato_quote(stato_quote, "Top Mix")
+        # Nomi della fonte non riconosciuti: problema a monte, avviso separato.
+        _mostra_non_abbinati_fonte(stato_quote, "Top Mix")
+        _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
+        calcolatore_multipla(top_mercato)
+
+        # --- Registro VISIBILE: solo le scelte del mercato (topmix_mercato_v3) ---
         esiti_save = []
-        for variante, righe_tab, titolo, sottotitolo, css in tabelle:
-            _mostra_tabella_top_mix(righe_tab, titolo, sottotitolo, css)
-            for p in righe_tab:
-                if not p.get('match_id'):
-                    continue
-                # Stesso meccanismo per le due tabelle: cambia solo model_variant.
-                args_reg, kwargs_reg = argomenti_registro_top_mix(p, model_variant=variante)
-                esiti_save.append(save_prediction_entry(*args_reg, **kwargs_reg))
+        for p in top_mercato:
+            if not p.get('match_id'):
+                continue
+            args_reg, kwargs_reg = argomenti_registro_top_mix_mercato(p)
+            esiti_save.append(save_prediction_entry(*args_reg, **kwargs_reg))
         # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
         # quando la scrittura remota (PUT su JSONBin, HSET su Upstash) era
         # fallita dentro un `except: pass`.
@@ -2680,11 +3387,13 @@ with tab2:
                            f"scrittura remota fallita (vedi log). Registro: {dettaglio}.")
             else:
                 st.success(f"✅ Top Mix nel registro: {dettaglio}.")
-        # Registro OMBRA dei Totali: DUE righe per partita candidata (migliore O/U 2.5 e
-        # migliore GG/NG), le scelte che il vecchio selettore avrebbe fatto sui Totali.
-        # Non vengono mostrate. Se la
-        # scrittura fallisce si dice SOLO che non e' avvenuta (mai il contenuto).
-        esito_ombra = salva_registro_ombra(ombra)
+
+        # --- Registro OMBRA: Totali (due righe per candidata) + 1X2 di Drago e
+        # Legacy, che non sono piu' il Top Mix visibile. Non vengono mostrate.
+        # Se la scrittura fallisce si dice SOLO che non e' avvenuta (mai il contenuto).
+        esito_ombra = salva_registro_ombra(
+            ombra, righe_modello={MODEL_VARIANT_CURRENT: top_current,
+                                  MODEL_VARIANT_LEGACY: top_legacy})
         if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
             st.warning(f"⚠️ Registro ombra non scritto: "
                        f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
@@ -2886,7 +3595,6 @@ with tab5:
             # Variante non riconosciuta: non si nasconde (vedi la terza tabella).
             parti_variante["altro"] = resto_records
         all_records = df_display.to_dict("records")
-        all_stats = stats_all(all_records)
         schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
         _mostra_blocco_modello(
@@ -2911,22 +3619,62 @@ with tab5:
                 "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
             )
 
-        st.caption(
-            f"Totale registro (audit complessivo): Totale {all_stats['total']}, "
-            f"Vinte {all_stats['wins']} ({all_stats['win_rate']:.1f}% su decise), "
-            f"Perse {all_stats['losses']}, Attesa {all_stats['pending']}."
-        )
+        # NESSUN totale unico: dal 09/10/2026 il Registro visibile contiene due
+        # FAMIGLIE di selettore (le scelte storiche del MODELLO e quelle del
+        # MERCATO). Sommarle conterebbe due volte la stessa partita quando le
+        # due scelte coincidono (PR #49 §4d: 1144 su 1302) e mescolerebbe due
+        # probabilita' diverse nello stesso Brier. Una intestazione per famiglia,
+        # ciascuna con il proprio totale, win rate e Brier.
+        for _fam, _etichetta, _nota in (
+            (FAMIGLIA_SELETTORE_MODELLO,
+             f"Modello — fino al {CONFINE_FAMIGLIA_MERCATO}",
+             "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
+             "di mercato. Da questa data le nuove scelte del modello vanno nel "
+             "registro ombra, quindi questa famiglia non cresce piu'."),
+            (FAMIGLIA_SELETTORE_MERCATO,
+             f"Mercato — dal {CONFINE_FAMIGLIA_MERCATO}",
+             "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
+             "soglia 0,55, fonte Pinnacle o media dei libri."),
+        ):
+            _stat = compute_stats(all_records, famiglia=_fam)
+            _cal = compute_calibration_stats(all_records, famiglia=_fam)
+            st.markdown(f"###### {FAMIGLIA_ICONA[_fam]} {_etichetta}")
+            st.caption(_nota)
+            if not _stat["total"]:
+                st.caption("Nessuna riga di questa famiglia nel Registro visibile "
+                           "(con i filtri selezionati).")
+                continue
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Totale", _stat["total"])
+            c2.metric("Vinte", f"{_stat['wins']} ({_stat['win_rate']:.1f}%)",
+                      help="Percentuale sulle sole partite gia' giudicate.")
+            c3.metric("Perse / Attesa", f"{_stat['losses']} / {_stat['pending']}")
+            c4.metric("Brier medio",
+                      f"{_cal['brier']:.4f}" if _cal["brier"] is not None else "n/d",
+                      help="Media di (probabilita' dichiarata - esito)^2 sulle "
+                           "partite giudicate. Calcolato SOLO su questa famiglia: "
+                           "mescolare modello e mercato non descriverebbe nessuno dei due.")
+            c5.metric("Gap prob - hit",
+                      f"{_cal['gap']:+.1f} pp" if _cal["gap"] is not None else "n/d")
 
         # --- AFFIDABILITA' (Brier), non solo win rate ---
         # `prob_sicuro` era gia' persistito: expose the calibration for free.
         # Con due modelli nel registro la calibrazione si legge PER VARIANTE:
         # mescolarle produrrebbe un Brier di nessuno dei due. Le parti sono le
         # stesse dei due blocchi e delle due tabelle (calcolate una volta sola).
+        # L'affidabilita' per motore resta una lettura DENTRO la famiglia del
+        # modello: le righe del mercato non hanno un motore (il modello entra
+        # solo come probabilita' di confronto), quindi non vanno in questi blocchi.
+        righe_famiglia_modello = [r for r in all_records
+                                  if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
+        parti_variante = {k: [r for r in v
+                              if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
+                          for k, v in parti_variante.items()}
         if len(parti_variante) > 1:
             for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
                 _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
         else:
-            _mostra_affidabilita(all_records)
+            _mostra_affidabilita(righe_famiglia_modello)
 
         # La SCHEDA del record (con quale versione di pipeline la riga e' stata
         # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e

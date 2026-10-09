@@ -93,6 +93,7 @@ from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_FIELD,
     MODEL_VARIANT_LEGACY,
     ORIGIN_TOP_MIX,
+    SELECTOR_VERSION_MODELLO_1X2,
     TWO_MODELS_MERGE_INSTANT,
     dedup_key,
     esito_mercato,
@@ -555,9 +556,12 @@ def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
                     continue
                 matches = app.select_next_matchday_matches(pool, now=instant)
                 selected[league] = len(matches)
+                # Il replay ricostruisce i click del MODELLO: non passa le quote
+                # dal vivo, quindi le chiavi "mercato"/"senza_quote" restano vuote
+                # e qui si leggono solo le due varianti del modello.
                 righe = app.calcola_righe_top_mix(league, matches, engine)
-                for variante, lista in righe.items():
-                    per_variante[variante].extend(lista)
+                for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
+                    per_variante[variante].extend(righe.get(variante) or [])
             rows = {v: app.classifica_top_mix(lst) for v, lst in per_variante.items()}
         finally:
             app.season_point_in_time_averages = originale
@@ -610,6 +614,18 @@ def entries_for_targets(click: ClickResult, variant: str = MODEL_VARIANT_LEGACY)
     ``build_prediction_entry`` (``snapshot_sha`` = commit dello snapshot,
     ``salvato_il`` = istante del click in ora italiana) -> grading con
     ``esito_mercato`` come ``aggiorna_risultati_reali``.
+
+    STORIA, NON OMBRA. Dalla PR delle quote live ``argomenti_registro_top_mix``
+    produce righe di OMBRA (``top_mix_ombra`` + ``topmix_ombra_1x2_v1``): e'
+    giusto per il tab2, che oggi scrive il Top Mix di mercato nel Registro
+    visibile e i due modelli nell'ombra. Il replay invece RICOSTRUISCE il Top
+    Mix che era visibile allora: le sue righe devono restare ``top_mix`` con la
+    versione del selettore del modello, perche' la chiave di dedup
+    ``(match_id, origin, selector_version, model_variant)`` e' quella con cui
+    il Registro riconosce le righe gia' scritte. Cambiare ``origin`` qui
+    significherebbe scrivere una SECONDA copia della storia nell'hash ombra,
+    accanto a quella visibile: doppioni permanenti e confronti impossibili.
+    I due valori sono quindi fissati esplicitamente sotto.
     """
     import app
     per_id = {str(t.match_id): t for t in click.targets}
@@ -620,6 +636,9 @@ def entries_for_targets(click: ClickResult, variant: str = MODEL_VARIANT_LEGACY)
         if t is None or not p.get("match_id"):
             continue
         args, kwargs = app.argomenti_registro_top_mix(p, model_variant=variant)
+        # Vedi il docstring: il replay ricostruisce righe VISIBILI storiche.
+        kwargs["origin"] = ORIGIN_TOP_MIX
+        kwargs["selector_version"] = SELECTOR_VERSION_MODELLO_1X2
         entry = app.build_prediction_entry(*args, **kwargs, snapshot_sha=click.snapshot_sha,
                                            salvato_il=salvato_il)
         if t.gh is not None and t.ga is not None:

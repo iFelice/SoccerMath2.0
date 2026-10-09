@@ -155,15 +155,28 @@ TIPO_BY_ORIGIN = {
 # Storia:
 # * ``SELECTOR_VERSION_PRE_1X2``: selettore a 7 mercati (argmax su 1X2 E Totali).
 #   E' la versione di TUTTE le righe scritte fino alla PR che toglie i Totali dal
-#   Top Mix visibile, ed e' il DEFAULT di ``build_prediction_entry``: Analisi
-#   Rapida e Billy lo usano e NON cambiano.
-# * ``SELECTOR_VERSION_CURRENT``: Top Mix visibile dopo la PR, argmax SOLO su
-#   1X2 (soglie 0,55 con Elo / 0,60 senza, veto invariati). Il Top Mix la passa
-#   esplicitamente (``argomenti_registro_top_mix``). Chiave nuova: una riga
-#   PRE_1X2 gia' scritta non viene mai sovrascritta.
+#   Top Mix visibile, ed e' il DEFAULT di ``build_prediction_entry`` per Analisi
+#   Rapida e Billy, che NON cambiano.
+# * ``SELECTOR_VERSION_MODELLO_1X2``: Top Mix a due tabelle, argmax SOLO su 1X2
+#   del MODELLO (soglie 0,55 con Elo / 0,60 senza, veto |Poisson-Elo| < 0,25).
+#   Dalla PR delle quote live queste righe NON sono piu' il Top Mix visibile:
+#   vanno nel registro OMBRA (``SELECTOR_VERSION_OMBRA_1X2``). La costante resta
+#   per leggere le righe gia' scritte: non si rinominano i dati esistenti.
+# * ``SELECTOR_VERSION_CURRENT`` = ``topmix_mercato_v3``: il Top Mix visibile
+#   sceglie sul MERCATO (de-vig proporzionale di Pinnacle, riserva sulla media
+#   dei book; soglia 0,55 sulla probabilita' di mercato), con la probabilita' del
+#   modello (Drago) e il segnale "d'accordo" accanto. E' una versione nuova
+#   perche' cambiano le probabilita' che decidono: la chiave di dedup cambia e
+#   nessuna riga v1/v2 viene sovrascritta.
+#   Misurato in PR #49 (``audit/results/onex2_market_test.md`` §4, §4d): scelte
+#   del mercato 1302 con hit 67,5%; scelte del modello 1479 con hit 62,6%;
+#   modello CON accordo del mercato 1144 con hit 68,2%; modello SENZA accordo
+#   335 con hit 43,6%.
 SELECTOR_VERSION_FIELD = "selector_version"
 SELECTOR_VERSION_PRE_1X2 = "topmix_gate025_ens06_v1"
-SELECTOR_VERSION_CURRENT = "topmix_1x2_gate025_ens06_v2"
+SELECTOR_VERSION_MODELLO_1X2 = "topmix_1x2_gate025_ens06_v2"
+SELECTOR_VERSION_MERCATO_V3 = "topmix_mercato_v3"
+SELECTOR_VERSION_CURRENT = SELECTOR_VERSION_MERCATO_V3
 # REGOLA (verificata da SoccerMath/test_versione_selettore.py): ogni modifica che cambia le
 # probabilita' o la selezione del Top Mix ALZA questa versione e aggiunge la nuova impronta
 # in IMPRONTE. Il verificatore (audit/verifica_click_live.py) confronta solo le righe di questa
@@ -196,11 +209,20 @@ SELECTOR_VERSION_CURRENT = "topmix_1x2_gate025_ens06_v2"
 # * sono valutate a esito noto con lo stesso grading delle righe normali.
 SELECTOR_VERSION_OMBRA_OU25 = "topmix_ombra_ou25_v1"    # migliore fra Over 2.5 / Under 2.5
 SELECTOR_VERSION_OMBRA_GGNG = "topmix_ombra_ggng_v1"    # migliore fra GG / NG
+# Dalla PR delle quote live il Top Mix visibile sceglie sul MERCATO: le scelte
+# 1X2 dei DUE motori (Drago / Legacy) non spariscono, passano nel registro
+# ombra con una versione per famiglia, cosi' restano misurabili e le righe gia'
+# scritte (v1/v2 del Registro visibile) non vengono toccate. La chiave di dedup
+# (match_id, origin, selector_version, model_variant) separa Drago da Legacy:
+# stesse regole anti-doppione di prima, due righe che non si sovrascrivono.
+SELECTOR_VERSION_OMBRA_1X2 = "topmix_ombra_1x2_v1"      # 1X2 del modello (Drago / Legacy)
 OMBRA_FAMIGLIA_OU25 = "ou25"
 OMBRA_FAMIGLIA_GGNG = "ggng"
+OMBRA_FAMIGLIA_1X2 = "1x2"
 SELECTOR_VERSION_OMBRA_BY_FAMIGLIA = {
     OMBRA_FAMIGLIA_OU25: SELECTOR_VERSION_OMBRA_OU25,
     OMBRA_FAMIGLIA_GGNG: SELECTOR_VERSION_OMBRA_GGNG,
+    OMBRA_FAMIGLIA_1X2: SELECTOR_VERSION_OMBRA_1X2,
 }
 OMBRA_FIELD = "ombra"                                     # True SOLO sulle righe ombra
 OMBRA_FAMIGLIA_FIELD = "ombra_famiglia"                   # ou25 / ggng (vedi famiglia_ombra)
@@ -213,6 +235,21 @@ OMBRA_DATI_MANCANTI_FIELD = "ombra_dati_mancanti"         # statistiche di defau
 OMBRA_SOGLIA_TOTALI = 0.60
 # Codici dei Totali (``mercato_standard``): gli stessi di ``_GRADING``.
 MERCATI_TOTALI_CODICI = ("OVER_2.5", "UNDER_2.5", "GG", "NG")
+
+# ---------------------------------------------------------------------------
+# Top Mix di mercato (``SELECTOR_VERSION_MERCATO_V3``): campi della riga
+# ---------------------------------------------------------------------------
+# La riga visibile del Top Mix e' la scelta del MERCATO: oltre ai campi di
+# sempre porta la fonte della probabilita', la quota con cui la si confronta e
+# il segnale di accordo col modello. Sono campi OPZIONALI e aggiuntivi: una
+# riga scritta prima (v1/v2) non li ha e continua a essere letta come prima.
+MERCATO_FONTE_FIELD = "mercato_fonte"          # pinnacle / media_libri (riga per riga)
+MERCATO_N_LIBRI_FIELD = "mercato_n_libri"      # libri con terna h2h valida
+PROB_MERCATO_FIELD = "prob_mercato"            # frazione in [0,1] (de-vig proporzionale)
+QUOTA_MERCATO_FIELD = "quota_mercato"          # quota decimale della stessa fonte
+ACCORDO_MODELLO_FIELD = "accordo_modello"      # modello e mercato >= 0,55 sullo stesso esito
+PROB_MODELLO_FIELD = "prob_modello"            # blend Drago sullo stesso esito
+QUOTE_LIVE_ISTANTE_FIELD = "quote_live_istante"  # timestamp di acquisizione delle quote
 
 # ---------------------------------------------------------------------------
 # Variante del MODELLO: Top Mix a due motori (attuale / legacy)
@@ -975,15 +1012,44 @@ def is_ombra(entry: Any) -> bool:
     return entry.get(OMBRA_FIELD) is True or origin_of(entry) == ORIGIN_TOP_MIX_OMBRA
 
 
-def chiave_tabella_mercato(entry: Any) -> Tuple[str, str, str]:
-    """Chiave di DOPPIONE fra versioni del selettore: (tabella/modello, match_id, mercato).
+# ---------------------------------------------------------------------------
+# Famiglia del selettore: modello (Drago/Legacy) contro mercato
+# ---------------------------------------------------------------------------
+# La regola dei doppioni fra versioni dice che DUE VERSIONI DELLO STESSO
+# selettore non scrivono due righe per la stessa (tabella, partita, mercato).
+# Dalla PR delle quote live esistono DUE selettori diversi, non due versioni
+# dello stesso: quello del modello (v1/v2, oggi ombra) e quello del mercato
+# (``topmix_mercato_v3``, Top Mix visibile). Sono due scelte diverse sulla stessa
+# partita (PR #49 §4d: coincidono su 1144 partite e divergono sulle altre),
+# quindi devono poter coesistere -- esattamente come Drago e Legacy coesistono
+# grazie a ``model_variant``. La famiglia entra nella chiave dei doppioni; la
+# versione continua a NON entrarci.
+FAMIGLIA_SELETTORE_MODELLO = "modello"
+FAMIGLIA_SELETTORE_MERCATO = "mercato"
+VERSIONI_SELETTORE_MERCATO = frozenset({SELECTOR_VERSION_MERCATO_V3})
+
+
+def famiglia_selettore(entry: Any) -> str:
+    """``mercato`` per le righe del selettore di mercato, ``modello`` per le altre.
+
+    Una riga senza versione (scritta prima del versionamento) e' del modello:
+    il selettore di mercato non esisteva.
+    """
+    return (FAMIGLIA_SELETTORE_MERCATO if selector_version_of(entry) in VERSIONI_SELETTORE_MERCATO
+            else FAMIGLIA_SELETTORE_MODELLO)
+
+
+def chiave_tabella_mercato(entry: Any) -> Tuple[str, str, str, str]:
+    """Chiave di DOPPIONE fra versioni del selettore:
+    (famiglia selettore, tabella/modello, match_id, mercato).
 
     Ignora ``selector_version`` di proposito: la versione in prova e quella
-    precedente scrivono la stessa partita e lo stesso mercato, e per la vista e per
-    la scrittura sono la stessa scelta. ``dedup_key`` (identita' della riga) resta
-    invariata: qui si decide solo cosa mostrare e cosa non aggiungere.
+    precedente dello STESSO selettore scrivono la stessa partita e lo stesso
+    mercato, e per la vista e per la scrittura sono la stessa scelta.
+    ``dedup_key`` (identita' della riga) resta invariata: qui si decide solo
+    cosa mostrare e cosa non aggiungere.
     """
-    return (model_variant_read(entry), str(entry.get("match_id")),
+    return (famiglia_selettore(entry), model_variant_read(entry), str(entry.get("match_id")),
             str(entry.get("mercato_standard") or ""))
 
 
@@ -1049,8 +1115,34 @@ def righe_visibili(entries: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return dedup_visibili_top_mix([e for e in (entries or []) if not is_ombra(e)])
 
 
-def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    lst = dedup_visibili_top_mix([e for e in entries if not is_ombra(e)])
+def _filtra_per_famiglia(lista: List[Dict[str, Any]],
+                         famiglia: Optional[str]) -> List[Dict[str, Any]]:
+    """Tiene solo le righe di UNA famiglia di selettore (``None`` = tutte).
+
+    Dalla PR delle quote live il Registro visibile contiene DUE famiglie: le
+    scelte storiche del MODELLO (``topmix_1x2_gate025_ens06_v2`` e precedenti) e
+    le scelte del MERCATO (``topmix_mercato_v3``). Sono due selettori diversi
+    sulla stessa partita, quindi un totale unico le mescolerebbe: sulla stessa
+    partita lo stesso esito verrebbe contato due volte, una alla probabilita'
+    del modello e una a quella del mercato (PR #49 §4d: le due scelte
+    coincidono su 1144 partite su 1302). Per questo le statistiche si leggono
+    per famiglia, e il filtro sta qui — non in ``dedup_key`` ne' in
+    ``chiave_tabella_mercato``, che restano invariati.
+    """
+    if famiglia is None:
+        return lista
+    return [e for e in lista if famiglia_selettore(e) == famiglia]
+
+
+def compute_stats(entries: Iterable[Dict[str, Any]],
+                  famiglia: Optional[str] = None) -> Dict[str, Any]:
+    """Win rate sulle righe visibili, eventualmente di UNA sola famiglia.
+
+    ``famiglia`` in ``{FAMIGLIA_SELETTORE_MODELLO, FAMIGLIA_SELETTORE_MERCATO}``;
+    ``None`` (default, comportamento di prima) tiene tutte le famiglie insieme.
+    """
+    lst = _filtra_per_famiglia(
+        dedup_visibili_top_mix([e for e in entries if not is_ombra(e)]), famiglia)
     wins = 0
     losses = 0
     pending = 0
@@ -1071,6 +1163,7 @@ def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         "pending": pending,
         "decided": decided,
         "win_rate": win_rate,
+        "famiglia": famiglia,
         "entries": lst,
     }
 
@@ -1548,13 +1641,20 @@ def brier_of_entry(entry: Any) -> Optional[float]:
     return (p - y) ** 2
 
 
-def compute_calibration_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+def compute_calibration_stats(entries: Iterable[Dict[str, Any]],
+                              famiglia: Optional[str] = None) -> Dict[str, Any]:
     """Win rate + Brier + gap di calibrazione sullo stesso sottoinsieme.
 
     Il Registro finora esponeva SOLO il win rate, mentre ``prob_sicuro`` e'
     persistito da sempre: il Brier non richiede nessuna migrazione.
+
+    ``famiglia`` come in ``compute_stats``: senza filtro il Brier mescolerebbe
+    le probabilita' del modello con quelle del mercato sulla stessa partita, e
+    non descriverebbe nessuno dei due selettori.
     """
-    lst = dedup_visibili_top_mix([e for e in (entries or []) if is_dict(e) and not is_ombra(e)])
+    lst = _filtra_per_famiglia(
+        dedup_visibili_top_mix([e for e in (entries or []) if is_dict(e) and not is_ombra(e)]),
+        famiglia)
     decise = [e for e in lst if outcome_of_entry(e) is not None]
     coppie = [(prob_of_entry(e), outcome_of_entry(e)) for e in decise]
     coppie = [(p, y) for p, y in coppie if p is not None]
@@ -1570,6 +1670,7 @@ def compute_calibration_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, An
         "prob_media": (mean_p * 100.0) if mean_p is not None else None,
         "gap": ((mean_p - hit) * 100.0) if (mean_p is not None and hit is not None) else None,
         "brier": brier,
+        "famiglia": famiglia,
     }
 
 

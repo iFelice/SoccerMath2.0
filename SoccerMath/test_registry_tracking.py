@@ -341,7 +341,12 @@ class TestVersioneSelettore(unittest.TestCase):
         self.assertEqual(md[R.MODEL_VERSION_FIELD], R.MODEL_VERSION_CURRENT)
         self.assertFalse(md[R.EXCLUDED_FROM_CURRENT_STATS_FIELD])
         # bump intenzionale (PR Totali): il Top Mix visibile e' solo 1X2
-        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_1x2_gate025_ens06_v2")
+        # v3: dal Top Mix di mercato la versione corrente e' quella del
+        # selettore di mercato (le scelte dei due modelli vanno in ombra con
+        # ``topmix_ombra_1x2_v1``).
+        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_mercato_v3")
+        self.assertEqual(R.SELECTOR_VERSION_CURRENT, R.SELECTOR_VERSION_MERCATO_V3)
+        self.assertEqual("topmix_1x2_gate025_ens06_v2", R.SELECTOR_VERSION_MODELLO_1X2)
         self.assertEqual(R.SELECTOR_VERSION_PRE_1X2, "topmix_gate025_ens06_v1")
 
 

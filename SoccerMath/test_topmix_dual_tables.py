@@ -14,8 +14,13 @@ Cosa viene provato (Commessa "Top Mix a due modelli", FASE 3/4):
   record: i suoi argomenti sono esattamente quelli accettati da
   ``save_prediction_entry``/``build_prediction_entry``, e la variante passa
   nel record senza altre differenze;
-* guardie sul sorgente del tab2: due tabelle etichettate, Attuale sopra e
-  Legacy sotto, entrambe salvate con lo STESSO ``save_prediction_entry``.
+* guardie sul sorgente del tab2: dalla PR delle quote live il tab2 mostra UNA
+  sola tabella, quella del MERCATO. Le due liste del modello non sono piu'
+  mostrate: alimentano il registro ombra. Qui si verifica che (a) la tabella
+  mostrata e salvata e' quella di mercato, (b) il Registro visibile e' scritto
+  da un solo punto (``argomenti_registro_top_mix_mercato`` +
+  ``save_prediction_entry``), (c) le righe del modello arrivano ancora a
+  ``salva_registro_ombra``, (d) le partite senza quote sono segnalate.
 """
 from __future__ import annotations
 
@@ -34,6 +39,7 @@ if HERE not in sys.path:
 logging.getLogger("streamlit").setLevel(logging.ERROR)
 
 import app  # noqa: E402
+import market_odds as mo  # noqa: E402
 from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_FIELD,
@@ -80,7 +86,13 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
         cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
         leg_elo = lambda h, a, l, season=None: {"1": 0.55, "X": 0.25, "2": 0.20}
         righe = self._righe(cur_elo, leg_elo)
-        self.assertEqual({MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY}, set(righe))
+        self.assertEqual({MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY, "mercato",
+                          "senza_quote"}, set(righe))
+        # senza l'indice delle quote (quote=None, come nel replay walk-forward)
+        # la tabella di mercato e' vuota e non viene segnalata nessuna partita:
+        # non e' "senza quote", e' "quote non richieste".
+        self.assertEqual([], righe["mercato"])
+        self.assertEqual([], righe["senza_quote"])
         cur = {r["match_id"]: r for r in righe[MODEL_VARIANT_CURRENT]}
         leg = {r["match_id"]: r for r in righe[MODEL_VARIANT_LEGACY]}
         self.assertIn(1, cur, "Inter-Roma deve passare la soglia 1X2 col blend Elo attuale")
@@ -169,8 +181,16 @@ class TestNessunTetto(unittest.TestCase):
              mock.patch.object(app, "_roster_stagione", return_value=None), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
-            top_current, top_legacy, missing, ombra = app.fetch_and_calc_top_mix()
+            (top_mercato, top_current, top_legacy, missing, ombra,
+             senza_quote) = app.fetch_and_calc_top_mix()
         n_leghe = len(app.LEAGUES_CONFIG)
+        # nessuna macchina di CI ha database/live_odds.json: senza il file non
+        # ci sono righe di mercato. "Quote non richieste" (file assente) NON e'
+        # lo stesso di "partita senza quote": nel secondo caso la partita entra
+        # in senza_quote ed e' segnalata per nome (verificato in
+        # test_topmix_mercato.py con un file di quote simulato).
+        self.assertEqual([], top_mercato)
+        self.assertEqual([], senza_quote)
         self.assertEqual([], missing)
         # registro ombra: DUE scelte per ogni partita candidata (migliore O/U 2.5 e migliore
         # GG/NG, ciascuna con la sua confidence), anche se non mostrate
@@ -236,25 +256,61 @@ class TestGuardieTab2(unittest.TestCase):
         j = cls.src.index("with tab3:")
         cls.tab2 = cls.src[i:j]
 
-    def test_due_tabelle_etichettate_attuale_sopra_legacy_sotto(self):
-        self.assertIn('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"', self.tab2)
-        self.assertIn('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"', self.tab2)
-        self.assertLess(self.tab2.index('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"'),
-                        self.tab2.index('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"'))
-        self.assertIn("(MODEL_VARIANT_CURRENT, top_current,", self.tab2)
-        self.assertIn("(MODEL_VARIANT_LEGACY, top_legacy,", self.tab2)
-        self.assertIn("_mostra_tabella_top_mix(righe_tab, titolo, sottotitolo, css)", self.tab2)
+    def test_una_sola_tabella_quella_di_mercato(self):
+        """Commessa 'quote live', punto 4: NESSUNA tabella visibile dei modelli."""
+        self.assertIn("_mostra_tabella_top_mix_mercato(top_mercato, stato_quote)", self.tab2)
+        self.assertIn("calcolatore_multipla(top_mercato)", self.tab2)
+        # la vecchia tabella dei modelli non esiste piu' (ne' la chiamata, ne' i
+        # titoli etichettati per motore)
+        self.assertNotIn("_mostra_tabella_top_mix(", self.tab2)
+        self.assertNotIn('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"', self.tab2)
+        self.assertNotIn('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"', self.tab2)
 
-    def test_entrambe_salvano_con_lo_stesso_meccanismo(self):
-        self.assertIn("args_reg, kwargs_reg = argomenti_registro_top_mix(p, model_variant=variante)", self.tab2)
+    def test_il_registro_visibile_prende_solo_le_scelte_di_mercato(self):
+        self.assertIn("args_reg, kwargs_reg = argomenti_registro_top_mix_mercato(p)", self.tab2)
         self.assertIn("save_prediction_entry(*args_reg, **kwargs_reg)", self.tab2)
-        self.assertEqual(1, self.tab2.count("save_prediction_entry("), "un solo punto di scrittura per le due tabelle")
+        self.assertEqual(1, self.tab2.count("save_prediction_entry("),
+                         "un solo punto di scrittura per il Registro visibile")
+        self.assertIn("for p in top_mercato:", self.tab2)
+        self.assertNotIn("for variante, righe_tab in (", self.tab2)
         self.assertNotIn("[:10]", self.tab2)
         self.assertNotIn("ricostru", self.tab2.lower())
 
-    def test_filtro_rigo_iniziato_su_entrambe(self):
-        self.assertIn("righe_non_iniziate(top_current)", self.tab2)
-        self.assertIn("righe_non_iniziate(top_legacy)", self.tab2)
+    def test_le_scelte_dei_due_modelli_vanno_ancora_nel_registro_ombra(self):
+        """Punto 6: Drago e Legacy non spariscono, passano in ``sm:registro:ombra``."""
+        self.assertIn("esito_ombra = salva_registro_ombra(", self.tab2)
+        self.assertIn("righe_modello={MODEL_VARIANT_CURRENT: top_current,", self.tab2)
+        self.assertIn("MODEL_VARIANT_LEGACY: top_legacy}", self.tab2)
+        # le righe dei due motori NON entrano nel Registro visibile
+        self.assertNotIn("save_prediction_entry(*args_reg, **kwargs_reg)\n        for p in top_current",
+                         self.tab2)
+
+    def test_partite_senza_quote_e_file_assente_sono_segnalate(self):
+        """Punto 3: niente quote -> esclusione SEGNALATA, mai silenziosa."""
+        self.assertIn("if senza_quote:", self.tab2)
+        self.assertIn("partite SENZA quote di mercato", self.tab2)
+        self.assertIn("{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})", self.tab2)
+        # Lo stato del file ha un messaggio per ogni caso (assente / non
+        # leggibile / senza_leghe / ok): il testo sta in
+        # _DETTAGLIO_STATO_QUOTE, qui si verifica che il tab2 lo usi e che
+        # mostri anche i nomi della fonte non riconosciuti (avviso separato).
+        self.assertIn('_avviso_stato_quote(stato_quote, "Top Mix")', self.tab2)
+        self.assertIn('_mostra_non_abbinati_fonte(stato_quote, "Top Mix")', self.tab2)
+        self.assertNotIn("Quote dal vivo ASSENTI", self.tab2,
+                         "il testo unico 'non c'e\'' e' sostituito dai messaggi per stato")
+        stati_guasti = (mo.STATO_ASSENTE, mo.STATO_NON_LEGGIBILE, mo.STATO_SENZA_LEGHE)
+        self.assertEqual(3, len({app._DETTAGLIO_STATO_QUOTE[s] for s in stati_guasti}),
+                         "tre stati, tre messaggi diversi")
+        # solo lo stato "assente" dice che il file non esiste: gli altri due
+        # devono dire che il file C'E' (nasconderlo farebbe cercare nel posto
+        # sbagliato)
+        self.assertIn("non esiste", app._DETTAGLIO_STATO_QUOTE[mo.STATO_ASSENTE])
+        for stato in (mo.STATO_NON_LEGGIBILE, mo.STATO_SENZA_LEGHE):
+            self.assertIn("ESISTE", app._DETTAGLIO_STATO_QUOTE[stato], stato)
+
+    def test_filtro_riga_iniziata_su_tutte_le_liste(self):
+        for nome in ("top_mercato", "top_current", "top_legacy", "ombra", "senza_quote"):
+            self.assertIn(f"righe_non_iniziate({nome})", self.tab2, nome)
 
 
 if __name__ == "__main__":

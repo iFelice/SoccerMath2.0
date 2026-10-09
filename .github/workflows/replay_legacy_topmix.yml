@@ -124,6 +124,7 @@ jobs:
               'SoccerMath/prediction_registry.py',
               'SoccerMath/registry_store.py',
               'SoccerMath/team_aliases.py',
+              'SoccerMath/market_odds.py',
               'SoccerMath/season_rosters.py',
               'SoccerMath/season_calendar.py',
               'audit/replay_legacy_topmix.py',
@@ -153,6 +154,10 @@ jobs:
               'SoccerMath/test_legacy_elo_engine.py',
               'SoccerMath/test_model_variant_registry.py',
               'SoccerMath/test_topmix_dual_tables.py',
+              'SoccerMath/test_topmix_mercato.py',
+              'SoccerMath/test_quote_live.py',
+              'audit/replay_topmix_mercato.py',
+              '.github/workflows/live_odds.yml',
             ]);
             const relevant = path => paths.has(path) || path.startsWith('SoccerMath/models/');
             try {

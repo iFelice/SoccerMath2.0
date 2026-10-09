@@ -233,8 +233,14 @@ class TestSelettoreInvariato(unittest.TestCase):
         self.assertTrue(s["elo_legacy_chiamato"])
         self.assertFalse(s["has_over_15"])
         self.assertFalse(s["has_over_35"])
-        # bump intenzionale (PR Totali): il Top Mix visibile e' solo 1X2
-        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_1x2_gate025_ens06_v2")
+        # bump intenzionale (PR Totali): il Top Mix visibile e' solo 1X2.
+        # Dalla PR delle quote live la versione CORRENTE e' quella del selettore
+        # di mercato (v3); v2 resta la versione del selettore del MODELLO, le cui
+        # scelte ora vanno nel registro ombra (topmix_ombra_1x2_v1).
+        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_mercato_v3")
+        self.assertEqual(R.SELECTOR_VERSION_MERCATO_V3, "topmix_mercato_v3")
+        self.assertEqual(R.SELECTOR_VERSION_MODELLO_1X2, "topmix_1x2_gate025_ens06_v2")
+        self.assertEqual(R.SELECTOR_VERSION_OMBRA_1X2, "topmix_ombra_1x2_v1")
         self.assertEqual(R.SELECTOR_VERSION_PRE_1X2, "topmix_gate025_ens06_v1")
 
     def test_get_league_engine_usa_il_gate_condiviso(self):

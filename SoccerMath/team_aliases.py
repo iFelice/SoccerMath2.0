@@ -132,6 +132,27 @@ TEAM_NAME_MAP = {
     "Le Havre AC": "Le Havre",
     "Olympique Lyon": "Lyon",
     "Stade Rennais": "Rennes",
+
+    # ---------------------------------------------------------------
+    # Nomi della fonte quote dal vivo (The Odds API, regione eu)
+    # ---------------------------------------------------------------
+    # I 6 nomi che mancavano per chiudere l'abbinamento sulle 5 leghe:
+    # misurati in PR #50 (audit/results/live_odds_feasibility.md §3 e §5),
+    # 81,2% con clean_name e 87,5% col resolver su 48 partite. Ogni nome e'
+    # DICHIARATO: nessun fuzzy matching, come vuole la regola del progetto.
+    # Verificati su TUTTE le partite degli snapshot committati in
+    # audit/data/live_odds_probe/ da test_alias_quote_live.py (non solo sulla
+    # prossima giornata): le partite non abbinate vengono loggate per nome.
+    "Atlético Madrid": "Ath Madrid",                 # La Liga
+    "CA Osasuna": "Osasuna",                         # La Liga
+    "Elche CF": "Elche",                             # La Liga
+    "Real Racing Club de Santander": "Santander",    # La Liga
+    "Borussia Monchengladbach": "M'gladbach",        # Bundesliga (senza dieresi nella fonte)
+    # "FSV Mainz 05" va dichiarato PRIMA delle sostituzioni: la lista
+    # NAME_CLEAN_REPLACEMENTS contiene "SV " e da sola trasformerebbe il nome
+    # in "FMainz 05" (effetto collaterale gia' segnalato in PR #50 §3).
+    # clean_name applica TEAM_NAME_MAP per prima, quindi l'alias vince.
+    "FSV Mainz 05": "Mainz",                         # Bundesliga
 }
 
 
