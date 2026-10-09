@@ -179,15 +179,22 @@ class TestNessunTetto(unittest.TestCase):
              mock.patch.object(app, "predict_elo_probs_legacy", side_effect=elo), \
              mock.patch.object(app, "select_next_matchday_matches", side_effect=lambda m, now=None: m), \
              mock.patch.object(app, "_roster_stagione", return_value=None), \
+             mock.patch.object(app, "carica_indice_quote_live",
+                               return_value={"stato": mo.STATO_ASSENTE,
+                                             "indice": None}), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
             (top_mercato, top_current, top_legacy, missing, ombra,
              senza_quote) = app.fetch_and_calc_top_mix()
         n_leghe = len(app.LEAGUES_CONFIG)
-        # nessuna macchina di CI ha database/live_odds.json: senza il file non
-        # ci sono righe di mercato. "Quote non richieste" (file assente) NON e'
-        # lo stesso di "partita senza quote": nel secondo caso la partita entra
-        # in senza_quote ed e' segnalata per nome (verificato in
+        # Questo test riguarda il TETTO delle tabelle, non le quote: il file
+        # delle quote viene dichiarato assente (``carica_indice_quote_live``
+        # intercettata), cosi' l'esito non dipende dal fatto che la macchina
+        # abbia o no database/live_odds.json - che in CI ADESSO c'e', perche' il
+        # workflow delle quote lo committa. Senza il file non ci sono righe di
+        # mercato. "Quote non richieste" (file assente) NON e' lo stesso di
+        # "partita senza quote": nel secondo caso la partita entra in
+        # senza_quote ed e' segnalata per nome (verificato in
         # test_topmix_mercato.py con un file di quote simulato).
         self.assertEqual([], top_mercato)
         self.assertEqual([], senza_quote)

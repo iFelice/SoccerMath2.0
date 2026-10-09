@@ -10,18 +10,23 @@ name: Quote live (The Odds API)
 # 5 crediti a giro (misurato in PR #50, audit/results/live_odds_feasibility.md
 # §4). Un giro al giorno sta nel piano gratuito da 500 crediti/mese.
 #
-# ROBUSTEZZA: se la quota crediti e' esaurita, se la chiave e' rifiutata o se
-# nessuna lega torna eventi, il file precedente NON viene sovrascritto con dati
-# vuoti (update_live_odds.py esce 1/2/3 e il passo fallisce in modo visibile).
+# ROBUSTEZZA: se la quota crediti e' esaurita, se la chiave e' rifiutata, se
+# nessuna lega torna eventi, oppure se una lega ha eventi ma ZERO libri dopo la
+# conversione (guasto del 2026-10-09), il file precedente NON viene sovrascritto
+# con dati vuoti (update_live_odds.py esce 1/2/3/4 e il passo fallisce in modo
+# visibile).
 #
 # Trigger:
 #   - schedule '17 8 * * *' UTC: tutti i giorni alle 08:17, prima dei kickoff del
 #     turno (il primo kickoff osservato nello snapshot di PR #50 era alle 13:00
 #     UTC del sabato). Orario nominale: GitHub puo' ritardare i cron;
 #   - workflow_dispatch: avvio manuale (stesso comando, stessi costi);
-#   - pull_request: SOLO la prova in dry-run con risposta API SIMULATA
-#     (audit/data/live_odds_probe): nessuna chiamata di rete, 0 crediti, nessun
-#     secret necessario, nessuna scrittura. Verifica che il writer funzioni.
+#   - pull_request: SOLO prove in dry-run con le risposte REALI della sonda
+#     (audit/data/live_odds_probe, anche nella forma grezza dell'API ricostruita
+#     da audit/live_odds_raw_fixtures.py): nessuna chiamata di rete, 0 crediti,
+#     nessun secret necessario, nessuna scrittura. Verificano che il writer
+#     converta davvero i bookmaker e che una risposta senza bookmaker faccia
+#     fallire il giro invece di sovrascrivere il file buono.
 
 on:
   schedule:
@@ -34,6 +39,8 @@ on:
       - 'SoccerMath/update_live_odds.py'
       - 'SoccerMath/market_odds.py'
       - 'SoccerMath/team_aliases.py'
+      - 'audit/live_odds_raw_fixtures.py'
+      - 'audit/data/live_odds_probe/**'
       - '.github/workflows/live_odds.yml'
 
 permissions:
@@ -66,14 +73,68 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Dry-run su risposta simulata (nessuna rete, nessuna scrittura)
+      # Le risposte REALI della sonda rimesse nella forma GREZZA dell'API
+      # (bookmakers[].markets[].outcomes[]): e' la forma che arriva dalla rete.
+      # Il dry-run sulla sola forma compattata passava anche il 2026-10-09,
+      # quando la conversione buttava TUTTI i bookmaker.
+      - name: Risposte reali della sonda in forma grezza (0 crediti)
+        run: |
+          python audit/live_odds_raw_fixtures.py --out /tmp/odds_grezze
+          python audit/live_odds_raw_fixtures.py --out /tmp/odds_senza_bookmakers \
+            --senza-bookmakers
+
+      - name: Dry-run sulle risposte reali grezze (nessuna rete, nessuna scrittura)
+        working-directory: SoccerMath
+        run: |
+          set -o pipefail
+          python update_live_odds.py \
+            --fixture /tmp/odds_grezze \
+            --out /tmp/live_odds_dryrun.json \
+            --dry-run 2>&1 | tee /tmp/live_odds_dryrun.log
+          # Le quote devono esserci: "eventi con almeno un libro=0" significa
+          # che la conversione ha perso i bookmaker (guasto del 2026-10-09).
+          if grep -q 'eventi con almeno un libro=0' /tmp/live_odds_dryrun.log; then
+            echo "::error::la conversione ha perso i bookmaker della risposta reale"
+            exit 1
+          fi
+
+      - name: Dry-run sugli snapshot compattati della sonda
         working-directory: SoccerMath
         run: |
           set -o pipefail
           python update_live_odds.py \
             --fixture ../audit/data/live_odds_probe \
-            --out /tmp/live_odds_dryrun.json \
-            --dry-run 2>&1 | tee /tmp/live_odds_dryrun.log
+            --out /tmp/live_odds_dryrun_compattato.json \
+            --dry-run 2>&1 | tee -a /tmp/live_odds_dryrun.log
+
+      # Prova del guasto: stessi eventi, zero bookmaker. Il writer DEVE uscire 4
+      # e non scrivere: un file senza quote non deve mai sostituire quello buono.
+      - name: Risposta con bookmakers vuoti -> errore e file precedente intatto
+        working-directory: SoccerMath
+        run: |
+          set -o pipefail
+          echo '{"leghe": {"Serie A": {"n_eventi": 3, "eventi": [1, 2, 3]}}}' \
+            > /tmp/live_odds_precedente.json
+          PRIMA=$(sha256sum /tmp/live_odds_precedente.json | cut -d' ' -f1)
+          set +e
+          python update_live_odds.py \
+            --fixture /tmp/odds_senza_bookmakers \
+            --out /tmp/live_odds_precedente.json 2>&1 | tee /tmp/live_odds_vuote.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "4" ]; then
+            echo "::error::atteso exit 4 con bookmakers vuoti, ottenuto $rc"
+            exit 1
+          fi
+          DOPO=$(sha256sum /tmp/live_odds_precedente.json | cut -d' ' -f1)
+          if [ "$PRIMA" != "$DOPO" ]; then
+            echo "::error::il file precedente e' stato sovrascritto con dati senza quote"
+            exit 1
+          fi
+          echo "OK: exit 4 e file precedente intatto."
+
+      - name: Nessuna chiave nei log del dry-run
+        run: |
           # La chiave NON deve comparire in nessun output (qui non e' nemmeno
           # definita: la guardia resta, cosi' il passo ha senso anche se un
           # giorno qualcuno la passa per errore).
@@ -125,7 +186,9 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         # Niente `set -e` sulla chiamata: il codice di uscita va letto e
         # spiegato. 0 = scritto; 1 = nessun evento (file precedente conservato);
-        # 2 = quota crediti esaurita (file precedente conservato); 3 = chiave.
+        # 2 = quota crediti esaurita (file precedente conservato); 3 = chiave;
+        # 4 = una lega ha eventi ma zero libri dopo la conversione (file
+        # precedente conservato: senza quote il Top Mix di mercato e' vuoto).
         run: |
           set +e
           python update_live_odds.py 2>&1 | tee /tmp/live_odds.log
@@ -142,6 +205,7 @@ jobs:
             1) echo "::error::nessun evento da nessuna lega: live_odds.json NON sovrascritto" ;;
             2) echo "::error::quota crediti esaurita: live_odds.json NON sovrascritto" ;;
             3) echo "::error::ODDS_API_KEY assente o rifiutata: live_odds.json NON sovrascritto" ;;
+            4) echo "::error::eventi senza quote dopo la conversione: live_odds.json NON sovrascritto" ;;
             *) echo "::error::update_live_odds.py uscito con $rc" ;;
           esac
           exit "$rc"
