@@ -214,14 +214,20 @@ class TestFetchAndCalcTopMix(unittest.TestCase):
              mock.patch.object(app, "get_league_engine", return_value=engine), \
              mock.patch.object(app, "predict_elo_probs", side_effect=fake_elo), \
              mock.patch.object(app, "predict_elo_probs_legacy", side_effect=fake_elo), \
+             mock.patch.object(app, "carica_indice_quote_live",
+                               return_value={"stato": "assente", "indice": None}), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()  # azzera la cache st.cache_data
             (top_mercato, top_current, top_legacy, missing, _ombra,
              senza_quote) = app.fetch_and_calc_top_mix()
-            # Questo test riguarda la FINESTRA sulle giornate, non le quote:
-            # senza database/live_odds.json la tabella di mercato e' vuota e
-            # nessuna partita viene segnalata come "senza quote" (quote non
-            # richieste, caso verificato in test_topmix_mercato.py).
+            # Questo test riguarda la FINESTRA sulle giornate, non le quote: il
+            # file delle quote viene dichiarato assente (intercettando
+            # ``carica_indice_quote_live``), cosi' l'esito non dipende dal fatto
+            # che la macchina abbia o no database/live_odds.json - che in CI
+            # ADESSO c'e', perche' il workflow delle quote lo committa. Senza il
+            # file la tabella di mercato e' vuota e nessuna partita viene
+            # segnalata come "senza quote" (quote non richieste, caso verificato
+            # in test_topmix_mercato.py).
             self.assertEqual([], top_mercato)
             self.assertEqual([], senza_quote)
 
