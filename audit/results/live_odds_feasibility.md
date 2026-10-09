@@ -1,6 +1,6 @@
 # Fattibilita' di una fonte di quote 1X2 dal vivo — referto di audit (sola lettura)
 
-Generato da `audit/live_odds_feasibility.py` (2026-10-08T23:59:41Z), branch `arena/edb67158-soccermath2-0`, commit `2c261cf`. Nessuna modifica a `SoccerMath/`: tutti i file nuovi vivono in `audit/`.
+Generato da `audit/live_odds_feasibility.py` (2026-10-09T00:08:09Z), branch `arena/edb67158-soccermath2-0`, commit `ca27760`. Nessuna modifica a `SoccerMath/`: tutti i file nuovi vivono in `audit/`.
 
 Comandi:
 
@@ -15,7 +15,7 @@ python audit/live_odds_feasibility.py      # questo referto (punti 1-5)
 
 | Voce | Esito | Comando / link | Evidenza |
 |---|---|---|---|
-| Branch partito da main dopo il merge della PR #49 | OK | git log --oneline -1; gh pr view 49 --json mergedAt | HEAD = 2c261cf; PR #49 mergiata il 2026-10-08T22:55:04Z (merge commit f77366b) |
+| Branch partito da main dopo il merge della PR #49 | OK | git log --oneline -1; gh pr view 49 --json mergedAt | HEAD = ca27760; PR #49 mergiata il 2026-10-08T22:55:04Z (merge commit f77366b) |
 | Diff vuoto all'inizio del lavoro | OK | git diff --name-only origin/main...HEAD | nessun file (branch allineato a main: 0 commit avanti, 0 indietro) |
 | Script della PR #49 presente | OK | ls -l audit/onex2_market_test.py | 68.666 byte; `python -m pytest audit/test_onex2_market_test.py`: 18 test verdi |
 | Secret ODDS_API_KEY esistente nel repository | OK | workflow temporaneo: ${{ secrets.ODDS_API_KEY != '' }} | SECRET_PRESENT = true; 6 chiamate su 6 hanno risposto HTTP 200 (con chiave assente o errata: 401) |
@@ -275,6 +275,7 @@ Motivi, tutti misurati in questo referto:
 - Il confronto fra book (punto 1) usa le colonne pre-chiusura dei CSV: la fonte non dichiara l'orario di rilevazione, quindi 'pre-chiusura' e' la dicitura della commessa.
 - I turni infrasettimanali del budget sono ricostruiti dalle date dei CSV (mar/mer/gio raggruppate se consecutive o entro 2 giorni): una ricostruzione, non il calendario ufficiale.
 - L'abbinamento nomi e' misurato sulla sola prossima giornata disponibile (48 partite): le squadre promosse di altre leghe non ancora incontrate possono aggiungere altri nomi mancanti.
+- L'abbinamento e' ancorato all'orologio dello snapshot, non a quello della macchina: istante di riferimento 2026-10-08T23:30:43Z (ora dello scaricamento). Rieseguendo lo script i numeri restano identici; con uno snapshot nuovo la giornata puo' cambiare.
 - Terza fonte (OddsPapi): solo documentazione, nessuna prova. Non e' un'alternativa verificata.
 
 ## 8. Verdetto di mergeability

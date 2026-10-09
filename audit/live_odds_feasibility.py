@@ -623,6 +623,7 @@ def build_checks(probe, bst, match, budget, stato, ci):
     fm = (probe.get("football_data") or {}).get("fixtures_main") or {}
     n5 = fm.get("n_righe_5_lelhe")
     t = match["totale"]
+    m_now = datetime.fromisoformat(str(match.get("istante_di_riferimento")).replace("Z", "+00:00"))
     scenari = budget.get("scenari") or []
     worst = max((s["crediti_mese_peggiore"] for s in scenari), default=None)
     sintesi = [
@@ -757,6 +758,10 @@ def build_checks(probe, bst, match, budget, stato, ci):
         "L'abbinamento nomi e' misurato sulla sola prossima giornata disponibile "
         f"({t['n_prossima_giornata']} partite): le squadre promosse di altre leghe non ancora "
         "incontrate possono aggiungere altri nomi mancanti.",
+        "L'abbinamento e' ancorato all'orologio dello snapshot, non a quello della macchina: "
+        f"istante di riferimento {m_now.strftime('%Y-%m-%dT%H:%M:%SZ')} (ora dello "
+        "scaricamento). Rieseguendo lo script i numeri restano identici; con uno snapshot "
+        "nuovo la giornata puo' cambiare.",
         "Terza fonte (OddsPapi): solo documentazione, nessuna prova. Non e' un'alternativa "
         "verificata.",
     ]

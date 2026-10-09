@@ -9,9 +9,11 @@ rifatto (partite diverse, squadre diverse) i contatori vanno aggiornati.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import unittest
+from datetime import datetime, timezone
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_AUDIT_DIR)
@@ -21,7 +23,7 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 import live_odds_match as LOM  # noqa: E402
 from team_aliases import clean_name  # noqa: E402
 
-SNAPSHOT = "2026-10-08"
+SNAPSHOT = "2026-10-08"   # data dello snapshot committato (vedi test_snapshot_presente)
 # valori misurati sullo snapshot committato
 ATTESO = {
     "Serie A": (10, 10, 10),
@@ -59,7 +61,15 @@ class TestAbbinamento(unittest.TestCase):
         cls.payload = LOM.build_payload()
 
     def test_snapshot_presente(self):
-        self.assertTrue(self.payload["istante_di_riferimento"].startswith(SNAPSHOT))
+        # l'istante di riferimento deve essere quello dello snapshot committato,
+        # non l'ora corrente: il risultato dello script non dipende da quando gira
+        self.assertTrue(self.payload["istante_di_riferimento"].startswith(SNAPSHOT),
+                        self.payload["istante_di_riferimento"])
+        with open(os.path.join(LOM.DATA_DIR, "probe_summary.json"), encoding="utf-8") as fh:
+            summary = json.load(fh)
+        self.assertEqual(self.payload["istante_di_riferimento"][:10],
+                         str(summary["generato_il"])[:10])
+        self.assertEqual(self.payload["snapshot_odds_api"], summary["generato_il"])
         for lega, v in self.payload["per_lega"].items():
             self.assertTrue(v["disponibile"], lega)
 

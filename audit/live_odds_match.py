@@ -168,8 +168,19 @@ def build_payload(snapshot_now=None):
             summary = json.load(fh)
 
     if snapshot_now is None:
-        # istante dello snapshot: le partite "future" sono future rispetto ad allora
-        times = [c.get("scaricato_il") for c in (summary or {}).get("calls", []) if c.get("scaricato_il")]
+        # istante dello snapshot: le partite "future" sono future rispetto ad allora.
+        # Le chiamate in probe_summary.json usano la chiave "fetched_at_utc"
+        # (i singoli file per lega usano "scaricato_il"): si accettano entrambe,
+        # in modo che il risultato non dipenda dall'ora in cui si riesegue.
+        times = []
+        for c in (summary or {}).get("calls", []):
+            for k in ("fetched_at_utc", "scaricato_il"):
+                v = c.get(k)
+                if v:
+                    times.append(v)
+                    break
+        if not times and (summary or {}).get("generato_il"):
+            times = [summary["generato_il"]]
         snapshot_now = (datetime.fromisoformat(max(times).replace("Z", "+00:00"))
                         if times else datetime.now(timezone.utc))
     if snapshot_now.tzinfo is None:
