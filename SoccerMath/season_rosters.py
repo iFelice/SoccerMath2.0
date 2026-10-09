@@ -20,10 +20,12 @@ Questo modulo e' l'input offline e deterministico che chiude il buco:
   resta ``EloSeedError`` come oggi.
 
 Oltre al roster, ``--check`` valida anche il CONTENUTO dei ``*_Live.csv``
-(``validate_live_csvs``): nessuna riga con data futura (un risultato che non
-puo' esistere) e nessuna coppia (HomeTeam, AwayTeam) ripetuta nella stessa
-stagione (la partita rinviata si scrive una volta sola, alla data vera; la
-sospensione a meta' partita non deve lasciare in giro un 0-0 provvisorio).
+(``validate_live_csvs``): nessuna riga con data futura oltre la tolleranza di
+un giorno (un risultato che non puo' esistere; il giorno in piu' e' per le
+partite appena giocate, scritte dal bot a ridosso della mezzanotte UTC) e nessuna
+coppia (HomeTeam, AwayTeam) ripetuta nella stessa stagione (la partita rinviata
+si scrive una volta sola, alla data vera; la sospensione a meta' partita non deve
+lasciare in giro un 0-0 provvisorio).
 Sono i due difetti misurati su LaLiga_Live.csv: Levante-Ath Bilbao del
 16/09/2026 (sospesa per pioggia, 0-0 provvisorio) e del 21/10/2026 (data del
 recupero, stesso 0-0). Il controllo gira prima del commit del workflow, cosi'
@@ -49,7 +51,7 @@ import logging
 import os
 import sys
 import tempfile
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -67,6 +69,25 @@ log = logging.getLogger("season_rosters")
 
 #: Nome del file dentro ``DATABASE_DIR``.
 ROSTER_FILENAME = "season_rosters.json"
+
+#: Tolleranza del controllo "DATA FUTURA" sui ``*_Live.csv``, in giorni.
+#
+# Perche' c'e': la ``Date`` di una riga e' il giorno del kickoff in UTC
+# (``update_db.matches_to_df`` prende ``utcDate[:10]``), ma la riga entra nel file
+# solo a partita FINITA, scritta dal giro di 6 ore del bot dati, e a validarla e'
+# l'orologio di UN ALTRO processo (``update_db`` subito dopo la scrittura, la CI
+# dell'audit, la suite di sabato sera). A ridosso della mezzanotte UTC i due
+# orologi possono legittimamente indicare giorni diversi, e una partita gia'
+# giocata diventerebbe "futura" per chi la guarda con l'orologio di un'ora prima.
+# E' il rosso del 09/10/2026 su Dortmund-Werder Bremen: kickoff 18:30Z, riga
+# scritta alle 21:55Z a partita finita, controllata con un orologio fermo al
+# 07/10 - due giorni nel futuro per il test, zero per i fatti.
+#
+# Un giorno copre il caso e non copre il difetto che il controllo deve prendere:
+# la riga del recupero (Levante-Ath Bilbao, 16/09 sospesa e riscritta con la data
+# del 21/10) era a +13 giorni. E una partita giocata ieri resta un giorno
+# INDIETRO qualunque sia l'orologio del confronto: non puo' mai risultare futura.
+TOLLERANZA_DATA_FUTURA_GIORNI = 1
 
 #: Taglia attesa del roster della stagione corrente, per lega (nomi estesi).
 #: La Ligue 1 e' a 18 dal 2023/24 (nel 2022/23 era a 20: la validazione vale
@@ -258,10 +279,19 @@ def validate_live_csvs(database_dir=None, now=None) -> List[str]:
     Due controlli per ogni lega di ``EXPECTED_ROSTER_SIZE``, entrambi sui CSV
     live della stagione corrente:
 
-    1. DATA FUTURA: nessuna riga puo' avere ``Date`` successiva a oggi. Una data
-       futura con un risultato e' per costruzione un dato che non esiste (il
-       recupero riportato dall'API col giorno in cui NON e' stato giocato, o un
-       calendario scritto come risultato).
+    1. DATA FUTURA: nessuna riga puo' avere ``Date`` oltre ``oggi`` +
+       ``TOLLERANZA_DATA_FUTURA_GIORNI``. Una data futura con un risultato e' per
+       costruzione un dato che non esiste (il recupero riportato dall'API col
+       giorno in cui NON e' stato giocato, o un calendario scritto come
+       risultato).
+
+       ``oggi`` e' la data UTC di ``now``, e ``now=None`` vuol dire l'adesso
+       reale: e' quello che deve usare chi valida un file che un altro processo
+       continua ad aggiornare ogni sei ore. Una data fissata a mano nel sorgente
+       del test invecchia e, il giorno dopo che il bot ha scritto una partita,
+       fa vedere una data futura che non c'e'. La tolleranza di un giorno copre
+       le partite appena giocate scritte a ridosso della mezzanotte UTC (il
+       perche' sta nel commento della costante).
     2. COPPIA RIPETUTA NELLA STESSA STAGIONE: ``(HomeTeam, AwayTeam)`` compare
        una volta sola per stagione (stagione = ``season_start_year_of`` della
        data, come ``rosters_from_api_matches``). Una partita rinviata si scrive
@@ -272,6 +302,9 @@ def validate_live_csvs(database_dir=None, now=None) -> List[str]:
     if now is None:
         now = datetime.now(timezone.utc)
     oggi = now.date() if isinstance(now, datetime) else now
+    # Il confine NON e' ``oggi`` bensi' ``oggi`` + tolleranza. Nel messaggio resta
+    # pero' ``oggi``, perche' e' quello che l'operatore deve vedere.
+    limite_futuro = oggi + timedelta(days=TOLLERANZA_DATA_FUTURA_GIORNI)
     errori: List[str] = []
     for lega in sorted(EXPECTED_ROSTER_SIZE):
         path = live_csv_path(lega, database_dir)
@@ -283,12 +316,16 @@ def validate_live_csvs(database_dir=None, now=None) -> List[str]:
             errori.append(f"{lega}: {path.name} illeggibile ({e})")
             continue
         for giorno, casa, ospite in righe:
-            if giorno > oggi:
+            if giorno > limite_futuro:
                 errori.append(
                     f"{lega}: {path.name} contiene una partita con DATA FUTURA: "
                     f"{casa}-{ospite} del {giorno.strftime('%d/%m/%Y')} "
-                    f"(oggi {oggi.strftime('%d/%m/%Y')}). Un risultato futuro non "
-                    f"esiste: la partita va rimossa e riscritta quando sara' giocata.")
+                    f"(oggi {oggi.strftime('%d/%m/%Y')}, tolleranza "
+                    f"{TOLLERANZA_DATA_FUTURA_GIORNI} "
+                    f"{'giorno' if TOLLERANZA_DATA_FUTURA_GIORNI == 1 else 'giorni'}: "
+                    f"una riga oltre il {limite_futuro.strftime('%d/%m/%Y')} e' un "
+                    "risultato che non esiste ancora: va rimossa e riscritta quando "
+                    "la partita sara' giocata.")
         coppie: Dict[tuple, List[date]] = {}
         for giorno, casa, ospite in righe:
             stagione = season_start_year_of(datetime(giorno.year, giorno.month, giorno.day))
