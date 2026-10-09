@@ -202,6 +202,11 @@ class TestAnalisiRapidaNomi(RipristinaLogging, unittest.TestCase):
     STATS = {"Bayern": dict(STATS_BASE)}          # Koln senza statistiche
 
     def _gira(self, matches, stats, roster=ROSTER_BUNDES_2026):
+        # Questa classe prova i NOMI, non le quote: lo stato del file e' "ok" e
+        # ``cerca_quote`` risponde sempre, cosi' nessuna partita entra in
+        # "senza quote" e gli avvisi restano solo quelli sui nomi. (Con un indice
+        # vuoto l'Analisi Rapida segnala ora OGNI partita: e' il comportamento
+        # voluto dalla correzione, provato in test_stato_quote_live.py.)
         salvate = []
         with mock.patch.object(app, "get_full_poisson_two_heads", return_value=dict(POISSON)), \
              mock.patch.object(app, "predict_elo_probs", return_value=dict(ELO)), \
@@ -211,7 +216,9 @@ class TestAnalisiRapidaNomi(RipristinaLogging, unittest.TestCase):
              mock.patch.object(app, "_roster_stagione",
                                return_value=set(roster) if roster is not None else None), \
              mock.patch.object(app, "carica_indice_quote_live",
-                               return_value={"indice": {}}), \
+                               return_value={"stato": "ok", "indice": {},
+                                             "non_abbinati": [], "obsoleto": False}), \
+             mock.patch.object(app, "cerca_quote", return_value={"id": "evento-di-prova"}), \
              mock.patch.object(app.st, "warning") as warn, \
              mock.patch.object(app.st, "info") as info, \
              _CatturaLog() as cattura:

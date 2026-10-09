@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -269,6 +270,75 @@ class TestNessunFallbackSilenzioso(RipristinaLogging, unittest.TestCase):
             dati["indice"], "Inter", "Roma", "2027-03-10T19:45:00Z")["id"])
         self.assertEqual("andata", mo.cerca_quote(
             dati["indice"], "Inter", "Roma", "2026-10-10T13:00:00Z")["id"])
+
+
+class TestCoperturaSuFileScritto(unittest.TestCase):
+    """La stessa regola del file vivo, su un file SCRITTO dal test.
+
+    Il controllo su ``database/live_odds.json`` qui sotto salta finché il
+    workflow non scrive: lasciarlo come unico presidio significherebbe non
+    provare niente in CI. Qui il file lo scrive il test in una cartella
+    temporanea, quindi la copertura e' verificata a ogni run e non dipende da
+    quando gira il workflow.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = os.path.join(self.tmp.name, mo.LIVE_ODDS_FILE)
+
+    def _scrivi(self, eventi, lega="Serie A"):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            json.dump({"schema": mo.SCHEMA_LIVE_ODDS,
+                       "generato_il": "2026-10-09T08:17:00Z",
+                       "leghe": {lega: {"eventi": eventi}}}, fh)
+
+    def _evento(self, home, away):
+        return {"id": f"{home}-{away}", "commence_time": "2026-10-10T13:00:00Z",
+                "home_team": home, "away_team": away,
+                "libri": [{"key": "pinnacle",
+                           "h2h": {"home": 1.62, "draw": 4.1, "away": 6.0}}]}
+
+    def test_file_valido_copertura_completa(self):
+        # nomi della fonte nella forma GREZZA (alias, non canonici): l'abbinamento
+        # deve passare dalla tabella, non dall'identita' del testo
+        self._scrivi([self._evento("Inter Milan", "AS Roma"),
+                      self._evento("Atalanta BC", "AC Milan")])
+        payload = mo.carica_quote_live(self.path)
+        self.assertIsNotNone(payload)
+        dati = mo.indice_partite(payload)
+        self.assertEqual([], dati["non_abbinati"])
+        self.assertEqual(dati["n_eventi"], dati["n_indicizzati"])
+        self.assertEqual(2, dati["n_indicizzati"])
+
+    def test_nome_fuori_tabella_esce_in_non_abbinati(self):
+        self._scrivi([self._evento("Inter Milan", "Squadra Mai Vista FC")])
+        dati = mo.indice_partite(mo.carica_quote_live(self.path))
+        self.assertEqual(1, len(dati["non_abbinati"]))
+        na = dati["non_abbinati"][0]
+        self.assertEqual("Squadra Mai Vista FC", na["away_raw"])
+        self.assertEqual("Serie A", na["lega"])
+        self.assertFalse(na["away_riconosciuto"])
+        self.assertTrue(na["home_riconosciuto"])
+        self.assertEqual(0, dati["n_indicizzati"],
+                         "la partita non entra nell'indice: nessuna quota inventata")
+
+    def test_file_senza_leghe_e_ignorato(self):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            json.dump({"schema": mo.SCHEMA_LIVE_ODDS}, fh)
+        self.assertIsNone(mo.carica_quote_live(self.path))
+
+    def test_file_senza_eventi_dà_indice_vuoto(self):
+        self._scrivi([])
+        dati = mo.indice_partite(mo.carica_quote_live(self.path))
+        self.assertEqual({}, dati["indice"])
+        self.assertEqual(0, dati["n_eventi"])
+        self.assertEqual([], dati["non_abbinati"])
+
+    def test_legge_anche_il_percorso_di_produzione_se_puntato(self):
+        """``percorso_quote_live`` rispetta la cartella passata (nessun path assoluto)."""
+        self.assertEqual(self.path,
+                         mo.percorso_quote_live(database_dir=self.tmp.name))
 
 
 @unittest.skipUnless(os.path.exists(LIVE_ODDS_PATH),

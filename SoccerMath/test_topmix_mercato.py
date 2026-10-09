@@ -568,7 +568,8 @@ class TestEndToEndConQuoteSimulate(unittest.TestCase):
              mock.patch.object(app, "predict_elo_probs_legacy", side_effect=elo), \
              mock.patch.object(app, "select_next_matchday_matches", side_effect=lambda m, now=None: m), \
              mock.patch.object(app, "_roster_stagione", return_value=None), \
-             mock.patch.object(app, "carica_indice_quote_live", return_value=indice), \
+             mock.patch.object(app, "carica_indice_quote_live",
+                               return_value=dict(indice, stato=mo.STATO_OK)), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
             out = app.fetch_and_calc_top_mix()
@@ -605,7 +606,8 @@ class TestEndToEndConQuoteSimulate(unittest.TestCase):
              mock.patch.object(app, "predict_elo_probs_legacy", side_effect=elo), \
              mock.patch.object(app, "select_next_matchday_matches", side_effect=lambda m, now=None: m), \
              mock.patch.object(app, "_roster_stagione", return_value=None), \
-             mock.patch.object(app, "carica_indice_quote_live", return_value=None), \
+             mock.patch.object(app, "carica_indice_quote_live",
+                               return_value={"stato": mo.STATO_ASSENTE, "indice": None}), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
             top_mercato, top_current, top_legacy, missing, ombra, senza_quote = \

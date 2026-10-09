@@ -45,10 +45,19 @@ from market_odds import (
     FONTE_MEDIA_LIBRI,
     FONTE_PINNACLE,
     MASSIMO_RIGHE_MULTIPLA,
+    MOTIVO_ASSENTE_DALLA_FONTE,
+    MOTIVO_TERNA_NON_VALIDA,
     SOGLIA_ACCORDO,
+    SOGLIA_ORE_QUOTE,
+    STATO_ASSENTE,
+    STATO_NON_LEGGIBILE,
+    STATO_OK,
+    STATO_SENZA_LEGHE,
     SOGLIA_TOPMIX_MERCATO,
     carica_quote_live,
+    carica_quote_live_con_stato,
     cerca_quote,
+    cerca_quote_con_motivo,
     indice_partite,
     multipla,
     probabilita_mercato,
@@ -98,6 +107,7 @@ from prediction_registry import (
     build_calculation_id,
     calibration_by_mercato,
     compute_calibration_stats,
+    compute_stats,
     esito_mercato,
     resolve_origin,
     righe_non_iniziate,
@@ -125,6 +135,10 @@ from prediction_registry import (
     # l'utente deve vedere (una riga nata prima del merge di PR#24 e' del
     # motore di allora, cioe' legacy).
     model_variant_read,
+    # --- famiglie del selettore: modello (fino al 09/10/2026) e mercato (dal) ---
+    FAMIGLIA_SELETTORE_MODELLO,
+    FAMIGLIA_SELETTORE_MERCATO,
+    famiglia_selettore,
 )
 from models.legacy_elo import predict_elo_probs_legacy
 
@@ -2210,7 +2224,8 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
         # Top Mix VISIBILE: la scelta del mercato. Il modello (Drago) entra solo
         # come probabilita' sullo stesso esito e come segnale "d'accordo".
         if indice_quote is not None:
-            evento = cerca_quote(indice_quote, h, a, match.get('utcDate'))
+            evento, motivo_assenza = cerca_quote_con_motivo(
+                indice_quote, h, a, match.get('utcDate'))
             mkt = probabilita_mercato((evento or {}).get("libri") or [])
             prob_mkt = mkt["probs"]
             # Probabilita' del Drago (blend 0,25 Poisson + 0,75 Elo) su 1/X/2:
@@ -2220,8 +2235,13 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
                                             elo_disponibile=elo_disponibile,
                                             season=_stagione_da_utcdate(match.get('utcDate')))
             if prob_mkt is None:
-                motivo = ("nessuna terna h2h valida nei %d libri della fonte"
-                          % mkt["n_libri_totale"]) if evento else "partita assente dalla fonte quote"
+                # Il motivo viene dalla regola che ha davvero scartato la
+                # partita (``cerca_quote_con_motivo``), non ricostruito qui: se
+                # l'evento c'e' ma la terna non vale il motivo e' quello, se
+                # l'evento manca per la finestra o per l'assenza dalla fonte il
+                # testo deve dirlo (si riparano in modi diversi).
+                motivo = (MOTIVO_TERNA_NON_VALIDA % mkt["n_libri_totale"]
+                          if evento else (motivo_assenza or MOTIVO_ASSENTE_DALLA_FONTE))
                 logging.warning("Top Mix mercato: %s vs %s (%s) SENZA quote: %s. "
                                 "Esclusa dal Top Mix.", h_disp, a_disp, league, motivo)
                 righe["senza_quote"].append({
@@ -2266,21 +2286,47 @@ def carica_indice_quote_live():
     resta vuoto e l'UI lo dice), altrimenti un dict con ``indice``,
     ``non_abbinati``, ``generato_il``, ``crediti`` e i conteggi.
     """
-    payload = carica_quote_live(percorso=os.path.join(str(DATABASE_DIR), market_odds.LIVE_ODDS_FILE))
+    payload, stato = carica_quote_live_con_stato(
+        percorso=os.path.join(str(DATABASE_DIR), market_odds.LIVE_ODDS_FILE))
+    stato_out = {
+        "stato": stato,
+        # ``indice`` resta None (non {}) quando il file non e' utilizzabile:
+        # "il file non c'e'" e "il file c'e' ma non contiene partite" sono due
+        # cose diverse, e ``calcola_righe_top_mix`` le distingue proprio su
+        # ``indice is None`` (nessuna riga di mercato E nessuna segnalazione nel
+        # primo caso, tutte le partite segnalate nel secondo).
+        "indice": None, "non_abbinati": [], "n_eventi": 0, "n_indicizzati": 0,
+        "generato_il": None, "eta_ore": None, "obsoleto": False, "dettaglio": None,
+        "crediti": {}, "fonte": None, "regioni": None,
+        "n_leghe_ok": None, "n_leghe_richieste": None,
+    }
     if payload is None:
-        return None
+        stato_out["dettaglio"] = _DETTAGLIO_STATO_QUOTE[stato]
+        return stato_out
     dati = indice_partite(payload)
-    dati["generato_il"] = payload.get("generato_il")
-    dati["crediti"] = payload.get("crediti") or {}
-    dati["fonte"] = payload.get("fonte")
-    dati["regioni"] = payload.get("regioni")
-    dati["n_leghe_ok"] = payload.get("n_leghe_ok")
-    dati["n_leghe_richieste"] = payload.get("n_leghe_richieste")
+    eta = market_odds.ore_da(payload.get("generato_il"))
+    stato_out.update({
+        "indice": dati["indice"],
+        "non_abbinati": dati["non_abbinati"],
+        "n_eventi": dati["n_eventi"],
+        "n_indicizzati": dati["n_indicizzati"],
+        "generato_il": payload.get("generato_il"),
+        "eta_ore": eta,
+        "obsoleto": bool(eta is not None and eta > SOGLIA_ORE_QUOTE),
+        "crediti": payload.get("crediti") or {},
+        "fonte": payload.get("fonte"),
+        "regioni": payload.get("regioni"),
+        "n_leghe_ok": payload.get("n_leghe_ok"),
+        "n_leghe_richieste": payload.get("n_leghe_richieste"),
+    })
     for na in dati["non_abbinati"]:
         logging.warning("Top Mix mercato: partita della fonte quote NON abbinata ai nomi "
                         "del progetto: %s vs %s (%s)", na.get("home_raw"), na.get("away_raw"),
                         na.get("lega"))
-    return dati
+    if stato_out["obsoleto"]:
+        logging.warning("Top Mix mercato: quote OBSOLETE, eta' %.1f h (soglia %d h), "
+                        "scaricate il %s.", eta, SOGLIA_ORE_QUOTE, payload.get("generato_il"))
+    return stato_out
 
 
 @st.cache_data(ttl=1800, show_spinner="Calcolando Top Mix...")
@@ -2450,14 +2496,17 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
     # usare il modello), ma le SEGNALA per nome. Sono le stesse partite escluse
     # dal Top Mix di mercato: un'assenza di quote non deve passare in silenzio.
     stato_quote = carica_indice_quote_live()
-    indice_quote = (stato_quote or {}).get("indice") or {}
-    if stato_quote is None:
-        # Stessa regola del Top Mix: senza il file scritto dal workflow nessuna
-        # partita ha quote, e l'utente lo deve leggere, non indovinare.
-        st.warning(
-            f"⚠️ Analisi Rapida: quote dal vivo ASSENTI ({market_odds.LIVE_ODDS_FILE} "
-            f"non c'e'). Le segnalazioni 'senza quote' non sono calcolabili: "
-            f"l'Analisi Rapida usa solo il modello.")
+    # SENZA ``or {}``: un indice vuoto ({}) e un indice assente (None) non sono
+    # la stessa cosa. Con ``or {}`` un file presente ma senza eventi diventava
+    # indistinguibile da un file assente e NESSUNA partita veniva segnalata.
+    indice_quote = (stato_quote or {}).get("indice")
+    _avviso_stato_quote(stato_quote, "Analisi Rapida")
+    if (stato_quote or {}).get("stato") == STATO_OK and (stato_quote or {}).get("obsoleto"):
+        st.error(f"⚠️ Analisi Rapida: quote OBSOLETE, eta' {stato_quote['eta_ore']:.1f} h "
+                 f"(soglia {SOGLIA_ORE_QUOTE} h), scaricate il "
+                 f"{stato_quote.get('generato_il') or 'n/d'}. Le segnalazioni "
+                 "'senza quote' restano valide, le probabilita' di mercato no.")
+    _mostra_non_abbinati_fonte(stato_quote, "Analisi Rapida")
     senza_quote = []
     for match in matches:
         try:
@@ -2468,7 +2517,14 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
             h_disp, a_disp = display_name(h), display_name(a)
             m_id = match.get('id')
             if not m_id: continue
-            if indice_quote and cerca_quote(indice_quote, h, a, match.get('utcDate')) is None:
+            # ``indice_quote is not None`` e NON la sua verita': con un file
+            # valido ma SENZA eventi l'indice e' {} e ogni partita va segnalata.
+            # Prima la condizione era ``if indice_quote and ...``: {} e' falsy,
+            # quindi l'Analisi Rapida taceva proprio nel caso in cui nessuna
+            # partita ha quote. ``stato_quote is not None`` tiene fuori il caso
+            # "file non utilizzabile", gia' coperto dal messaggio sullo stato.
+            if (stato_quote is not None and indice_quote is not None
+                    and cerca_quote(indice_quote, h, a, match.get('utcDate')) is None):
                 senza_quote.append(f"{h_disp} vs {a_disp}")
                 logging.warning("Analisi Rapida: %s vs %s (%s) SENZA quote di mercato: "
                                 "esclusa dal Top Mix di mercato.", h_disp, a_disp, camp_sel)
@@ -2961,7 +3017,79 @@ def _mostra_blocco_modello(records, titolo, sottotitolo):
 
 
 COLONNE_TOP_MIX_MERCATO = ["Partita", "Esito", "P mercato %", "Quota mercato",
-                           "P modello Drago %", "D'accordo", "Fonte"]
+                           "P modello Drago %", "D'accordo", "Fonte", "Eta' quote (h)"]
+
+
+# Messaggio per ciascuno stato del file delle quote. Dire "il file non c'e'"
+# quando il file c'e' ed e' corrotto nasconde un guasto reale: uno stato, un
+# testo. Sono usati sia dal Top Mix sia dall'Analisi Rapida.
+_DETTAGLIO_STATO_QUOTE = {
+    STATO_ASSENTE: (
+        f"{market_odds.LIVE_ODDS_FILE} non esiste: il workflow `live_odds.yml` non ha "
+        "ancora scritto (prima esecuzione, oppure quota di crediti esaurita prima del "
+        "primo giro)."),
+    STATO_NON_LEGGIBILE: (
+        f"{market_odds.LIVE_ODDS_FILE} ESISTE ma non e' leggibile o non e' JSON valido: "
+        "scrittura interrotta o file corrotto. Le quote non sono utilizzabili."),
+    STATO_SENZA_LEGHE: (
+        f"{market_odds.LIVE_ODDS_FILE} ESISTE ed e' JSON valido, ma non contiene la "
+        "chiave 'leghe': schema diverso dall'atteso "
+        f"(`{market_odds.SCHEMA_LIVE_ODDS}`). Le quote non sono utilizzabili."),
+    STATO_OK: "",
+}
+
+
+def _eta_quote_riga(p):
+    """Eta' in ore delle quote di UNA riga (None -> ``'n/d'``).
+
+    Un timestamp non interpretabile NON diventa "0 ore": tornerebbe una quota
+    vecchia spacciata per fresca.
+    """
+    eta = market_odds.ore_da(p.get("quote_live_istante"))
+    return "n/d" if eta is None else round(eta, 1)
+
+
+def _mostra_non_abbinati_fonte(stato_quote, dove):
+    """Elenca i nomi squadra della FONTE QUOTE che il progetto non riconosce.
+
+    E' un avviso DIVERSO da quello sulle partite del calendario senza quote, e
+    deve restare separato: qui il problema e' a monte (un nome della fonte fuori
+    tabella, quindi un alias da aggiungere in ``team_aliases.py``), la' la
+    partita e' nota ma la fonte non la copre. Confonderli farebbe cercare un
+    alias dove non manca.
+    """
+    non_abbinati = (stato_quote or {}).get("non_abbinati") or []
+    if not non_abbinati:
+        return
+    def _lato(n):
+        parti = []
+        if not n.get("home_riconosciuto"):
+            parti.append(f"casa {n.get('home_raw')!r}")
+        if not n.get("away_riconosciuto"):
+            parti.append(f"trasferta {n.get('away_raw')!r}")
+        return " e ".join(parti) or "coppia non risolta"
+    st.warning(
+        f"⚠️ {dove}: {len(non_abbinati)} partite della FONTE QUOTE con nomi squadra "
+        "non riconosciuti dal progetto (nessun fuzzy matching: vanno aggiunti in "
+        "`team_aliases.py`). "
+        + "; ".join(f"{n.get('home_raw')} vs {n.get('away_raw')} "
+                    f"({n.get('lega') or '?'}: {_lato(n)})" for n in non_abbinati))
+
+
+def _avviso_stato_quote(stato_quote, dove):
+    """Avviso sullo stato del file delle quote. Ritorna ``True`` se ha avvisato.
+
+    Un messaggio diverso per ogni stato: l'assenza, la corruzione e lo schema
+    sbagliato si riparano in modi diversi, e l'utente non deve indovinare quale
+    dei tre e' capitato.
+    """
+    stato = (stato_quote or {}).get("stato")
+    if stato == STATO_OK:
+        return False
+    st.warning(f"⚠️ {dove}: {_DETTAGLIO_STATO_QUOTE.get(stato, stato)}. "
+               "Nessuna probabilita' di mercato viene inventata: l'Analisi Rapida "
+               "usa solo il modello e il Top Mix di mercato resta vuoto.")
+    return True
 
 
 def _etichetta_fonte_mercato(riga):
@@ -3003,6 +3131,10 @@ def tabella_top_mix_mercato(righe):
             "P modello Drago %": p["prob_modello_val"],
             "D'accordo": "sì" if p.get("accordo") else "no",
             "Fonte": _etichetta_fonte_mercato(p),
+            # Eta' delle quote riga per riga: la probabilita' di mercato vale
+            # all'istante in cui il workflow l'ha scaricata, e l'utente deve
+            # poterlo leggere sulla riga, non solo nell'intestazione.
+            "Eta' quote (h)": _eta_quote_riga(p),
         }
         for p in righe
     ])[COLONNE_TOP_MIX_MERCATO + ["Lega", "Inizio"]] if righe else pd.DataFrame(
@@ -3019,17 +3151,32 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None):
     """
     st.markdown("##### 🌟 Top Mix — scelte del mercato")
     meta = quote_meta if isinstance(quote_meta, dict) else {}
-    if meta:
+    stato = meta.get("stato")
+    if stato == STATO_OK:
         crediti = meta.get("crediti") or {}
+        eta = meta.get("eta_ore")
         st.caption(
             f"Quote scaricate il **{meta.get('generato_il') or 'n/d'}** "
-            f"({meta.get('fonte') or 'the-odds-api'}, regioni {meta.get('regioni') or 'eu'}), "
+            + (f"(eta' **{eta:.1f} h**)" if eta is not None else "(eta' n/d)") + ", "
+            f"{meta.get('fonte') or 'the-odds-api'}, regioni {meta.get('regioni') or 'eu'}, "
             f"{meta.get('n_leghe_ok')}/{meta.get('n_leghe_richieste')} leghe con eventi, "
             f"crediti residui {crediti.get('residui', 'n/d')} su "
             f"{crediti.get('quota_mensile', 500)}. "
             f"Soglia di ammissione: probabilita' di mercato ≥ "
             f"{SOGLIA_TOPMIX_MERCATO:.2f}. Nessun filtro sulle quote basse: la tabella "
             f"individua le partite piu' probabili, la quota minima la decide l'utente.")
+        if meta.get("obsoleto"):
+            # Quote vecchie: le righe RESTANO visibili (meglio una quota vecchia
+            # dichiarata che una tabella vuota senza spiegazione), ma l'eta' si
+            # legge qui e su ogni riga, non va indovinata.
+            st.error(
+                f"⚠️ Quote OBSOLETE: eta' {eta:.1f} h, oltre la soglia di "
+                f"{SOGLIA_ORE_QUOTE} h (scaricate il {meta.get('generato_il') or 'n/d'}). "
+                "Il workflow `live_odds.yml` non ha scritto di recente, oppure la sua "
+                "quota di crediti e' esaurita e il file precedente e' stato conservato. "
+                "Le probabilita' di mercato qui sotto sono quelle di allora.")
+    elif stato is not None:
+        st.caption(_DETTAGLIO_STATO_QUOTE.get(stato, stato))
     else:
         st.caption("File delle quote non disponibile: il workflow `live_odds.yml` non ha "
                    "ancora scritto `SoccerMath/database/live_odds.json` (oppure la quota "
@@ -3037,7 +3184,7 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None):
     if not righe:
         st.info("Nessuna partita con probabilita' di mercato ≥ "
                 f"{SOGLIA_TOPMIX_MERCATO:.2f} in questo turno"
-                + ("" if meta else " (nessuna quota disponibile)."))
+                + ("" if stato == STATO_OK else " (nessuna quota disponibile)."))
         return
     n_accordo = sum(1 for p in righe if p.get("accordo"))
     st.caption(f"{len(righe)} partite sopra soglia (nessun tetto di righe) · "
@@ -3113,6 +3260,15 @@ def calcolatore_multipla(righe):
 # delle SCHEDE del record restano quelli dei referti: qui si cambia come si
 # chiamano i due motori in pagina, non cosa contengono i dati.
 NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", MODEL_VARIANT_LEGACY: "Legacy"}
+
+# Confine fra le due FAMIGLIE di selettore nel Registro visibile: prima di questa
+# data le righe Top Mix visibili sono scelte del MODELLO (v1/v2), da questa data
+# sono scelte del MERCATO (``topmix_mercato_v3``). Il confine NON e' dedotto dai
+# dati: e' la data in cui il selettore visibile e' cambiato, e dichiararlo evita
+# che un filtro per stagione o per data faccia credere che una famiglia sia
+# vuota perche' i dati mancano.
+CONFINE_FAMIGLIA_MERCATO = "09/10/2026"
+FAMIGLIA_ICONA = {FAMIGLIA_SELETTORE_MODELLO: "🧠", FAMIGLIA_SELETTORE_MERCATO: "🌟"}
 
 # Colonne delle due tabelle del Registro, in un posto solo: cosi' le due
 # tabelle non possono divergere fra loro.
@@ -3195,17 +3351,13 @@ with tab2:
                 + "; ".join(f"{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})"
                             for r in senza_quote))
 
-        indice_quote = carica_indice_quote_live()
-        if indice_quote is None:
-            # File assente = NESSUNA partita ha quote: il Top Mix e' vuoto per
-            # questo motivo, e l'utente deve saperlo invece di vedere una
-            # tabella vuota senza spiegazione.
-            st.warning(
-                f"⚠️ Quote dal vivo ASSENTI: {market_odds.LIVE_ODDS_FILE} non c'e' "
-                f"(il workflow `live_odds.yml` non ha ancora scritto, oppure la sua "
-                f"quota di crediti e' esaurita e il file precedente non c'era). "
-                f"Il Top Mix di mercato e' vuoto: nessuna probabilita' viene inventata.")
-        _mostra_tabella_top_mix_mercato(top_mercato, indice_quote)
+        stato_quote = carica_indice_quote_live()
+        # Un messaggio per ogni stato del file: "non c'e'", "non si legge" e
+        # "c'e' ma non ha la chiave leghe" si riparano in modi diversi.
+        _avviso_stato_quote(stato_quote, "Top Mix")
+        # Nomi della fonte non riconosciuti: problema a monte, avviso separato.
+        _mostra_non_abbinati_fonte(stato_quote, "Top Mix")
+        _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
         calcolatore_multipla(top_mercato)
 
         # --- Registro VISIBILE: solo le scelte del mercato (topmix_mercato_v3) ---
@@ -3443,7 +3595,6 @@ with tab5:
             # Variante non riconosciuta: non si nasconde (vedi la terza tabella).
             parti_variante["altro"] = resto_records
         all_records = df_display.to_dict("records")
-        all_stats = stats_all(all_records)
         schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
         _mostra_blocco_modello(
@@ -3468,22 +3619,62 @@ with tab5:
                 "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
             )
 
-        st.caption(
-            f"Totale registro (audit complessivo): Totale {all_stats['total']}, "
-            f"Vinte {all_stats['wins']} ({all_stats['win_rate']:.1f}% su decise), "
-            f"Perse {all_stats['losses']}, Attesa {all_stats['pending']}."
-        )
+        # NESSUN totale unico: dal 09/10/2026 il Registro visibile contiene due
+        # FAMIGLIE di selettore (le scelte storiche del MODELLO e quelle del
+        # MERCATO). Sommarle conterebbe due volte la stessa partita quando le
+        # due scelte coincidono (PR #49 §4d: 1144 su 1302) e mescolerebbe due
+        # probabilita' diverse nello stesso Brier. Una intestazione per famiglia,
+        # ciascuna con il proprio totale, win rate e Brier.
+        for _fam, _etichetta, _nota in (
+            (FAMIGLIA_SELETTORE_MODELLO,
+             f"Modello — fino al {CONFINE_FAMIGLIA_MERCATO}",
+             "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
+             "di mercato. Da questa data le nuove scelte del modello vanno nel "
+             "registro ombra, quindi questa famiglia non cresce piu'."),
+            (FAMIGLIA_SELETTORE_MERCATO,
+             f"Mercato — dal {CONFINE_FAMIGLIA_MERCATO}",
+             "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
+             "soglia 0,55, fonte Pinnacle o media dei libri."),
+        ):
+            _stat = compute_stats(all_records, famiglia=_fam)
+            _cal = compute_calibration_stats(all_records, famiglia=_fam)
+            st.markdown(f"###### {FAMIGLIA_ICONA[_fam]} {_etichetta}")
+            st.caption(_nota)
+            if not _stat["total"]:
+                st.caption("Nessuna riga di questa famiglia nel Registro visibile "
+                           "(con i filtri selezionati).")
+                continue
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Totale", _stat["total"])
+            c2.metric("Vinte", f"{_stat['wins']} ({_stat['win_rate']:.1f}%)",
+                      help="Percentuale sulle sole partite gia' giudicate.")
+            c3.metric("Perse / Attesa", f"{_stat['losses']} / {_stat['pending']}")
+            c4.metric("Brier medio",
+                      f"{_cal['brier']:.4f}" if _cal["brier"] is not None else "n/d",
+                      help="Media di (probabilita' dichiarata - esito)^2 sulle "
+                           "partite giudicate. Calcolato SOLO su questa famiglia: "
+                           "mescolare modello e mercato non descriverebbe nessuno dei due.")
+            c5.metric("Gap prob - hit",
+                      f"{_cal['gap']:+.1f} pp" if _cal["gap"] is not None else "n/d")
 
         # --- AFFIDABILITA' (Brier), non solo win rate ---
         # `prob_sicuro` era gia' persistito: expose the calibration for free.
         # Con due modelli nel registro la calibrazione si legge PER VARIANTE:
         # mescolarle produrrebbe un Brier di nessuno dei due. Le parti sono le
         # stesse dei due blocchi e delle due tabelle (calcolate una volta sola).
+        # L'affidabilita' per motore resta una lettura DENTRO la famiglia del
+        # modello: le righe del mercato non hanno un motore (il modello entra
+        # solo come probabilita' di confronto), quindi non vanno in questi blocchi.
+        righe_famiglia_modello = [r for r in all_records
+                                  if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
+        parti_variante = {k: [r for r in v
+                              if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
+                          for k, v in parti_variante.items()}
         if len(parti_variante) > 1:
             for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
                 _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
         else:
-            _mostra_affidabilita(all_records)
+            _mostra_affidabilita(righe_famiglia_modello)
 
         # La SCHEDA del record (con quale versione di pipeline la riga e' stata
         # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e

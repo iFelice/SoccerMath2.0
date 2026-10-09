@@ -450,7 +450,7 @@ def _esegui(vecchio: bool, elemi):
         # fixture storico riguarda le scelte del MODELLO, e senza quote il
         # percorso di mercato non produce righe (top_mercato e senza_quote
         # vuote). E' la stessa situazione del replay walk-forward.
-        ns["carica_indice_quote_live"] = lambda: None
+        ns["carica_indice_quote_live"] = lambda: {"stato": "assente", "indice": None}
         for _nome, testo in _blocchi_nuovi():
             exec(testo, ns)
         (top_mercato, top_current, top_legacy, missing, ombra,

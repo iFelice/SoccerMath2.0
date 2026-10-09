@@ -39,6 +39,7 @@ if HERE not in sys.path:
 logging.getLogger("streamlit").setLevel(logging.ERROR)
 
 import app  # noqa: E402
+import market_odds as mo  # noqa: E402
 from prediction_registry import (  # noqa: E402
     MODEL_VARIANT_CURRENT,
     MODEL_VARIANT_FIELD,
@@ -257,7 +258,7 @@ class TestGuardieTab2(unittest.TestCase):
 
     def test_una_sola_tabella_quella_di_mercato(self):
         """Commessa 'quote live', punto 4: NESSUNA tabella visibile dei modelli."""
-        self.assertIn("_mostra_tabella_top_mix_mercato(top_mercato, indice_quote)", self.tab2)
+        self.assertIn("_mostra_tabella_top_mix_mercato(top_mercato, stato_quote)", self.tab2)
         self.assertIn("calcolatore_multipla(top_mercato)", self.tab2)
         # la vecchia tabella dei modelli non esiste piu' (ne' la chiamata, ne' i
         # titoli etichettati per motore)
@@ -288,8 +289,24 @@ class TestGuardieTab2(unittest.TestCase):
         """Punto 3: niente quote -> esclusione SEGNALATA, mai silenziosa."""
         self.assertIn("if senza_quote:", self.tab2)
         self.assertIn("partite SENZA quote di mercato", self.tab2)
-        self.assertIn("Quote dal vivo ASSENTI", self.tab2)
         self.assertIn("{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})", self.tab2)
+        # Lo stato del file ha un messaggio per ogni caso (assente / non
+        # leggibile / senza_leghe / ok): il testo sta in
+        # _DETTAGLIO_STATO_QUOTE, qui si verifica che il tab2 lo usi e che
+        # mostri anche i nomi della fonte non riconosciuti (avviso separato).
+        self.assertIn('_avviso_stato_quote(stato_quote, "Top Mix")', self.tab2)
+        self.assertIn('_mostra_non_abbinati_fonte(stato_quote, "Top Mix")', self.tab2)
+        self.assertNotIn("Quote dal vivo ASSENTI", self.tab2,
+                         "il testo unico 'non c'e\'' e' sostituito dai messaggi per stato")
+        stati_guasti = (mo.STATO_ASSENTE, mo.STATO_NON_LEGGIBILE, mo.STATO_SENZA_LEGHE)
+        self.assertEqual(3, len({app._DETTAGLIO_STATO_QUOTE[s] for s in stati_guasti}),
+                         "tre stati, tre messaggi diversi")
+        # solo lo stato "assente" dice che il file non esiste: gli altri due
+        # devono dire che il file C'E' (nasconderlo farebbe cercare nel posto
+        # sbagliato)
+        self.assertIn("non esiste", app._DETTAGLIO_STATO_QUOTE[mo.STATO_ASSENTE])
+        for stato in (mo.STATO_NON_LEGGIBILE, mo.STATO_SENZA_LEGHE):
+            self.assertIn("ESISTE", app._DETTAGLIO_STATO_QUOTE[stato], stato)
 
     def test_filtro_riga_iniziata_su_tutte_le_liste(self):
         for nome in ("top_mercato", "top_current", "top_legacy", "ombra", "senza_quote"):

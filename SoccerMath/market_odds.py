@@ -50,7 +50,7 @@ import json
 import logging
 import math
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from team_names import resolve_team_name
@@ -90,6 +90,49 @@ MINIMO_RIGHE_MULTIPLA = 1
 # Tolleranza per le verifiche di somma/arrotondamento.
 TOLLERANZA = 1e-9
 
+# ---------------------------------------------------------------------------
+# Eta' delle quote e finestra di abbinamento
+# ---------------------------------------------------------------------------
+# Oltre queste ore il file e' considerato OBSOLETO: le righe restano visibili
+# (meglio una quota vecchia dichiarata che una tabella vuota senza spiegazione),
+# ma l'UI lo dice in modo evidente e ogni riga riporta l'eta'.
+SOGLIA_ORE_QUOTE = 36
+
+# Scarto massimo fra il ``commence_time`` della fonte quote e l'``utcDate`` del
+# calendario football-data per la STESSA partita. Oltre, ``cerca_quote`` non
+# aggancia l'evento e la partita finisce in "senza quote".
+#
+# DA DOVE VIENE 72. Non e' misurabile offline sulla differenza reale
+# (|commence_time - utcDate|): servirebbe il calendario football-data.org del
+# turno corrente, che non e' committato nel repo e richiede la chiave API. La
+# soglia e' quindi fissata sulla quantita' misurabile che la rende sicura:
+# l'intervallo fra andata e ritorno della STESSA coppia ordinata casa/trasferta,
+# misurato su 3541 coppie nei CSV 2022/23..2026/27 = minimo 4 giorni (96 h),
+# p1 = 42 giorni, mediana 141 giorni. 72 h sta sotto il minimo osservato con
+# 24 h di margine, quindi nessuna quota puo' essere agganciata alla gamba
+# sbagliata; e copre un rinvio/anticipo di fino a 3 giorni. Nella sonda della
+# PR #50 i kickoff si estendono per 213-240 h (due giornate per lega), quindi
+# una finestra di 72 h non scarta eventi legittimi del turno corrente.
+MASSIMO_SCARTO_ORARIO_QUOTE = 72.0
+
+# Motivi con cui una partita entra in "senza quote". Uno per causa, perche' si
+# riparano in modi diversi: un alias mancante si aggiunge in team_aliases.py,
+# un evento fuori finestra dice che il file e' vecchio, una terna incompleta
+# dice che la fonte non ha quotato quella partita.
+MOTIVO_FUORI_FINESTRA = "nessun evento entro la finestra"
+MOTIVO_ASSENTE_DALLA_FONTE = "partita assente dalla fonte quote"
+MOTIVO_NOME_NON_ABBINATO = "nome squadra non abbinato al calendario del progetto"
+MOTIVO_TERNA_NON_VALIDA = "nessuna terna h2h valida nei %d libri della fonte"
+
+# Stati del file delle quote. Servono a dire ALL'UTENTE perche' la tabella e'
+# vuota: "il file non c'e'" e "il file c'e' ma non vale" non sono la stessa
+# cosa, e un solo valore di ritorno (None) le confondeva.
+STATO_ASSENTE = "assente"
+STATO_NON_LEGGIBILE = "non_leggibile"
+STATO_SENZA_LEGHE = "senza_leghe"
+STATO_OK = "ok"
+STATI_FILE_QUOTE = (STATO_ASSENTE, STATO_NON_LEGGIBILE, STATO_SENZA_LEGHE, STATO_OK)
+
 # Avvisi gia' dati, per non ripetere lo stesso messaggio a ogni ricarica
 # (vedi il ramo "file assente" di carica_quote_live).
 _AVVISI_DATI: set = set()
@@ -122,6 +165,37 @@ def devig_proporzionale(quote: Sequence[float]) -> Optional[Tuple[float, float, 
     if totale <= 0.0:
         return None
     return (inverse[0] / totale, inverse[1] / totale, inverse[2] / totale)
+
+
+def _adesso_utc() -> datetime:
+    """Adesso in UTC. Funzione unica cosi' i test possono congelare l'orologio."""
+    return datetime.now(timezone.utc)
+
+
+def ore_da(istante: Any, adesso: Optional[datetime] = None) -> Optional[float]:
+    """Ore trascorse da ``istante`` (ISO 8601, anche con ``Z``). ``None`` se non valido.
+
+    Usata per l'eta' delle quote: il file viene scritto una volta al giorno dal
+    workflow, quindi l'eta' e' l'unico modo che l'utente ha di sapere se sta
+    guardando le quote di oggi o quelle di tre giorni fa (capita: quando la
+    quota di crediti e' esaurita il file precedente viene conservato).
+
+    Un ``istante`` non interpretabile NON diventa "eta' zero": torna ``None`` e
+    il chiamante lo dichiara, cosi' un timestamp corrotto non spaccia quote
+    vecchie per fresche.
+    """
+    if not isinstance(istante, str) or not istante.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(istante.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    riferimento = adesso if adesso is not None else _adesso_utc()
+    if riferimento.tzinfo is None:
+        riferimento = riferimento.replace(tzinfo=timezone.utc)
+    return (riferimento - dt).total_seconds() / 3600.0
 
 
 def _quota_num(value: Any) -> Optional[float]:
@@ -224,13 +298,24 @@ def percorso_quote_live(database_dir: Optional[str] = None) -> str:
     return os.path.join(str(DATABASE_DIR), LIVE_ODDS_FILE)
 
 
-def carica_quote_live(percorso: Optional[str] = None,
-                      database_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Legge ``live_odds.json``. Ritorna ``None`` (con log) se manca o non vale.
+def carica_quote_live_con_stato(percorso: Optional[str] = None,
+                                database_dir: Optional[str] = None,
+                                ) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Come ``carica_quote_live``, ma dice ANCHE perche' non ha un payload.
 
-    L'assenza del file NON e' un errore dell'app: significa che il workflow non
-    ha ancora scritto (prima esecuzione, oppure quota crediti esaurita e file
-    precedente conservato). Il chiamante lo dice all'utente, non inventa quote.
+    Ritorna ``(payload, stato)`` con ``stato`` in ``STATI_FILE_QUOTE``. Serve perche'
+    i tre modi di non avere quote sono diversi e l'utente ha diritto a un
+    messaggio diverso:
+
+    * ``assente``       il file non c'e' (workflow mai eseguito);
+    * ``non_leggibile`` il file c'e' ma non si legge / non e' JSON valido;
+    * ``senza_leghe``   il file c'e' ed e' JSON, ma non ha la chiave ``leghe``
+                        (schema sbagliato o scrittura interrotta);
+    * ``ok``            payload utilizzabile (anche con zero eventi: in quel caso
+                        l'indice e' vuoto e OGNI partita e' "senza quote").
+
+    Dire "il file non c'e'" quando il file c'e' ed e' corrotto nasconde un guasto
+    reale: per questo lo stato viaggia insieme al payload.
     """
     path = percorso or percorso_quote_live(database_dir)
     if not os.path.exists(path):
@@ -244,16 +329,29 @@ def carica_quote_live(percorso: Optional[str] = None,
             _AVVISI_DATI.add("file_assente")
             LOG.warning("Quote live: %s non presente (il workflow non ha ancora "
                         "scritto): il Top Mix di mercato non e' calcolabile.", path)
-        return None
+        return None, STATO_ASSENTE
     try:
         with open(path, encoding="utf-8") as fh:
             payload = json.load(fh)
     except (OSError, ValueError) as e:
         LOG.warning("Quote live: %s non leggibile (%s: %s).", path, type(e).__name__, e)
-        return None
+        return None, STATO_NON_LEGGIBILE
     if not isinstance(payload, dict) or not isinstance(payload.get("leghe"), dict):
         LOG.warning("Quote live: %s senza la chiave 'leghe': file ignorato.", path)
-        return None
+        return None, STATO_SENZA_LEGHE
+    return payload, STATO_OK
+
+
+def carica_quote_live(percorso: Optional[str] = None,
+                      database_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Legge ``live_odds.json``. Ritorna ``None`` (con log) se manca o non vale.
+
+    L'assenza del file NON e' un errore dell'app: significa che il workflow non
+    ha ancora scritto (prima esecuzione, oppure quota crediti esaurita e file
+    precedente conservato). Il chiamante lo dice all'utente, non inventa quote.
+    Per sapere QUALE dei tre casi e', usare ``carica_quote_live_con_stato``.
+    """
+    payload, _stato = carica_quote_live_con_stato(percorso, database_dir)
     return payload
 
 
@@ -330,40 +428,84 @@ def indice_partite(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             "n_eventi": n_eventi, "n_indicizzati": sum(len(v) for v in indice.values())}
 
 
+def _riferimento_utc(utc_date: Optional[str]) -> Optional[datetime]:
+    """``utcDate`` football-data -> datetime aware UTC (None se manca o non vale)."""
+    if not isinstance(utc_date, str) or not utc_date:
+        return None
+    try:
+        dt = datetime.fromisoformat(utc_date.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def cerca_quote_con_motivo(indice: Dict[Tuple[str, str], List[Dict[str, Any]]],
+                           home: str, away: str,
+                           utc_date: Optional[str] = None,
+                           max_delta_ore: Optional[float] = MASSIMO_SCARTO_ORARIO_QUOTE,
+                           ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Come ``cerca_quote``, ma dice ANCHE perche' non ha trovato l'evento.
+
+    Ritorna ``(evento, motivo)``: ``motivo`` e' ``None`` quando l'evento c'e',
+    altrimenti una delle costanti ``MOTIVO_*``. Un solo punto decide la ricerca e
+    il motivo, cosi' il testo mostrato all'utente non puo' divergere dalla
+    regola che ha davvero scartato la partita.
+    """
+    home_res = resolve_team_name(home)
+    away_res = resolve_team_name(away)
+    if not (home_res.mapped and away_res.mapped):
+        return None, MOTIVO_NOME_NON_ABBINATO
+    candidati = (indice or {}).get((home_res.canonical, away_res.canonical)) or []
+    if not candidati:
+        return None, MOTIVO_ASSENTE_DALLA_FONTE
+    riferimento = _riferimento_utc(utc_date)
+    if riferimento is None:
+        return candidati[0], None
+    if max_delta_ore is not None:
+        limite = timedelta(hours=float(max_delta_ore))
+        entro = [e for e in candidati
+                 if abs((_kickoff(e) or riferimento) - riferimento) <= limite]
+        if not entro:
+            LOG.warning(
+                "Quote live: %s vs %s ha eventi della fonte ma nessuno entro %.0f h "
+                "dal kickoff %s (candidati: %s): nessuna quota agganciata.",
+                home_res.canonical, away_res.canonical, float(max_delta_ore),
+                riferimento.isoformat(),
+                ", ".join(str(e.get("commence_time")) for e in candidati))
+            return None, MOTIVO_FUORI_FINESTRA
+        candidati = entro
+    if len(candidati) == 1:
+        return candidati[0], None
+    return min(candidati, key=lambda e: abs((_kickoff(e) or riferimento) - riferimento)), None
+
+
 def cerca_quote(indice: Dict[Tuple[str, str], List[Dict[str, Any]]],
                 home: str, away: str,
-                utc_date: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                utc_date: Optional[str] = None,
+                max_delta_ore: Optional[float] = MASSIMO_SCARTO_ORARIO_QUOTE,
+                ) -> Optional[Dict[str, Any]]:
     """Evento della fonte quote per ``(home, away)``: il piu' vicino al kickoff.
 
     Una coppia casa/trasferta si gioca due volte a stagione, ma l'ordine
     casa-trasferta distingue le due partite; se la fonte ne riporta piu' di una
     (doppione o anticipo/posticipo) si prende quella con ``commence_time`` piu'
     vicino a ``utc_date`` della partita football-data. Se ``utc_date`` manca o
-    non e' valido si prende la prima: la scelta e' dichiarata nel campo
-    ``scelta_su_piu_eventi`` del risultato.
+    non e' valido si prende la prima.
 
-    Ritorna ``None`` se la coppia non e' nell'indice (nessuna quota: il chiamante
-    esclude la partita dal Top Mix e la segnala).
+    FINESTRA (``max_delta_ore``, default ``MASSIMO_SCARTO_ORARIO_QUOTE``). "Il
+    piu' vicino" da solo non basta: un file di quote vecchio di una settimana
+    aggancerebbe l'evento di un'altra giornata alla stessa coppia
+    casa/trasferta, e la partita entrerebbe nel Top Mix con quote che non sono
+    le sue. Oltre la finestra la funzione torna ``None`` e la partita finisce in
+    "senza quote" con il motivo ``MOTIVO_FUORI_FINESTRA``: meglio nessuna quota
+    dichiarata che una quota sbagliata spacciata per buona. La finestra vale
+    anche quando il candidato e' uno solo. Si disattiva con ``max_delta_ore=None``.
+
+    Ritorna ``None`` anche se la coppia non e' nell'indice (nessuna quota: il
+    chiamante esclude la partita dal Top Mix e la segnala).
     """
-    home_res = resolve_team_name(home)
-    away_res = resolve_team_name(away)
-    if not (home_res.mapped and away_res.mapped):
-        return None
-    candidati = indice.get((home_res.canonical, away_res.canonical)) or []
-    if not candidati:
-        return None
-    if len(candidati) == 1:
-        return candidati[0]
-    riferimento = None
-    if isinstance(utc_date, str) and utc_date:
-        try:
-            dt = datetime.fromisoformat(utc_date.replace("Z", "+00:00"))
-            riferimento = dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
-        except ValueError:
-            riferimento = None
-    if riferimento is None:
-        return candidati[0]
-    return min(candidati, key=lambda e: abs((_kickoff(e) or riferimento) - riferimento))
+    evento, _motivo = cerca_quote_con_motivo(indice, home, away, utc_date, max_delta_ore)
+    return evento
 
 
 # ---------------------------------------------------------------------------

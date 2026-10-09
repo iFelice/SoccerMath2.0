@@ -1115,8 +1115,34 @@ def righe_visibili(entries: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return dedup_visibili_top_mix([e for e in (entries or []) if not is_ombra(e)])
 
 
-def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    lst = dedup_visibili_top_mix([e for e in entries if not is_ombra(e)])
+def _filtra_per_famiglia(lista: List[Dict[str, Any]],
+                         famiglia: Optional[str]) -> List[Dict[str, Any]]:
+    """Tiene solo le righe di UNA famiglia di selettore (``None`` = tutte).
+
+    Dalla PR delle quote live il Registro visibile contiene DUE famiglie: le
+    scelte storiche del MODELLO (``topmix_1x2_gate025_ens06_v2`` e precedenti) e
+    le scelte del MERCATO (``topmix_mercato_v3``). Sono due selettori diversi
+    sulla stessa partita, quindi un totale unico le mescolerebbe: sulla stessa
+    partita lo stesso esito verrebbe contato due volte, una alla probabilita'
+    del modello e una a quella del mercato (PR #49 §4d: le due scelte
+    coincidono su 1144 partite su 1302). Per questo le statistiche si leggono
+    per famiglia, e il filtro sta qui — non in ``dedup_key`` ne' in
+    ``chiave_tabella_mercato``, che restano invariati.
+    """
+    if famiglia is None:
+        return lista
+    return [e for e in lista if famiglia_selettore(e) == famiglia]
+
+
+def compute_stats(entries: Iterable[Dict[str, Any]],
+                  famiglia: Optional[str] = None) -> Dict[str, Any]:
+    """Win rate sulle righe visibili, eventualmente di UNA sola famiglia.
+
+    ``famiglia`` in ``{FAMIGLIA_SELETTORE_MODELLO, FAMIGLIA_SELETTORE_MERCATO}``;
+    ``None`` (default, comportamento di prima) tiene tutte le famiglie insieme.
+    """
+    lst = _filtra_per_famiglia(
+        dedup_visibili_top_mix([e for e in entries if not is_ombra(e)]), famiglia)
     wins = 0
     losses = 0
     pending = 0
@@ -1137,6 +1163,7 @@ def compute_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         "pending": pending,
         "decided": decided,
         "win_rate": win_rate,
+        "famiglia": famiglia,
         "entries": lst,
     }
 
@@ -1614,13 +1641,20 @@ def brier_of_entry(entry: Any) -> Optional[float]:
     return (p - y) ** 2
 
 
-def compute_calibration_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+def compute_calibration_stats(entries: Iterable[Dict[str, Any]],
+                              famiglia: Optional[str] = None) -> Dict[str, Any]:
     """Win rate + Brier + gap di calibrazione sullo stesso sottoinsieme.
 
     Il Registro finora esponeva SOLO il win rate, mentre ``prob_sicuro`` e'
     persistito da sempre: il Brier non richiede nessuna migrazione.
+
+    ``famiglia`` come in ``compute_stats``: senza filtro il Brier mescolerebbe
+    le probabilita' del modello con quelle del mercato sulla stessa partita, e
+    non descriverebbe nessuno dei due selettori.
     """
-    lst = dedup_visibili_top_mix([e for e in (entries or []) if is_dict(e) and not is_ombra(e)])
+    lst = _filtra_per_famiglia(
+        dedup_visibili_top_mix([e for e in (entries or []) if is_dict(e) and not is_ombra(e)]),
+        famiglia)
     decise = [e for e in lst if outcome_of_entry(e) is not None]
     coppie = [(prob_of_entry(e), outcome_of_entry(e)) for e in decise]
     coppie = [(p, y) for p, y in coppie if p is not None]
@@ -1636,6 +1670,7 @@ def compute_calibration_stats(entries: Iterable[Dict[str, Any]]) -> Dict[str, An
         "prob_media": (mean_p * 100.0) if mean_p is not None else None,
         "gap": ((mean_p - hit) * 100.0) if (mean_p is not None and hit is not None) else None,
         "brier": brier,
+        "famiglia": famiglia,
     }
 
 
