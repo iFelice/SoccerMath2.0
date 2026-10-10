@@ -66,10 +66,6 @@ on:
         description: "quali modelli scrivere: both (default), current, legacy"
         required: false
         default: "both"
-      verifica_campione:
-        description: "quante righe del Registro verificare per periodo (ricostruzione all'istante del salvataggio)"
-        required: false
-        default: "3"
 
 permissions:
   contents: read
@@ -94,7 +90,6 @@ jobs:
       FROM_INSTANT: ${{ github.event.inputs.from_instant || '' }}
       TO_INSTANT: ${{ github.event.inputs.to_instant || '' }}
       MODEL: ${{ github.event.inputs.model || 'both' }}
-      VERIFICA_CAMPIONE: ${{ github.event.inputs.verifica_campione || '3' }}
       COVERAGE_FROM: ${{ github.event.inputs.coverage_from || '2026-08-30' }}
       # Dove vive il Registro per QUESTA esecuzione: **l'hash Upstash**, che
       # dopo la migrazione e' il Registro vivo (l'app ci scrive). JSONBin resta
@@ -196,7 +191,7 @@ jobs:
               [ -n "$TO_INSTANT" ] && extra="$extra --to-instant $TO_INSTANT"
               echo "extra=$extra" >> "$GITHUB_OUTPUT" ;;
           esac
-      - name: "Checkout (storia completa: gli snapshot vengono da git)"
+      - name: "Checkout (storia completa: snapshot quote e modello vengono da git)"
         if: steps.salta.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
@@ -406,11 +401,11 @@ jobs:
             echo "::error title=registro::stato backend uscito con $rc (un backend non risponde: vedi le righe sopra)"
           fi
 
-      # Il replay ricostruisce a kickoff - 1 s; le righe del Registro sono state
-      # scritte quando l'utente ha premuto il bottone. Questo campione toglie il
-      # dubbio: ricostruisce il click ALL'ISTANTE DEL SALVATAGGIO e confronta.
-      # Sola lettura, e se nessuna riga coincide esce 1 (metodo sbagliato).
-      - name: Il replay rifa' i click veri? (campione, sola lettura)
+      # Verifica tutte le righe topmix_mercato_v3 del periodo. Mercato vs mercato
+      # usa gli snapshot storici live_odds.json, individuati per generato_il; il
+      # modello si rifa' con simulate_click allo stesso istante di registrazione.
+      # Sola lettura: nessuna riga/snapshot mancante viene contata come coincidenza.
+      - name: "Replay v3: mercato contro mercato e modello contro modello (sola lettura)"
         if: always() && steps.salta.outputs.skip != 'true'
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
@@ -420,21 +415,19 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           REGISTRY_BACKEND: ${{ env.BACKEND }}
         run: |
-          # Esiti (ultima riga del riepilogo, "[verifica] esito: ..."):
-          #  - "verifica rimandata, 0 righe v2": nessuna riga della versione del
-          #    selettore in prova nel Registro -> exit 0, il passo NON fallisce;
-          #  - "ok": almeno una riga v2 coincide -> exit 0;
-          #  - "fallita": righe v2 presenti e nessuna coincide -> exit 1.
-          # Le righe di versioni precedenti sono NON VERIFICABILI (conteggiate nel referto).
-          # pipefail: senza, un errore dello script finiva inghiottito dalla
-          # pipe e il passo risultava verde (e' successo davvero).
+          # Esiti: solo zero righe topmix_mercato_v3 = warning + exit 0;
+          # righe presenti con zero corrispondenze esatte fanno fallire il gate,
+          # anche se tutte non verificabili. Ogni confronto usa uguaglianza
+          # esatta; snapshot mancanti non sono mai conteggiati come coincidenze.
+          # pipefail: senza, un errore dello script finirebbe inghiottito dalla
+          # pipe e il passo potrebbe risultare verde.
           set -o pipefail
           # L'esito deve restare visibile ANCHE quando lo script esce 1 (nessuna
           # coincidenza): con set -e il passo si interrompeva prima di stampare.
           set +e
           python audit/verifica_click_live.py \
             --from "$COVERAGE_FROM" --to "${DAY_TO:-$(date -u +%F)}" \
-            --per-variante "${VERIFICA_CAMPIONE:-3}" --fixtures api \
+            --fixtures api \
             --out "$REPLAY_OUT/verifica_click_live.md" \
             2>&1 | grep -v "ScriptRunContext\|MemoryCacheStorageManager\|Session state\|streamlit run" \
             | tee "$REPLAY_OUT/verifica_click_live.txt"
@@ -444,15 +437,21 @@ jobs:
           tail -n 16 "$REPLAY_OUT/verifica_click_live.txt" | while IFS= read -r line; do
             echo "::warning title=click-veri::${line:0:900}"
           done
-          # Riepilogo del job: l'esito della verifica in chiaro (rimandata / ok / fallita).
-          esito_riga="$(grep '^\[verifica\] esito:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
+          # Il riepilogo riporta sempre quante righe sono state confrontate
+          # separatamente per a) mercato, b) modello e quanti snapshot servivano/trovati.
+          riepilogo_riga="$(grep -F '[verifica] riepilogo:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
+          esito_riga="$(grep -F '[verifica] esito:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
+          echo "::notice title=click-veri-riepilogo::${riepilogo_riga:-riepilogo non letto}"
+          echo "::notice title=click-veri-esito::${esito_riga:-esito non letto}"
           {
-            echo "### Verifica click veri (solo la versione in prova)"
+            echo "### Replay Top Mix mercato: mercato contro mercato / modello contro modello"
+            echo ""
+            echo "${riepilogo_riga:-[verifica] riepilogo: non letto (vedi il log del passo)}"
             echo ""
             echo "${esito_riga:-[verifica] esito: non letto (vedi il log del passo)}"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$rc" != "0" ]; then
-            echo "::error title=click-veri::verifica uscita con $rc: nessuna riga riprodotta o errore (vedi le righe sopra)"
+            echo "::error title=click-veri::verifica uscita con $rc: confronti esatti discordanti o errore (vedi le righe sopra)"
           fi
           exit "$rc"
 

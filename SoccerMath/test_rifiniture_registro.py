@@ -101,7 +101,60 @@ def _app():
 
 
 # ---------------------------------------------------------------------------
-# 1. Righe in attesa sotto soglia
+# 1. Variazione dalla prima registrazione nella tabella Mercato
+# ---------------------------------------------------------------------------
+class TestDeltaMercatoDallaPrima(unittest.TestCase):
+    def setUp(self):
+        self.app = _app()
+
+    def _riga(self, prima=None, ultima=None):
+        riga = {"prob_sicuro": None}
+        if prima is not None:
+            riga[pr.PROB_MERCATO_PRIMA_FIELD] = prima
+        if ultima is not None:
+            riga[pr.PROB_MERCATO_FIELD] = ultima
+            riga["prob_sicuro"] = ultima * 100.0
+        return riga
+
+    def test_delta_piu_due_pp_freccia_verde(self):
+        testo, nota = self.app._delta_mercato_dalla_prima(self._riga(0.56, 0.58))
+        self.assertEqual(("▲ +2.0 pp", ""), (testo, nota))
+        self.assertIn("color: #188038", self.app._stile_delta_dalla_prima(testo))
+
+    def test_delta_piu_uno_nove_senza_freccia(self):
+        testo, nota = self.app._delta_mercato_dalla_prima(self._riga(0.56, 0.579))
+        self.assertEqual(("+1.9 pp", ""), (testo, nota))
+        self.assertEqual("", self.app._stile_delta_dalla_prima(testo))
+
+    def test_delta_meno_due_cinque_pp_freccia_rossa(self):
+        testo, nota = self.app._delta_mercato_dalla_prima(self._riga(0.60, 0.575))
+        self.assertEqual(("▼ -2.5 pp", ""), (testo, nota))
+        self.assertIn("color: #d93025", self.app._stile_delta_dalla_prima(testo))
+
+    def test_prima_ricostruita_delta_vuoto_e_nota_esplicita(self):
+        testo, nota = self.app._delta_mercato_dalla_prima(self._riga(None, 0.58))
+        self.assertEqual("", testo, "non si inventa uno zero per la prima ricostruita")
+        self.assertEqual("ricostruita", nota)
+
+    def test_didascalia_rinfresco_conta_e_identifica_solo_le_sotto_soglia(self):
+        righe = [
+            {"selector_version": pr.SELECTOR_VERSION_CURRENT, "home": "Roma", "away": "Como",
+             "campionato": "Serie A", "mercato_standard": "1", "sotto_soglia_ora": True},
+            {"selector_version": pr.SELECTOR_VERSION_CURRENT, "home": "Milan", "away": "Inter",
+             "campionato": "Serie A", "mercato_standard": "2", "sotto_soglia_ora": False},
+        ]
+        testo = self.app._didascalia_rinfresco_righe_in_attesa(righe, n_sotto=1)
+        self.assertIn("tutte le righe di mercato ancora in attesa", testo)
+        self.assertIn("quota pre-partita valida", testo)
+        self.assertIn("SOLO", testo)
+        self.assertIn("sotto 0,55", testo)
+        self.assertIn("Righe con il flag (1)", testo)
+        self.assertIn("Roma–Como (Serie A, 1)", testo)
+        self.assertNotIn("Milan–Inter", testo)
+
+
+# ---------------------------------------------------------------------------
+# 2. Righe in attesa sotto soglia
 # ---------------------------------------------------------------------------
 class TestRinfrescoRigheInAttesa(unittest.TestCase):
     def test_caso_della_commessa_058_diventa_052(self):
@@ -230,6 +283,27 @@ class TestRinfrescoRigheInAttesa(unittest.TestCase):
         self.assertEqual(31.0, aggiornate[0]["prob_sicuro"])
         self.assertAlmostEqual(0.31, aggiornate[0][pr.PROB_MERCATO_FIELD])
         self.assertEqual(3.20, aggiornate[0][pr.QUOTA_MERCATO_FIELD])
+        self.assertEqual({"aggiornata": 1, "sotto_soglia": 1}, azioni)
+
+    def test_rinfresco_non_cambia_esito_registrato_se_cambia_il_favorito(self):
+        """Una riga "1" resta "1" anche se ora il favorito e' "2".
+
+        Il refresh usa la lettura dell'esito registrato (qui 1 a 53,0%) e non
+        l'argmax del nuovo mercato (2 a 56,0%). ``mercato_standard`` e' una
+        decisione gia' registrata, non un campo del rinfresco.
+        """
+        preds = [_riga_registrata(mercato_standard="1", prob_val=58.0,
+                                 prob_mercato=0.58, quota=1.72)]
+        letture = [_lettura_partita(112, {
+            "1": _lettura(53.0, 0.53, 1.85, sotto_soglia=True),
+            "2": _lettura(56.0, 0.56, 1.70),
+        })]
+        aggiornate, azioni = pr.aggiorna_righe_mercato_in_attesa(
+            preds, letture, salvato_il="10/10/2026 08:00")
+        self.assertEqual("1", aggiornate[0]["mercato_standard"])
+        self.assertEqual(53.0, aggiornate[0]["prob_sicuro"])
+        self.assertEqual(0.53, aggiornate[0][pr.PROB_MERCATO_FIELD])
+        self.assertEqual(1.85, aggiornate[0][pr.QUOTA_MERCATO_FIELD])
         self.assertEqual({"aggiornata": 1, "sotto_soglia": 1}, azioni)
 
     def test_righe_giudicate_non_toccate(self):
@@ -652,6 +726,7 @@ class TestRifinitureNelCodiceDellApp(unittest.TestCase):
         self.assertIn("REGISTRAZIONE_ULTIMA", blocco)
         self.assertIn("senza_prima_registrazione", blocco)
         self.assertIn("sotto_soglia_ora", blocco)
+        self.assertIn("_didascalia_rinfresco_righe_in_attesa(records", blocco)
         self.assertIn("hit rate", blocco.lower())
         self.assertIn("_mostra_statistiche_registrazione(all_records)", self.src)
 

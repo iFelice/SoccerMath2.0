@@ -10,6 +10,19 @@ name: Quote live (The Odds API)
 # 5 crediti a giro (misurato in PR #50, audit/results/live_odds_feasibility.md
 # §4). Un giro al giorno sta nel piano gratuito da 500 crediti/mese.
 #
+# GUARDIA DI FRESCHEZZA (secondo tentativo, 2026-10-10): GitHub ritarda e a
+# volte salta i cron (il run del 2026-10-10 del cron 17 8 non e' partito).
+# Ora ci sono DUE cron: 17 8 (principale) e 47 10 (secondo tentativo). Prima
+# di qualunque chiamata update_live_odds.py legge generato_il del file
+# esistente: se ha meno di 6 ore esce 0 senza chiamare l'API (0 crediti,
+# log "quote fresche, nessuna chiamata"). Quindi:
+#   - primo cron parte      -> giro da 5 crediti, il secondo costa 0;
+#   - primo cron salta       -> il secondo fa il giro (5 crediti);
+#   - entrambi i cron saltano -> il job allarme di update_database.yml
+#     (soglia 26 ore) fa fallire quel workflow e GitHub notifica.
+# Consumo atteso: ~5 crediti al giorno. workflow_dispatch ha l'input booleano
+# `forza` (default false) che salta la guardia e scarica comunque.
+#
 # ROBUSTEZZA: se la quota crediti e' esaurita, se la chiave e' rifiutata, se
 # nessuna lega torna eventi, oppure se una lega ha eventi ma ZERO libri dopo la
 # conversione (guasto del 2026-10-09), il file precedente NON viene sovrascritto
@@ -20,7 +33,10 @@ name: Quote live (The Odds API)
 #   - schedule '17 8 * * *' UTC: tutti i giorni alle 08:17, prima dei kickoff del
 #     turno (il primo kickoff osservato nello snapshot di PR #50 era alle 13:00
 #     UTC del sabato). Orario nominale: GitHub puo' ritardare i cron;
-#   - workflow_dispatch: avvio manuale (stesso comando, stessi costi);
+#   - schedule '47 10 * * *' UTC: secondo tentativo alle 10:47, con guardia di
+#     freschezza (0 crediti se il primo cron ha funzionato);
+#   - workflow_dispatch: avvio manuale (stesso comando; input `forza` per
+#     saltare la guardia, stesso costo);
 #   - pull_request: SOLO prove in dry-run con le risposte REALI della sonda
 #     (audit/data/live_odds_probe, anche nella forma grezza dell'API ricostruita
 #     da audit/live_odds_raw_fixtures.py): nessuna chiamata di rete, 0 crediti,
@@ -31,7 +47,16 @@ name: Quote live (The Odds API)
 on:
   schedule:
     - cron: '17 8 * * *'
+    # Secondo tentativo (2026-10-10): se il cron delle 08:17 non parte, questo
+    # recupera il giro. Con il file fresco la guardia esce 0: 0 crediti.
+    - cron: '47 10 * * *'
   workflow_dispatch:
+    inputs:
+      forza:
+        description: "Salta la guardia di freschezza e scarica comunque (~5 crediti)"
+        type: boolean
+        required: false
+        default: false
   pull_request:
     branches:
       - main
@@ -46,10 +71,16 @@ on:
 permissions:
   contents: write
 
-# Stesso gruppo di update_database.yml / update_xg.yml: tutti e tre committano
-# dati sullo stesso branch, e i commit devono restare ordinati.
+# Gruppo DEDICATO alle quote (2026-10-10): condividere soccermath-data con
+# update_database.yml / update_xg.yml metteva i cron delle quote in coda fra
+# workflow diversi, e GitHub CANCELLA ogni run precedentemente in attesa nel
+# gruppo non appena ne arriva un'altra (anche con cancel-in-progress: false,
+# che protegge solo i run IN CORSO): un giro quote poteva sparire in coda.
+# Gruppo proprio: le quote si serializzano solo con le quote. Il commit
+# resta protetto dal retry con rebase del passo di push (stesso sistema di
+# update_database.yml e update_xg.yml, che restano in soccermath-data).
 concurrency:
-  group: soccermath-data
+  group: soccermath-quote
   cancel-in-progress: false
 
 jobs:
@@ -185,13 +216,22 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         # Niente `set -e` sulla chiamata: il codice di uscita va letto e
-        # spiegato. 0 = scritto; 1 = nessun evento (file precedente conservato);
+        # spiegato. 0 = scritto OPPURE quote fresche (guardia: nessuna
+        # chiamata, 0 crediti); 1 = nessun evento (file precedente conservato);
         # 2 = quota crediti esaurita (file precedente conservato); 3 = chiave;
         # 4 = una lega ha eventi ma zero libri dopo la conversione (file
         # precedente conservato: senza quote il Top Mix di mercato e' vuoto).
         run: |
           set +e
-          python update_live_odds.py 2>&1 | tee /tmp/live_odds.log
+          # Input `forza` di workflow_dispatch (default false): salta la guardia
+          # di freschezza. Su schedule e pull_request l'input non esiste e la
+          # guardia resta attiva.
+          ARGS=""
+          if [ "${{ inputs.forza }}" = "true" ]; then
+            ARGS="--forza"
+            echo "forza=true: guardia di freschezza saltata su richiesta."
+          fi
+          python update_live_odds.py $ARGS 2>&1 | tee /tmp/live_odds.log
           rc=${PIPESTATUS[0]}
           set -e
           # I crediti residui sono nel log (sono header pubblici della risposta),
@@ -201,7 +241,12 @@ jobs:
             echo "::warning title=quote-live::${line:0:900}"
           done || true
           case "$rc" in
-            0) echo "Quote scaricate." ;;
+            0)
+              if grep -q 'quote fresche, nessuna chiamata' /tmp/live_odds.log; then
+                echo "Quote gia' fresche (guardia 6h): nessuna chiamata, 0 crediti spesi."
+              else
+                echo "Quote scaricate."
+              fi ;;
             1) echo "::error::nessun evento da nessuna lega: live_odds.json NON sovrascritto" ;;
             2) echo "::error::quota crediti esaurita: live_odds.json NON sovrascritto" ;;
             3) echo "::error::ODDS_API_KEY assente o rifiutata: live_odds.json NON sovrascritto" ;;

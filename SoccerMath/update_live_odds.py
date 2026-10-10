@@ -4,9 +4,29 @@ update_live_odds.py — scarica le quote 1X2 dal vivo e scrive ``live_odds.json`
 
 CHI LO ESEGUE
 -------------
-SOLO il workflow ``.github/workflows/live_odds.yml`` (cron ``17 8 * * *`` UTC
-piu' avvio manuale) o un operatore a mano. L'app non chiama MAI The Odds API:
-legge il file scritto qui (``market_odds.carica_quote_live``).
+SOLO il workflow ``.github/workflows/live_odds.yml`` (cron ``17 8 * * *`` e
+secondo tentativo ``47 10 * * *`` UTC, piu' avvio manuale) o un operatore a
+mano. L'app non chiama MAI The Odds API: legge il file scritto qui
+(``market_odds.carica_quote_live``).
+
+GUARDIA DI FRESCHEZZA (secondo tentativo, 2026-10-10)
+------------------------------------------------------
+GitHub ritarda e a volte salta i cron. Prima di QUALSIASI chiamata il writer
+legge ``generato_il`` del file esistente: se ha meno di 6 ore esce 0 senza
+toccare la rete (0 crediti) loggando "quote fresche, nessuna chiamata". Cosi'
+il secondo cron (10:47) costa 0 crediti quando il primo (08:17) ha funzionato,
+e ruba il giro solo quando il primo non e' partito: consumo atteso ~5 crediti al
+giorno. ``--forza`` (input ``forza`` di workflow_dispatch, default false) salta
+la guardia. Con ``--fixture`` la guardia non serve: nessuna chiamata, 0 crediti.
+
+ALLARME QUOTE VECCHIE (26 ore)
+------------------------------
+``--allarme-vecchie`` (usato dal job separato di ``update_database.yml``)
+controlla SOLO l'eta' del file: esce 1 stampando ``::error::`` con l'eta' in
+ore se il file manca o ``generato_il`` ha piu' di 26 ore, 0 altrimenti. Nessuna
+chiamata, 0 crediti, nessuna chiave: serve a far fallire il workflow (e quindi
+a far partire la notifica di GitHub) quando entrambi i cron delle quote sono
+saltati.
 
 COSTO
 -----
@@ -46,6 +66,21 @@ bookmaker annidato: 96 eventi, HTTP 200, 5 crediti e ``"libri": []`` dappertutto
 Adesso ``h2h_dal_bookmaker`` accetta entrambe le forme e il giro FALLISCE se una
 lega ha eventi e zero libri (exit 4), invece di scrivere un file senza quote.
 
+SOLO PRE-PARTITA (commence_time)
+---------------------------------
+The Odds API restituisce anche partite IN CORSO con quote live: il file deve
+contenere SOLO quote pre-partita. Una quota e' utilizzabile solo se il suo
+istante di acquisizione precede il ``commence_time`` dell'evento, quindi gli
+eventi gia' cominciati all'istante della chiamata vengono esclusi e contati:
+``grezzo.eventi_iniziati_esclusi`` per lega (come tutti i campi ``grezzo``,
+misurano la risposta arrivata) e il totale ``n_eventi_iniziati_esclusi`` in
+testa al payload. In modalita' fixture l'istante di acquisizione e'
+``scaricato_il`` dello snapshot (stabile nel tempo, quindi il dry-run non
+invecchia); con la lista grezza non esiste un istante credibile e il filtro
+resta disattivato. Un ``commence_time`` assente o corrotto NON scarta: non si
+inventa uno stato, e l'applicazione a valere decide (stesso principio di
+"righe senza kickoff restano" usato in app).
+
 ROBUSTEZZA (mai sovrascrivere con dati vuoti)
 ---------------------------------------------
   * se NESSUNA lega torna eventi il file precedente resta intatto (exit 1);
@@ -79,6 +114,8 @@ Uso
     python update_live_odds.py --dry-run       # chiamata reale, NON scrive
     python update_live_odds.py --fixture DIR   # risposte simulate da DIR (0 crediti)
     python update_live_odds.py --out PATH      # percorso di destinazione
+    python update_live_odds.py --forza         # salta la guardia di freschezza (~5 crediti)
+    python update_live_odds.py --allarme-vecchie  # solo eta' del file: ::error:: se >26h
 """
 from __future__ import annotations
 
@@ -130,6 +167,17 @@ ESITO_CHIAVE = 3
 # quote non sono arrivate nel file. Il Top Mix di mercato sarebbe vuoto, quindi
 # il giro FALLISCE e il file precedente resta (guasto del 2026-10-09).
 ESITO_CONVERSIONE_VUOTA = 4
+
+# Guardia di freschezza (secondo cron '47 10 * * *' di live_odds.yml): se il
+# file esistente ha generato_il piu' recente di queste ore, il writer esce 0
+# SENZA chiamare l'API (0 crediti). Il secondo cron costa 0 quando il primo
+# (17 8) ha funzionato e fa il giro solo quando il primo e' saltato.
+SOGGIA_FRESCHEZZA_ORE = 6.0
+# Allarme quote vecchie (job separato di update_database.yml, senza needs sul
+# commit): oltre queste ore il file e' troppo vecchio e l'allarme fallisce con
+# ::error:: indicando l'eta' in ore, per far arrivare a GitHub la notifica di
+# workflow fallito anche quando entrambi i cron delle quote non sono partiti.
+SOGGIA_ALLARME_ORE = 26.0
 
 # Bookmaker primario: lo stesso di ``market_odds.BOOKMAKER_PRIMARIO``, qui solo
 # per contarlo nel log e nella diagnostica (il writer non sceglie nulla).
@@ -439,18 +487,48 @@ def conteggi_conversione(eventi: Sequence[Dict[str, Any]],
     }
 
 
-def normalizza_eventi(eventi: Sequence[Any]) -> Tuple[List[Dict[str, Any]],
-                                                      Dict[str, Any], Dict[str, Any]]:
+def normalizza_eventi(eventi: Sequence[Any],
+                      ora_acquisizione: Optional[datetime] = None
+                      ) -> Tuple[List[Dict[str, Any]],
+                                 Dict[str, Any], Dict[str, Any]]:
     """Risposta grezza -> ``(eventi normalizzati, conteggi grezzi, conteggi conversione)``.
 
     UNICO punto in cui una risposta (di rete o da fixture) diventa eventi del
     file: rete e fixture passano di qui, quindi una prova su fixture prova
     davvero il percorso di produzione.
+
+    SOLO PRE-PARTITA: se ``ora_acquisizione`` e' presente, un evento con
+    ``commence_time`` non successivo a quell'istante e' una partita GIA'
+    INIZIATA all'acquisizione: viene escluso e contato in
+    ``grezzo["eventi_iniziati_esclusi"]`` (la regola: la quota di un evento
+    vale solo se l'acquisizione precede il kickoff). ``commence_time`` assente
+    o corrotto NON scarta — non si inventa uno stato; ``None`` (default) tiene
+    il filtro spento, come prima. La firma resta una terna: il conteggio sta
+    nel grezzo, non in un quarto valore di ritorno.
     """
     grezzo = conteggi_grezzi(eventi)
+    if ora_acquisizione is not None:
+        grezzo["eventi_iniziati_esclusi"] = 0
     scarti: Dict[str, int] = {}
-    norm = [evento_norm(e, scarti) for e in (eventi or []) if isinstance(e, dict)]
+    norm: List[Dict[str, Any]] = []
+    for e in (eventi or []):
+        if not isinstance(e, dict):
+            continue
+        if ora_acquisizione is not None:
+            kickoff = parse_iso8601(e.get("commence_time"))
+            if kickoff is not None and kickoff <= ora_acquisizione:
+                grezzo["eventi_iniziati_esclusi"] += 1
+                continue
+        norm.append(evento_norm(e, scarti))
     return norm, grezzo, conteggi_conversione(norm, scarti)
+
+
+def _avvisa_esclusi(blocco: Dict[str, Any], sport_key: str) -> None:
+    """WARNING (mai errore): quante partite gia' iniziate il filtro pre-partita ha scartato."""
+    n = (blocco.get("grezzo") or {}).get("eventi_iniziati_esclusi") or 0
+    if n:
+        LOG.warning("Lega %s: %d eventi gia' iniziati all'acquisizione esclusi "
+                    "(solo pre-partita, commence_time <= scaricato_il).", sport_key, n)
 
 
 def payload_fixture(percorso: str) -> Optional[Any]:
@@ -482,10 +560,12 @@ def scarica_lega_rete(sport_key: str, chiave: str, timeout: int = 30) -> Dict[st
     """
     import requests  # import tardivo: il percorso --fixture non richiede rete
 
+    ora_chiamata = orologio_utc()   # UN istante: scaricato_il e filtro pre-partita
     params = {"apiKey": chiave, "regions": REGIONI, "markets": MERCATO,
               "oddsFormat": FORMATO_QUOTE, "dateFormat": "iso"}
     url = f"{HOST}/v4/sports/{sport_key}/odds/"
-    blocco: Dict[str, Any] = {"sport_key": sport_key, "scaricato_il": ora_utc(),
+    blocco: Dict[str, Any] = {"sport_key": sport_key,
+                              "scaricato_il": ora_chiamata.strftime("%Y-%m-%dT%H:%M:%SZ"),
                               "url_masked": url_masked(sport_key, bool(chiave)),
                               "http_status": None, "crediti": {}, "eventi": [],
                               "n_eventi": 0, "errore": None,
@@ -514,8 +594,10 @@ def scarica_lega_rete(sport_key: str, chiave: str, timeout: int = 30) -> Dict[st
     if isinstance(eventi, dict):                              # errore nel corpo con HTTP 200
         blocco["errore"] = redigi(json.dumps(eventi, ensure_ascii=False)[:300], chiave)
         return blocco
-    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(eventi)
+    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(
+        eventi, ora_acquisizione=ora_chiamata)
     blocco["n_eventi"] = len(blocco["eventi"])
+    _avvisa_esclusi(blocco, sport_key)
     return blocco
 
 
@@ -534,7 +616,9 @@ def scarica_lega_fixture(sport_key: str, fixture_dir: str) -> Dict[str, Any]:
         blocco["errore"] = f"fixture mancante o non leggibile: {path}"
         return blocco
     if isinstance(snap, list):          # corpo GREZZO dell'endpoint /odds
+        # lista grezza: nessun istante di risposta credibile -> filtro spento
         eventi_grezzi: Sequence[Any] = snap
+        ora_acquisizione: Optional[datetime] = None
     elif isinstance(snap, dict):        # snapshot compattato della sonda
         http = snap.get("http") if isinstance(snap.get("http"), dict) else {}
         blocco["http_status"] = http.get("status", 200)
@@ -543,21 +627,36 @@ def scarica_lega_fixture(sport_key: str, fixture_dir: str) -> Dict[str, Any]:
         if not blocco["crediti"]:
             blocco["crediti"] = http.get("crediti") or {}
         blocco["scaricato_il"] = snap.get("scaricato_il") or blocco["scaricato_il"]
+        # SOLO PRE-PARTITA: l'istante d'acquisizione dello snapshot e' il suo
+        # scaricato_il (immobile nel tempo -> il dry-run non invecchia mai)
+        ora_acquisizione = parse_iso8601(snap.get("scaricato_il"))
         eventi_grezzi = snap.get("events") or snap.get("eventi") or []
     else:
         blocco["http_status"] = None
         blocco["errore"] = f"fixture con forma inattesa ({type(snap).__name__}): {path}"
         return blocco
-    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(eventi_grezzi)
+    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(
+        eventi_grezzi, ora_acquisizione=ora_acquisizione)
     blocco["n_eventi"] = len(blocco["eventi"])
+    _avvisa_esclusi(blocco, sport_key)
     return blocco
 
 
 # ---------------------------------------------------------------------------
 # Payload complessivo
 # ---------------------------------------------------------------------------
+def orologio_utc() -> datetime:
+    """L'orologio del writer: UN solo punto da congelare nei test.
+
+    Ora (``generato_il``, ``scaricato_il``) e il calcolo dell'eta' del file
+    passano da qui: i test di freschezza congelano ``orologio_utc`` e tutto il
+    resto — scrittura compresa — resta coerente con l'orologio congelato.
+    """
+    return datetime.now(timezone.utc)
+
+
 def ora_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return orologio_utc().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def riepilogo_crediti(blocchi: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
@@ -622,6 +721,10 @@ def costruisci_payload(blocchi: Sequence[Dict[str, Any]], *, fixture: Optional[s
                                  if (v["conversione"] or {}).get("n_eventi_con_libri")),
         "n_leghe_richieste": len(LEGA_SPORT_KEY),
         "n_eventi": n_eventi,
+        # SOLO PRE-PARTITA: totale (tutte le leghe) degli eventi esclusi per
+        # kickoff gia' passato all'acquisizione; per lega sta in grezzo.
+        "n_eventi_iniziati_esclusi": sum((v.get("grezzo") or {}).get("eventi_iniziati_esclusi", 0)
+                                         for v in leghe.values()),
         "n_eventi_con_libri": sum((v["conversione"] or {}).get("n_eventi_con_libri", 0)
                                   for v in leghe.values()),
         "n_eventi_con_pinnacle": sum((v["conversione"] or {}).get("n_eventi_con_pinnacle", 0)
@@ -686,6 +789,93 @@ def scrivi_atomico(payload: Dict[str, Any], percorso: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Freschezza: guardia 6h (prima di ogni chiamata) e allarme 26h
+# ---------------------------------------------------------------------------
+def parse_iso8601(testo: Any) -> Optional[datetime]:
+    """ISO 8601 (``generato_il``, ``scaricato_il``, ``commence_time``...) -> UTC-aware ``datetime``.
+
+    Accetta la forma scritta qui (``YYYY-MM-DDTHH:MM:SSZ``) e quella di
+    ``datetime.fromisoformat`` (con offset); senza fuso si assume UTC.
+    Un campo assente o corrotto ritorna ``None``: mai inventare un'eta'
+    (o uno stato di partita). I vecchi riferimenti a ``parse_generato_il``
+    sono gli stessi due del guardia-freschezza: il parser e' ora generico
+    per servire anche il filtro pre-partita sui ``commence_time``.
+    """
+    if not isinstance(testo, str) or not testo.strip():
+        return None
+    t = testo.strip()
+    if t.endswith(("Z", "z")):
+        t = t[:-1] + "+00:00"
+    try:
+        istante = datetime.fromisoformat(t)
+    except ValueError:
+        return None
+    if istante.tzinfo is None:
+        istante = istante.replace(tzinfo=timezone.utc)
+    return istante.astimezone(timezone.utc)
+
+
+def eta_generazione_ore(percorso: str, now: Optional[datetime] = None) -> Optional[float]:
+    """Eta' del file in ore (rispetto a ``now``/orologio), o ``None``.
+
+    ``None`` significa "non dimostrabile": file assente, illeggibile o senza un
+    ``generato_il`` parsabile. In dubbio il writer CHIAMA l'API (una chiamata in
+    piu' vale meno di un giro di quote vecchie mancante); e' l'allarme, che
+    deve essere severo, a trattare ``None`` come guasto.
+    """
+    try:
+        with open(percorso, encoding="utf-8") as fh:
+            dati = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(dati, dict):
+        return None
+    istante = parse_iso8601(dati.get("generato_il"))
+    if istante is None:
+        return None
+    ora = now if now is not None else orologio_utc()
+    return (ora - istante).total_seconds() / 3600.0
+
+
+def guardia_freschezza(percorso: str, soglia_ore: float = SOGGIA_FRESCHEZZA_ORE,
+                       now: Optional[datetime] = None) -> Tuple[bool, Optional[float]]:
+    """``(fresco, eta_ore)``: True SOLO se il file esiste ed e' piu' recente
+    della soglia. File assente o illeggibile -> ``(False, None)`` -> si chiama."""
+    eta = eta_generazione_ore(percorso, now=now)
+    return (eta is not None and eta < soglia_ore), eta
+
+
+def allarme_quote_vecchie(percorso: str, soglia_ore: float = SOGGIA_ALLARME_ORE,
+                          now: Optional[datetime] = None) -> Tuple[bool, str]:
+    """``(ok, messaggio)`` per il job allarme di ``update_database.yml``.
+
+    Severo per costruzione: file assente, illeggibile o senza ``generato_il``
+    parsabile sono tutti FALLIMENTI (lo stesso stato che l'allarme deve
+    segnalare quando entrambi i cron delle quote non sono partiti).
+    Il messaggio riporta SEMPRE l'eta' in ore.
+    """
+    ora = now if now is not None else orologio_utc()
+    if not os.path.exists(percorso):
+        return False, f"{percorso} assente: nessun generato_il da leggere"
+    try:
+        with open(percorso, encoding="utf-8") as fh:
+            dati = json.load(fh)
+    except (OSError, ValueError) as e:
+        return False, f"{percorso} illeggibile ({type(e).__name__})"
+    istante = parse_iso8601(dati.get("generato_il")) if isinstance(dati, dict) else None
+    if istante is None:
+        return False, (f"{percorso}: generato_il assente o non parsabile "
+                       f"(nessuna eta' dimostrabile)")
+    eta = (ora - istante).total_seconds() / 3600.0
+    if eta > soglia_ore:
+        return False, (f"{percorso} vecchio: generato_il {istante.strftime('%Y-%m-%dT%H:%M:%SZ')} "
+                       f"= {eta:.1f} ore fa, soglia {soglia_ore:g} ore")
+    return True, (f"{percorso} fresco: generato_il "
+                  f"{istante.strftime('%Y-%m-%dT%H:%M:%SZ')} = {eta:.1f} ore fa, "
+                  f"soglia {soglia_ore:g} ore")
+
+
+# ---------------------------------------------------------------------------
 # Log di una lega
 # ---------------------------------------------------------------------------
 def registra_log_lega(sport_key: str, blocco: Dict[str, Any]) -> str:
@@ -741,9 +931,23 @@ def registra_log_lega(sport_key: str, blocco: Dict[str, Any]) -> str:
 # main
 # ---------------------------------------------------------------------------
 def esegui(*, chiave: Optional[str], fixture: Optional[str], out: str, dry_run: bool,
-           timeout: int = 30) -> Tuple[int, Dict[str, Any]]:
+           timeout: int = 30, forza: bool = False) -> Tuple[int, Dict[str, Any]]:
     """Un giro completo. Ritorna ``(codice_uscita, riepilogo)``; non solleva."""
     chiave = chiave or ""
+
+    # GUARDIA DI FRESCHEZZA: prima di QUALSIASI chiamata (0 crediti se il file
+    # e' recente). Solo in rete: con --fixture non c'e' nessuna chiamata da
+    # risparmiare, e i dry-run su fixture non devono mai essere bloccati.
+    # --forza (input forza di workflow_dispatch) la salta esplicitamente.
+    if not fixture and not forza:
+        fresco, eta = guardia_freschezza(out)
+        if fresco:
+            LOG.info("quote fresche, nessuna chiamata: %s ha generato_il di %.1f ore fa "
+                     "(soglia %s ore): 0 crediti spesi, il file NON viene toccato.",
+                     out, eta or 0.0, SOGGIA_FRESCHEZZA_ORE)
+            return ESITO_OK, {"scritto": False, "motivo": "quote fresche",
+                              "fresco": True, "eta_ore": eta}
+
     if not fixture and not chiave:
         LOG.error("%s assente: nessuna chiamata possibile (il file precedente non viene toccato).",
                   NOME_ENV_CHIAVE)
@@ -857,14 +1061,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--out", default=os.path.join(HERE, "database", "live_odds.json"),
                     help="percorso di live_odds.json")
     ap.add_argument("--dry-run", action="store_true", help="non scrivere il file")
+    ap.add_argument("--forza", action="store_true",
+                    help="salta la guardia di freschezza (6 ore) e scarica comunque "
+                         "(~5 crediti): usato dall'input forza di workflow_dispatch")
+    ap.add_argument("--allarme-vecchie", action="store_true",
+                    help="SOLO controllo di eta': esce 1 con ::error:: se live_odds.json "
+                         "manca o generato_il ha piu' di 26 ore, 0 altrimenti "
+                         "(nessuna chiamata, 0 crediti, nessuna chiave)")
     ap.add_argument("--timeout", type=int, default=30, help="timeout HTTP per lega (secondi)")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args(argv)
 
+    if args.allarme_vecchie:
+        # Job separato di update_database.yml: nessun accesso alla rete e nessun
+        # bisogno della chiave, solo l'eta' del file. Il ::error:: va su stdout
+        # (cosi' GitHub lo promuove ad annotazione del job) e l'exit 1 fa
+        # fallire il workflow -> notifica, anche se tutti i cron sono saltati.
+        ok, messaggio = allarme_quote_vecchie(args.out)
+        if ok:
+            print(f"OK: {messaggio}")
+            return ESITO_OK
+        print(f"::error::{messaggio}")
+        return ESITO_NULLA_SCRITTO
+
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(levelname)s %(message)s", stream=sys.stdout)
     codice, _riepilogo = esegui(chiave=os.environ.get(NOME_ENV_CHIAVE), fixture=args.fixture,
-                                out=args.out, dry_run=args.dry_run, timeout=args.timeout)
+                                out=args.out, dry_run=args.dry_run, timeout=args.timeout,
+                                forza=args.forza)
     return codice
 
 

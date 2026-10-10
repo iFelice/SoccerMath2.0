@@ -509,6 +509,13 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         tabelle_mercato = [d for d in _fuori(self.at.dataframe) if "esito" in _colonne(d)]
         self.assertEqual(1, len(tabelle_mercato),
                          "la tabella del mercato e' l'unica tabella di registro visibile in apertura")
+        colonne_mercato = _colonne(tabelle_mercato[0])
+        self.assertIn("Δ dalla prima", colonne_mercato)
+        self.assertIn("Prima registrazione", colonne_mercato)
+        riga_torino = tabelle_mercato[0].value.loc[
+            tabelle_mercato[0].value["home"] == "Torino"].iloc[0]
+        self.assertIn(riga_torino["Δ dalla prima"], {"+0.0 pp", "▼ -8.0 pp"})
+        self.assertEqual("", riga_torino["Prima registrazione"])
         # Qui NON si usa un elenco esatto di squadre: se il test del click ha gia'
         # girato, le righe di mercato in attesa sono tre. Cio' che deve valere in
         # ogni ordine e' che la riga del Registro storico resti fuori.
