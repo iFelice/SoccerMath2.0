@@ -12,7 +12,7 @@ Il terzo vincolo del fit non è più la sola P(Over 2,5) ma la **probabilità gi
 | intera (2 / 3) | rimborso se i gol totali sono uguali alla linea | P(sopra) / (1 − P(uguale)) |
 | a quarti (2,25 / 2,75) | mezza puntata su ciascuna delle due linee adiacenti | quota equa da EV nullo: p = W / (W + Lp) |
 
-`W` = frazione di puntata che vince, `Lp` = frazione che perde, il resto è rimborsato. Con questa definizione p(sopra) + p(sotto) = 1 per ogni tipo di linea, quindi il de-vig a due vie è applicabile senza correzioni. Test di andata e ritorno su parametri noti per ogni tipo di linea: `audit/test_griglia_core_linee.py` (96 test con `audit/test_griglia_core.py` e `audit/test_griglia_varianti.py`), residuo richiesto < 1e-9.
+`W` = frazione di puntata che vince, `Lp` = frazione che perde, il resto è rimborsato. Con questa definizione p(sopra) + p(sotto) = 1 per ogni tipo di linea, quindi il de-vig a due vie è applicabile senza correzioni. Test di andata e ritorno su parametri noti per ogni tipo di linea: `audit/test_griglia_core_linee.py` (81 test; 96 in tutto insieme a `audit/test_griglia_core.py` e `audit/test_griglia_varianti.py`), residuo richiesto < 1e-9 e quote eque verificate con tabelle di profitto scritte a mano.
 
 ### 4.2 Verifica su dati reali
 

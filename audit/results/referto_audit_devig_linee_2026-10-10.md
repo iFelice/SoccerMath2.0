@@ -699,7 +699,7 @@ Il terzo vincolo del fit non è più la sola P(Over 2,5) ma la **probabilità gi
 | intera (2 / 3) | rimborso se i gol totali sono uguali alla linea | P(sopra) / (1 − P(uguale)) |
 | a quarti (2,25 / 2,75) | mezza puntata su ciascuna delle due linee adiacenti | quota equa da EV nullo: p = W / (W + Lp) |
 
-`W` = frazione di puntata che vince, `Lp` = frazione che perde, il resto è rimborsato. Con questa definizione p(sopra) + p(sotto) = 1 per ogni tipo di linea, quindi il de-vig a due vie è applicabile senza correzioni. Test di andata e ritorno su parametri noti per ogni tipo di linea: `audit/test_griglia_core_linee.py` (96 test con `audit/test_griglia_core.py` e `audit/test_griglia_varianti.py`), residuo richiesto < 1e-9.
+`W` = frazione di puntata che vince, `Lp` = frazione che perde, il resto è rimborsato. Con questa definizione p(sopra) + p(sotto) = 1 per ogni tipo di linea, quindi il de-vig a due vie è applicabile senza correzioni. Test di andata e ritorno su parametri noti per ogni tipo di linea: `audit/test_griglia_core_linee.py` (81 test; 96 in tutto insieme a `audit/test_griglia_core.py` e `audit/test_griglia_varianti.py`), residuo richiesto < 1e-9 e quote eque verificate con tabelle di profitto scritte a mano.
 
 ### 4.2 Verifica su dati reali
 
@@ -783,4 +783,160 @@ Linee esposte da Pinnacle sugli 82 eventi (valori grezzi): **1.5** × 1, **2.0**
 - De-vig proporzionale su tutte le fonti (P4.3): la scelta del de-vig non è oggetto di questo punto (lo è del punto 1).
 - Nessuna conseguenza sulla produzione: totals non entra in produzione con questo audit e la regola dell'85% della PR #59 resta non superata.
 
-<!-- CHIUSURA: generata dopo suite, CI e replay -->
+## 5. Chiusura
+
+### 5.1 Suite completa (output reale, locale, stessi comandi del workflow `test_suite.yml`)
+
+Eseguita il 2026-10-10 con lo stesso ambiente dichiarato dai workflow
+(`pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest`,
+Python 3.11, numpy 2.4.6, pandas 3.0.6, scipy 1.17.1, streamlit 1.65.0, pytest 9.1.1),
+sui **93** file `test_*.py` (i 91 già tracciati + `audit/test_griglia_core_linee.py` +
+`audit/test_totals_probe_diagnosi.py`), più `SoccerMath/test_theme_toggle.py` come script.
+Log completo: `/tmp/suite-out2/pytest.log`; coda salvata in
+`audit/results/suite_completa_2026-10-10_devig_linee.log`.
+
+```
+=============================== warnings summary ===============================
+audit/test_elo_w025_confirmation.py::TestPatchGriglia::test_boot_stats_delta_vs_060_con_griglia_ridotta
+  /home/user/SoccerMath2.0/audit/grid_search_ensemble_weight.py:224: RuntimeWarning: invalid value encountered in divide
+    rr = np.where(staked > 0, prof / staked, np.nan)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1967 passed, 1 warning, 4773 subtests passed in 237.54s (0:03:57)
+PYTEST_EXIT=0
+```
+
+`test_theme_toggle.py` (come script):
+
+```
+✅ Run 1 OK - toggle ON (segue tema sistema), nessuna eccezione
+✅ Run 2 OK - toggle OFF, CSS light forzato presente (2 blocchi <style>)
+✅ Run 3 OK - ritorno a ON, CSS forzato rimosso, nessuna eccezione
+✅ Run 4 OK - rerun generico senza crash
+
+🎉 TUTTI I TEST PASSATI: nessun crash in nessuno stato del toggle.
+THEME_EXIT=0
+```
+
+Nota: la suite PR #59 contava 1866 test; qui 1967 (+101: test nuovi del punto 4 e del punto 3).
+Nota sul clone: il checkout della sandbox era *shallow*; 10 test di provenienza
+(`test_elo_probs_equivalence.py`, `test_elo_s3_parity.py`, `test_elo_walker_parity.py`,
+`test_reconstruct_topmix_match.py`) fallivano perché cercano commit storici non presenti in un
+clone shallow. Risolto con `git fetch --unshallow` (nessuna modifica ai file); in CI i workflow
+fanno checkout con `fetch-depth: 0` e questi test passano (vedi sotto).
+
+### 5.2 Esito CI per workflow (PR #60, commit `cf1d32b`)
+
+Step per step da `gh api repos/iFelice/SoccerMath2.0/actions/runs/<id>/jobs`:
+
+- **`Suite test completa`** (run 38081172459): **success**. Step: Checkout (storia completa),
+  Salta?, Set up Python, Dipendenze, Diagnostica del runner, Elenco dei file di test,
+  **Suite pytest (tutti i file test_*.py tracciati): success**, test_theme_toggle.py come script:
+  success, Riepilogo e annotazioni, artifact. Nessun passo saltato.
+- **`Audit Top Mix (sola lettura)`** (run 38081172460): **success**. Step: Salta?, Dipendenze,
+  Test diagnostici Top Mix ed Elo: success, **Replay offline del Top Mix di mercato
+  (topmix_mercato_v3): success**, GET JSONBin Schalke–Bayern (sola lettura): success,
+  Ricostruzione Schalke–Bayern: success, Ispezione tracciamento Registro (AST): success,
+  **Nessuna modifica ai dati/codice di produzione: success**. Nessun passo saltato.
+- **`Replay Top Mix legacy (walk-forward, no-leakage)`** (run 38081172462): **success**, ma
+  **tutti gli step di replay sono `skipped`**: l'unico passo eseguito è «File rilevanti per il
+  replay», che stabilisce che questa PR non tocca file rilevanti per il replay legacy
+  (stesso comportamento della PR #59). Questo run quindi non esegue il replay legacy e non ne è
+  una verifica.
+
+Il commit che chiude questa PR aggiorna solo questo referto (`.md`): per la regola «Salta? (solo documentazione)» dichiarata nei workflow, i tre workflow saltano su quel commit; la verifica CI sopra è quella del commit `cf1d32b`, che contiene tutto il codice dell'audit.
+
+**Limite (come PR #59):** i log testuali (`gh run view --log`) e gli artifact
+(`suite-test-38081172459`, …) non sono scaricabili dalla sandbox: errore `EOF` dal backend
+`results-receiver.actions.githubusercontent.com` / blob storage. I conteggi del replay e della
+suite in CI non sono quindi leggibili qui; gli esiti sono verificati a livello di step (API) e i
+numeri riportati in §5.1 e §5.3 sono locali, prodotti con gli stessi comandi.
+
+### 5.3 Replay `topmix_mercato_v3` (output reale, senza `--write`, output in `/tmp/replay/`)
+
+```
+| Voce           | n PR #49 | n replay | Δn | hit PR #49 | hit replay | Δhit   | coincide |
+|----------------|----------|----------|----|------------|------------|--------|----------|
+| scelte_mercato |     1302 |     1302 | +0 |     0.6751 |     0.6751 | +0.0000 | SÌ      |
+| accordo        |     1144 |     1144 | +0 |     0.6818 |     0.6818 | +0.0000 | SÌ      |
+| senza_accordo  |      335 |      335 | +0 |     0.4358 |     0.4358 | +0.0000 | SÌ      |
+
+Esito del confronto: PARITÀ (tolleranze dichiarate: Δn ≤ 0, |Δhit| ≤ 0.0005).
+```
+
+Conteggi **1302 / 1144 / 335, Δn = 0** su tutte e tre le voci (parità con PR #49 e PR #59).
+Nessuna scrittura nel Registro: il replay è girato con `--json/--report/--righe` in `/tmp/replay/`.
+Coerenza con il punto 1.7: sul campione B365 il de-vig proporzionale dà 1302 scelte con hit rate
+67,51 %, identiche a quelle del replay (stessa regola di argmax e soglia 0,55).
+
+### 5.4 Esiti in breve
+
+- **Punto 1.** La regola dichiarata NON propone il passaggio alla potenza: sul campione primario
+  (2022/23 + 2023/24, Pinnacle pre-chiusura, n = 3536) l'IC 95 % di ΔLogLoss(potenza −
+  proporzionale) è [−0,001106; +0,000091] e contiene lo zero. Resta il **proporzionale**.
+  (Segnale descrittivo: Shin ha IC interamente sotto zero sul primario [−0,000920; −0,000084] e
+  sulla conferma [−0,001216; −0,000084], ma la regola valuta Shin solo dopo la potenza; la
+  decisione resta «proporzionale».) Sulle 3.504 partite, potenza e Shin fanno entrare 163 e 105
+  scelte in più (nessun cambio di esito, nessuna uscita: i tre metodi sono trasformazioni
+  monotone della stessa terna); l'hit rate delle scelte aggiuntive è 56,4 % e 53,3 %, sotto il
+  67,5 % delle scelte del proporzionale.
+- **Punto 2.** Con potenza/Shin i tre mercati fuori lista di PR #59 (X2, 1+Over 1,5, 1X+Over 1,5)
+  riducono lo scarto f − p ed entrano nella lista R4; Gol al contrario esce con Shin (fascia
+  0,65-0,75: −8,1 pt, IC sotto zero). Lo scarto quindi **cambia col metodo** e cambiano gli
+  esiti di 4 mercati su 11. La doppia chance diretta dalla somma delle 1X2 coincide con la
+  griglia al livello di macchina (max 2e-12): sulla doppia chance il modello non aggiunge nulla
+  al de-vig. Parità con la tabella PR #59 sul proporzionale: n identici, scarto massimo su f − p
+  0,04 pt (arrotondamento del referto PR #59).
+- **Punto 3.** Dei 26 eventi fuori regola: 2 senza Pinnacle, 24 con Pinnacle su altra linea
+  (12 a quarti, 5 a 3,5, 4 intere, 2 altra mezza, 1 a 1,5); C3 vuota per costruzione. Entro 7
+  giorni la regola è al 60,4 %, oltre 7 giorni all'82,8 %: nessuna delle due supera l'85 %.
+  Costo della sonda: 5 crediti; stato finale corretto **63/437** (era 61/439, stato dell'ultima
+  lega alfabetica). Correzione applicata in `totals_probe.py` e `totals_probe_analysis.py` con
+  test di regressione.
+- **Punto 4.** Il fit generalizzato recupera i parametri noti al livello di macchina su tutti i
+  tipi di linea (96 test). Sui dati reali (42 eventi confrontabili ≥ 10): differenza mediana su
+  P(Over 2,5) **0,64 pt** (≤ 1,5) ma massima **4,54 pt** (> 4), un solo evento sopra soglia
+  (Manchester United–Tottenham, linea Pinnacle 2,25 contro 2,5 degli altri libri): esito
+  dichiarato **NON utilizzabile su questo snapshot**. Linee utilizzabili: 77/82 eventi
+  (51/53 entro 7 giorni), solo conteggio.
+
+### 5.5 Elenco di ciò che non è stato verificato
+
+- Quote storiche B365 e Pinnacle dei CSV: non confrontate con The Odds API (il piano gratuito non
+  include lo storico), come PR #58/#59.
+- L'1X2 usato nel punto 4 viene da uno snapshot di 8 ore precedente alla sonda totals
+  (`live_odds.json` 2026-10-10T09:08Z contro 17:03Z): lo spostamento delle quote in quelle ore
+  non è misurabile da questo snapshot.
+- L'esito del punto 4 è su un singolo snapshot di una giornata tipo: la regola «NON utilizzabile»
+  dipende da 1 evento su 42 (4,54 pt contro soglia 4) e non è una stima stabile nel tempo; va
+  ripetuta su una sonda nuova, come già previsto per l'ingresso di totals in produzione.
+- Il costo della sonda «in crediti» è quello dichiarato dagli header; il piano tariffario di The
+  Odds API non è verificato oltre gli header stessi.
+- Log e artifact CI non scaricabili dalla sandbox (errore EOF): gli esiti CI sono verificati solo
+  a livello di step; i conteggi della suite e del replay in CI non sono letti (numeri locali in
+  §5.1 e §5.3).
+- Suite completa eseguita localmente con gli stessi comandi del workflow, non sul runner GitHub
+  (il runner CI ha comunque passato la stessa suite: §5.2).
+- Punto 1: la conferma 2024/25 + 2025/26 è troncata a metà gennaio 2026 per la copertura
+  Pinnacle dei CSV (dichiarato in §1.1); il Brier è multiclasse e secondario; il LogLoss è
+  limitato sotto a 1e-12 (nessuna probabilità osservata si avvicina).
+- Punto 2: il de-vig è applicato sia alla terna sia all'Over/Under 2,5; i due effetti non sono
+  separati; la calibrazione non misura il valore economico delle giocate.
+- Punto 3: le partite già iniziate al momento della chiamata (giorni < 0) restano nel gruppo
+  «entro 7 giorni» (dichiarato in §0.3/D3).
+- Nessuna verifica del comportamento di Shin/potenza su quote live reali (non nel repository);
+  i metodi sono testati su quote storiche e su casi sintetici.
+- Dixon & Coles (1997) fonte primaria: già dichiarata non accessibile in PR #59 (paywall); questo
+  audit riusa la convenzione tau già stabilita e non la ri-verifica.
+
+### 5.6 Vincoli rispettati
+
+- Nessuna modifica a `SoccerMath/` né a `app.py` (`git diff --stat -- SoccerMath/` vuoto).
+- Nessun `--write` e nessuna scrittura nel Registro; il replay gira con output in `/tmp/replay/`.
+- Nessuna nuova chiamata a The Odds API: i punti 3 e 4 leggono solo i file grezzi già in
+  `audit/data/totals_probe/` e `SoccerMath/database/live_odds.json`; gli script nuovi non hanno
+  codice di rete.
+- La chiave The Odds API non compare in nessun output, log o file (gli snapshot hanno
+  `apiKey=***`; verificato anche nei test `test_totals_probe*.py`).
+- Le regole dei punti 1 e 4 sono scritte in §0 prima dei numeri e non sono state modificate dopo.
+
