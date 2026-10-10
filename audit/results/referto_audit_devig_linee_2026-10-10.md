@@ -844,7 +844,7 @@ Step per step da `gh api repos/iFelice/SoccerMath2.0/actions/runs/<id>/jobs`:
   (stesso comportamento della PR #59). Questo run quindi non esegue il replay legacy e non ne è
   una verifica.
 
-Il commit che chiude questa PR aggiorna solo questo referto (`.md`): per la regola «Salta? (solo documentazione)» dichiarata nei workflow, i tre workflow saltano su quel commit; la verifica CI sopra è quella del commit `cf1d32b`, che contiene tutto il codice dell'audit.
+Tutti e tre i workflow sono **success anche sul commit finale `c773551`** (run 38081683984, 38081684017 e replay legacy): il confronto «Salta?» è fatto contro la base della PR (`origin/main`) e il branch contiene i `.py` dell'audit, quindi la regola docs-only non scatta neppure sul commit che aggiorna solo questo referto. Sul commit finale la Suite pytest e il replay offline `topmix_mercato_v3` sono stati eseguiti di nuovo: entrambi success.
 
 **Limite (come PR #59):** i log testuali (`gh run view --log`) e gli artifact
 (`suite-test-38081172459`, …) non sono scaricabili dalla sandbox: errore `EOF` dal backend
