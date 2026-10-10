@@ -1848,6 +1848,59 @@ def righe_non_iniziate(righe: Iterable[Dict[str, Any]], ora: Any = None,
     return tenute, scartate
 
 
+def righe_solo_pre_partita(righe: Iterable[Dict[str, Any]], ora: Any = None,
+                           campi_kickoff: Tuple[str, ...] = ("commence_time", "utcDate"),
+                           campo_istante: str = QUOTE_LIVE_ISTANTE_FIELD
+                           ) -> Tuple[List[Dict[str, Any]], int]:
+    """Scarta le righe la cui QUOTA non e' pre-partita (la regola delle quote).
+
+    Una quota e' utilizzabile SOLO se:
+      1. il suo istante di acquisizione (``campo_istante``, default
+         ``quote_live_istante`` = ``generato_il`` del file in cui e' arrivata)
+         precede il kickoff dell'evento — quote prese DURANTE la partita non
+         valgono neanche come "ultima registrazione";
+      2. il kickoff non e' gia' passato al momento del calcolo — meglio tardi
+         che mostrare quote di una partita finita (il ``now`` della cache e'
+         congelato 30 minuti).
+
+    Il kickoff si legge da ``campi_kickoff`` in ordine: ``commence_time`` (il
+    VERO calcio d'inizio, della fonte quote) prima, ``utcDate`` del calendario
+    come fallback — il calendario puo' essere stale (kickoff reale passato con
+    utcDate ancora futuro, gap che ``righe_non_iniziate`` non vede) e proprio
+    per questo il commence della fonte ha la precedenza.
+
+    Righe senza kickoff interpretabile RESTANO (un dato mancante non deve far
+    sparire una previsione gia' presa, stesso principio di
+    ``righe_non_iniziate``); senza istante di acquisizione la regola 1 non
+    puo' essere applicata e vale solo la 2. Va chiamata DOPO
+    ``righe_non_iniziate``, sul solo ramo mercato (righe con quote + letture):
+    le righe del modello non leggono quote. Ritorna ``(tenute, scartate)``.
+    """
+    ora_k = parse_kickoff(ora) or datetime.now(timezone.utc)
+    tenute: List[Dict[str, Any]] = []
+    scartate = 0
+    for r in righe or []:
+        if not is_dict(r):
+            continue
+        kickoff = None
+        for campo in campi_kickoff:
+            kickoff = parse_kickoff(r.get(campo))
+            if kickoff is not None:
+                break
+        if kickoff is None:
+            tenute.append(r)
+            continue
+        istante = parse_kickoff(r.get(campo_istante))
+        if istante is not None and kickoff <= istante:
+            scartate += 1
+            continue
+        if kickoff <= ora_k:
+            scartate += 1
+            continue
+        tenute.append(r)
+    return tenute, scartate
+
+
 # ---------------------------------------------------------------------------
 # Affidabilita' (Brier) del Registro: dato gia' presente, mai esposto
 # ---------------------------------------------------------------------------

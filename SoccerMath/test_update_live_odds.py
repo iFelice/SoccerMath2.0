@@ -35,6 +35,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -64,10 +65,21 @@ def _snapshot(sport_key):
 
 
 def _corpo_grezzo(sport_key, n_eventi=None, senza_bookmakers=False):
-    """Corpo GREZZO della risposta ``/odds`` per una lega (dati reali della sonda)."""
+    """Corpo GREZZO della risposta ``/odds`` per una lega (dati reali della sonda).
+
+    I ``commence_time`` sono portati a +6h dall'ora reale (come in
+    ``test_freschezza_quote``): i kickoff della sonda del 2026-10-08 sono
+    "gia' iniziati" il giorno dopo e il filtro SOLO PRE-PARTITA del writer li
+    escluderebbe — giustamente, ma qui si prova la conversione e il percorso
+    di rete, non il filtro (che ha i test propri in
+    ``test_quote_solo_pre_partita.py``).
+    """
     corpo = GREZZE.risposta_grezza(_snapshot(sport_key), sport_key,
                                    senza_bookmakers=senza_bookmakers)
-    return corpo if n_eventi is None else corpo[:n_eventi]
+    if n_eventi is not None:
+        corpo = corpo[:n_eventi]
+    kickoff = (datetime.now(timezone.utc) + timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return [{**e, "commence_time": kickoff} for e in corpo]
 
 
 def _dir_grezza(dest, senza_bookmakers=False):

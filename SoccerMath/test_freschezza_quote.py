@@ -94,9 +94,17 @@ def _risposta(eventi, status=200, headers=None, testo="[]"):
 
 
 def _corpo_grezzo(sport_key, n_eventi=1):
-    """Corpo GREZZO della risposta ``/odds`` per una lega (dati reali della sonda)."""
+    """Corpo GREZZO della risposta ``/odds`` per una lega (dati reali della sonda).
+
+    I ``commence_time`` sono SPOSTATI a 6h dopo l'orologio congelato: con il
+    filtro solo pre-partita i kickoff della sonda (09/10 e 10/10) sarebbero
+    esclusi — giustamente, ma qui si prova la guardia di freschezza, non il
+    filtro, e il contenuto dell'evento non entra nella prova.
+    """
     snapshot = GREZZE.carica_snapshot(sport_key)
-    return GREZZE.risposta_grezza(snapshot, sport_key)[:n_eventi]
+    corpo = GREZZE.risposta_grezza(snapshot, sport_key)[:n_eventi]
+    kickoff = (OROLOGIO + timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return [{**e, "commence_time": kickoff} for e in corpo]
 
 
 class _ReteFinta:

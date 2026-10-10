@@ -66,6 +66,21 @@ bookmaker annidato: 96 eventi, HTTP 200, 5 crediti e ``"libri": []`` dappertutto
 Adesso ``h2h_dal_bookmaker`` accetta entrambe le forme e il giro FALLISCE se una
 lega ha eventi e zero libri (exit 4), invece di scrivere un file senza quote.
 
+SOLO PRE-PARTITA (commence_time)
+---------------------------------
+The Odds API restituisce anche partite IN CORSO con quote live: il file deve
+contenere SOLO quote pre-partita. Una quota e' utilizzabile solo se il suo
+istante di acquisizione precede il ``commence_time`` dell'evento, quindi gli
+eventi gia' cominciati all'istante della chiamata vengono esclusi e contati:
+``grezzo.eventi_iniziati_esclusi`` per lega (come tutti i campi ``grezzo``,
+misurano la risposta arrivata) e il totale ``n_eventi_iniziati_esclusi`` in
+testa al payload. In modalita' fixture l'istante di acquisizione e'
+``scaricato_il`` dello snapshot (stabile nel tempo, quindi il dry-run non
+invecchia); con la lista grezza non esiste un istante credibile e il filtro
+resta disattivato. Un ``commence_time`` assente o corrotto NON scarta: non si
+inventa uno stato, e l'applicazione a valere decide (stesso principio di
+"righe senza kickoff restano" usato in app).
+
 ROBUSTEZZA (mai sovrascrivere con dati vuoti)
 ---------------------------------------------
   * se NESSUNA lega torna eventi il file precedente resta intatto (exit 1);
@@ -472,18 +487,48 @@ def conteggi_conversione(eventi: Sequence[Dict[str, Any]],
     }
 
 
-def normalizza_eventi(eventi: Sequence[Any]) -> Tuple[List[Dict[str, Any]],
-                                                      Dict[str, Any], Dict[str, Any]]:
+def normalizza_eventi(eventi: Sequence[Any],
+                      ora_acquisizione: Optional[datetime] = None
+                      ) -> Tuple[List[Dict[str, Any]],
+                                 Dict[str, Any], Dict[str, Any]]:
     """Risposta grezza -> ``(eventi normalizzati, conteggi grezzi, conteggi conversione)``.
 
     UNICO punto in cui una risposta (di rete o da fixture) diventa eventi del
     file: rete e fixture passano di qui, quindi una prova su fixture prova
     davvero il percorso di produzione.
+
+    SOLO PRE-PARTITA: se ``ora_acquisizione`` e' presente, un evento con
+    ``commence_time`` non successivo a quell'istante e' una partita GIA'
+    INIZIATA all'acquisizione: viene escluso e contato in
+    ``grezzo["eventi_iniziati_esclusi"]`` (la regola: la quota di un evento
+    vale solo se l'acquisizione precede il kickoff). ``commence_time`` assente
+    o corrotto NON scarta — non si inventa uno stato; ``None`` (default) tiene
+    il filtro spento, come prima. La firma resta una terna: il conteggio sta
+    nel grezzo, non in un quarto valore di ritorno.
     """
     grezzo = conteggi_grezzi(eventi)
+    if ora_acquisizione is not None:
+        grezzo["eventi_iniziati_esclusi"] = 0
     scarti: Dict[str, int] = {}
-    norm = [evento_norm(e, scarti) for e in (eventi or []) if isinstance(e, dict)]
+    norm: List[Dict[str, Any]] = []
+    for e in (eventi or []):
+        if not isinstance(e, dict):
+            continue
+        if ora_acquisizione is not None:
+            kickoff = parse_iso8601(e.get("commence_time"))
+            if kickoff is not None and kickoff <= ora_acquisizione:
+                grezzo["eventi_iniziati_esclusi"] += 1
+                continue
+        norm.append(evento_norm(e, scarti))
     return norm, grezzo, conteggi_conversione(norm, scarti)
+
+
+def _avvisa_esclusi(blocco: Dict[str, Any], sport_key: str) -> None:
+    """WARNING (mai errore): quante partite gia' iniziate il filtro pre-partita ha scartato."""
+    n = (blocco.get("grezzo") or {}).get("eventi_iniziati_esclusi") or 0
+    if n:
+        LOG.warning("Lega %s: %d eventi gia' iniziati all'acquisizione esclusi "
+                    "(solo pre-partita, commence_time <= scaricato_il).", sport_key, n)
 
 
 def payload_fixture(percorso: str) -> Optional[Any]:
@@ -515,10 +560,12 @@ def scarica_lega_rete(sport_key: str, chiave: str, timeout: int = 30) -> Dict[st
     """
     import requests  # import tardivo: il percorso --fixture non richiede rete
 
+    ora_chiamata = orologio_utc()   # UN istante: scaricato_il e filtro pre-partita
     params = {"apiKey": chiave, "regions": REGIONI, "markets": MERCATO,
               "oddsFormat": FORMATO_QUOTE, "dateFormat": "iso"}
     url = f"{HOST}/v4/sports/{sport_key}/odds/"
-    blocco: Dict[str, Any] = {"sport_key": sport_key, "scaricato_il": ora_utc(),
+    blocco: Dict[str, Any] = {"sport_key": sport_key,
+                              "scaricato_il": ora_chiamata.strftime("%Y-%m-%dT%H:%M:%SZ"),
                               "url_masked": url_masked(sport_key, bool(chiave)),
                               "http_status": None, "crediti": {}, "eventi": [],
                               "n_eventi": 0, "errore": None,
@@ -547,8 +594,10 @@ def scarica_lega_rete(sport_key: str, chiave: str, timeout: int = 30) -> Dict[st
     if isinstance(eventi, dict):                              # errore nel corpo con HTTP 200
         blocco["errore"] = redigi(json.dumps(eventi, ensure_ascii=False)[:300], chiave)
         return blocco
-    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(eventi)
+    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(
+        eventi, ora_acquisizione=ora_chiamata)
     blocco["n_eventi"] = len(blocco["eventi"])
+    _avvisa_esclusi(blocco, sport_key)
     return blocco
 
 
@@ -567,7 +616,9 @@ def scarica_lega_fixture(sport_key: str, fixture_dir: str) -> Dict[str, Any]:
         blocco["errore"] = f"fixture mancante o non leggibile: {path}"
         return blocco
     if isinstance(snap, list):          # corpo GREZZO dell'endpoint /odds
+        # lista grezza: nessun istante di risposta credibile -> filtro spento
         eventi_grezzi: Sequence[Any] = snap
+        ora_acquisizione: Optional[datetime] = None
     elif isinstance(snap, dict):        # snapshot compattato della sonda
         http = snap.get("http") if isinstance(snap.get("http"), dict) else {}
         blocco["http_status"] = http.get("status", 200)
@@ -576,13 +627,18 @@ def scarica_lega_fixture(sport_key: str, fixture_dir: str) -> Dict[str, Any]:
         if not blocco["crediti"]:
             blocco["crediti"] = http.get("crediti") or {}
         blocco["scaricato_il"] = snap.get("scaricato_il") or blocco["scaricato_il"]
+        # SOLO PRE-PARTITA: l'istante d'acquisizione dello snapshot e' il suo
+        # scaricato_il (immobile nel tempo -> il dry-run non invecchia mai)
+        ora_acquisizione = parse_iso8601(snap.get("scaricato_il"))
         eventi_grezzi = snap.get("events") or snap.get("eventi") or []
     else:
         blocco["http_status"] = None
         blocco["errore"] = f"fixture con forma inattesa ({type(snap).__name__}): {path}"
         return blocco
-    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(eventi_grezzi)
+    blocco["eventi"], blocco["grezzo"], blocco["conversione"] = normalizza_eventi(
+        eventi_grezzi, ora_acquisizione=ora_acquisizione)
     blocco["n_eventi"] = len(blocco["eventi"])
+    _avvisa_esclusi(blocco, sport_key)
     return blocco
 
 
@@ -665,6 +721,10 @@ def costruisci_payload(blocchi: Sequence[Dict[str, Any]], *, fixture: Optional[s
                                  if (v["conversione"] or {}).get("n_eventi_con_libri")),
         "n_leghe_richieste": len(LEGA_SPORT_KEY),
         "n_eventi": n_eventi,
+        # SOLO PRE-PARTITA: totale (tutte le leghe) degli eventi esclusi per
+        # kickoff gia' passato all'acquisizione; per lega sta in grezzo.
+        "n_eventi_iniziati_esclusi": sum((v.get("grezzo") or {}).get("eventi_iniziati_esclusi", 0)
+                                         for v in leghe.values()),
         "n_eventi_con_libri": sum((v["conversione"] or {}).get("n_eventi_con_libri", 0)
                                   for v in leghe.values()),
         "n_eventi_con_pinnacle": sum((v["conversione"] or {}).get("n_eventi_con_pinnacle", 0)
@@ -731,12 +791,15 @@ def scrivi_atomico(payload: Dict[str, Any], percorso: str) -> None:
 # ---------------------------------------------------------------------------
 # Freschezza: guardia 6h (prima di ogni chiamata) e allarme 26h
 # ---------------------------------------------------------------------------
-def parse_generato_il(testo: Any) -> Optional[datetime]:
-    """``generato_il`` -> UTC-aware ``datetime``, oppure ``None`` se inutilizzabile.
+def parse_iso8601(testo: Any) -> Optional[datetime]:
+    """ISO 8601 (``generato_il``, ``scaricato_il``, ``commence_time``...) -> UTC-aware ``datetime``.
 
     Accetta la forma scritta qui (``YYYY-MM-DDTHH:MM:SSZ``) e quella di
     ``datetime.fromisoformat`` (con offset); senza fuso si assume UTC.
-    Un campo assente o corrotto ritorna ``None``: mai inventare un'eta'.
+    Un campo assente o corrotto ritorna ``None``: mai inventare un'eta'
+    (o uno stato di partita). I vecchi riferimenti a ``parse_generato_il``
+    sono gli stessi due del guardia-freschezza: il parser e' ora generico
+    per servire anche il filtro pre-partita sui ``commence_time``.
     """
     if not isinstance(testo, str) or not testo.strip():
         return None
@@ -767,7 +830,7 @@ def eta_generazione_ore(percorso: str, now: Optional[datetime] = None) -> Option
         return None
     if not isinstance(dati, dict):
         return None
-    istante = parse_generato_il(dati.get("generato_il"))
+    istante = parse_iso8601(dati.get("generato_il"))
     if istante is None:
         return None
     ora = now if now is not None else orologio_utc()
@@ -799,7 +862,7 @@ def allarme_quote_vecchie(percorso: str, soglia_ore: float = SOGGIA_ALLARME_ORE,
             dati = json.load(fh)
     except (OSError, ValueError) as e:
         return False, f"{percorso} illeggibile ({type(e).__name__})"
-    istante = parse_generato_il(dati.get("generato_il")) if isinstance(dati, dict) else None
+    istante = parse_iso8601(dati.get("generato_il")) if isinstance(dati, dict) else None
     if istante is None:
         return False, (f"{percorso}: generato_il assente o non parsabile "
                        f"(nessuna eta' dimostrabile)")

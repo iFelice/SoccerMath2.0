@@ -119,6 +119,7 @@ from prediction_registry import (
     esito_mercato,
     resolve_origin,
     righe_non_iniziate,
+    righe_solo_pre_partita,
     snapshot_fingerprint,
     tipo_for_origin,
     upsert_prediction_entry,
@@ -2315,15 +2316,28 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
                 # riscriverebbe una riga che l'upsert ha appena scritta).
                 "mercato_fonte": mkt["fonte"], "mercato_n_libri": mkt["n_libri"],
                 "quote_live_istante": istante_quote,
+                # SOLO PRE-PARTITA: il kickoff della FONTE per il filtro del
+                # click (`righe_solo_pre_partita`): `utcDate` puo' essere stale,
+                # `commence_time` e' il vero calcio d'inizio.
+                "commence_time": (evento or {}).get("commence_time"),
                 "per_esito": market_odds.letture_registrazione(prob_mkt, mkt["odds"], prob_drago),
             })
             riga_mkt = seleziona_riga_top_mix_mercato(
                 prob_mkt, mkt["odds"], prob_drago, fonte=mkt["fonte"],
                 n_libri=mkt["n_libri"], home=h_disp, away=a_disp)
             if riga_mkt is not None:
-                righe["mercato"].append(_riga_top_mix_mercato(
+                riga = _riga_top_mix_mercato(
                     league, match, h_disp, a_disp, riga_mkt,
-                    quote_istante=istante_quote, dati_mancanti=senza_stats))
+                    quote_istante=istante_quote, dati_mancanti=senza_stats)
+                # SOLO PRE-PARTITA: kickoff come METADATA di riga (non passa nel
+                # Registro: `argomenti_registro_top_mix_mercato` e la tabella con
+                # whitelist `REGISTRO_MERCATO_COLONNE` non lo leggono). Serve a
+                # `righe_solo_pre_partita` al click. Va aggiunto QUI dal
+                # chiamante per non toccare `_riga_top_mix_mercato`, che e' sotto
+                # impronta di versione: il campo non cambia selezione ne'
+                # probabilita', quindi l'impronta di `topmix_mercato_v3` resta.
+                riga["commence_time"] = (evento or {}).get("commence_time")
+                righe["mercato"].append(riga)
     return righe
 
 
@@ -3636,6 +3650,23 @@ with tab2:
         # fischio d'inizio la quota non e' piu' una previsione, e una riga in
         # attesa non deve essere aggiornata con il prezzo della partita in corso.
         letture, _scartate_letture = righe_non_iniziate(letture)
+        # --- SOLO PRE-PARTITA (regola delle quote): una quota vale SOLO se
+        # l'acquisizione precede il kickoff e il kickoff non e' passato adesso.
+        # `righe_non_iniziate` sopra guarda l'`utcDate` del calendario, che
+        # puo' essere stale (commence passato, utcDate futuro): qui si guarda
+        # il `commence_time` della fonte quote (con fallback utcDate), sia
+        # contro `quote_live_istante` (istante del file) sia contro l'ora reale
+        # del click. Solo il ramo mercato: le righe del modello non leggono
+        # quote. Applicato PRIMA di session_state, della scrittura e del
+        # rinfresco -> nessuna riga nuova e nessuna "ultima registrazione"
+        # toccata per partite non piu' pre-partita; la "prima registrazione"
+        # non arriva neppure da qui (l'upsert la preserva comunque).
+        top_mercato, scartate_pre = righe_solo_pre_partita(top_mercato)
+        letture, scartate_pre_letture = righe_solo_pre_partita(letture)
+        if scartate_pre or scartate_pre_letture:
+            logging.info("Quote non pre-partita scartate: %d righe, %d letture "
+                         "(kickoff <= istante delle quote o kickoff gia' passato).",
+                         scartate_pre, scartate_pre_letture)
 
         # --- Persisti in session_state: sopravvive ai rerun ---
         st.session_state["topmix_mercato"] = top_mercato
@@ -3644,7 +3675,8 @@ with tab2:
         st.session_state["topmix_missing"] = missing
         st.session_state["topmix_ombra"] = ombra
         st.session_state["topmix_senza_quote"] = senza_quote
-        st.session_state["topmix_scartate_inizio"] = scartate_mkt + scartate_cur + scartate_leg
+        st.session_state["topmix_scartate_inizio"] = (scartate_mkt + scartate_cur + scartate_leg
+                                                      + scartate_pre)
 
         # --- Scrittura Registro: UN SOLO save_predictions per click ---
         # Prima di questa rifinitura c'era un `save_prediction_entry` dentro il
