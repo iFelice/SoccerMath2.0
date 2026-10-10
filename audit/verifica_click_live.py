@@ -482,7 +482,8 @@ def _fmt(v: Any) -> str:
 
 
 def _righe_confrontate(risultati: Sequence[Dict[str, Any]]) -> Set[int]:
-    return {int(x["indice_riga"]) for x in risultati}
+    return {int(x["indice_riga"]) for x in risultati
+            if x.get("esito") in ("corrisponde", "differisce")}
 
 
 def _righe_con_corrispondenza_esatta(mercato: Sequence[Dict[str, Any]],
@@ -496,6 +497,10 @@ def _righe_con_corrispondenza_esatta(mercato: Sequence[Dict[str, Any]],
 def _riepilogo_testo(*, n_v3: int, n_comparabili: int,
                      mercato: List[Dict[str, Any]], modello: List[Dict[str, Any]],
                      snapshot_report: Dict[str, Any], n_esatti: int, n_differenze: int) -> str:
+    confronti_mercato_validi = [x for x in mercato
+                                if x.get("esito") in ("corrisponde", "differisce")]
+    confronti_modello_validi = [x for x in modello
+                                if x.get("esito") in ("corrisponde", "differisce")]
     righe_mercato = len(_righe_confrontate(mercato))
     righe_modello = len(_righe_confrontate(modello))
     righe_esatte = len(_righe_con_corrispondenza_esatta(mercato, modello))
@@ -503,9 +508,9 @@ def _riepilogo_testo(*, n_v3: int, n_comparabili: int,
         f"[verifica] riepilogo: righe_v3={n_v3}; righe_v3_confrontabili={n_comparabili}; "
         f"righe_con_corrispondenza_esatta={righe_esatte}; "
         f"refresh_mercato_standard=immutabile (per_esito registrato); "
-        f"a_mercato_righe={righe_mercato}, registrazioni={len(mercato)}, "
+        f"a_mercato_righe={righe_mercato}, registrazioni={len(confronti_mercato_validi)}, "
         f"campi_esatti={sum(c['esito'] == 'corrisponde' for x in mercato for c in x.get('campi', []))}; "
-        f"b_modello_righe={righe_modello}, registrazioni={len(modello)}; "
+        f"b_modello_righe={righe_modello}, registrazioni={len(confronti_modello_validi)}; "
         f"snapshot_necessari={snapshot_report.get('snapshot_necessari', 0)}, "
         f"snapshot_trovati={snapshot_report.get('snapshot_trovati', 0)}, "
         f"commit_scansionati={snapshot_report.get('commit_scansionati', 0)}; "
@@ -531,8 +536,8 @@ def costruisci_referto(
     n_a_rows = len(_righe_confrontate(risultati_mercato))
     n_b_rows = len(_righe_confrontate(risultati_modello))
     n_exact_rows = len(_righe_con_corrispondenza_esatta(risultati_mercato, risultati_modello))
-    n_a_reg = len(risultati_mercato)
-    n_b_reg = len(risultati_modello)
+    n_a_reg = sum(x.get("esito") in ("corrisponde", "differisce") for x in risultati_mercato)
+    n_b_reg = sum(x.get("esito") in ("corrisponde", "differisce") for x in risultati_modello)
     L = [
         "# Replay Top Mix mercato: controlli mercato-mercato e modello-modello",
         "",
@@ -772,14 +777,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     n_esatti = sum(e == "corrisponde" for e in esiti_confronti)
     n_differenze = sum(e == "differisce" for e in esiti_confronti)
     n_righe_esatte = len(_righe_con_corrispondenza_esatta(risultati_mercato, risultati_modello))
-    if n_comparabili == 0:
+    if not in_prova:
         esito, rc = ESITO_RIMANDATA, 0
-        # Comando workflow nativo, esattamente come richiesto: il passo resta verde
-        # ma GitHub annota che non c'e' materiale v3 effettivamente confrontabile.
+        # Solo l'assenza reale di righe v3 resta verde e genera l'annotazione.
         print(f"::warning::{ESITO_RIMANDATA}", flush=True)
     elif n_righe_esatte == 0:
-        # Difesa esplicita: righe confrontabili ma zero corrispondenze complete non sono verdi.
-        esito = f"{ESITO_FALLITA} (righe v3 presenti, zero corrispondenze esatte; {n_differenze} differenze)"
+        # Righe v3 presenti senza alcuna registrazione completa esatta (anche se
+        # tutte non verificabili) non superano il gate.
+        esito = (f"{ESITO_FALLITA} (righe v3 presenti, zero corrispondenze esatte; "
+                 f"{n_comparabili} righe confrontabili; {n_differenze} differenze)")
         rc = 1
     elif n_differenze:
         esito = f"{ESITO_FALLITA} ({n_differenze} confronti esatti discordanti)"

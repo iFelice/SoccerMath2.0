@@ -415,10 +415,10 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           REGISTRY_BACKEND: ${{ env.BACKEND }}
         run: |
-          # Esiti: zero righe v3 confrontabili = warning + exit 0; ogni valore
-          # confrontabile usa uguaglianza esatta, e una differenza fa fallire il
-          # gate. Gli snapshot non trovati e i confronti non ricostruibili restano
-          # esplicitamente NON VERIFICABILI, mai conteggiati come coincidenze.
+          # Esiti: solo zero righe topmix_mercato_v3 = warning + exit 0;
+          # righe presenti con zero corrispondenze esatte fanno fallire il gate,
+          # anche se tutte non verificabili. Ogni confronto usa uguaglianza
+          # esatta; snapshot mancanti non sono mai conteggiati come coincidenze.
           # pipefail: senza, un errore dello script finirebbe inghiottito dalla
           # pipe e il passo potrebbe risultare verde.
           set -o pipefail

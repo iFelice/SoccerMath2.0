@@ -351,6 +351,30 @@ class TestZeroRighe(unittest.TestCase):
         self.assertIn("b_modello_righe=0, registrazioni=0", output.getvalue())
         self.assertIn("[verifica] esito: verifica rimandata: 0 righe topmix_mercato_v3", output.getvalue())
 
+    def test_evento_non_ricostruibile_non_conteggia_come_confronto(self):
+        first = _payload(TS_PRIMA, (1.72, 3.8, 5.0), home="Roma", away="Fiorentina")
+        last = _payload(TS_ULTIMA, (1.72, 3.8, 5.0), home="Roma", away="Fiorentina")
+        row = _riga_v3(first_payload=first, latest_payload=last,
+                       model_first=None, model_latest=None)
+        snapshots = {
+            TS_PRIMA: {"payload": first, "commit": "abc1"},
+            TS_ULTIMA: {"payload": last, "commit": "abc2"},
+        }
+        rc, testo = _esegui_main([row], snapshots)
+        self.assertEqual(1, rc)
+        self.assertIn("righe_v3_confrontabili=0", testo)
+        self.assertIn("a_mercato_righe=0, registrazioni=0", testo)
+        self.assertIn("partita assente dalla fonte quote", testo)
+
+    def test_riga_v3_tutta_non_verificabile_fallisce_senza_warning_vuoto(self):
+        row = _riga_v3(model_first=None, model_latest=None)
+        rc, testo = _esegui_main([row], {})
+        self.assertEqual(1, rc)
+        self.assertIn("righe v3 presenti, zero corrispondenze esatte", testo)
+        self.assertIn("righe_v3_confrontabili=0", testo)
+        self.assertNotIn("::warning::verifica rimandata: 0 righe topmix_mercato_v3", testo)
+        self.assertIn("snapshot_necessari=2, snapshot_trovati=0", testo)
+
     def test_zero_confronti_esatti_con_riga_presente_fallisce(self):
         first = _payload(TS_PRIMA, (1.72, 3.8, 5.0))
         last = _payload(TS_ULTIMA, (1.72, 3.8, 5.0))
