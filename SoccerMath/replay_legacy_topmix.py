@@ -434,6 +434,10 @@ class ClickResult:
     archivio_xg: Dict[str, bool] = field(default_factory=dict)  # lega -> archivio xG presente nello snapshot
     # Roster della stagione: ``fonte`` = snapshot | checkout | assente (vedi db_snapshot.assicura_roster_stagione).
     roster: Dict[str, Any] = field(default_factory=dict)
+    # Variante -> match_id -> probabilita' 1/X/2 in percentuale, prodotte dal
+    # blend di produzione anche per le partite non selezionate dal modello.
+    model_prob_val_by_variant: Dict[str, Dict[str, Dict[str, float]]] = field(
+        default_factory=lambda: {MODEL_VARIANT_CURRENT: {}, MODEL_VARIANT_LEGACY: {}})
 
     @property
     def scrivibile(self) -> bool:
@@ -536,6 +540,8 @@ def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
         app.season_point_in_time_averages = _point_in_time
         try:
             per_variante: Dict[str, List[Dict[str, Any]]] = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}
+            model_prob_val_by_variant: Dict[str, Dict[str, Dict[str, float]]] = {
+                MODEL_VARIANT_CURRENT: {}, MODEL_VARIANT_LEGACY: {}}
             pool_sizes: Dict[str, int] = {}
             selected: Dict[str, int] = {}
             missing: List[str] = []
@@ -559,9 +565,13 @@ def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
                 # Il replay ricostruisce i click del MODELLO: non passa le quote
                 # dal vivo, quindi le chiavi "mercato"/"senza_quote" restano vuote
                 # e qui si leggono solo le due varianti del modello.
-                righe = app.calcola_righe_top_mix(league, matches, engine)
+                righe = app.calcola_righe_top_mix(
+                    league, matches, engine, acquisisci_probabilita_modello=True)
                 for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
                     per_variante[variante].extend(righe.get(variante) or [])
+                    mappa = (righe.get("model_prob_val_by_variant") or {}).get(variante) or {}
+                    if isinstance(mappa, dict):
+                        model_prob_val_by_variant[variante].update(mappa)
             rows = {v: app.classifica_top_mix(lst) for v, lst in per_variante.items()}
         finally:
             app.season_point_in_time_averages = originale
@@ -601,7 +611,8 @@ def simulate_click(instant: datetime, fixtures: Dict[str, List[Fixture]], *,
         return ClickResult(instant=instant, commit=snap.commit, snapshot_sha=snap.commit.short,
                            pool_sizes=pool_sizes, selected=selected, rows=rows, missing=missing,
                            leak=leak, targets=targets, fuori_stagione=fuori_stagione, archivio_xg=archivio,
-                           roster=dict(snap.roster))
+                           roster=dict(snap.roster),
+                           model_prob_val_by_variant=model_prob_val_by_variant)
 
 
 # ---------------------------------------------------------------------------

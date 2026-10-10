@@ -2152,7 +2152,8 @@ def _riga_top_mix_mercato(league, match, h_disp, a_disp, riga, quote_istante=Non
     return out
 
 
-def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
+def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None,
+                          acquisisci_probabilita_modello=False):
     """Righe Top Mix delle partite ``matches`` di una lega.
 
     Per ogni partita: stesso Poisson a due teste, poi il selettore puro
@@ -2186,8 +2187,18 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
       Top Mix e viene SEGNALATA, mai inventata.
 
     Ritorna ``{"current": [...], "legacy": [...], "mercato": [...],
-    "senza_quote": [...], "letture": [...]}``: le due liste del modello
-    alimentano il registro OMBRA, ``"mercato"`` e' il Top Mix visibile.
+    "senza_quote": [...], "letture": [...],
+    "model_prob_val_by_variant": {variante: {match_id: {1, X, 2}}}``: le due
+    liste del modello alimentano il registro OMBRA, ``"mercato"`` e' il Top Mix
+    visibile. L'ultima mappa espone le tre probabilita' blendate anche per le
+    partite non selezionate dal modello; serve al replay/verificatore e non
+    cambia le righe o i filtri di produzione.
+
+    ``acquisisci_probabilita_modello``: quando True, aggiunge per ogni match
+    calcolato le tre probabilita' 1/X/2 (in percentuale, arrotondate come
+    ``prob_modello`` nel Registro) di entrambi i blend. E' attivo solo nel
+    replay point-in-time; il percorso live lascia il valore predefinito False,
+    senza lavoro o scritture aggiuntive.
 
     ``"letture"`` e' la lista delle partite di mercato che il Registro ha GIA' e
     che il turno deve riallineare (rifinitura dopo la PR #53): per costruzione il
@@ -2206,6 +2217,9 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
     team_stats, avg_h, avg_a, _ = engine
     righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: [], "mercato": [],
              "senza_quote": [], "letture": []}
+    if acquisisci_probabilita_modello:
+        righe["model_prob_val_by_variant"] = {
+            MODEL_VARIANT_CURRENT: {}, MODEL_VARIANT_LEGACY: {}}
     indice_quote = (quote or {}).get("indice") if isinstance(quote, dict) else None
     istante_quote = (quote or {}).get("generato_il") if isinstance(quote, dict) else None
     for match in matches:
@@ -2254,6 +2268,31 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
             elo_legacy_disponibile = True
         except Exception as e:
             logging.warning(f"Elo legacy non disponibile per {h} vs {a} ({league}): {e}")
+
+        # Tutta la terna 1/X/2 del blend usato in produzione, non solo l'esito
+        # che supera il selettore e diventa riga. Il replay la usa per verificare
+        # ``prob_modello`` sul mercato registrato anche quando il modello avrebbe
+        # scelto un esito diverso. Questo canale e' solo diagnostico: non entra
+        # nelle righe, nelle soglie o nelle probabilita' di selezione.
+        match_id = match.get("id")
+        if acquisisci_probabilita_modello and match_id not in (None, ""):
+            stagione_match = _stagione_da_utcdate(match.get("utcDate"))
+            for variante, elo_variante, elo_ok in (
+                    (MODEL_VARIANT_CURRENT, elo_probs, elo_disponibile),
+                    (MODEL_VARIANT_LEGACY, elo_legacy, elo_legacy_disponibile)):
+                try:
+                    modello_1x2 = blend_elo_into_1x2(
+                        m_poisson, h, a, league, elo_probs=elo_variante,
+                        elo_disponibile=elo_ok, season=stagione_match)
+                    valori = {esito: round(float(modello_1x2[esito]) * 100.0, 1)
+                              for esito in ("1", "X", "2")}
+                    if all(np.isfinite(valore) for valore in valori.values()):
+                        righe["model_prob_val_by_variant"][variante][str(match_id)] = valori
+                except Exception:
+                    # Un problema nel solo canale di audit non deve cambiare il
+                    # comportamento live; il verificatore lo dichiarera' non
+                    # verificabile invece di inventare una probabilita'.
+                    pass
 
         # [solo UI] le etichette "Vittoria {squadra}" e il codice mercato
         # usano il nome display: mercato_standard resta identico perche'

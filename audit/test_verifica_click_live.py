@@ -131,9 +131,18 @@ def _esegui_main(righe, snapshots, *, sim_prob=None):
             raise AssertionError("simulate_click deve ricevere le partite bersaglio")
         mid = str(targets[0].match_id)
         value = valori.get(instant, 60.0)
+        if isinstance(value, dict):
+            probabilita = value.get("probabilita", value)
+            scelta_modello = value.get("scelta", "1")
+        else:
+            probabilita = {"1": value}
+            scelta_modello = "1"
+        selezionata = probabilita.get(scelta_modello)
         return types.SimpleNamespace(
-            rows={MODEL_VARIANT_CURRENT: [{"match_id": mid, "mercato_standard": "1",
-                                           "prob_val": value}]},
+            rows={MODEL_VARIANT_CURRENT: [{"match_id": mid,
+                                           "mercato_standard": scelta_modello,
+                                           "prob_val": selezionata}]},
+            model_prob_val_by_variant={MODEL_VARIANT_CURRENT: {mid: probabilita}},
             snapshot_sha="model-snapshot-test",
         )
 
@@ -235,7 +244,7 @@ class TestConfrontoMercato(unittest.TestCase):
         rc, testo = _esegui_main([row], snapshots)
         self.assertEqual(0, rc, "il confronto prima esatto resta valido, il timestamp mancante non e' una corrispondenza")
         self.assertIn("snapshot con generato_il=2026-10-09T19:41:54Z non trovato", testo)
-        self.assertIn("| a) mercato | 7 | Milan - Lecce | ultima |", testo)
+        self.assertIn("| a) mercato | 1 | 7 | Milan - Lecce | ultima |", testo)
         self.assertIn("snapshot_necessari=2, snapshot_trovati=1", testo)
 
 
@@ -261,6 +270,30 @@ class TestConfrontoModello(unittest.TestCase):
         self.assertIn("20:00:00 UTC", testo)
         self.assertIn("prob_val (simulate_click)", testo)
         self.assertIn("b_modello_righe=1, registrazioni=2", testo)
+
+    def test_modello_sceglie_x_ma_mercato_1_verifica_probabilita_sull_1(self):
+        first = _payload(TS_PRIMA, (1.72, 3.8, 5.0))
+        last = _payload(TS_ULTIMA, (1.72, 3.8, 5.0))
+        row = _riga_v3(first_payload=first, latest_payload=last,
+                       outcome="1", model_first=57.0, model_latest=57.0)
+        snapshots = {
+            TS_PRIMA: {"payload": first, "commit": "abc1"},
+            TS_ULTIMA: {"payload": last, "commit": "abc2"},
+        }
+        # Il modello seleziona X (62.4), ma il mercato registrato e' 1: il
+        # replay espone la terna completa e il confronto deve usare P(modello, 1)=57.
+        probabilita = {"1": 57.0, "X": 62.4, "2": 15.0}
+        sim = {
+            datetime(2026, 10, 9, 8, 20, tzinfo=timezone.utc): {
+                "probabilita": probabilita, "scelta": "X"},
+            datetime(2026, 10, 9, 20, 0, tzinfo=timezone.utc): {
+                "probabilita": probabilita, "scelta": "X"},
+        }
+        rc, testo = _esegui_main([row], snapshots, sim_prob=sim)
+        self.assertEqual(0, rc)
+        self.assertIn("| prima | `prob_modello_prima` | 2026-10-09 08:20:00 UTC | 1 | 57 | 57 |", testo)
+        self.assertIn("| ultima | `prob_modello` | 2026-10-09 20:00:00 UTC | 1 | 57 | 57 |", testo)
+        self.assertIn("categorie_registrazioni_modello(verificata=2, non verificabile=0, esclusa=0)=2/2", testo)
 
     def test_prob_modello_divergente_fa_fallire_il_gate_esatto(self):
         first = _payload(TS_PRIMA, (1.72, 3.8, 5.0))
@@ -312,7 +345,7 @@ class TestConfrontoModello(unittest.TestCase):
             rc = v.main(["--from", "2026-08-30", "--to", "2026-12-31", "--fixtures", "csv"])
         self.assertEqual(0, rc, "le non-corrispondenze di esito sono non verificabili, non un confronto falsato")
         self.assertIn("simulate_click non ha ricostruito", out.getvalue())
-        self.assertIn("| b) modello | 7 | Milan - Lecce | prima |", out.getvalue())
+        self.assertIn("| b) modello | 1 | 7 | Milan - Lecce | prima |", out.getvalue())
 
 
 class TestSnapshotDaGit(unittest.TestCase):
@@ -337,6 +370,56 @@ class TestSnapshotDaGit(unittest.TestCase):
         self.assertEqual(2, report["snapshot_trovati"])
         self.assertEqual({TS_PRIMA, TS_ULTIMA}, set(trovati))
         self.assertEqual(TS_PRIMA, trovati[TS_PRIMA]["payload"]["generato_il"])
+
+
+class TestCoperturaEsaustiva(unittest.TestCase):
+    def test_righe_fuori_perimetro_esplicitamente_escluse_e_registrazioni_contate(self):
+        prima = _payload(TS_PRIMA, (1.72, 3.8, 5.0))
+        ultima = _payload(TS_ULTIMA, (1.72, 3.8, 5.0))
+        in_scope = _riga_v3(first_payload=prima, latest_payload=ultima,
+                            model_first=60.0, model_latest=54.0)
+        prima_finestra = _riga_v3(match_id=8, first_payload=prima, latest_payload=ultima,
+                                  model_first=60.0, model_latest=54.0)
+        prima_finestra["kickoff_utc"] = "2026-08-29T18:00:00Z"
+        origine_diversa = _riga_v3(match_id=9, first_payload=prima, latest_payload=ultima,
+                                   model_first=60.0, model_latest=54.0)
+        origine_diversa["origin"] = "top_mix_ombra"
+        snapshots = {
+            TS_PRIMA: {"payload": prima, "commit": "abc1"},
+            TS_ULTIMA: {"payload": ultima, "commit": "abc2"},
+        }
+        sim = {
+            datetime(2026, 10, 9, 8, 20, tzinfo=timezone.utc): 60.0,
+            datetime(2026, 10, 9, 20, 0, tzinfo=timezone.utc): 54.0,
+        }
+        rc, testo = _esegui_main([in_scope, prima_finestra, origine_diversa],
+                                 snapshots, sim_prob=sim)
+        self.assertEqual(0, rc)
+        self.assertIn("righe_v3_registro=3", testo)
+        self.assertIn("categorie_righe(verificata=1, non verificabile=0, esclusa=2)=3/3", testo)
+        self.assertIn("registrazioni_modello_attese=6", testo)
+        self.assertIn("categorie_registrazioni_modello(verificata=2, non verificabile=0, esclusa=4)=6/6", testo)
+        self.assertIn("giorno UTC 2026-08-29 precedente a --from 2026-08-30", testo)
+        self.assertIn("origin risolto come 'top_mix_ombra'", testo)
+        self.assertIn("SoccerMath/registry_coverage.py:", testo)
+        self.assertIn("| 2 | 8 |", testo)
+        self.assertIn("| 3 | 9 |", testo)
+
+    def test_registrazione_modello_non_ritornata_fa_fallire_contabilita(self):
+        prima = _payload(TS_PRIMA, (1.72, 3.8, 5.0))
+        ultima = _payload(TS_ULTIMA, (1.72, 3.8, 5.0))
+        row = _riga_v3(first_payload=prima, latest_payload=ultima,
+                       model_first=60.0, model_latest=54.0)
+        snapshots = {
+            TS_PRIMA: {"payload": prima, "commit": "abc1"},
+            TS_ULTIMA: {"payload": ultima, "commit": "abc2"},
+        }
+        with mock.patch.object(v, "_simula_modello", return_value=([], [])):
+            rc, testo = _esegui_main([row], snapshots)
+        self.assertEqual(1, rc)
+        self.assertIn("registrazione modello non contabilizzata: Registro #1", testo)
+        self.assertIn("categorie_registrazioni_modello(verificata=0, non verificabile=2, esclusa=0)=2/2", testo)
+        self.assertIn("contabilità incompleta", testo)
 
 
 class TestZeroRighe(unittest.TestCase):

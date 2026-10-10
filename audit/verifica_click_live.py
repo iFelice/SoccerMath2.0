@@ -18,6 +18,7 @@ lettura: il Registro e la storia git non vengono modificati.
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import math
 import os
@@ -51,7 +52,7 @@ from prediction_registry import (  # noqa: E402
     model_variant_read,
     selector_version_of,
 )
-from registry_coverage import top_mix_rows  # noqa: E402
+from registry_coverage import top_mix_filter_exclusion, top_mix_rows  # noqa: E402
 
 UTC = timezone.utc
 LIVE_ODDS_GIT_PATH = "SoccerMath/database/live_odds.json"
@@ -359,10 +360,12 @@ def _descrittore_modello(
 
 
 def _aggiungi_non_verificabile(riga: Dict[str, Any], registrazione: str, motivo: str,
-                               *, categoria: str, istante: Optional[datetime] = None,
+                               *, categoria: str, indice_riga: Optional[int] = None,
+                               istante: Optional[datetime] = None,
                                timestamp_snapshot: Optional[str] = None) -> Dict[str, Any]:
     return {
         "categoria": categoria,
+        "indice_riga": indice_riga,
         "match_id": riga.get("match_id"),
         "partita": f"{riga.get('home')} - {riga.get('away')}",
         "registrazione": registrazione,
@@ -410,14 +413,14 @@ def _simula_modello(descrittori: List[Dict[str, Any]], fixtures: Dict[str, List[
         if instant is None or d.get("motivo") != "in attesa della simulazione point-in-time":
             non_verificabili.append(_aggiungi_non_verificabile(
                 riga, d["registrazione"], d.get("motivo", "stato modello non ricostruibile"),
-                categoria="b) modello", istante=instant))
+                categoria="b) modello", indice_riga=d["indice_riga"], istante=instant))
             continue
         target = _cerca_fixture(fixtures, riga)
         if target is None:
             non_verificabili.append(_aggiungi_non_verificabile(
                 riga, d["registrazione"],
                 f"match_id {riga.get('match_id')} non trovato nelle fixture",
-                categoria="b) modello", istante=instant))
+                categoria="b) modello", indice_riga=d["indice_riga"], istante=instant))
             continue
         gruppo = per_istante.setdefault(instant, {"targets": [], "leagues": set(), "checks": []})
         gruppo["targets"].append(target)
@@ -439,7 +442,7 @@ def _simula_modello(descrittori: List[Dict[str, Any]], fixtures: Dict[str, List[
             for d in gruppo["checks"]:
                 non_verificabili.append(_aggiungi_non_verificabile(
                     d["riga"], d["registrazione"], motivo, categoria="b) modello",
-                    istante=d.get("istante")))
+                    indice_riga=d["indice_riga"], istante=d.get("istante")))
             continue
 
         for d in gruppo["checks"]:
@@ -452,7 +455,7 @@ def _simula_modello(descrittori: List[Dict[str, Any]], fixtures: Dict[str, List[
                 d["motivo"] = motivo
                 non_verificabili.append(_aggiungi_non_verificabile(
                     riga, d["registrazione"], motivo, categoria="b) modello",
-                    istante=d.get("istante")))
+                    indice_riga=d["indice_riga"], istante=d.get("istante")))
                 continue
             ok = _uguale_numero_esatto(d["registrato"], valore_replay)
             risultato = {
@@ -481,6 +484,68 @@ def _fmt(v: Any) -> str:
     return str(v).replace("|", "\\|").replace("\n", " ")
 
 
+CATEGORIE_COPERTURA = ("verificata", "non verificabile", "esclusa")
+
+
+def _riferimento_filtro_top_mix() -> str:
+    """File e righe correnti del filtro che decide il perimetro Top Mix."""
+    percorso = inspect.getsourcefile(top_mix_filter_exclusion) or "SoccerMath/registry_coverage.py"
+    sorgente, inizio = inspect.getsourcelines(top_mix_filter_exclusion)
+    relativo = os.path.relpath(percorso, ROOT).replace(os.sep, "/")
+    return f"{relativo}:{inizio}-{inizio + len(sorgente) - 1} (top_mix_filter_exclusion)"
+
+
+def _conteggi_categorie(records: Sequence[Dict[str, Any]]) -> Counter:
+    return Counter(str(r.get("categoria") or "(mancante)") for r in records)
+
+
+def _testo_conteggi(records: Sequence[Dict[str, Any]]) -> str:
+    counts = _conteggi_categorie(records)
+    return ", ".join(f"{nome}={counts.get(nome, 0)}" for nome in CATEGORIE_COPERTURA)
+
+
+def _nuova_registrazione_audit(record: Dict[str, Any], indice_riga: Optional[int],
+                               registrazione: str, categoria: str,
+                               motivo: Optional[str] = None) -> Dict[str, Any]:
+    riga = record["riga"]
+    esclusa = categoria == "esclusa"
+    return {
+        "registro_indice": record["registro_indice"],
+        "indice_riga": indice_riga,
+        "match_id": riga.get("match_id"),
+        "partita": f"{riga.get('home')} - {riga.get('away')}",
+        "registrazione": registrazione,
+        "categoria": categoria,
+        "motivo": motivo,
+        "esito_confronto": None,
+        "confronto_elaborato": esclusa,
+        "riga": riga,
+    }
+
+
+def _assegna_registrazione_audit(record: Dict[str, Any], categoria: str, *,
+                                  motivo: Optional[str] = None,
+                                  risultato: Optional[Dict[str, Any]] = None) -> bool:
+    """Assegna una sola volta la categoria a una registrazione attesa."""
+    if record.get("confronto_elaborato"):
+        return False
+    record["categoria"] = categoria
+    record["motivo"] = motivo
+    record["confronto_elaborato"] = True
+    if risultato is not None:
+        record["esito_confronto"] = risultato.get("esito")
+        record["registrato"] = risultato.get("registrato")
+        record["atteso"] = risultato.get("atteso")
+        record["campo"] = risultato.get("campo")
+        record["mercato"] = risultato.get("mercato")
+    return True
+
+
+def _etichetta_registrazione(record: Dict[str, Any]) -> str:
+    return (f"Registro #{record.get('registro_indice')} · match_id {record.get('match_id')} · "
+            f"{record.get('partita')} · {record.get('registrazione')}")
+
+
 def _righe_confrontate(risultati: Sequence[Dict[str, Any]]) -> Set[int]:
     return {int(x["indice_riga"]) for x in risultati
             if x.get("esito") in ("corrisponde", "differisce")}
@@ -496,7 +561,11 @@ def _righe_con_corrispondenza_esatta(mercato: Sequence[Dict[str, Any]],
 
 def _riepilogo_testo(*, n_v3: int, n_comparabili: int,
                      mercato: List[Dict[str, Any]], modello: List[Dict[str, Any]],
-                     snapshot_report: Dict[str, Any], n_esatti: int, n_differenze: int) -> str:
+                     snapshot_report: Dict[str, Any], n_esatti: int, n_differenze: int,
+                     righe_v3_registro: List[Dict[str, Any]],
+                     registrazioni_modello: List[Dict[str, Any]],
+                     registrazioni_mercato: List[Dict[str, Any]],
+                     errori_contabilita: List[str]) -> str:
     confronti_mercato_validi = [x for x in mercato
                                 if x.get("esito") in ("corrisponde", "differisce")]
     confronti_modello_validi = [x for x in modello
@@ -504,8 +573,25 @@ def _riepilogo_testo(*, n_v3: int, n_comparabili: int,
     righe_mercato = len(_righe_confrontate(mercato))
     righe_modello = len(_righe_confrontate(modello))
     righe_esatte = len(_righe_con_corrispondenza_esatta(mercato, modello))
+    attese_righe = len(righe_v3_registro)
+    attese_registrazioni = 2 * attese_righe
+    totale_righe = sum(_conteggi_categorie(righe_v3_registro).values())
+    totale_registrazioni = sum(_conteggi_categorie(registrazioni_modello).values())
+    totale_registrazioni_mercato = sum(_conteggi_categorie(registrazioni_mercato).values())
+    conto_righe = "OK" if totale_righe == attese_righe else "ERRORE"
+    conto_registrazioni = "OK" if totale_registrazioni == attese_registrazioni else "ERRORE"
+    conto_mercato = "OK" if totale_registrazioni_mercato == attese_registrazioni else "ERRORE"
+    conto_generale = ("OK" if conto_righe == conto_registrazioni == conto_mercato == "OK"
+                      and not errori_contabilita else "ERRORE")
     return (
-        f"[verifica] riepilogo: righe_v3={n_v3}; righe_v3_confrontabili={n_comparabili}; "
+        f"[verifica] riepilogo: righe_v3_registro={attese_righe}; "
+        f"righe_v3_periodo={n_v3}; righe_v3_confrontabili={n_comparabili}; "
+        f"categorie_righe({_testo_conteggi(righe_v3_registro)})={totale_righe}/{attese_righe}; "
+        f"registrazioni_modello_attese={attese_registrazioni}; "
+        f"categorie_registrazioni_modello({_testo_conteggi(registrazioni_modello)})="
+        f"{totale_registrazioni}/{attese_registrazioni}; "
+        f"categorie_registrazioni_mercato({_testo_conteggi(registrazioni_mercato)})="
+        f"{totale_registrazioni_mercato}/{attese_registrazioni}; conto={conto_generale}; "
         f"righe_con_corrispondenza_esatta={righe_esatte}; "
         f"refresh_mercato_standard=immutabile (per_esito registrato); "
         f"a_mercato_righe={righe_mercato}, registrazioni={len(confronti_mercato_validi)}, "
@@ -527,6 +613,10 @@ def costruisci_referto(
     risultati_mercato: List[Dict[str, Any]],
     risultati_modello: List[Dict[str, Any]],
     non_verificabili: List[Dict[str, Any]],
+    righe_v3_registro: List[Dict[str, Any]],
+    registrazioni_modello: List[Dict[str, Any]],
+    registrazioni_mercato: List[Dict[str, Any]],
+    errori_contabilita: List[str],
     snapshot_report: Dict[str, Any],
     esito: str,
     n_comparabili: int,
@@ -544,8 +634,8 @@ def costruisci_referto(
         f"**Esito verifica: {esito}**",
         "",
         f"Registro: {fonte} · righe Top Mix nel periodo: {len(top)} · "
-        f"righe `{SELECTOR_VERSION_CURRENT}`: {len(in_prova)} · "
-        f"righe v3 effettivamente confrontabili: {n_comparabili}",
+        f"righe `{SELECTOR_VERSION_CURRENT}` nel Registro: {len(righe_v3_registro)} · "
+        f"nel perimetro: {len(in_prova)} · confrontabili: {n_comparabili}",
         "",
         "## Riepilogo confronti",
         "",
@@ -640,14 +730,73 @@ def costruisci_referto(
         "",
     ])
 
+    L.extend([
+        "## Copertura esaustiva delle righe `topmix_mercato_v3` nel Registro",
+        "",
+        f"- righe nel Registro: **{len(righe_v3_registro)}** · categorie: "
+        f"{_testo_conteggi(righe_v3_registro)} · totale **{sum(_conteggi_categorie(righe_v3_registro).values())}/"
+        f"{len(righe_v3_registro)}**",
+        "- `verificata` significa che tutti i controlli applicabili sono stati eseguiti "
+        "(un'eventuale differenza resta una differenza e fa fallire il gate); "
+        "`non verificabile` riporta almeno un controllo non ricostruibile; "
+        "`esclusa` e' fuori dal perimetro per il filtro dichiarato.",
+        "",
+        "| indice Registro | match_id | partita | categoria | filtro / esito | file:riga filtro | motivo |",
+        "|---:|---:|---|---|---|---|---|",
+    ])
+    for record in righe_v3_registro:
+        riga = record["riga"]
+        categoria = record.get("categoria")
+        filtro = record.get("filtro") or ("controlli completi" if categoria == "verificata" else "—")
+        riferimento = record.get("filtro_riferimento") or "—"
+        motivo = record.get("motivo") or record.get("dettaglio") or "tutti i controlli applicabili eseguiti"
+        L.append(f"| {record.get('registro_indice')} | {riga.get('match_id')} | "
+                 f"{riga.get('home')} - {riga.get('away')} ({riga.get('campionato')}) | "
+                 f"{categoria} | {filtro} | {riferimento} | {motivo} |")
+    L.append("")
+
+    attese_modello = 2 * len(righe_v3_registro)
+    L.extend([
+        "## Contabilità delle registrazioni modello (prima + ultima)",
+        "",
+        f"- attese: **2 × {len(righe_v3_registro)} = {attese_modello}** · "
+        f"categorie: {_testo_conteggi(registrazioni_modello)} · "
+        f"totale **{sum(_conteggi_categorie(registrazioni_modello).values())}/{attese_modello}**",
+        "- ogni registrazione prima/ultima e' elencata una sola volta. Quelle fuori dal "
+        "perimetro delle righe sono `escluse` con lo stesso filtro; le registrazioni "
+        "senza dato/modello ricostruibile sono `non verificabili` e non contano come match.",
+        "",
+        "| indice Registro | match_id | partita | registrazione | categoria | esito confronto | motivo / filtro | file:riga filtro |",
+        "|---:|---:|---|---|---|---|---|---|",
+    ])
+    for record in registrazioni_modello:
+        L.append(f"| {record.get('registro_indice')} | {record.get('match_id')} | "
+                 f"{record.get('partita')} | {record.get('registrazione')} | "
+                 f"{record.get('categoria')} | {record.get('esito_confronto') or '—'} | "
+                 f"{record.get('motivo') or '—'} | {record.get('filtro_riferimento') or '—'} |")
+    L.append("")
+
+    if registrazioni_mercato:
+        L.append("- controlli mercato di supporto alla categoria riga: "
+                 f"{_testo_conteggi(registrazioni_mercato)} · "
+                 f"totale {sum(_conteggi_categorie(registrazioni_mercato).values())}/"
+                 f"{2 * len(righe_v3_registro)} registrazioni.")
+        L.append("")
+    if errori_contabilita:
+        L.append("### Errori di contabilità (gate rosso)")
+        L.append("")
+        L.extend(f"- {errore}" for errore in errori_contabilita)
+        L.append("")
+
     if non_verificabili:
         L.append("## Non verificabili (non conteggiate come corrispondenze)")
         L.append("")
-        L.append("| categoria | match_id | partita | registrazione | istante click / snapshot richiesto | motivo |")
-        L.append("|---|---:|---|---|---|---|")
+        L.append("| categoria | indice Registro | match_id | partita | registrazione | istante click / snapshot richiesto | motivo |")
+        L.append("|---|---:|---:|---|---|---|---|")
         for x in non_verificabili:
             riferimento = x.get("istante") or x.get("timestamp_snapshot")
-            L.append(f"| {x.get('categoria')} | {x.get('match_id')} | {x.get('partita')} | "
+            L.append(f"| {x.get('categoria')} | {x.get('registro_indice', '—')} | "
+                     f"{x.get('match_id')} | {x.get('partita')} | "
                      f"{x.get('registrazione')} | {_fmt(riferimento)} | {x.get('motivo')} |")
         L.append("")
 
@@ -655,6 +804,10 @@ def costruisci_referto(
         n_v3=len(in_prova), n_comparabili=n_comparabili,
         mercato=risultati_mercato, modello=risultati_modello,
         snapshot_report=snapshot_report, n_esatti=n_esatti, n_differenze=n_differenze,
+        righe_v3_registro=righe_v3_registro,
+        registrazioni_modello=registrazioni_modello,
+        registrazioni_mercato=registrazioni_mercato,
+        errori_contabilita=errori_contabilita,
     )
     L.append(riepilogo)
     L.append(f"[verifica] esito: {esito}")
@@ -679,9 +832,72 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     righe, fonte = check.load_registry_readonly()
     top = top_mix_rows(righe, args.day_from, args.day_to)
-    in_prova = [r for r in top if selector_version_of(r) == SELECTOR_VERSION_CURRENT]
+    top_v3 = [r for r in top if selector_version_of(r) == SELECTOR_VERSION_CURRENT]
     non_v3 = Counter(selector_version_of(r) or "(senza versione)"
                      for r in top if selector_version_of(r) != SELECTOR_VERSION_CURRENT)
+
+    # Costruisce il denominatore dal Registro INTERO prima di applicare i filtri
+    # di origine e data. Le righe v3 fuori perimetro sono conservate come
+    # "escluse" con il filtro e il riferimento sorgente, mai fatte sparire.
+    riferimento_filtro = _riferimento_filtro_top_mix()
+    righe_v3_registro: List[Dict[str, Any]] = []
+    in_prova_records: List[Dict[str, Any]] = []
+    for registro_indice, riga in enumerate(righe, 1):
+        if selector_version_of(riga) != SELECTOR_VERSION_CURRENT:
+            continue
+        esclusione = top_mix_filter_exclusion(riga, args.day_from, args.day_to)
+        record = {
+            "registro_indice": registro_indice,
+            "riga": riga,
+            "indice_in_prova": None,
+            "categoria": "esclusa" if esclusione else "non verificabile",
+            "filtro": esclusione.get("filtro") if esclusione else None,
+            "filtro_riferimento": riferimento_filtro if esclusione else None,
+            "motivo": esclusione.get("motivo") if esclusione else None,
+            "dettaglio": None,
+        }
+        if not esclusione:
+            record["indice_in_prova"] = len(in_prova_records)
+            record["motivo"] = "verifiche di mercato/modello non ancora concluse"
+            in_prova_records.append(record)
+        righe_v3_registro.append(record)
+    in_prova = [record["riga"] for record in in_prova_records]
+
+    errori_contabilita: List[str] = []
+    if len(top_v3) != len(in_prova) or any(a is not b for a, b in zip(top_v3, in_prova)):
+        errori_contabilita.append(
+            "il perimetro v3 ricostruito per la contabilità non coincide con top_mix_rows "
+            f"(filtro condiviso): {len(in_prova)} contro {len(top_v3)}")
+
+    # Due registrazioni previste per ogni riga del Registro, comprese le escluse.
+    # Il record inizia come non verificabile/in attesa: resta visibile e fa
+    # fallire la contabilità se un ramo del programma non lo conclude.
+    registrazioni_modello: List[Dict[str, Any]] = []
+    registrazioni_mercato: List[Dict[str, Any]] = []
+    modello_per_chiave: Dict[Tuple[int, str], Dict[str, Any]] = {}
+    mercato_per_chiave: Dict[Tuple[int, str], Dict[str, Any]] = {}
+    for record in righe_v3_registro:
+        idx = record["indice_in_prova"]
+        for registrazione in ("prima", "ultima"):
+            if record["categoria"] == "esclusa":
+                modello_record = _nuova_registrazione_audit(
+                    record, None, registrazione, "esclusa", record["motivo"])
+                mercato_record = _nuova_registrazione_audit(
+                    record, None, registrazione, "esclusa", record["motivo"])
+                for elemento in (modello_record, mercato_record):
+                    elemento["filtro"] = record["filtro"]
+                    elemento["filtro_riferimento"] = riferimento_filtro
+            else:
+                modello_record = _nuova_registrazione_audit(
+                    record, idx, registrazione, "non verificabile",
+                    "confronto modello non ancora contabilizzato")
+                mercato_record = _nuova_registrazione_audit(
+                    record, idx, registrazione, "non verificabile",
+                    "confronto mercato non ancora contabilizzato")
+                modello_per_chiave[(idx, registrazione)] = modello_record
+                mercato_per_chiave[(idx, registrazione)] = mercato_record
+            registrazioni_modello.append(modello_record)
+            registrazioni_mercato.append(mercato_record)
 
     non_verificabili: List[Dict[str, Any]] = []
     ricostruita: Dict[int, bool] = {}
@@ -694,7 +910,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 timestamp_per_registrazione[(i, registrazione)] = None
                 non_verificabili.append(_aggiungi_non_verificabile(
                     riga, "prima", "prima registrazione ricostruita dall'ultima: verificata solo l'ultima",
-                    categoria="a) mercato"))
+                    categoria="a) mercato", indice_riga=i))
                 continue
             ts = _timestamp_snapshot(riga, registrazione)
             timestamp_per_registrazione[(i, registrazione)] = ts
@@ -704,7 +920,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 campo = (QUOTE_LIVE_ISTANTE_PRIMA_FIELD if registrazione == "prima"
                          else QUOTE_LIVE_ISTANTE_FIELD)
                 non_verificabili.append(_aggiungi_non_verificabile(
-                    riga, registrazione, f"{campo} assente o non valido", categoria="a) mercato"))
+                    riga, registrazione, f"{campo} assente o non valido",
+                    categoria="a) mercato", indice_riga=i))
 
     snapshots, snapshot_report = carica_snapshot_live_odds_da_git(richiesti, repo_root=ROOT)
     risultati_mercato: List[Dict[str, Any]] = []
@@ -722,7 +939,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 non_verificabili.append(_aggiungi_non_verificabile(
                     riga, registrazione,
                     f"snapshot con generato_il={ts} non trovato nella storia git",
-                    categoria="a) mercato", timestamp_snapshot=ts))
+                    categoria="a) mercato", indice_riga=i, timestamp_snapshot=ts))
                 continue
             confronto = confronta_mercato_registrazione(
                 riga, registrazione, snapshot_rec["payload"], timestamp_richiesto=ts,
@@ -736,14 +953,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             if confronto["esito"] == "non verificabile":
                 non_verificabili.append(_aggiungi_non_verificabile(
                     riga, registrazione, confronto.get("motivo", "snapshot non utilizzabile"),
-                    categoria="a) mercato", timestamp_snapshot=ts))
+                    categoria="a) mercato", indice_riga=i, timestamp_snapshot=ts))
 
     descrittori: List[Dict[str, Any]] = []
     for i, riga in enumerate(in_prova):
         if ricostruita[i]:
             non_verificabili.append(_aggiungi_non_verificabile(
                 riga, "prima", "prima registrazione ricostruita: il modello si verifica solo sull'ultima",
-                categoria="b) modello", istante=istante_registrazione(riga, "ultima")))
+                categoria="b) modello", indice_riga=i,
+                istante=istante_registrazione(riga, "ultima")))
         else:
             motivo_esito = None
             if outcome_prima[i] is None:
@@ -769,6 +987,99 @@ def main(argv: Optional[List[str]] = None) -> int:
     risultati_modello, non_verificabili_modello = _simula_modello(
         descrittori, fixtures, snapshot_cache=args.snapshot_cache)
     non_verificabili.extend(non_verificabili_modello)
+    for elemento in non_verificabili:
+        indice = elemento.get("indice_riga")
+        if isinstance(indice, int) and 0 <= indice < len(in_prova_records):
+            elemento["registro_indice"] = in_prova_records[indice]["registro_indice"]
+
+    # Completa una ledger per ogni registrazione prevista. Il risultato e la
+    # lista dei non-verificabili devono coprire senza buchi le chiavi
+    # (indice di riga, prima/ultima); un'eventuale chiave rimasta in attesa e'
+    # stampata come errore di contabilità e rende rosso il gate.
+    for risultato in risultati_mercato:
+        chiave = (risultato.get("indice_riga"), risultato.get("registrazione"))
+        record = mercato_per_chiave.get(chiave)
+        if record is None:
+            errori_contabilita.append(f"risultato mercato senza registrazione attesa: {chiave}")
+            continue
+        categoria = ("verificata" if risultato.get("esito") in ("corrisponde", "differisce")
+                     else "non verificabile")
+        motivo = risultato.get("motivo") if categoria == "non verificabile" else None
+        if not _assegna_registrazione_audit(record, categoria, motivo=motivo, risultato=risultato):
+            errori_contabilita.append(f"registrazione mercato duplicata: {_etichetta_registrazione(record)}")
+
+    for risultato in risultati_modello:
+        chiave = (risultato.get("indice_riga"), risultato.get("registrazione"))
+        record = modello_per_chiave.get(chiave)
+        if record is None:
+            errori_contabilita.append(f"risultato modello senza registrazione attesa: {chiave}")
+            continue
+        if not _assegna_registrazione_audit(record, "verificata", risultato=risultato):
+            errori_contabilita.append(f"registrazione modello duplicata: {_etichetta_registrazione(record)}")
+
+    for elemento in non_verificabili:
+        categoria = elemento.get("categoria")
+        if categoria not in ("a) mercato", "b) modello"):
+            continue
+        chiave = (elemento.get("indice_riga"), elemento.get("registrazione"))
+        record = (mercato_per_chiave if categoria == "a) mercato" else modello_per_chiave).get(chiave)
+        if record is None:
+            # Alcuni referti storici non avevano indice_riga. Il nuovo percorso
+            # lo valorizza sempre; se manca, non inferire la partita dal solo ID.
+            errori_contabilita.append(
+                f"non-verificabile {categoria} senza registrazione attesa indicizzata: {chiave}")
+            continue
+        if record.get("confronto_elaborato"):
+            if record.get("categoria") != "non verificabile":
+                errori_contabilita.append(f"esito e non-verificabile in conflitto: {_etichetta_registrazione(record)}")
+            continue
+        _assegna_registrazione_audit(record, "non verificabile", motivo=elemento.get("motivo"))
+
+    for ledger, nome in ((registrazioni_modello, "modello"),
+                         (registrazioni_mercato, "mercato")):
+        for record in ledger:
+            if not record.get("confronto_elaborato"):
+                errore = (f"registrazione {nome} non contabilizzata: "
+                          f"{_etichetta_registrazione(record)}")
+                errori_contabilita.append(errore)
+                _assegna_registrazione_audit(
+                    record, "non verificabile",
+                    motivo="nessun risultato o motivo restituito dal verificatore (errore interno)")
+
+    # La categoria della riga e' conservativa: e' verificata solo quando TUTTE
+    # le registrazioni applicabili di mercato e modello sono state confrontate.
+    for record in righe_v3_registro:
+        if record.get("categoria") == "esclusa":
+            continue
+        idx = record["indice_in_prova"]
+        controlli = [r for r in registrazioni_modello + registrazioni_mercato
+                     if r.get("indice_riga") == idx]
+        non_verificati_riga = [r for r in controlli if r.get("categoria") == "non verificabile"]
+        differenze_riga = [r for r in controlli if r.get("esito_confronto") == "differisce"]
+        if non_verificati_riga:
+            record["categoria"] = "non verificabile"
+            motivi = list(dict.fromkeys(str(r.get("motivo")) for r in non_verificati_riga if r.get("motivo")))
+            record["motivo"] = "; ".join(motivi) or "almeno una registrazione non e' verificabile"
+        else:
+            record["categoria"] = "verificata"
+            record["motivo"] = None
+            record["dettaglio"] = (f"tutti i controlli applicabili eseguiti; "
+                                   f"differenze={len(differenze_riga)}")
+
+    def controlla_conto(nome: str, records: List[Dict[str, Any]], attese: int) -> None:
+        if len(records) != attese:
+            errori_contabilita.append(f"{nome}: {len(records)} record, attesi {attese}")
+        conteggi = _conteggi_categorie(records)
+        somma_categorie = sum(conteggi.get(categoria, 0) for categoria in CATEGORIE_COPERTURA)
+        if somma_categorie != attese or somma_categorie != len(records):
+            errori_contabilita.append(
+                f"{nome}: somma categorie={somma_categorie}, attesi={attese}, record={len(records)}")
+        if any(categoria not in CATEGORIE_COPERTURA for categoria in conteggi):
+            errori_contabilita.append(f"{nome}: categoria sconosciuta {dict(conteggi)}")
+
+    controlla_conto("righe v3", righe_v3_registro, len(righe_v3_registro))
+    controlla_conto("registrazioni modello", registrazioni_modello, 2 * len(righe_v3_registro))
+    controlla_conto("registrazioni mercato", registrazioni_mercato, 2 * len(righe_v3_registro))
 
     indici_confrontati = _righe_confrontate(risultati_mercato) | _righe_confrontate(risultati_modello)
     n_comparabili = len(indici_confrontati)
@@ -777,10 +1088,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     n_esatti = sum(e == "corrisponde" for e in esiti_confronti)
     n_differenze = sum(e == "differisce" for e in esiti_confronti)
     n_righe_esatte = len(_righe_con_corrispondenza_esatta(risultati_mercato, risultati_modello))
-    if not in_prova:
-        esito, rc = ESITO_RIMANDATA, 0
-        # Solo l'assenza reale di righe v3 resta verde e genera l'annotazione.
-        print(f"::warning::{ESITO_RIMANDATA}", flush=True)
+    if errori_contabilita:
+        esito = (f"{ESITO_FALLITA} (contabilità incompleta: {len(errori_contabilita)} errori; "
+                 f"righe={len(righe_v3_registro)}, registrazioni_modello={len(registrazioni_modello)}/"
+                 f"{2 * len(righe_v3_registro)})")
+        rc = 1
+    elif not in_prova:
+        if righe_v3_registro:
+            esito = ("verifica rimandata: 0 righe topmix_mercato_v3 nel perimetro; "
+                     f"{len(righe_v3_registro)} righe escluse, tutte elencate nel referto")
+            print(f"::warning::{esito}", flush=True)
+        else:
+            esito = ESITO_RIMANDATA
+            print(f"::warning::{ESITO_RIMANDATA}", flush=True)
+        rc = 0
     elif n_righe_esatte == 0:
         # Righe v3 presenti senza alcuna registrazione completa esatta (anche se
         # tutte non verificabili) non superano il gate.
@@ -803,7 +1124,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     testo = costruisci_referto(
         fonte=fonte, top=top, in_prova=in_prova, non_v3=non_v3,
         risultati_mercato=risultati_mercato, risultati_modello=risultati_modello,
-        non_verificabili=non_verificabili, snapshot_report=snapshot_report,
+        non_verificabili=non_verificabili, righe_v3_registro=righe_v3_registro,
+        registrazioni_modello=registrazioni_modello,
+        registrazioni_mercato=registrazioni_mercato,
+        errori_contabilita=errori_contabilita, snapshot_report=snapshot_report,
         esito=esito, n_comparabili=n_comparabili, n_esatti=n_esatti,
         n_differenze=n_differenze,
     )
