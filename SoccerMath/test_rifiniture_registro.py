@@ -285,6 +285,27 @@ class TestRinfrescoRigheInAttesa(unittest.TestCase):
         self.assertEqual(3.20, aggiornate[0][pr.QUOTA_MERCATO_FIELD])
         self.assertEqual({"aggiornata": 1, "sotto_soglia": 1}, azioni)
 
+    def test_rinfresco_non_cambia_esito_registrato_se_cambia_il_favorito(self):
+        """Una riga "1" resta "1" anche se ora il favorito e' "2".
+
+        Il refresh usa la lettura dell'esito registrato (qui 1 a 53,0%) e non
+        l'argmax del nuovo mercato (2 a 56,0%). ``mercato_standard`` e' una
+        decisione gia' registrata, non un campo del rinfresco.
+        """
+        preds = [_riga_registrata(mercato_standard="1", prob_val=58.0,
+                                 prob_mercato=0.58, quota=1.72)]
+        letture = [_lettura_partita(112, {
+            "1": _lettura(53.0, 0.53, 1.85, sotto_soglia=True),
+            "2": _lettura(56.0, 0.56, 1.70),
+        })]
+        aggiornate, azioni = pr.aggiorna_righe_mercato_in_attesa(
+            preds, letture, salvato_il="10/10/2026 08:00")
+        self.assertEqual("1", aggiornate[0]["mercato_standard"])
+        self.assertEqual(53.0, aggiornate[0]["prob_sicuro"])
+        self.assertEqual(0.53, aggiornate[0][pr.PROB_MERCATO_FIELD])
+        self.assertEqual(1.85, aggiornate[0][pr.QUOTA_MERCATO_FIELD])
+        self.assertEqual({"aggiornata": 1, "sotto_soglia": 1}, azioni)
+
     def test_righe_giudicate_non_toccate(self):
         """✅/❌ sono intoccabili: il rinfresco le conta e le lascia stare."""
         for esito in ("✅", "❌"):
