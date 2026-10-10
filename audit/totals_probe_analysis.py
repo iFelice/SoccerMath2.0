@@ -7,7 +7,9 @@ Solo stdlib: nessuna rete, nessuna chiave, nessuna dipendenza di produzione.
 
 Riporta:
   1. crediti spesi (header ``x-requests-last`` per chiamata; ``x-requests-used``
-     e ``x-requests-remaining`` dell'ultima risposta);
+     e ``x-requests-remaining`` dell'ULTIMA CHIAMATA IN ORDINE DI TEMPO, non
+     dell'ultima lega in ordine alfabetico: correzione del 2026-10-10, vedi
+     ``ordine_cronologico``);
   2. eventi per lega e quanti hanno Pinnacle (bookmaker key ``pinnacle``) sul mercato totals;
   3. distribuzione delle linee (2,5 / 2,25 / 2,75 / altre) per bookmaker, a livello
      evento (una linea per libro e per evento: la linea di quel libro);
@@ -85,6 +87,28 @@ def load_snapshots(data_dir: str):
     return snaps
 
 
+def _chiave_cronologica(env):
+    """Chiave di ordinamento temporale di una chiamata.
+
+    Lo stato finale del conto e' quello dell'ULTIMA CHIAMATA IN ORDINE DI TEMPO.
+    I timestamp ``fetched_at_utc`` hanno risoluzione di un secondo: a parita' di
+    secondo decide il contatore ``x-requests-used``, che e' monotono crescente.
+    Una chiamata senza timestamp va in fondo (non puo' essere "prima" di
+    nessun'altra senza una data); una senza header va in coda a parita' di data.
+    """
+    ts = env.get("fetched_at_utc")
+    try:
+        usati = float((env.get("headers") or {}).get("x-requests-used"))
+    except (TypeError, ValueError):
+        usati = -1.0
+    return (ts is None, "" if ts is None else str(ts), usati)
+
+
+def ordine_cronologico(snaps):
+    """Snapshot ordinati dal primo all'ultimo in ordine di tempo (non alfabetico)."""
+    return sorted(snaps, key=lambda it: _chiave_cronologica(it[1]))
+
+
 def analyse(snaps):
     res = {"leghe": [], "crediti": {}, "per_bookmaker": defaultdict(Counter),
            "eventi_totali": 0, "eventi_con_pinnacle": 0, "eventi_con_2_5": 0,
@@ -118,8 +142,17 @@ def analyse(snaps):
                 res["eventi_solo_asiatiche"] += 1
             if kinds & {"2,25", "2,75"}:
                 res["eventi_asiatiche_candidati"] += 1
-    res["ultimi_header"] = {k: last_headers.get(k) for k in
+    ultimo = ordine_cronologico(snaps)[-1][1] if snaps else {}
+    ultimi = ultimo.get("headers") or {}
+    res["ultimi_header"] = {k: ultimi.get(k) for k in
                             ("x-requests-used", "x-requests-remaining", "x-requests-last")}
+    res["ultima_chiamata"] = {"sport_key": ultimo.get("sport_key"),
+                              "fetched_at_utc": ultimo.get("fetched_at_utc")}
+    res["ordine_chiamate"] = [{"sport_key": env.get("sport_key"),
+                               "fetched_at_utc": env.get("fetched_at_utc"),
+                               "x-requests-used": (env.get("headers") or {}).get("x-requests-used"),
+                               "x-requests-remaining": (env.get("headers") or {}).get("x-requests-remaining")}
+                              for _n, env in ordine_cronologico(snaps)]
     return res
 
 
@@ -150,6 +183,15 @@ def build_md(res: dict, generato_il: str, snaps_n: int) -> str:
     A(f"**Crediti spesi: {crediti_tot:g}{'' if all_known else ' (parziale: alcuni header assenti)'}.** "
       f"Ultimo stato del conto: used={res['ultimi_header'].get('x-requests-used')}, "
       f"remaining={res['ultimi_header'].get('x-requests-remaining')}.\n")
+    A("Lo stato finale e' quello dell'**ultima chiamata in ordine di tempo** "
+      f"(`{res['ultima_chiamata'].get('sport_key')}` alle "
+      f"{res['ultima_chiamata'].get('fetched_at_utc')}), NON dell'ultima lega in ordine "
+      "alfabetico: le due cose coincidono solo per caso. Ordine delle chiamate:\n")
+    A(md_table(["#", "sport_key", "fetched_at_utc", "x-requests-used", "x-requests-remaining"],
+               [[i, c["sport_key"], c["fetched_at_utc"], c["x-requests-used"],
+                 c["x-requests-remaining"]]
+                for i, c in enumerate(res.get("ordine_chiamate", []), start=1)]))
+    A("")
     A("## 2. Eventi e Pinnacle\n")
     A(md_table(["lega", "file", "status", "eventi"],
                [[x["lega"], x["file"], x["status"], x["eventi"]] for x in res["leghe"]]))
