@@ -404,8 +404,27 @@ audit/test_replay_topmix_mercato.py::TestGiroCompleto::test_parita_con_la_pr49 P
 
 ### 5.2 CI GitHub — esiti reali per workflow (step eseguiti e saltati)
 
-_In aggiornamento dopo l'apertura della PR: questa sezione viene riempita con gli esiti
-reali dei check GitHub Actions senza toccare le regole preregistrate._
+Esiti **reali** dei controlli GitHub Actions sulla PR #62, commit `2104749`:
+
+| Workflow | Esito / durata | Passi eseguiti | Passi saltati |
+|---|---|---|---|
+| [Suite completa (pytest + test_theme_toggle)](https://github.com/iFelice/SoccerMath2.0/actions/runs/38091064939) | **success**, 3m38s | Set up job, Checkout (storia completa), Salta? (solo documentazione), Set up Python, Dipendenze, Diagnostica del runner (informativa), Elenco dei file di test, Suite pytest, `test_theme_toggle.py`, Riepilogo e annotazioni, Report come artifact, Post setup, Post checkout, Complete job. Ogni step concluso `success`. | Nessuno. |
+| [Audit Top Mix (sola lettura)](https://github.com/iFelice/SoccerMath2.0/actions/runs/38091064859) | **success**, 2m32s | Set up job, Checkout del branch, Salta?, Set up Python, Dipendenze, Cartella report, Test diagnostici Top Mix ed Elo, **Replay offline `topmix_mercato_v3`** (include la verifica di parità con la PR #49: lo step uscirebbe con codice 1 se i numeri non tornassero — è `success`), GET JSONBin Schalke–Bayern (sola lettura, mai PUT), Ricostruzione Schalke–Bayern, Ispezione tracciamento Registro (AST, no JSONBin), Riepilogo, Nessuna modifica ai dati/codice di produzione, Pubblica i report come artifact, Post setup, Post checkout, Complete job. Ogni step concluso `success`. | Nessuno. |
+| [Replay Top Mix legacy (walk-forward, no-leakage)](https://github.com/iFelice/SoccerMath2.0/actions/runs/38091064921) | **success**, 3s | Set up job, **File rilevanti per il replay** (controllo del filtro: nessun file rilevante per questo workflow nel diff), Complete job. Tutti `success`. | Finestra del replay, Checkout, Python, Dipendenze, Secrets, Test di non-leakage, Replay, controlli del Registro, Riepilogo, verifica no-write e artifact: tutti **skipped** dal filtro dei file rilevanti. |
+| `totals_probe` | **non avviato** | — | Workflow manuale: non eseguito, coerentemente con il vincolo di non lanciare la sonda. |
+
+Annotazioni informative dei runner (nessun errore): deprecazione Node.js 20 per
+`actions/checkout@v4`, `actions/setup-python@v5`, `actions/upload-artifact@v4`,
+`actions/github-script@v7`; futura migrazione di `ubuntu-latest` a Ubuntu 26 (19/10/2026);
+diagnostica runner: AMD EPYC 9V45, flag `fma avx2 avx512f avx512_bf16 avx512_vnni`,
+glibc 2.39, python 3.11.17, numpy 2.4.6, scipy 1.17.1.
+
+Nota di trasparenza: da questo sandbox i log completi e gli artifact dei runner GitHub non
+sono scaricabili (host non autorizzati), quindi il conteggio esatto dei test eseguiti su
+GitHub non è recuperabile qui. La suite CI passa sullo stesso elenco di file usato in
+locale (`git ls-files`, 97 file `test_*.py`): la riproduzione locale in condizioni
+identiche (cache del frame assente, come su un runner pulito) dà **1.993 passed /
+6 skipped** (§5.1), e il check `Audit` ha rieseguito il replay in parità 1302/1144/335.
 
 ### 5.3 Replay `topmix_mercato_v3` — output reale
 
