@@ -4,9 +4,29 @@ update_live_odds.py — scarica le quote 1X2 dal vivo e scrive ``live_odds.json`
 
 CHI LO ESEGUE
 -------------
-SOLO il workflow ``.github/workflows/live_odds.yml`` (cron ``17 8 * * *`` UTC
-piu' avvio manuale) o un operatore a mano. L'app non chiama MAI The Odds API:
-legge il file scritto qui (``market_odds.carica_quote_live``).
+SOLO il workflow ``.github/workflows/live_odds.yml`` (cron ``17 8 * * *`` e
+secondo tentativo ``47 10 * * *`` UTC, piu' avvio manuale) o un operatore a
+mano. L'app non chiama MAI The Odds API: legge il file scritto qui
+(``market_odds.carica_quote_live``).
+
+GUARDIA DI FRESCHEZZA (secondo tentativo, 2026-10-10)
+------------------------------------------------------
+GitHub ritarda e a volte salta i cron. Prima di QUALSIASI chiamata il writer
+legge ``generato_il`` del file esistente: se ha meno di 6 ore esce 0 senza
+toccare la rete (0 crediti) loggando "quote fresche, nessuna chiamata". Cosi'
+il secondo cron (10:47) costa 0 crediti quando il primo (08:17) ha funzionato,
+e ruba il giro solo quando il primo non e' partito: consumo atteso ~5 crediti al
+giorno. ``--forza`` (input ``forza`` di workflow_dispatch, default false) salta
+la guardia. Con ``--fixture`` la guardia non serve: nessuna chiamata, 0 crediti.
+
+ALLARME QUOTE VECCHIE (26 ore)
+------------------------------
+``--allarme-vecchie`` (usato dal job separato di ``update_database.yml``)
+controlla SOLO l'eta' del file: esce 1 stampando ``::error::`` con l'eta' in
+ore se il file manca o ``generato_il`` ha piu' di 26 ore, 0 altrimenti. Nessuna
+chiamata, 0 crediti, nessuna chiave: serve a far fallire il workflow (e quindi
+a far partire la notifica di GitHub) quando entrambi i cron delle quote sono
+saltati.
 
 COSTO
 -----
@@ -79,6 +99,8 @@ Uso
     python update_live_odds.py --dry-run       # chiamata reale, NON scrive
     python update_live_odds.py --fixture DIR   # risposte simulate da DIR (0 crediti)
     python update_live_odds.py --out PATH      # percorso di destinazione
+    python update_live_odds.py --forza         # salta la guardia di freschezza (~5 crediti)
+    python update_live_odds.py --allarme-vecchie  # solo eta' del file: ::error:: se >26h
 """
 from __future__ import annotations
 
@@ -130,6 +152,17 @@ ESITO_CHIAVE = 3
 # quote non sono arrivate nel file. Il Top Mix di mercato sarebbe vuoto, quindi
 # il giro FALLISCE e il file precedente resta (guasto del 2026-10-09).
 ESITO_CONVERSIONE_VUOTA = 4
+
+# Guardia di freschezza (secondo cron '47 10 * * *' di live_odds.yml): se il
+# file esistente ha generato_il piu' recente di queste ore, il writer esce 0
+# SENZA chiamare l'API (0 crediti). Il secondo cron costa 0 quando il primo
+# (17 8) ha funzionato e fa il giro solo quando il primo e' saltato.
+SOGGIA_FRESCHEZZA_ORE = 6.0
+# Allarme quote vecchie (job separato di update_database.yml, senza needs sul
+# commit): oltre queste ore il file e' troppo vecchio e l'allarme fallisce con
+# ::error:: indicando l'eta' in ore, per far arrivare a GitHub la notifica di
+# workflow fallito anche quando entrambi i cron delle quote non sono partiti.
+SOGGIA_ALLARME_ORE = 26.0
 
 # Bookmaker primario: lo stesso di ``market_odds.BOOKMAKER_PRIMARIO``, qui solo
 # per contarlo nel log e nella diagnostica (il writer non sceglie nulla).
@@ -556,8 +589,18 @@ def scarica_lega_fixture(sport_key: str, fixture_dir: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Payload complessivo
 # ---------------------------------------------------------------------------
+def orologio_utc() -> datetime:
+    """L'orologio del writer: UN solo punto da congelare nei test.
+
+    Ora (``generato_il``, ``scaricato_il``) e il calcolo dell'eta' del file
+    passano da qui: i test di freschezza congelano ``orologio_utc`` e tutto il
+    resto — scrittura compresa — resta coerente con l'orologio congelato.
+    """
+    return datetime.now(timezone.utc)
+
+
 def ora_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return orologio_utc().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def riepilogo_crediti(blocchi: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
@@ -686,6 +729,90 @@ def scrivi_atomico(payload: Dict[str, Any], percorso: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Freschezza: guardia 6h (prima di ogni chiamata) e allarme 26h
+# ---------------------------------------------------------------------------
+def parse_generato_il(testo: Any) -> Optional[datetime]:
+    """``generato_il`` -> UTC-aware ``datetime``, oppure ``None`` se inutilizzabile.
+
+    Accetta la forma scritta qui (``YYYY-MM-DDTHH:MM:SSZ``) e quella di
+    ``datetime.fromisoformat`` (con offset); senza fuso si assume UTC.
+    Un campo assente o corrotto ritorna ``None``: mai inventare un'eta'.
+    """
+    if not isinstance(testo, str) or not testo.strip():
+        return None
+    t = testo.strip()
+    if t.endswith(("Z", "z")):
+        t = t[:-1] + "+00:00"
+    try:
+        istante = datetime.fromisoformat(t)
+    except ValueError:
+        return None
+    if istante.tzinfo is None:
+        istante = istante.replace(tzinfo=timezone.utc)
+    return istante.astimezone(timezone.utc)
+
+
+def eta_generazione_ore(percorso: str, now: Optional[datetime] = None) -> Optional[float]:
+    """Eta' del file in ore (rispetto a ``now``/orologio), o ``None``.
+
+    ``None`` significa "non dimostrabile": file assente, illeggibile o senza un
+    ``generato_il`` parsabile. In dubbio il writer CHIAMA l'API (una chiamata in
+    piu' vale meno di un giro di quote vecchie mancante); e' l'allarme, che
+    deve essere severo, a trattare ``None`` come guasto.
+    """
+    try:
+        with open(percorso, encoding="utf-8") as fh:
+            dati = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(dati, dict):
+        return None
+    istante = parse_generato_il(dati.get("generato_il"))
+    if istante is None:
+        return None
+    ora = now if now is not None else orologio_utc()
+    return (ora - istante).total_seconds() / 3600.0
+
+
+def guardia_freschezza(percorso: str, soglia_ore: float = SOGGIA_FRESCHEZZA_ORE,
+                       now: Optional[datetime] = None) -> Tuple[bool, Optional[float]]:
+    """``(fresco, eta_ore)``: True SOLO se il file esiste ed e' piu' recente
+    della soglia. File assente o illeggibile -> ``(False, None)`` -> si chiama."""
+    eta = eta_generazione_ore(percorso, now=now)
+    return (eta is not None and eta < soglia_ore), eta
+
+
+def allarme_quote_vecchie(percorso: str, soglia_ore: float = SOGGIA_ALLARME_ORE,
+                          now: Optional[datetime] = None) -> Tuple[bool, str]:
+    """``(ok, messaggio)`` per il job allarme di ``update_database.yml``.
+
+    Severo per costruzione: file assente, illeggibile o senza ``generato_il``
+    parsabile sono tutti FALLIMENTI (lo stesso stato che l'allarme deve
+    segnalare quando entrambi i cron delle quote non sono partiti).
+    Il messaggio riporta SEMPRE l'eta' in ore.
+    """
+    ora = now if now is not None else orologio_utc()
+    if not os.path.exists(percorso):
+        return False, f"{percorso} assente: nessun generato_il da leggere"
+    try:
+        with open(percorso, encoding="utf-8") as fh:
+            dati = json.load(fh)
+    except (OSError, ValueError) as e:
+        return False, f"{percorso} illeggibile ({type(e).__name__})"
+    istante = parse_generato_il(dati.get("generato_il")) if isinstance(dati, dict) else None
+    if istante is None:
+        return False, (f"{percorso}: generato_il assente o non parsabile "
+                       f"(nessuna eta' dimostrabile)")
+    eta = (ora - istante).total_seconds() / 3600.0
+    if eta > soglia_ore:
+        return False, (f"{percorso} vecchio: generato_il {istante.strftime('%Y-%m-%dT%H:%M:%SZ')} "
+                       f"= {eta:.1f} ore fa, soglia {soglia_ore:g} ore")
+    return True, (f"{percorso} fresco: generato_il "
+                  f"{istante.strftime('%Y-%m-%dT%H:%M:%SZ')} = {eta:.1f} ore fa, "
+                  f"soglia {soglia_ore:g} ore")
+
+
+# ---------------------------------------------------------------------------
 # Log di una lega
 # ---------------------------------------------------------------------------
 def registra_log_lega(sport_key: str, blocco: Dict[str, Any]) -> str:
@@ -741,9 +868,23 @@ def registra_log_lega(sport_key: str, blocco: Dict[str, Any]) -> str:
 # main
 # ---------------------------------------------------------------------------
 def esegui(*, chiave: Optional[str], fixture: Optional[str], out: str, dry_run: bool,
-           timeout: int = 30) -> Tuple[int, Dict[str, Any]]:
+           timeout: int = 30, forza: bool = False) -> Tuple[int, Dict[str, Any]]:
     """Un giro completo. Ritorna ``(codice_uscita, riepilogo)``; non solleva."""
     chiave = chiave or ""
+
+    # GUARDIA DI FRESCHEZZA: prima di QUALSIASI chiamata (0 crediti se il file
+    # e' recente). Solo in rete: con --fixture non c'e' nessuna chiamata da
+    # risparmiare, e i dry-run su fixture non devono mai essere bloccati.
+    # --forza (input forza di workflow_dispatch) la salta esplicitamente.
+    if not fixture and not forza:
+        fresco, eta = guardia_freschezza(out)
+        if fresco:
+            LOG.info("quote fresche, nessuna chiamata: %s ha generato_il di %.1f ore fa "
+                     "(soglia %s ore): 0 crediti spesi, il file NON viene toccato.",
+                     out, eta or 0.0, SOGGIA_FRESCHEZZA_ORE)
+            return ESITO_OK, {"scritto": False, "motivo": "quote fresche",
+                              "fresco": True, "eta_ore": eta}
+
     if not fixture and not chiave:
         LOG.error("%s assente: nessuna chiamata possibile (il file precedente non viene toccato).",
                   NOME_ENV_CHIAVE)
@@ -857,14 +998,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--out", default=os.path.join(HERE, "database", "live_odds.json"),
                     help="percorso di live_odds.json")
     ap.add_argument("--dry-run", action="store_true", help="non scrivere il file")
+    ap.add_argument("--forza", action="store_true",
+                    help="salta la guardia di freschezza (6 ore) e scarica comunque "
+                         "(~5 crediti): usato dall'input forza di workflow_dispatch")
+    ap.add_argument("--allarme-vecchie", action="store_true",
+                    help="SOLO controllo di eta': esce 1 con ::error:: se live_odds.json "
+                         "manca o generato_il ha piu' di 26 ore, 0 altrimenti "
+                         "(nessuna chiamata, 0 crediti, nessuna chiave)")
     ap.add_argument("--timeout", type=int, default=30, help="timeout HTTP per lega (secondi)")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args(argv)
 
+    if args.allarme_vecchie:
+        # Job separato di update_database.yml: nessun accesso alla rete e nessun
+        # bisogno della chiave, solo l'eta' del file. Il ::error:: va su stdout
+        # (cosi' GitHub lo promuove ad annotazione del job) e l'exit 1 fa
+        # fallire il workflow -> notifica, anche se tutti i cron sono saltati.
+        ok, messaggio = allarme_quote_vecchie(args.out)
+        if ok:
+            print(f"OK: {messaggio}")
+            return ESITO_OK
+        print(f"::error::{messaggio}")
+        return ESITO_NULLA_SCRITTO
+
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(levelname)s %(message)s", stream=sys.stdout)
     codice, _riepilogo = esegui(chiave=os.environ.get(NOME_ENV_CHIAVE), fixture=args.fixture,
-                                out=args.out, dry_run=args.dry_run, timeout=args.timeout)
+                                out=args.out, dry_run=args.dry_run, timeout=args.timeout,
+                                forza=args.forza)
     return codice
 
 

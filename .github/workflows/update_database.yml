@@ -9,6 +9,12 @@ permissions:
   contents: write
 
 # Stesso gruppo di update_xg.yml: entrambi committano dati sullo stesso branch.
+# live_odds.yml NON e' piu' in questo gruppo (2026-10-10): con un gruppo
+# condiviso i cron delle quote finivano in coda, e GitHub cancella ogni run
+# PRECEDENTEMENTE in attesa nel gruppo non appena ne arriva un'altra (anche con
+# cancel-in-progress: false, che protegge solo i run IN CORSO). Le quote hanno
+# ora il gruppo dedicato soccermath-quote; il push resta protetto dal retry
+# con rebase di entrambi i workflow.
 concurrency:
   group: soccermath-data
   cancel-in-progress: false
@@ -98,3 +104,28 @@ jobs:
           done
           echo "::error::Push non riuscito dopo 4 tentativi"
           exit 1
+
+  # Allarme QUOTE VECCHIE (2026-10-10): job SEPARATO, senza `needs`, che gira
+  # in parallelo con `update` e quindi NON blocca ne' ritarda il commit dei
+  # dati. Fallisce con ::error:: (eta' in ore nel messaggio) se
+  # SoccerMath/database/live_odds.json manca o se generato_il ha piu' di 26
+  # ore. GitHub invia la notifica di "workflow fallito" anche quando il job
+  # `update' e' andato a buon fine: e' la rete di sicurezza per quando
+  # entrambi i cron delle quote (08:17 e 10:47) non partono.
+  # Nessuna chiamata di rete, nessuna chiave, 0 crediti: legge solo il file.
+  allarme-quote-vecchie:
+    name: Allarme quote vecchie (non blocca il commit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verifica freschezza di live_odds.json (soglia 26 ore)
+        working-directory: SoccerMath
+        run: python update_live_odds.py --allarme-vecchie
