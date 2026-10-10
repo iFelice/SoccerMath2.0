@@ -6,8 +6,8 @@ eventi della sonda (file grezzi gia' nel repository). Nessuna chiamata di rete,
 nessuna chiave, nessuna nuova richiesta a The Odds API.
 
 Fonti (entrambe gia' nel repository):
-  * linee e quote totals: ``audit/data/totals_probe/*.json`` (sonda 2026-10-10T17:03Z,
-    82 eventi, mercato ``totals``, regione eu);
+  * linee e quote totals: ``audit/data/totals_probe/2026-10-10_1703/*.json`` (82 eventi,
+    mercato ``totals``, regione eu);
   * terna 1X2: ``SoccerMath/database/live_odds.json`` (h2h, libro **Pinnacle**,
     snapshot 2026-10-10T09:08:52Z). La sonda totals NON contiene l'1X2 (la richiesta
     era ``markets=totals``) e senza 1X2 il fit non esiste: questa e' l'unica fonte
@@ -57,7 +57,8 @@ from griglia_core import (  # noqa: E402
     _GG, dc_matrix, devig_prop, fit_implicit_line, grid_line_prob,
 )
 
-PROBE_DIR = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+PROBE_ROOT = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+PROBE_DIR = os.path.join(PROBE_ROOT, "2026-10-10_1703")
 LIVE_ODDS = os.path.join(_REPO, "SoccerMath", "database", "live_odds.json")
 REPORT = os.path.join(_AUDIT_DIR, "results", "punto4_fit_linea_generalizzata.md")
 JSON_OUT = os.path.join(_AUDIT_DIR, "output", "punto4_linee.json")

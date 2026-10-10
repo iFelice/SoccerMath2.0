@@ -12,8 +12,9 @@ name: Sonda totals (The Odds API, manuale)
 # nei file (totals_probe.py maschera gli URL e rifiuta di scrivere un file con
 # apiKey= reale). Nessun `set -x`.
 #
-# Dopo la sonda: l'analisi (python audit/totals_probe_analysis.py) gira nello
-# stesso job e scrive audit/results/totals_probe_analysis.md.
+# Ogni run salva in una cartella UTC unica. Dopo la sonda, le analisi offline
+# ricevono esplicitamente la cartella appena creata; la regola della seconda
+# sonda non viene mai applicata allo snapshot storico del 10/10.
 
 on:
   workflow_dispatch:
@@ -72,15 +73,24 @@ jobs:
             exit 1
           fi
           if [ "$rc" != "0" ]; then
-            echo "::warning::sonda con errori su almeno una lega: vedi audit/data/totals_probe/_summary.json"
+            echo "::warning::sonda con errori su almeno una lega: vedi il _summary.json nella cartella dello snapshot"
           fi
+          SNAPSHOT_DIR=$(sed -n 's/^SNAPSHOT_DIR=//p' /tmp/totals_probe.log | tail -n 1)
+          if [ -z "$SNAPSHOT_DIR" ]; then
+            echo "::error::totals_probe.py non ha restituito la cartella dello snapshot"
+            exit 1
+          fi
+          echo "TOTALS_PROBE_SNAPSHOT=$SNAPSHOT_DIR" >> "$GITHUB_ENV"
 
-      - name: Analisi offline (nessuna rete)
-        run: python audit/totals_probe_analysis.py
+      - name: Analisi offline (nessuna rete, solo lo snapshot di questo run)
+        run: |
+          python audit/totals_probe_analysis.py --snapshot "$TOTALS_PROBE_SNAPSHOT"
+          python audit/totals_probe_seconda_analisi.py --snapshot "$TOTALS_PROBE_SNAPSHOT"
 
       - name: Nessuna chiave nei file salvati
         run: |
-          if grep -rEq 'apiKey=[A-Za-z0-9]{8,}' audit/data/totals_probe audit/results/totals_probe_analysis.md; then
+          if grep -rEq 'apiKey=[A-Za-z0-9]{8,}' audit/data/totals_probe \
+            audit/results/totals_probe_analysis.md audit/results/totals_probe_seconda_analisi.md; then
             echo "::error::una chiave non mascherata e' finita nei file salvati"
             exit 1
           fi
@@ -89,6 +99,7 @@ jobs:
       - name: Riepilogo nel job
         run: |
           cat audit/results/totals_probe_analysis.md >> "$GITHUB_STEP_SUMMARY"
+          cat audit/results/totals_probe_seconda_analisi.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report come artifact
         uses: actions/upload-artifact@v4
@@ -97,6 +108,7 @@ jobs:
           path: |
             audit/data/totals_probe/
             audit/results/totals_probe_analysis.md
+            audit/results/totals_probe_seconda_analisi.md
           if-no-files-found: warn
           retention-days: 30
 
@@ -105,7 +117,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add audit/data/totals_probe audit/results/totals_probe_analysis.md
+          git add audit/data/totals_probe audit/results/totals_probe_analysis.md \
+            audit/results/totals_probe_seconda_analisi.md
           if git diff --cached --quiet; then
             echo "nessuna modifica da committare"
             exit 0

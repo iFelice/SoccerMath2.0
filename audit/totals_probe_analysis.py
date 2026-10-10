@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """totals_probe_analysis.py — analisi OFFLINE della sonda totals (audit).
 
-Legge gli snapshot grezzi di ``audit/data/totals_probe/`` (scritti da
-``audit/totals_probe.py``) e produce ``audit/results/totals_probe_analysis.md``.
-Solo stdlib: nessuna rete, nessuna chiave, nessuna dipendenza di produzione.
+Legge un solo snapshot grezzo (una cartella run) scritto da
+``audit/totals_probe.py`` e produce ``audit/results/totals_probe_analysis.md``.
+Di default analizza lo snapshot storico ``2026-10-10_1703``; con ``--snapshot``
+si seleziona esplicitamente una cartella. Solo stdlib: nessuna rete, nessuna
+chiave, nessuna dipendenza di produzione.
 
 Riporta:
   1. crediti spesi (header ``x-requests-last`` per chiamata; ``x-requests-used``
@@ -40,7 +42,9 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+DATA_ROOT = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+BASELINE_SNAPSHOT_DIR = os.path.join(DATA_ROOT, "2026-10-10_1703")
+DATA_DIR = BASELINE_SNAPSHOT_DIR
 REPORT = os.path.join(_AUDIT_DIR, "results", "totals_probe_analysis.md")
 PINNACLE = "pinnacle"
 BUCKETS = ("2,5", "2,25", "2,75", "altre")
@@ -162,12 +166,12 @@ def md_table(headers, rows):
     return "\n".join([head, sep] + ["| " + " | ".join(str(c) for c in r) + " |" for r in rows])
 
 
-def build_md(res: dict, generato_il: str, snaps_n: int) -> str:
+def build_md(res: dict, generato_il: str, snaps_n: int, snapshot_dir: str = DATA_DIR) -> str:
     T = []
     A = T.append
     A("# Sonda The Odds API — mercato totals (audit, offline)\n")
     A(f"Generato da `audit/totals_probe_analysis.py` il {generato_il} a partire da {snaps_n} snapshot "
-      "in `audit/data/totals_probe/`. Nessuna chiamata di rete, nessuna chiave.\n")
+      f"in `{snapshot_dir}`. Nessuna chiamata di rete, nessuna chiave.\n")
     A("## 1. Crediti spesi\n")
     crediti_tot = 0.0
     all_known = True
@@ -235,14 +239,21 @@ def build_md(res: dict, generato_il: str, snaps_n: int) -> str:
 
 
 def main(argv=None) -> int:
-    snaps = load_snapshots(DATA_DIR)
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--snapshot", default=BASELINE_SNAPSHOT_DIR,
+                    help="cartella di un singolo snapshot (default: baseline 2026-10-10_1703)")
+    ap.add_argument("--report", default=REPORT, help="percorso del referto Markdown")
+    args = ap.parse_args(argv)
+    snaps = load_snapshots(args.snapshot)
     generato = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = analyse(snaps)
-    text = build_md(res, generato, len(snaps))
-    os.makedirs(os.path.dirname(REPORT), exist_ok=True)
-    with open(REPORT, "w", encoding="utf-8") as fh:
+    text = build_md(res, generato, len(snaps), args.snapshot)
+    os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)
+    with open(args.report, "w", encoding="utf-8") as fh:
         fh.write(text)
-    print(f"referto: {REPORT} (snapshot: {len(snaps)}, eventi: {res['eventi_totali']})")
+    print(f"referto: {args.report} (snapshot: {len(snaps)}, eventi: {res['eventi_totali']})")
     return 0
 
 

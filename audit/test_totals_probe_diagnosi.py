@@ -98,7 +98,10 @@ class TestStatoFinaleDellaSonda(unittest.TestCase):
             with mock.patch.dict(os.environ, {"ODDS_API_KEY": "chiave-finta"}):
                 with mock.patch.object(tp, "get_json", side_effect=fake_get_json):
                     self.assertEqual(tp.main(["--out", d]), 0)
-            with open(os.path.join(d, "_summary.json"), encoding="utf-8") as fh:
+            snapshot_dirs = [name for name in os.listdir(d)
+                             if os.path.isdir(os.path.join(d, name))]
+            self.assertEqual(len(snapshot_dirs), 1)
+            with open(os.path.join(d, snapshot_dirs[0], "_summary.json"), encoding="utf-8") as fh:
                 stato = json.load(fh)
         self.assertEqual(stato["x-requests-used_ultimo"], "63")
         self.assertEqual(stato["x-requests-remaining_ultimo"], "437")

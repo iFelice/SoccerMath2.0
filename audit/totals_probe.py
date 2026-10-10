@@ -2,10 +2,11 @@
 """totals_probe.py — sonda The Odds API, mercato TOTALS (Over/Under), audit.
 
 Scarica, per le 5 leghe del progetto, GET /v4/sports/{key}/odds con
-``markets=totals``, ``regions=eu``: UNA chiamata per lega. Salva la risposta
-GREZZA (corpo JSON invariato + intestazioni dei crediti) in
-``audit/data/totals_probe/<sport_key>.json`` e un riepilogo in
-``audit/data/totals_probe/_summary.json``.
+``markets=totals``, ``regions=eu``: UNA chiamata per lega. Ogni run riserva una
+nuova sottocartella UTC ``audit/data/totals_probe/<AAAA-MM-GG_HHMM>/`` e salva
+lì le risposte GREZZE (corpo JSON invariato + intestazioni dei crediti) e il
+riepilogo. Se due run cadono nello stesso minuto, aggiunge un suffisso numerico
+per evitare qualsiasi sovrascrittura.
 
 COSTO ATTESO: 1 credito per chiamata (1 mercato x 1 regione), 5 crediti in tutto.
 Il costo EFFETTIVO e' quello che The Odds API riporta negli header
@@ -23,7 +24,7 @@ Uscite di codice: 0 = tutte le leghe scaricate; 1 = almeno una lega con errore
 (le altre sono salvate); 3 = ODDS_API_KEY assente. Dopo un 401/403/429 lo script
 si FERMA (non brucia altri crediti).
 
-Uso: ``ODDS_API_KEY=... python audit/totals_probe.py [--out audit/data/totals_probe]``
+Uso: ``ODDS_API_KEY=... python audit/totals_probe.py [--out-root audit/data/totals_probe]``
 """
 
 from __future__ import annotations
@@ -48,8 +49,28 @@ STOP_STATUS = {401, 403, 429}
 FORBIDDEN_IN_FILES = ("apiKey=",)   # nessun URL con chiave deve finire nei file (ammesso solo apiKey=***)
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _now(when: datetime | None = None) -> str:
+    return (when or _utc_now()).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def reserve_run_dir(out_root: str, when: datetime | None = None) -> str:
+    """Crea atomicamente una cartella nuova, senza mai riusare uno snapshot."""
+    when = when or _utc_now()
+    os.makedirs(out_root, exist_ok=True)
+    base = when.astimezone(timezone.utc).strftime("%Y-%m-%d_%H%M")
+    attempt = 0
+    while True:
+        name = base if attempt == 0 else f"{base}_{attempt + 1:02d}"
+        candidate = os.path.join(out_root, name)
+        try:
+            os.mkdir(candidate)
+            return candidate
+        except FileExistsError:
+            attempt += 1
 
 
 def build_url(sport_key: str, key: str) -> str:
@@ -91,7 +112,8 @@ def write_json(path: str, obj) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=DEFAULT_OUT)
+    ap.add_argument("--out-root", "--out", dest="out_root", default=DEFAULT_OUT,
+                    help="radice in cui creare una nuova cartella snapshot UTC")
     args = ap.parse_args(argv)
 
     key = os.environ.get("ODDS_API_KEY", "").strip()
@@ -99,8 +121,11 @@ def main(argv=None) -> int:
         print("ERROR: ODDS_API_KEY assente nell'ambiente", file=sys.stderr)
         return 3
 
+    run_started = _utc_now()
+    run_dir = reserve_run_dir(args.out_root, run_started)
     session = _http().Session()
-    summary = {"generato_il": _now(), "mercato": MARKETS, "regioni": REGIONS,
+    summary = {"generato_il": _now(run_started), "snapshot_id": os.path.basename(run_dir),
+               "mercato": MARKETS, "regioni": REGIONS,
                "chiamate_previste": len(LEAGUES), "leghe": []}
     exit_code = 0
     for league, sport in LEAGUES:
@@ -108,7 +133,7 @@ def main(argv=None) -> int:
         payload, meta = get_json(url, key, session)
         # payload None (errore) -> busta con body null: il file documenta l'errore
         env = envelope(sport, league, meta, payload)
-        write_json(os.path.join(args.out, f"{sport}.json"), env)
+        write_json(os.path.join(run_dir, f"{sport}.json"), env)
         n_ev = len(payload) if isinstance(payload, list) else None
         summary["leghe"].append({
             "lega": league, "sport_key": sport, "ok": bool(meta.get("ok")),
@@ -127,12 +152,8 @@ def main(argv=None) -> int:
     summary["crediti_ultima_chiamata"] = {r["sport_key"]: r["headers"].get("x-requests-last")
                                          for r in summary["leghe"]}
     # STATO FINALE = ultima chiamata in ORDINE DI TEMPO, non ultima lega del ciclo.
-    # Il ciclo gira nell'ordine di LEAGUES (alfabetico per lega): qui coincide con
-    # l'ordine di tempo perche' le chiamate sono sequenziali, ma la regola va
-    # scritta esplicitamente, non lasciata all'ordine del ciclo (bug gia' trovato
-    # in totals_probe_analysis.py, che ordinava i file per nome).
-    # Chiave: (fetched_at_utc, x-requests-used); il contatore e' monotono e rompe
-    # i pareggi a parita' di secondo (i timestamp hanno risoluzione di 1 secondo).
+    # Chiave (fetched_at_utc, x-requests-used): il contatore rompe i pareggi
+    # quando i timestamp hanno la stessa risoluzione di un secondo.
     def _chiave(r):
         headers = r.get("headers") or {}
         try:
@@ -148,8 +169,9 @@ def main(argv=None) -> int:
                                   "fetched_at_utc": ultima.get("fetched_at_utc")}
     summary["x-requests-used_ultimo"] = uh.get("x-requests-used")
     summary["x-requests-remaining_ultimo"] = uh.get("x-requests-remaining")
-    write_json(os.path.join(args.out, "_summary.json"), summary)
-    print(f"riepilogo: {os.path.join(args.out, '_summary.json')}", flush=True)
+    write_json(os.path.join(run_dir, "_summary.json"), summary)
+    print(f"riepilogo: {os.path.join(run_dir, '_summary.json')}", flush=True)
+    print(f"SNAPSHOT_DIR={run_dir}", flush=True)
     return exit_code
 
 
