@@ -1,0 +1,5475 @@
+{
+  "lega": "Serie A",
+  "sport_key": "soccer_italy_serie_a",
+  "mercato": "totals",
+  "regioni": "eu",
+  "fetched_at_utc": "2026-10-10T17:03:43Z",
+  "url_masked": "https://api.the-odds-api.com/v4/sports/soccer_italy_serie_a/odds/?apiKey=***&regions=eu&markets=totals&oddsFormat=decimal&dateFormat=iso",
+  "status": 200,
+  "ok": true,
+  "error": null,
+  "headers": {
+    "x-requests-used": "59",
+    "x-requests-remaining": "441",
+    "x-requests-last": "1"
+  },
+  "body": [
+    {
+      "id": "1a01b0611dacd334e1558a5097e05023",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-10T16:00:00Z",
+      "home_team": "Inter Milan",
+      "away_team": "Parma",
+      "bookmakers": [
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.51,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.23,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.56,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.3,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.56,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.3,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.45,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.16,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.89,
+                  "point": 4.75
+                },
+                {
+                  "name": "Under",
+                  "price": 1.99,
+                  "point": 4.75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.12,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.2,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.66,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.23,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.74,
+                  "point": 4.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.28,
+                  "point": 4.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "40c1bd70fee927f9bfa8901edab02b48",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-10T18:45:00Z",
+      "home_team": "Napoli",
+      "away_team": "Frosinone",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.96,
+                  "point": 3.25
+                },
+                {
+                  "name": "Under",
+                  "price": 1.94,
+                  "point": 3.25
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.25,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.63,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.25,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.63,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.12,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.53,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.25,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.62,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.05,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.66,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.21,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.78,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.45,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.72,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.44,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.7,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.67,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.19,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.74,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.26,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.78,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.14,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.7,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.11,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.74,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.15,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.74,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2547c0dbddd26d23fa532228e36348cb",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-11T10:30:00Z",
+      "home_team": "Como",
+      "away_team": "AS Roma",
+      "bookmakers": [
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.61,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.51,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.14,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.28,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.28,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.05,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.58,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.19,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.68,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.38,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.3,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.57,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.35,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.04,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.24,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.82,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.02,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.82,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "946716d7e5e52822f08be8cb95193d9d",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-11T13:00:00Z",
+      "home_team": "Lecce",
+      "away_team": "Bologna",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.9,
+                  "point": 2.25
+                },
+                {
+                  "name": "Under",
+                  "price": 1.99,
+                  "point": 2.25
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.72,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.72,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.71,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.97,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.62,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.02,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.68,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.16,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.81,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.7,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.75,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.05,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.72,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.18,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.75,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.05,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.73,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.02,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.77,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.86,
+                  "point": 2.25
+                },
+                {
+                  "name": "Under",
+                  "price": 1.96,
+                  "point": 2.25
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c0f72699f32ec193b64fd54092fe268d",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-11T13:00:00Z",
+      "home_team": "Lazio",
+      "away_team": "Monza",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.89,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.88,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.91,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.88,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.91,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.85,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.89,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.77,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.79,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.81,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.86,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.92,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.02,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.82,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.92,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.8,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.95,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.77,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.86,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.03,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.93,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.04,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.88,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.89,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.85,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.97,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.85,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.98,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1cf64166dda1e0da8b325161deb39662",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-11T16:00:00Z",
+      "home_team": "Sassuolo",
+      "away_team": "AC Milan",
+      "bookmakers": [
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.79,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.79,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.68,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.88,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.78,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.97,
+                  "point": 2.75
+                },
+                {
+                  "name": "Under",
+                  "price": 1.91,
+                  "point": 2.75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.68,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.02,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.87,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.08,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.05,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.75,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.67,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.15,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.78,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.14,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.79,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.99,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.76,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.07,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.74,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.15,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "407f7d03157d1dfad384876e6a6bc910",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-11T18:45:00Z",
+      "home_team": "Cagliari",
+      "away_team": "Juventus",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.06,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.84,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.79,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.79,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.78,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.88,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.68,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.92,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.76,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.07,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.88,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.98,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.8,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.95,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.8,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.93,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.83,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.06,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.84,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.88,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.99,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.79,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.01,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.81,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:10Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.03,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.81,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "0f2e7ff90b994f31d5cd48a9680943e1",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-12T16:30:00Z",
+      "home_team": "Atalanta BC",
+      "away_team": "Venezia",
+      "bookmakers": [
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.3,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.6,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.3,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.6,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.3,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.57,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.18,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.5,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.91,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.98,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.41,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.67,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.23,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.56,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.55,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.4,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.3,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.55,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.91,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.97,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.52,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.42,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.46,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.64,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.35,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.57,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:10Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.88,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.94,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.88,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.91,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f4a28510bb0c835280a2aca709c19d50",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-12T18:45:00Z",
+      "home_team": "Torino",
+      "away_team": "Udinese",
+      "bookmakers": [
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.73,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.08,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.71,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.73,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.96,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.62,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.92,
+                  "point": 2.25
+                },
+                {
+                  "name": "Under",
+                  "price": 1.97,
+                  "point": 2.25
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.03,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.68,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.21,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.78,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.7,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.05,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.72,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "coolbet",
+          "title": "Coolbet",
+          "last_update": "2026-10-10T17:03:27Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:27Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.12,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.79,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.7,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.24,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.77,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.76,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betanysports",
+          "title": "BetAnything",
+          "last_update": "2026-10-10T17:03:10Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:10Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.2,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.71,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "betonlineag",
+          "title": "BetOnline.ag",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.12,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.69,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "7d3160040958fe21778fd5ee485666c3",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-16T18:45:00Z",
+      "home_team": "Frosinone",
+      "away_team": "Sassuolo",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.9,
+                  "point": 3.0
+                },
+                {
+                  "name": "Under",
+                  "price": 1.93,
+                  "point": 3.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.22,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.56,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.39,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.67,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.3,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.55,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.3,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.52,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.42,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.28,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.28,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.28,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.51,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.14,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.38,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.56,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "gtbets",
+          "title": "GTbets",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.33,
+                  "point": 3.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.58,
+                  "point": 3.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "907639dade64cca45d1ab639195d201e",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-17T13:00:00Z",
+      "home_team": "Venezia",
+      "away_team": "Napoli",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.87,
+                  "point": 2.75
+                },
+                {
+                  "name": "Under",
+                  "price": 1.96,
+                  "point": 2.75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.66,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.04,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.7,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.1,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.75,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.65,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.2,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.7,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.1,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.68,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.12,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.7,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.12,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.7,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.12,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.18,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bfefc309177723410230fee52f650315",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-17T16:00:00Z",
+      "home_team": "Bologna",
+      "away_team": "Inter Milan",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.83,
+                  "point": 2.75
+                },
+                {
+                  "name": "Under",
+                  "price": 2.02,
+                  "point": 2.75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.59,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.16,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.3,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.22,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.67,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.15,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.7,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.14,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.68,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.12,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.7,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.14,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.02,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "matchbook",
+          "title": "Matchbook",
+          "last_update": "2026-10-10T17:03:42Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:42Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.65,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.3,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "18d478f469da3bcc654dd4555b85c7e3",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-17T18:45:00Z",
+      "home_team": "AS Roma",
+      "away_team": "Genoa",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.83,
+                  "point": 2.75
+                },
+                {
+                  "name": "Under",
+                  "price": 2.02,
+                  "point": 2.75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.59,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.16,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.65,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.2,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.31,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.6,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.57,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.3,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.54,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.12,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.23,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.64,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.64,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "367da93aa21a1e13eeafb94fd2263c75",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-18T10:30:00Z",
+      "home_team": "Udinese",
+      "away_team": "Lecce",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.95,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.88,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.86,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.81,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.92,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.82,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.94,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.87,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.87,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.91,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.93,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.83,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.94,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.83,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.83,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.73,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.94,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.83,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "3ea32a0aa44a5f0ef7fd088155430087",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-18T13:00:00Z",
+      "home_team": "Fiorentina",
+      "away_team": "Como",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.84,
+                  "point": 2.75
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.61,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.13,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.65,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.2,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.73,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.29,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.62,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.25,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.67,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.15,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.67,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.14,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.57,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.02,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.68,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.15,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.68,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.15,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f9403dd597edbfaa73abdc974e55344c",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-18T16:00:00Z",
+      "home_team": "AC Milan",
+      "away_team": "Atalanta BC",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.97,
+                  "point": 2.75
+                },
+                {
+                  "name": "Under",
+                  "price": 1.87,
+                  "point": 2.75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.96,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.05,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.83,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.13,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.05,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.75,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.0,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.7,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.1,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.1,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.72,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 2.1,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.61,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.97,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "4c4026e2782f09d6f0ff2bde2a390513",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-18T18:45:00Z",
+      "home_team": "Juventus",
+      "away_team": "Lazio",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.99,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.85,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.82,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.9,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.03,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.92,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.85,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.9,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.85,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.93,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.93,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.85,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.93,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.83,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.83,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.74,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ce94aca384a20f6af459366da6e1dd21",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-19T16:30:00Z",
+      "home_team": "Monza",
+      "away_team": "Cagliari",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.79,
+                  "point": 2.25
+                },
+                {
+                  "name": "Under",
+                  "price": 2.06,
+                  "point": 2.25
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "codere_it",
+          "title": "Codere (IT)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.01,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.69,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.13,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.83,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.77,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.05,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.75,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.98,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.78,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.0,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.61,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.1,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.7,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.12,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.71,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.12,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.71,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "07014d9adc65ca39710bd9f0c7c0d3f0",
+      "sport_key": "soccer_italy_serie_a",
+      "sport_title": "Serie A - Italy",
+      "commence_time": "2026-10-19T18:45:00Z",
+      "home_team": "Parma",
+      "away_team": "Torino",
+      "bookmakers": [
+        {
+          "key": "pinnacle",
+          "title": "Pinnacle",
+          "last_update": "2026-10-10T17:03:40Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:40Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 1.78,
+                  "point": 2.0
+                },
+                {
+                  "name": "Under",
+                  "price": 2.08,
+                  "point": 2.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "onexbet",
+          "title": "1xBet",
+          "last_update": "2026-10-10T17:02:52Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:02:52Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.48,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.63,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "tipico_de",
+          "title": "Tipico",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.25,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.6,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "williamhill",
+          "title": "William Hill",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.2,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.62,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "nordicbet",
+          "title": "Nordic Bet",
+          "last_update": "2026-10-10T17:03:09Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:09Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.35,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.55,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_nl",
+          "title": "Unibet (NL)",
+          "last_update": "2026-10-10T17:03:08Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:08Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.23,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.62,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "pmu_fr",
+          "title": "PMU (FR)",
+          "last_update": "2026-10-10T17:03:25Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:25Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.12,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.54,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "leovegas_se",
+          "title": "LeoVegas (SE)",
+          "last_update": "2026-10-10T17:03:26Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:26Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.25,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.64,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "unibet_se",
+          "title": "Unibet (SE)",
+          "last_update": "2026-10-10T17:03:41Z",
+          "markets": [
+            {
+              "key": "totals",
+              "last_update": "2026-10-10T17:03:41Z",
+              "outcomes": [
+                {
+                  "name": "Over",
+                  "price": 2.25,
+                  "point": 2.5
+                },
+                {
+                  "name": "Under",
+                  "price": 1.64,
+                  "point": 2.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
