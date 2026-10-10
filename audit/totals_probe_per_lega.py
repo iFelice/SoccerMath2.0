@@ -26,7 +26,8 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+DATA_ROOT = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+DATA_DIR = os.path.join(DATA_ROOT, "2026-10-10_1703")
 REPORT = os.path.join(_AUDIT_DIR, "results", "totals_probe_per_lega.md")
 PINNACLE = "pinnacle"
 SOGLIA_CONSENSO = 3          # bookmaker distinti con linea 2,5

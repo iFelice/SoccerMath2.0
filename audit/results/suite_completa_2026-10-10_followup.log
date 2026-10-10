@@ -1,0 +1,64 @@
+File pytest: 94
+........................................................................ [  3%]
+..................................................................... [  7%]
+...................................................................... [ 10%]
+........................................................................ [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 21%]
+........................................................................ [ 25%]
+........................................................................ [ 28%]
+........................................................................ [ 32%]
+........................................................................ [ 36%]
+................................................. [ 38%]
+................................................................ [ 41%]
+........................................................................ [ 45%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+............................................................................................ [ 57%]
+.............. [ 58%]
+..................................................................... [ 61%]
+........................................................................ [ 65%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 76%]
+................................................................... [ 79%]
+........................................................................ [ 83%]
+........................................................................ [ 86%]
+............................................................. [ 90%]
+................................sssss................................... [ 93%]
+........................................................................ [ 97%]
+....................................................                     [100%]
+=============================== warnings summary ===============================
+audit/test_elo_w025_confirmation.py::TestPatchGriglia::test_boot_stats_delta_vs_060_con_griglia_ridotta
+  /home/user/SoccerMath2.0/audit/grid_search_ensemble_weight.py:224: RuntimeWarning: invalid value encountered in divide
+    rr = np.where(staked > 0, prof / staked, np.nan)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 15 durations =============================
+54.81s call     SoccerMath/test_apptest_top_mix.py::TestAppTestCalcolaTopMix::test_a_click_top_mix
+44.69s setup    audit/test_bookmaker_source_test.py::TestValutazioneCompleta::test_campioni
+44.28s setup    audit/test_bookmaker_source_test.py::TestCopertura::test_b365_avg_max_coprono_tutto
+16.39s call     audit/test_ng_regression.py::TestNoExtremeNGRegression::test_all_leagues_no_extreme_ng
+13.43s setup    SoccerMath/test_apptest_top_mix.py::TestAppTestCalcolaTopMix::test_a_click_top_mix
+12.17s call     audit/test_elo_walker_parity.py::TestProvenienzaFixture::test_v3_fixture_rigenerabile_dal_commit_dichiarato
+11.33s setup    audit/test_diagnose_quota_minima.py::TestIntegrazioneReplay::test_bootstrap_punto_in_ci_report_contenuto
+8.16s call     audit/test_diagnose_quota_minima.py::TestIntegrazioneReplay::test_tutte_le_quote_usabili_positive
+7.88s call     audit/test_diagnose_quota_minima.py::TestIntegrazioneReplay::test_gg_ng_da_btts_1x2_da_csv
+7.14s call     SoccerMath/test_basic.py::TestHistoricalBacktest::test_si_testano_le_partite_recenti
+6.67s call     SoccerMath/test_season_rosters.py::TestSimulazioneInizioStagione2026::test_tabella_seed_pre_stagione
+6.64s setup    SoccerMath/test_topmix_selector_parity.py::TestParitaGriglia::test_1x2_bit_identici_al_fixture_partita_per_partita
+6.28s call     SoccerMath/test_basic.py::TestHistoricalBacktest::test_ogni_lega_supportata_produce_righe
+4.55s call     audit/test_topmix_margins.py::TestConsistenzaConIlReplayCommittato::test_headline_del_report
+4.41s call     SoccerMath/test_apptest_top_mix.py::TestAppTestCalcolaTopMix::test_b_archivio_modello_storico_in_riquadro
+1970 passed, 5 skipped, 1 warning, 4773 subtests passed in 366.83s (0:06:06)
+
+--- SoccerMath/test_theme_toggle.py come script ---
+2026-10-10 20:32:40.858 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+✅ Run 1 OK - toggle ON (segue tema sistema), nessuna eccezione
+✅ Run 2 OK - toggle OFF, CSS light forzato presente (2 blocchi <style>)
+✅ Run 3 OK - ritorno a ON, CSS forzato rimosso, nessuna eccezione
+✅ Run 4 OK - rerun generico senza crash
+
+🎉 TUTTI I TEST PASSATI: nessun crash in nessuno stato del toggle.
+
+Suite completa exit=0; test_theme_toggle exit=0

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """totals_probe_diagnosi.py — punto 3: diagnosi della sonda totals (audit, offline).
 
-Legge SOLO i file grezzi gia' presenti in ``audit/data/totals_probe/`` (5 risposte
-di The Odds API, mercato totals, 82 eventi). Nessuna chiamata di rete, nessuna
-chiave, solo stdlib.
+Legge SOLO lo snapshot storico `2026-10-10_1703` in
+``audit/data/totals_probe/`` (5 risposte, mercato totals, 82 eventi). Nessuna
+chiamata di rete, nessuna chiave, solo stdlib.
 
 Riporta:
   1. classificazione per CAUSA dei 26 eventi che non superano la regola dell'85 %,
@@ -56,7 +56,8 @@ from collections import Counter, OrderedDict
 from datetime import datetime, timezone
 
 _AUDIT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+DATA_ROOT = os.path.join(_AUDIT_DIR, "data", "totals_probe")
+DATA_DIR = os.path.join(DATA_ROOT, "2026-10-10_1703")
 REPORT = os.path.join(_AUDIT_DIR, "results", "punto3_diagnosi_sonda_totals.md")
 JSON_OUT = os.path.join(_AUDIT_DIR, "output", "punto3_diagnosi.json")
 

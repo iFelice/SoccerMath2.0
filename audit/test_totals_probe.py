@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -82,6 +83,44 @@ class TestTotalsProbe(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(RuntimeError):
                 tp.write_json(os.path.join(d, "x.json"), {"u": f"https://x/?apiKey={SECRET}"})
+
+    def test_due_run_consecutivi_creano_cartelle_distinte_e_non_sovrascrivono(self):
+        fixed = datetime(2026, 10, 10, 17, 3, 43, tzinfo=timezone.utc)
+        calls = {"n": 0}
+
+        def fake_get_json(url, key, session):
+            calls["n"] += 1
+            run_n = (calls["n"] - 1) // len(tp.LEAGUES) + 1
+            sport = url.split("/sports/")[1].split("/odds")[0]
+            used = 60 + calls["n"]
+            return ([{"id": f"run-{run_n}-{sport}", "bookmakers": []}], {
+                "url_masked": "https://x/?apiKey=***", "fetched_at_utc": fixed.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "status": 200, "ok": True, "error": None,
+                "headers": {"x-requests-used": str(used),
+                            "x-requests-remaining": str(500 - used), "x-requests-last": "1"},
+            })
+
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.dict(os.environ, {"ODDS_API_KEY": "chiave-finta"}):
+                with mock.patch.object(tp, "_utc_now", return_value=fixed):
+                    with mock.patch.object(tp, "_http") as http:
+                        http.return_value.Session.return_value = object()
+                        with mock.patch.object(tp, "get_json", side_effect=fake_get_json):
+                            self.assertEqual(tp.main(["--out-root", d]), 0)
+                            folders = sorted(os.path.join(d, name) for name in os.listdir(d))
+                            self.assertEqual(len(folders), 1)
+                            first_file = os.path.join(folders[0], "soccer_epl.json")
+                            with open(first_file, encoding="utf-8") as fh:
+                                first_contents = fh.read()
+                            self.assertEqual(tp.main(["--out-root", d]), 0)
+            folders = sorted(os.path.join(d, name) for name in os.listdir(d))
+            self.assertEqual([os.path.basename(p) for p in folders],
+                             ["2026-10-10_1703", "2026-10-10_1703_02"])
+            with open(first_file, encoding="utf-8") as fh:
+                self.assertEqual(fh.read(), first_contents)
+            with open(os.path.join(folders[1], "soccer_epl.json"), encoding="utf-8") as fh:
+                self.assertIn("run-2-soccer_epl", fh.read())
+        self.assertEqual(calls["n"], 2 * len(tp.LEAGUES))
 
     def test_senza_chiave_esce_3_senza_chiamare_la_rete(self):
         with mock.patch.dict(os.environ, {}, clear=False):
