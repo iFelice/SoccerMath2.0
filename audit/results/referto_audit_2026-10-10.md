@@ -213,7 +213,7 @@ Verifica di determinismo: vedi §9.
 - Quote B365 e Pinnacle: storico CSV del repo, non verificato contro The Odds API (il piano gratuito non include lo storico).
 - Interpretazione della regola R3 al passo 1 («altrimenti B»): letta come B candidata contro A, poi B vs C (dichiarata in §0).
 - Interpretazione di R4 per mercati con n < 100 in una fascia: «non valutabile» (dichiarata in §0).
-- Esito CI dei tre workflow sulla PR finale: vedi chiusura (da verificare dopo l'apertura della PR).
+- Log e artifact CI non scaricabili dalla sandbox: esiti verificati solo a livello di step (API). Conteggi del replay in CI non letti; `Replay Top Mix legacy` saltato su questa PR (vedi chiusura).
 - Suite completa: eseguita localmente con gli stessi comandi del workflow `test_suite.yml`, non sul runner GitHub.
 
 ---
@@ -224,4 +224,10 @@ Verifica di determinismo: vedi §9.
 
 **Replay** `topmix_mercato_v3` (`audit/replay_topmix_mercato.py`, senza `--write`, output in `/tmp/replay/`): esito **PARITÀ** con PR #49. Conteggi 1302 / 1144 / 335, Δn = +0 su tutte e tre le voci; hit 0,6751 / 0,6818 / 0,4358. Output reale in `/tmp/replay/stdout.log`; referto in `/tmp/replay/replay_topmix_mercato.md`.
 
-**CI dei tre workflow** (`Suite test completa`, `Audit Top Mix`, `Replay Top Mix legacy`): da verificare sulla PR aperta da questo branch, al commit finale.
+**CI dei tre workflow sulla PR #59, commit `02efd489`** (esiti step per step da `gh api .../actions/runs/<id>/jobs`):
+
+- `Suite test completa` (run 38072503531): **success**. Step: Checkout, Dipendenze, Elenco dei file di test, Suite pytest (tutti i `test_*.py` tracciati), test_theme_toggle.py come script, Riepilogo: tutti **success**.
+- `Audit Top Mix` (run 38072503547): **success**. Step: Test diagnostici Top Mix ed Elo, **Replay offline del Top Mix di mercato (topmix_mercato_v3): success**, Ispezione tracciamento Registro, Nessuna modifica ai dati/codice di produzione: tutti **success**.
+- `Replay Top Mix legacy` (run 38072503538): **success**, ma **tutti gli step di replay sono `skipped`**: il workflow salta il replay quando la PR non tocca file rilevanti per il replay. Questo run quindi **non esegue** il replay legacy e non è una verifica del replay.
+
+**Limite:** i log testuali (`gh run view --log`, `gh api .../jobs/<id>/logs`) e l'artifact `topmix-audit-38072503547` non sono scaricabili dalla sandbox (errore EOF dal servizio GitHub). I conteggi 1302/1144/335 del replay in CI non sono quindi leggibili qui. Sono verificati in locale con lo stesso script (`audit/replay_topmix_mercato.py`, output in `/tmp/replay/`).
