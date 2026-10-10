@@ -102,7 +102,7 @@ from prediction_registry import (
     # statistiche per registrazione: rifinitura dopo la PR #53.
     aggiorna_righe_mercato_in_attesa, SOTTO_SOGLIA_ORA_FIELD,
     REGISTRAZIONE_PRIMA, REGISTRAZIONE_ULTIMA,
-    compute_calibration_per_registrazione,
+    compute_calibration_per_registrazione, prob_di_registrazione,
     OMBRA_FIELD, OMBRA_MERCATO_FIELD, OMBRA_CONFIDENCE_FIELD, OMBRA_AMMESSA_FIELD,
     OMBRA_SOGLIA_FIELD, OMBRA_VINCENTE_GLOBALE_FIELD, OMBRA_DATI_MANCANTI_FIELD,
     OMBRA_SOGLIA_TOTALI,
@@ -3441,12 +3441,68 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
     )
 
 
-# Colonne della tabella Registro per la famiglia MERCATO: include probabilita'
-# del modello e segnale d'accordo, se registrati.
+# Colonne della tabella Registro per la famiglia MERCATO: delta fra le due
+# registrazioni, probabilita' del modello e segnale d'accordo, se registrati.
 REGISTRO_MERCATO_COLONNE = ["data", "stagione", "campionato", "home", "away",
-                            "mercato_standard", "prob_sicuro",
-                            "prob_modello_col", "accordo_col", "stato_col",
+                            "mercato_standard", "prob_sicuro", "Δ dalla prima",
+                            "Prima registrazione", "prob_modello_col", "accordo_col", "stato_col",
                             "risultato_reale", "esito", "origine"]
+
+
+def _delta_mercato_dalla_prima(riga):
+    """Testo delta ultima-prima, in punti percentuali, senza inventare la prima.
+
+    ``prob_di_registrazione`` normalizza le probabilita' sia in frazione sia in
+    percentuale. Le righe senza ``prob_mercato_prima`` hanno la prima
+    ricostruita dall'ultima: il delta resta vuoto e la colonna accanto lo
+    dichiara esplicitamente.
+    """
+    prima, ricostruita = prob_di_registrazione(riga, REGISTRAZIONE_PRIMA)
+    if ricostruita:
+        return "", "ricostruita"
+    ultima, _ = prob_di_registrazione(riga, REGISTRAZIONE_ULTIMA)
+    if prima is None or ultima is None:
+        return "", "non disponibile"
+    # Arrotondare prima del gate evita che 0.58 - 0.56 diventi 1.999999999999
+    # per la rappresentazione binaria: il limite e' inclusivo a ±2,0 punti.
+    delta = round((ultima - prima) * 100.0, 10)
+    freccia = "▲ " if delta >= 2.0 else "▼ " if delta <= -2.0 else ""
+    return f"{freccia}{delta:+.1f} pp", ""
+
+
+def _stile_delta_dalla_prima(valore):
+    """Colore della freccia: verde da +2 pp, rosso da -2 pp in giu'."""
+    testo = str(valore or "")
+    if testo.startswith("▲ "):
+        return "color: #188038; font-weight: 700;"
+    if testo.startswith("▼ "):
+        return "color: #d93025; font-weight: 700;"
+    return ""
+
+
+def _didascalia_rinfresco_righe_in_attesa(records, n_sotto=None):
+    """Didascalia esplicita: ambito del rinfresco e identita' delle sotto-soglia."""
+    sotto = [r for r in (records or [])
+             if isinstance(r, dict)
+             and famiglia_selettore(r) == FAMIGLIA_SELETTORE_MERCATO
+             and r.get(SOTTO_SOGLIA_ORA_FIELD) is True]
+    elenco = []
+    for r in sotto:
+        partita = f"{r.get('home') or '?'}–{r.get('away') or '?'}"
+        lega = r.get("campionato") or "lega n/d"
+        esito = r.get("mercato_standard") or "esito n/d"
+        elenco.append(f"{partita} ({lega}, {esito})")
+    base = (
+        "🔄 A ogni calcolo vengono rinfrescate tutte le righe di mercato ancora "
+        "in attesa per cui e' disponibile una quota pre-partita valida, anche "
+        "quando la probabilita' e' sotto soglia. Il flag ``sotto_soglia_ora`` "
+        "riguarda SOLO le righe la cui ultima probabilita' di mercato e' scesa "
+        "sotto 0,55. "
+    )
+    conteggio = len(elenco) if n_sotto is None else int(n_sotto)
+    if not elenco:
+        return base + f"Righe con il flag: {conteggio}."
+    return base + f"Righe con il flag ({conteggio}): " + ", ".join(sorted(elenco)) + "."
 
 
 def _mostra_statistiche_registrazione(records):
@@ -3516,15 +3572,7 @@ def _mostra_statistiche_registrazione(records):
             "un'osservazione storica. Vanno contate a parte: la statistica principale su "
             "queste righe e' la stessa cosa che legge l'ultima registrazione.")
     n_sotto = ultima["sotto_soglia_ora"]
-    if n_sotto:
-        st.caption(f"🔄 {n_sotto} righe portano il flag ``sotto_soglia_ora``: sono state "
-                   "rinfrescate anche se la loro probabilita' di mercato e' ricaduta sotto "
-                   "lo 0,55 (erano il buco del Registro: aggiornate solo quando salivano). "
-                   "Sono righe gia' registrate, non scelte nuove ammesse in tabella.")
-    else:
-        st.caption("🔄 Nessuna riga con il flag ``sotto_soglia_ora``: nessun rinfresco ha "
-                   "incontrato una riga in attesa scesa sotto soglia (o il Registro non ha "
-                   "ancora righe scritte da questo codice).")
+    st.caption(_didascalia_rinfresco_righe_in_attesa(records, n_sotto=n_sotto))
 
 
 def _metriche_famiglia_registro(records, famiglia, etichetta, nota):
@@ -3567,9 +3615,10 @@ def _metriche_famiglia_registro(records, famiglia, etichetta, nota):
 def _mostra_registro_mercato(righe, altezza=420):
     """Tabella Registro per la famiglia MERCATO (topmix_mercato_v3).
 
-    Mostra la probabilita' di mercato (prob_sicuro), la probabilita' del
-    modello (Drago) se registrata, e il segnale d'accordo. Se i campi
-    mancano, lo dice esplicitamente.
+    Mostra la probabilita' di mercato (prob_sicuro), la differenza fra ultima
+    e prima registrazione (in punti percentuali), la probabilita' del modello
+    (Drago) se registrata e il segnale d'accordo. Se la prima e'
+    ricostruita, il delta resta vuoto e la colonna dedicata lo dichiara.
 
     La colonna "Stato" dice se il valore mostrato e' anche una scelta oggi in
     tabella: dopo il rinfresco delle righe in attesa una riga puo' leggere 0,52
@@ -3604,15 +3653,33 @@ def _mostra_registro_mercato(righe, altezza=420):
                            for v in df[SOTTO_SOGLIA_ORA_FIELD]]
     else:
         df["stato_col"] = "flag non dichiarato"
+    delta_e_stato_prima = [_delta_mercato_dalla_prima(r) for r in df.to_dict("records")]
+    df["Δ dalla prima"] = [valore for valore, _stato in delta_e_stato_prima]
+    df["Prima registrazione"] = [stato for _valore, stato in delta_e_stato_prima]
 
     colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
+    tabella = df[colonne].sort_values(by="data", ascending=False, na_position="last")
+    # Streamlit conserva il DataFrame sottostante (quindi ordinamento e copia
+    # restano normali) ma applica il colore al testo della freccia.
+    tabella_stile = tabella.style.apply(
+        lambda colonna: [_stile_delta_dalla_prima(v) for v in colonna],
+        axis=0, subset=["Δ dalla prima"])
     st.dataframe(
-        df[colonne].sort_values(by="data", ascending=False, na_position="last"),
+        tabella_stile,
         width="stretch",
         height=altezza,
         column_config={
             "data": st.column_config.DatetimeColumn(None, format="DD/MM/YYYY HH:mm"),
             "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
+            "Δ dalla prima": st.column_config.TextColumn(
+                "Δ dalla prima",
+                help="Probabilita' di mercato dell'ultima registrazione meno la prima, "
+                     "in punti percentuali. Freccia verde da +2,0 pp, rossa da -2,0 pp; "
+                     "per una variazione inferiore a 2 pp in valore assoluto non c'e' freccia."),
+            "Prima registrazione": st.column_config.TextColumn(
+                "Prima registrazione",
+                help="'ricostruita' significa che il Registro non conserva una prima "
+                     "probabilita' scritta: il delta resta vuoto, non vale zero."),
             "prob_modello_col": st.column_config.TextColumn("P modello Drago %"),
             "accordo_col": st.column_config.TextColumn("D'accordo"),
             "stato_col": st.column_config.TextColumn("Stato"),

@@ -202,15 +202,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         L.append(f"- totale NON VERIFICABILI: {sum(non_verificabili.values())}")
         L.append("")
     if risultati:
-        L.append("| riga del Registro | salvata il | motore di allora | nel Registro | ricostruzione | coincide |")
-        L.append("|---|---|---|---|---|---|")
+        L.append("Il gate confronta esattamente ``mercato_standard`` e ``prob_sicuro`` "
+                 "del Registro con ``mercato_standard`` e ``prob_val`` del replay.")
+        L.append("| match_id | riga del Registro | salvata il | motore di allora | "
+                 "Registro (mercato / prob_sicuro) | Replay (mercato / prob_val) | coincide |")
+        L.append("|---|---|---|---|---|---|---|")
     for x in risultati:
         r = x["riga"]
         etichetta = (MODEL_VARIANT_LABELS.get(x.get("variante"), x.get("variante"))
                      if x["esito"] != "non ricostruibile" else "-")
-        L.append(f"| {r.get('home')} - {r.get('away')} ({r.get('campionato')}) | {r.get('salvato_il')} | "
-                 f"{etichetta} | {r.get('mercato_standard')} {r.get('prob_sicuro')}% | "
-                 f"{x.get('replay_mercato')} {x.get('replay_prob')}% "
+        L.append(f"| {r.get('match_id')} | {r.get('home')} - {r.get('away')} "
+                 f"({r.get('campionato')}) | {r.get('salvato_il')} | {etichetta} | "
+                 f"{r.get('mercato_standard')} / {r.get('prob_sicuro')}% | "
+                 f"{x.get('replay_mercato')} / {x.get('replay_prob')}% "
                  f"(snapshot {x.get('snapshot')}) | {x['esito']} |")
     L.append("")
     L.append(f"**{n_ok}/{len(risultati)} coincidono** ricostruendo il click all'istante del salvataggio.")

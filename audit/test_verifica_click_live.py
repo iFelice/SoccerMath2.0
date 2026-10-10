@@ -162,6 +162,13 @@ class TestEsitoVerifica(unittest.TestCase):
         rc, testo = _EsecuzioneFinta([riga], rows_ricostruite=ricostruite).esegui()
         self.assertEqual(1, rc)
         self.assertIn("[verifica] esito: fallita", testo)
+        self.assertIn("| match_id |", testo)
+        self.assertIn("| 7 | Milan - Lecce", testo)
+        self.assertIn("mercato_standard", testo)
+        self.assertIn("prob_sicuro", testo)
+        self.assertIn("prob_val", testo)
+        self.assertIn("1 / 64.5%", testo)
+        self.assertIn("1 / 71.6%", testo)
 
     def test_il_campione_contiene_solo_la_versione_in_prova(self):
         """La riga v1, anche se e' la piu' vecchia, non entra nel campione."""
