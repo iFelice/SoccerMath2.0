@@ -92,11 +92,40 @@ def _nel_periodo(row: Dict[str, Any], day_from: Optional[date], day_to: Optional
     return True
 
 
+def top_mix_filter_exclusion(row: Any, day_from: Optional[date] = None,
+                             day_to: Optional[date] = None) -> Optional[Dict[str, Any]]:
+    """Spiega perche' ``top_mix_rows`` esclude una riga (``None`` se inclusa).
+
+    Un verificatore che usa questo filtro deve rendere espliciti i record
+    ``topmix_mercato_v3`` che restano fuori dal periodo/origine: altrimenti un
+    conteggio tipo ``14/14`` non dice se nel Registro ci fossero altre righe.
+    La funzione e' condivisa con ``top_mix_rows`` per mantenere identico il
+    perimetro del conteggio e la sua spiegazione.
+    """
+    if not isinstance(row, dict):
+        return {"filtro": "tipo_riga", "motivo": "record Registro non e' un oggetto/dizionario"}
+    origine = origin_of(row)
+    if origine != ORIGIN_TOP_MIX:
+        return {"filtro": "origine", "motivo": f"origin risolto come {origine!r}, richiesto {ORIGIN_TOP_MIX!r}"}
+
+    if _nel_periodo(row, day_from, day_to):
+        return None
+
+    giorno = row_day(row)
+    if giorno is None:
+        return {"filtro": "periodo", "motivo": "data/kickoff assente o non interpretabile con una finestra limitata"}
+    if day_from is not None and giorno < day_from:
+        return {"filtro": "periodo", "motivo": f"giorno UTC {giorno.isoformat()} precedente a --from {day_from.isoformat()}"}
+    if day_to is not None and giorno > day_to:
+        return {"filtro": "periodo", "motivo": f"giorno UTC {giorno.isoformat()} successivo a --to {day_to.isoformat()}"}
+    # Difesa: ogni esclusione del filtro temporale deve avere una causa leggibile.
+    return {"filtro": "periodo", "motivo": "fuori dal periodo richiesto"}
+
+
 def top_mix_rows(rows: Iterable[Dict[str, Any]], day_from: Optional[date] = None,
                  day_to: Optional[date] = None) -> List[Dict[str, Any]]:
     """Righe Top Mix (qualunque variante) del periodo indicato."""
-    return [r for r in rows if isinstance(r, dict)
-            and origin_of(r) == ORIGIN_TOP_MIX and _nel_periodo(r, day_from, day_to)]
+    return [r for r in rows if top_mix_filter_exclusion(r, day_from, day_to) is None]
 
 
 def coverage_by_variant(rows: Iterable[Dict[str, Any]], day_from: Optional[date] = None,

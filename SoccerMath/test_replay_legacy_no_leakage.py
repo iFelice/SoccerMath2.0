@@ -466,6 +466,16 @@ class TestRowShape(_Base):
         cls.legacy = replay.entries_for_targets(cls.click, MODEL_VARIANT_LEGACY)
         cls.current = replay.entries_for_targets(cls.click, MODEL_VARIANT_CURRENT)
 
+    def test_click_esporta_la_terna_1x2_del_blend_per_il_match(self):
+        self.assertEqual({MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY},
+                         set(self.click.model_prob_val_by_variant))
+        for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
+            per_match = self.click.model_prob_val_by_variant[variante][str(self.target.match_id)]
+            self.assertEqual({"1", "X", "2"}, set(per_match))
+            riga = next(r for r in self.click.rows[variante]
+                        if str(r.get("match_id")) == str(self.target.match_id))
+            self.assertEqual(riga["prob_val"], per_match[riga["mercato_standard"]])
+
     def test_target_is_above_threshold_in_both_variants(self):
         self.assertEqual(1, len(self.legacy), [r["home"] + "-" + r["away"] for r in self.click.rows[MODEL_VARIANT_LEGACY]])
         self.assertEqual(1, len(self.current))

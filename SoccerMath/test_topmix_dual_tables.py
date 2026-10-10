@@ -123,6 +123,25 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
         self.assertIn(1, cur_ids)
         self.assertNotIn(1, leg_ids)
 
+    def test_replay_esporta_terna_anche_quando_il_modello_non_seleziona_la_partita(self):
+        cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
+        leg_elo = lambda h, a, l, season=None: {"1": 0.48, "X": 0.28, "2": 0.24}
+        with mock.patch.object(app, "predict_elo_probs", side_effect=cur_elo), \
+             mock.patch.object(app, "predict_elo_probs_legacy", side_effect=leg_elo), \
+             mock.patch.object(app, "_roster_stagione", return_value=None):
+            righe = app.calcola_righe_top_mix(
+                "Serie A", self.matches, _engine(self.stats),
+                acquisisci_probabilita_modello=True)
+
+        per_variante = righe["model_prob_val_by_variant"]
+        legacy_rows = {r["match_id"] for r in righe[MODEL_VARIANT_LEGACY]}
+        self.assertNotIn(1, legacy_rows, "la precondizione e' che il legacy non selezioni Inter-Roma")
+        for variante in (MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY):
+            self.assertEqual({"1", "2", "3"}, set(per_variante[variante]))
+            for probabilita in per_variante[variante].values():
+                self.assertEqual({"1", "X", "2"}, set(probabilita))
+        self.assertGreater(per_variante[MODEL_VARIANT_LEGACY]["1"]["1"], 0)
+
     def test_legacy_sotto_soglia_e_solo_current_ha_la_riga(self):
         """Il Poisson scelto e' 1X2 con confidence attuale 0.63: col legacy 0.53
         (< 0.55) la riga NON esiste per il legacy. E' la spiegazione misurata
