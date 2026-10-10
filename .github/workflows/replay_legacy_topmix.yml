@@ -439,8 +439,10 @@ jobs:
           done
           # Il riepilogo riporta sempre quante righe sono state confrontate
           # separatamente per a) mercato, b) modello e quanti snapshot servivano/trovati.
-          riepilogo_riga="$(grep '^\[verifica\] riepilogo:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
-          esito_riga="$(grep '^\[verifica\] esito:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
+          riepilogo_riga="$(grep -F '[verifica] riepilogo:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
+          esito_riga="$(grep -F '[verifica] esito:' "$REPLAY_OUT/verifica_click_live.txt" | tail -n 1 || true)"
+          echo "::notice title=click-veri-riepilogo::${riepilogo_riga:-riepilogo non letto}"
+          echo "::notice title=click-veri-esito::${esito_riga:-esito non letto}"
           {
             echo "### Replay Top Mix mercato: mercato contro mercato / modello contro modello"
             echo ""
