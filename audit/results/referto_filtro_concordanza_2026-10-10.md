@@ -426,6 +426,12 @@ locale (`git ls-files`, 97 file `test_*.py`): la riproduzione locale in condizio
 identiche (cache del frame assente, come su un runner pulito) dà **1.993 passed /
 6 skipped** (§5.1), e il check `Audit` ha rieseguito il replay in parità 1302/1144/335.
 
+Aggiornamento sul HEAD `835175d` (commit documentale che aggiunge questa tabella):
+Suite completa **success** 6m2s (stessi 14 passi, tutti eseguiti: il filtro di
+documentazione non salta perché il diff della PR contiene file `.py`), Audit **success**
+4m5s, Replay **success** 7s (17 passi saltati dal filtro dei file rilevanti). Pattern
+degli step identico alla tabella sopra.
+
 ### 5.3 Replay `topmix_mercato_v3` — output reale
 
 Comando (senza `--write`, senza rete, output verso `/tmp` per non toccare i referti
