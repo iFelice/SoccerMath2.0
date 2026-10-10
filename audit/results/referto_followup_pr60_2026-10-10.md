@@ -30,8 +30,6 @@ L'analisi non si applica allo snapshot del 10/10. Senza un nuovo snapshot lo scr
 
 ## 1. Punto 1 — disponibilità dei CSV storici
 
-<!-- I risultati e i chiarimenti seguenti vengono aggiunti dopo le regole preregistrate. -->
-
 ### Esito del punto 1
 
 **Non eseguito per indisponibilità della fonte.** L'host `football-data.co.uk` non è raggiungibile dal sandbox, la cui uscita di rete è limitata agli host autorizzati. Non ho tentato di scaricare i CSV né usato mirror o dati sostitutivi. Come richiesto, mi fermo qui sul punto 1: Felice fornirà i 25 file originali nei percorsi elencati in `audit/data/football_data_storico/README.md`. Di conseguenza non esistono copertura per lega/stagione, conteggi di quote invalide né metriche OOS; non riporto numeri stimati o presunti.
@@ -99,8 +97,6 @@ La differenza A − B è **+4,5378 punti percentuali** (44,4863% − 39,9485%). 
 - `.github/workflows/totals_probe.yml` passa esplicitamente alle analisi offline la directory creata in quel run. Non ho avviato il workflow né lo script di acquisizione.
 - `audit/totals_probe_seconda_analisi.py` contiene e stampa in testa la regola preregistrata sopra, seleziona un solo snapshot successivo al baseline e rifiuta quello del 10/10. Senza un run nuovo stampa **«seconda sonda non eseguita»**, esce senza numeri di risultato e non crea il referto.
 - Test di regressione con `get_json` simulato: due run consecutivi nello stesso minuto creano `2026-10-10_1703/` e `2026-10-10_1703_02/`; il file grezzo del primo run resta identico dopo il secondo. Nessuna richiesta HTTP è stata eseguita dal test.
-
-<!-- Chiusura, log reali e stati CI da aggiungere dopo le verifiche locali e l'apertura della PR. -->
 
 ## 5. Chiusura — output reali locali
 
