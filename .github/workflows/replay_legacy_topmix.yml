@@ -405,7 +405,7 @@ jobs:
       # usa gli snapshot storici live_odds.json, individuati per generato_il; il
       # modello si rifa' con simulate_click allo stesso istante di registrazione.
       # Sola lettura: nessuna riga/snapshot mancante viene contata come coincidenza.
-      - name: Replay v3: mercato contro mercato e modello contro modello (sola lettura)
+      - name: "Replay v3: mercato contro mercato e modello contro modello (sola lettura)"
         if: always() && steps.salta.outputs.skip != 'true'
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
