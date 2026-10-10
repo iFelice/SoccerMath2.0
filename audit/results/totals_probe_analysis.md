@@ -1,6 +1,6 @@
 # Sonda The Odds API — mercato totals (audit, offline)
 
-Generato da `audit/totals_probe_analysis.py` il 2026-10-10T17:03:44Z a partire da 5 snapshot in `audit/data/totals_probe/`. Nessuna chiamata di rete, nessuna chiave.
+Generato da `audit/totals_probe_analysis.py` il 2026-10-10T19:26:43Z a partire da 5 snapshot in `audit/data/totals_probe/`. Nessuna chiamata di rete, nessuna chiave.
 
 ## 1. Crediti spesi
 
@@ -12,7 +12,17 @@ Generato da `audit/totals_probe_analysis.py` il 2026-10-10T17:03:44Z a partire d
 | soccer_italy_serie_a | 1 |
 | soccer_spain_la_liga | 1 |
 
-**Crediti spesi: 5.** Ultimo stato del conto: used=61, remaining=439.
+**Crediti spesi: 5.** Ultimo stato del conto: used=63, remaining=437.
+
+Lo stato finale e' quello dell'**ultima chiamata in ordine di tempo** (`soccer_france_ligue_one` alle 2026-10-10T17:03:44Z), NON dell'ultima lega in ordine alfabetico: le due cose coincidono solo per caso. Ordine delle chiamate:
+
+| # | sport_key | fetched_at_utc | x-requests-used | x-requests-remaining |
+|---|---|---|---|---|
+| 1 | soccer_italy_serie_a | 2026-10-10T17:03:43Z | 59 | 441 |
+| 2 | soccer_epl | 2026-10-10T17:03:43Z | 60 | 440 |
+| 3 | soccer_spain_la_liga | 2026-10-10T17:03:43Z | 61 | 439 |
+| 4 | soccer_germany_bundesliga | 2026-10-10T17:03:44Z | 62 | 438 |
+| 5 | soccer_france_ligue_one | 2026-10-10T17:03:44Z | 63 | 437 |
 
 ## 2. Eventi e Pinnacle
 

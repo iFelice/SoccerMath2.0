@@ -113,6 +113,8 @@ def main(argv=None) -> int:
         summary["leghe"].append({
             "lega": league, "sport_key": sport, "ok": bool(meta.get("ok")),
             "status": meta.get("status"), "eventi": n_ev,
+            # serve a riconoscere l'ultima chiamata in ordine di TEMPO (vedi sotto)
+            "fetched_at_utc": meta.get("fetched_at_utc", _now()),
             "headers": meta.get("headers", {}), "error": meta.get("error"),
         })
         print(f"{league}: status={meta.get('status')} eventi={n_ev} "
@@ -124,9 +126,28 @@ def main(argv=None) -> int:
                 break
     summary["crediti_ultima_chiamata"] = {r["sport_key"]: r["headers"].get("x-requests-last")
                                          for r in summary["leghe"]}
-    last = summary["leghe"][-1]["headers"] if summary["leghe"] else {}
-    summary["x-requests-used_ultimo"] = last.get("x-requests-used")
-    summary["x-requests-remaining_ultimo"] = last.get("x-requests-remaining")
+    # STATO FINALE = ultima chiamata in ORDINE DI TEMPO, non ultima lega del ciclo.
+    # Il ciclo gira nell'ordine di LEAGUES (alfabetico per lega): qui coincide con
+    # l'ordine di tempo perche' le chiamate sono sequenziali, ma la regola va
+    # scritta esplicitamente, non lasciata all'ordine del ciclo (bug gia' trovato
+    # in totals_probe_analysis.py, che ordinava i file per nome).
+    # Chiave: (fetched_at_utc, x-requests-used); il contatore e' monotono e rompe
+    # i pareggi a parita' di secondo (i timestamp hanno risoluzione di 1 secondo).
+    def _chiave(r):
+        headers = r.get("headers") or {}
+        try:
+            usati = float(headers.get("x-requests-used"))
+        except (TypeError, ValueError):
+            usati = -1.0
+        ts = r.get("fetched_at_utc")
+        return (ts is None, "" if ts is None else str(ts), usati)
+
+    ultima = max(summary["leghe"], key=_chiave) if summary["leghe"] else {}
+    uh = ultima.get("headers") or {}
+    summary["ultima_chiamata"] = {"sport_key": ultima.get("sport_key"),
+                                  "fetched_at_utc": ultima.get("fetched_at_utc")}
+    summary["x-requests-used_ultimo"] = uh.get("x-requests-used")
+    summary["x-requests-remaining_ultimo"] = uh.get("x-requests-remaining")
     write_json(os.path.join(args.out, "_summary.json"), summary)
     print(f"riepilogo: {os.path.join(args.out, '_summary.json')}", flush=True)
     return exit_code
