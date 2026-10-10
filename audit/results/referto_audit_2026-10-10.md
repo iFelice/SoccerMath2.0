@@ -220,7 +220,7 @@ Verifica di determinismo: vedi §9.
 
 ## 12. Chiusura
 
-**Suite completa** (`pytest` su tutti i `test_*.py` tracciati tranne `SoccerMath/test_theme_toggle.py`, più `test_theme_toggle.py` come script): output reale in `/tmp/suite/pytest.log` e `/tmp/suite/theme_toggle.log`; riportato integralmente nella risposta. Esito: **1866 passed, 4773 subtests passed, exit 0**; `test_theme_toggle.py` exit 0.
+**Suite completa** (`pytest` su tutti i `test_*.py` tracciati tranne `SoccerMath/test_theme_toggle.py`, più `test_theme_toggle.py` come script): output reale integrale in `audit/results/suite_completa_2026-10-10.log`. Esito: **1866 passed, 4773 subtests passed, exit 0**; `test_theme_toggle.py` exit 0.
 
 **Replay** `topmix_mercato_v3` (`audit/replay_topmix_mercato.py`, senza `--write`, output in `/tmp/replay/`): esito **PARITÀ** con PR #49. Conteggi 1302 / 1144 / 335, Δn = +0 su tutte e tre le voci; hit 0,6751 / 0,6818 / 0,4358. Output reale in `/tmp/replay/stdout.log`; referto in `/tmp/replay/replay_topmix_mercato.md`.
 
