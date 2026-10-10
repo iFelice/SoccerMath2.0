@@ -1,0 +1,70 @@
+........................................................................ [  3%]
+..................................................................... [  7%]
+...................................................................... [ 10%]
+........................................................................ [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 21%]
+........................................................................ [ 24%]
+........................................................................ [ 28%]
+........................................................................ [ 32%]
+........................................................................ [ 35%]
+................................................. [ 38%]
+................................................................ [ 41%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+........................................................................ [ 52%]
+............................................................................................ [ 56%]
+.............. [ 57%]
+..................................................................... [ 60%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+..................s..................................................... [ 71%]
+........................................................................ [ 75%]
+................................................................... [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+............................................................. [ 88%]
+.................................................sssss.................. [ 92%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+....                                                                     [100%]
+=============================== warnings summary ===============================
+audit/test_elo_w025_confirmation.py::TestPatchGriglia::test_boot_stats_delta_vs_060_con_griglia_ridotta
+  /home/user/SoccerMath2.0/audit/grid_search_ensemble_weight.py:224: RuntimeWarning: invalid value encountered in divide
+    rr = np.where(staked > 0, prof / staked, np.nan)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 15 durations =============================
+46.71s call     SoccerMath/test_apptest_top_mix.py::TestAppTestCalcolaTopMix::test_a_click_top_mix
+36.66s setup    audit/test_bookmaker_source_test.py::TestValutazioneCompleta::test_campioni
+33.44s setup    audit/test_bookmaker_source_test.py::TestCopertura::test_b365_avg_max_coprono_tutto
+11.47s call     audit/test_ng_regression.py::TestNoExtremeNGRegression::test_all_leagues_no_extreme_ng
+10.57s call     audit/test_elo_walker_parity.py::TestProvenienzaFixture::test_v3_fixture_rigenerabile_dal_commit_dichiarato
+10.23s setup    SoccerMath/test_apptest_top_mix.py::TestAppTestCalcolaTopMix::test_a_click_top_mix
+8.35s setup    audit/test_diagnose_quota_minima.py::TestIntegrazioneReplay::test_bootstrap_punto_in_ci_report_contenuto
+8.12s call     audit/test_diagnose_quota_minima.py::TestIntegrazioneReplay::test_gg_ng_da_btts_1x2_da_csv
+7.21s call     audit/test_diagnose_quota_minima.py::TestIntegrazioneReplay::test_tutte_le_quote_usabili_positive
+6.86s setup    SoccerMath/test_topmix_selector_parity.py::TestParitaGriglia::test_1x2_bit_identici_al_fixture_partita_per_partita
+5.75s call     SoccerMath/test_basic.py::TestHistoricalBacktest::test_si_testano_le_partite_recenti
+5.01s call     SoccerMath/test_basic.py::TestHistoricalBacktest::test_ogni_lega_supportata_produce_righe
+4.81s call     SoccerMath/test_season_rosters.py::TestSimulazioneInizioStagione2026::test_tabella_seed_pre_stagione
+3.40s call     audit/test_elo_s3_parity.py::TestParitaBitExact::test_parita_per_partita_bit_exact
+3.29s setup    audit/test_elo_walker_parity.py::TestParitaWalker::test_p0_walker_non_tocca_la_cache_globale
+1993 passed, 6 skipped, 1 warning, 4773 subtests passed in 302.97s (0:05:02)
+
+--- SoccerMath/test_theme_toggle.py come script ---
+2026-10-10 22:15:32.832 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+✅ Run 1 OK - toggle ON (segue tema sistema), nessuna eccezione
+✅ Run 2 OK - toggle OFF, CSS light forzato presente (2 blocchi <style>)
+✅ Run 3 OK - ritorno a ON, CSS light forzato rimosso, nessuna eccezione
+✅ Run 4 OK - rerun generico senza crash
+
+🎉 TUTTI I TEST PASSATI: nessun crash in nessuno stato del toggle.
+
+Suite completa exit=0; test_theme_toggle exit=0
+
+--- nota (punto B) ---
+Esecuzione in condizioni CI (cache del frame PR #49 assente da audit/output/): 6 skipped.
+I 5 skipped di TestGiroCompleto (stessi della PR #61) sono stati rieseguiti con la cache
+ripristinata: 5/5 superati in 2.75 s (audit/test_replay_topmix_mercato.py::TestGiroCompleto).
+Il 6° skip è audit/test_football_data_storico.py (0/25 CSV storici: skip come da regola).

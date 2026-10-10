@@ -50,7 +50,10 @@ RULE_TEXT = """# Seconda sonda totals — analisi offline
 
 ## Regola preregistrata (prima dei risultati)
 
-Si considerano solo gli eventi con calcio d'inizio da 0 a 7 giorni dopo la chiamata.
+Si considerano solo gli eventi NON INIZIATI con calcio d'inizio entro 7 giorni
+dopo la chiamata: un evento con `commence_time` ≤ istante della chiamata è già
+iniziato (come nella produzione delle quote 1X2) e viene escluso e contato a
+parte. La regola (a)(b)(c) si applica solo agli eventi non iniziati.
 
 - **(a) Copertura:** passa se almeno l'85% degli eventi ha una linea totals utilizzabile: Pinnacle con qualunque linea oppure almeno 3 bookmaker con la linea 2,5.
 - **(b) Concordanza:** sugli eventi con Pinnacle su una linea diversa da 2,5 e almeno 3 altri bookmaker con la 2,5, si confrontano le due griglie. Passa se la mediana della differenza assoluta su P(Over 2,5) è ≤ 1,5 punti percentuali e il 90° percentile è ≤ 3 punti, con almeno 20 eventi confrontabili. Con meno di 20 eventi l'esito è «non decidibile».
@@ -160,12 +163,35 @@ def load_pinnacle_1x2(path: str = LIVE_ODDS) -> tuple[dict[str, tuple[float, flo
 
 
 def in_window(event: dict) -> bool:
+    """Solo eventi NON iniziati e entro 7 giorni dalla chiamata.
+
+    Come nella produzione delle quote 1X2 (``update_live_odds.normalizza_eventi``):
+    un evento con ``commence_time`` ≤ istante della chiamata è già iniziato e non
+    entra nella regola (a)(b)(c). ``commence_time`` assente/corrotto non è
+    classificabile e resta fuori dalla finestra.
+    """
     kickoff = event.get("commence_time")
     fetched = event.get("fetched_at")
     if not isinstance(kickoff, datetime) or not isinstance(fetched, datetime):
         return False
     delta = kickoff - fetched
-    return timedelta(0) <= delta <= WINDOW
+    return timedelta(0) < delta <= WINDOW
+
+
+def eventi_iniziati(events: list[dict]) -> list[dict]:
+    """Eventi già iniziati all'istante della chiamata (commence_time ≤ fetched_at).
+
+    Stessa regola della produzione 1X2: kickoff ≤ istante di acquisizione;
+    ``commence_time`` assente o corrotto NON viene classificato come iniziato.
+    """
+    out = []
+    for event in events:
+        kickoff = event.get("commence_time")
+        fetched = event.get("fetched_at")
+        if isinstance(kickoff, datetime) and isinstance(fetched, datetime) \
+                and kickoff <= fetched:
+            out.append(event)
+    return out
 
 
 def selected_line(book_lines: dict[float, dict[str, Any]]) -> tuple[float, dict[str, Any]] | None:
@@ -269,6 +295,9 @@ def build_report(snapshot_dir: str, call_time: str | None, live_time: str | None
              f"- Snapshot analizzato: `{snapshot_dir}` (un solo run).",
              f"- Ultima chiamata totals: `{call_time or 'n/d'}`.",
              f"- Snapshot 1X2 Pinnacle: `{live_time or 'n/d'}`; abbinamento per id evento.",
+             f"- Eventi già iniziati alla chiamata (`commence_time` ≤ istante della "
+             f"chiamata): **{int(stats.get('n_iniziati_esclusi', 0) or 0)}** — esclusi "
+             f"dall'analisi, come nella produzione delle quote 1X2.",
              f"- Eventi entro 7 giorni senza terna 1X2 Pinnacle utilizzabile: {n_missing_1x2}.", "",
              "## Risultati", "",
              "### (a) Copertura", "",
@@ -357,6 +386,9 @@ def main(argv=None) -> int:
     except (OSError, json.JSONDecodeError):
         h2h, live_time = {}, None
 
+    # Solo eventi non iniziati (regola della produzione 1X2): i già iniziati sono
+    # esclusi e contati, e la regola (a)(b)(c) non li riguarda.
+    iniziati = eventi_iniziati(events)
     eligible = [event for event in events if in_window(event)]
     comparisons = []
     missing_1x2 = 0
@@ -367,6 +399,7 @@ def main(argv=None) -> int:
         if comparison is not None:
             comparisons.append(comparison)
     stats = decision(eligible, comparisons)
+    stats["n_iniziati_esclusi"] = len(iniziati)
     times = [event["fetched_at"] for event in eligible if event.get("fetched_at")]
     call_time = max(times).strftime("%Y-%m-%dT%H:%M:%SZ") if times else None
     text = build_report(snapshot_dir, call_time, live_time, stats, comparisons, missing_1x2)
