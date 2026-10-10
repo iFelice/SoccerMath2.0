@@ -38,7 +38,7 @@ import shutil
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -430,8 +430,57 @@ class TestValidazioneETolleranza(unittest.TestCase):
         self.assertTrue(SC.within_roster_tolerance(2026, date(2026, 6, 30)))
 
     def test_file_reale_valido_oltre_il_termine(self):
-        errori = SR.validate_current_rosters(now=datetime(2026, 10, 7), current_season=2026)
-        self.assertEqual(errori, [])
+        """Il database reale committato e' valido, con l'orologio di produzione.
+
+        L'intento del nome e' "oltre il termine": la stagione in corso e' oltre il
+        15/07 (``roster_deadline``), quindi qui un roster assente SAREBBE un
+        errore e il ``== []`` dice qualcosa. Il guard sotto rende l'ipotesi
+        esplicita invece di dare per scontato il calendario.
+
+        Perche' nessun orologio congelato: i ``*_Live.csv`` li scrive il bot dati
+        ogni 6 ore, quindi una data fissata nel sorgente invecchia e, dal giorno
+        dopo, ogni partita giocata dopo quella data diventa "futura" per il test
+        anche se il dato e' a posto. E' esattamente il rosso del 09/10/2026 su
+        Dortmund-Werder Bremen: kickoff 2026-10-09T18:30Z, riga scritta alle
+        21:55Z a partita finita, controllata contro un ``now`` fermo al
+        07/10/2026. ``validate_current_rosters()`` senza argomenti vuol dire
+        adesso UTC e stagione reale: lo stesso chiamante del workflow
+        (``python season_rosters.py --check``) e di ``update_db``, con lo stesso
+        orologio.
+        """
+        adesso = datetime.now(timezone.utc)
+        stagione = PROD_CONFIG.get_current_season_start_year()
+        if adesso.date() <= SC.roster_deadline(stagione):
+            self.skipTest(f"orologio reale ({adesso.date()}) entro il termine del roster "
+                          f"{stagione} ({SC.roster_deadline(stagione)}): la parte 'oltre il "
+                          "termine' non sarebbe in gioco")
+        errori = SR.validate_current_rosters()
+        self.assertEqual(errori, [], "database reale non valido con l'orologio di oggi")
+
+        # E il controllo sulle date future non e' stato reso vacuo dalla
+        # tolleranza: nessun giorno inventato qui, il riferimento e' il file
+        # stesso. Spostando l'orologio indietro di piu' della tolleranza rispetto
+        # alla riga piu' recente dei ``*_Live.csv``, QUELLA riga deve risultare
+        # futura.
+        righe = []
+        for lega in sorted(SR.EXPECTED_ROSTER_SIZE):
+            path = SR.live_csv_path(lega)
+            if path is not None and path.exists():
+                righe += SR._live_rows(path)
+        if not righe:
+            self.skipTest("nessun *_Live.csv leggibile nel database reale: niente da validare")
+        piu_recente = max(g for g, _c, _o in righe)
+        indietro = datetime.combine(
+            piu_recente - timedelta(days=SR.TOLLERANZA_DATA_FUTURA_GIORNI + 2),
+            datetime.min.time(), tzinfo=timezone.utc)
+        trovati = [e for e in SR.validate_live_csvs(now=indietro) if "DATA FUTURA" in e]
+        self.assertTrue(trovati,
+                        f"con l'orologio a {indietro.date()} la riga del {piu_recente} doveva "
+                        "risultare futura: il controllo non sta piu' controllando niente")
+        # ...e con l'orologio di oggi la stessa riga NON lo e'. E' tutta qui la
+        # differenza fra "il dato e' sporco" e "il test e' fermo".
+        self.assertEqual([], [e for e in SR.validate_live_csvs() if "DATA FUTURA" in e],
+                         "il database reale ha una riga con data futura: qui il dato e' sporco")
 
     def test_mancante_tollerato_prima_non_dopo(self):
         # Il database e' troncato alla data simulata: con un orologio di luglio
@@ -470,8 +519,12 @@ class TestValidazioneETolleranza(unittest.TestCase):
             ]
             with open(db.tmp / SR.ROSTER_FILENAME, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False)
-            errori = SR.validate_current_rosters(database_dir=db.tmp, current_season=2026,
-                                                 now=datetime(2026, 10, 7))
+            # Orologio reale, non congelato: ``_DBTemp`` COPIA i ``*_Live.csv``
+            # veri, quindi un ``now`` fermo a una data scelta qui vedrebbe "future"
+            # le partite giocate dopo quella data. Gli errori cercati sono altri
+            # due (il nome non normalizzato e il Live CSV che non torna) e non
+            # dipendono dal giorno.
+            errori = SR.validate_current_rosters(database_dir=db.tmp, current_season=2026)
             self.assertTrue(any("punto fisso" in e and "Köln" in e for e in errori),
                             f"atteso errore su 'Köln', trovati: {errori}")
             # e anche il Live CSV mismatch (Koln vs Köln)
@@ -517,6 +570,118 @@ class TestControlloLiveCsv(unittest.TestCase):
                 any("DATA FUTURA" in e and "Levante-Ath Bilbao" in e for e in errori),
                 f"atteso errore di data futura, trovati: {errori}")
 
+    # --------------------------------------------------------------------------
+    # Tolleranza del controllo "data futura" (rifiniture post #53).
+    #
+    # Qui i giorni sono SEMPRE relativi a un orologio che il test dichiara e passa
+    # a ``validate_live_csvs`` di persona. Due divieti, entrambi nati dal rosso
+    # del 09/10/2026 su Dortmund-Werder Bremen:
+    #   * non scrivere una data a mano nel sorgente del test e usarla come
+    #     ``oggi``: invecchia, e dal giorno dopo ogni partita giocata le sembra
+    #     futura;
+    #   * non confrontare il database REALE (o la sua copia di ``_DBTemp``) con
+    #     un ``now`` fermo nel passato: sarebbe il test, non il dato, a mentire.
+    # --------------------------------------------------------------------------
+    def _errore_data(self, adesso, giorni, coppia=("ProvaTolleranzaA", "ProvaTolleranzaB")):
+        """Errori DATA FUTURA per una riga giocata ``giorni`` giorni rispetto a ``adesso``.
+
+        ``adesso`` e' l'orologio che il test stesso passa alla validazione, non
+        una data scritta nel sorgente: la riga viene spostata RISPETTO a lui,
+        cosi' il test dice la stessa cosa oggi e fra sei mesi. La riga e'
+        inventata e con nomi che non esistono in nessun altro file:
+        nella copia del database reale l'unico errore possibile resta quello che
+        si sta misurando, e il filtro sulla coppia lo isola del tutto.
+        """
+        chiave = f"{coppia[0]}-{coppia[1]}"
+        with _DBTemp() as db:
+            data = (adesso.date() + timedelta(days=giorni)).strftime("%d/%m/%Y")
+            self._aggiungi_righe(db.tmp / "LaLiga_Live.csv",
+                                 [(data, coppia[0], coppia[1], 1, 0)])
+            return [e for e in SR.validate_live_csvs(db.tmp, adesso)
+                    if "DATA FUTURA" in e and chiave in e]
+
+    def test_eri_e_oggi_non_sono_futuri(self):
+        """Il requisito: una partita giocata ieri non puo' MAI essere futura."""
+        adesso = datetime.now(timezone.utc)
+        self.assertEqual([], self._errore_data(adesso, -1),
+                         "risultato di ieri segnalato come futuro")
+        self.assertEqual([], self._errore_data(adesso, 0),
+                         "risultato di oggi segnalato come futuro")
+
+    def test_eri_non_diventa_futura_se_l_orologio_ha_un_giorno_di_scarto(self):
+        """Il caso del bot: riga di oggi validata con l'orologio di ieri.
+
+        Il giro dati e' ogni 6 ore e la validazione succede nell'orologio di un
+        ALTRO processo: una partita delle 23:00Z scritta alle 03:55Z successive ha
+        ``Date`` di ieri e viene guardata con l'orologio di domani (o il
+        contrario). Un giorno di scarto non deve diventare un errore: e' la ragione
+        della tolleranza dichiarata in ``season_rosters.TOLLERANZA_DATA_FUTURA_GIORNI``.
+        """
+        adesso = datetime.now(timezone.utc)
+        ieri = adesso - timedelta(days=1)
+        # Riga di OGGI (domenica sera, diciamo) validata con l'orologio di IERI:
+        # per quel finto `oggi` la partita e' a +1 giorno, cioe' esattamente la
+        # tolleranza. E' il caso della CI del 09/10, dove lo scarto era di 2.
+        self.assertEqual([], self._errore_data(ieri, SR.TOLLERANZA_DATA_FUTURA_GIORNI),
+                         "riga di oggi con l'orologio di ieri: e' il caso del bot, non un difetto")
+        self.assertEqual([], self._errore_data(ieri, 0),
+                         "riga di ieri con l'orologio di ieri: a maggior ragione valida")
+        self.assertEqual(1, len(self._errore_data(ieri, SR.TOLLERANZA_DATA_FUTURA_GIORNI + 1)),
+                         "due giorni di scarto devono restare un errore: e' lo scarto che la "
+                         "suite del 09/10 vedeva, e li' il dato era giusto ma il test fermo")
+
+    def test_al_bordo_della_tolleranza_e_appena_oltre(self):
+        adesso = datetime.now(timezone.utc)
+        tol = SR.TOLLERANZA_DATA_FUTURA_GIORNI
+        self.assertEqual(1, tol,
+                         "la tolleranza dichiarata e' un giorno: cambiarla e' una scelta da "
+                         "motivare nel commento della costante, non un numero da aggiornare qui")
+        self.assertEqual([], self._errore_data(adesso, tol),
+                         "il bordo della tolleranza sta dalla parte del dato valido")
+        errori = self._errore_data(adesso, tol + 1)      # dopodomani: un risultato non esiste
+        self.assertEqual(1, len(errori), f"a +{tol + 1} giorni il controllo deve scattare")
+        self.assertIn("DATA FUTURA", errori[0])
+        # il messaggio dichiara la regola, cosi' chi legge l'errore in CI non deve
+        # aprirsi il sorgente per capire perche' quello e' un problema
+        parola = "giorno" if tol == 1 else "giorni"
+        self.assertIn(f"tolleranza {tol} {parola}", errori[0])
+        self.assertIn("oltre il", errori[0], "il messaggio deve dire QUAL E' il confine")
+        self.assertIn(f"(oggi {adesso.strftime('%d/%m/%Y')}", errori[0])
+
+    def test_a_cavallo_della_mezzanotte_utc(self):
+        """Riga scritta dopo mezzanotte UTC per una partita giocata poco prima.
+
+        Orologi fissi, perche' il confine e' la mezzanotte UTC e il caso deve
+        essere riproducibile qualunque sia il giorno in cui la suite gira: kickoff
+        09/10/2026 22:30Z (la ``Date`` scritta da ``update_db`` e' il giorno del
+        kickoff in UTC) e validazione nel giro del 10/10.
+        """
+        chiave = "CoppaMezzanotteA-CoppaMezzanotteB"
+        with _DBTemp() as db:
+            self._aggiungi_righe(db.tmp / "LaLiga_Live.csv",
+                                 [("09/10/2026", "CoppaMezzanotteA", "CoppaMezzanotteB", 2, 1)])
+            for adesso in (datetime(2026, 10, 9, 23, 55, tzinfo=timezone.utc),
+                           datetime(2026, 10, 10, 0, 5, tzinfo=timezone.utc),
+                           datetime(2026, 10, 11, 3, 0, tzinfo=timezone.utc)):
+                futuri = [e for e in SR.validate_live_csvs(db.tmp, adesso) if chiave in e]
+                self.assertEqual([], futuri,
+                                 f"orologio {adesso}: una partita giocata non e' futura")
+
+            # ...e lo STESSO identico file, validato con l'orologio fermo a due
+            # giorni prima, deve segnalare quella riga: e' la situazione esatta
+            # della CI del 09/10 - dato giusto, test vecchio di due giorni. Il
+            # controllo non e' stato indebolito, e' cambiato solo l'orologio.
+            due_giorni_prima = datetime(2026, 10, 7, 12, 0, tzinfo=timezone.utc)
+            futuri = [e for e in SR.validate_live_csvs(db.tmp, due_giorni_prima)
+                      if "DATA FUTURA" in e and chiave in e]
+            self.assertEqual(1, len(futuri),
+                             "con due giorni di scarto la riga deve risultare futura: cosi' "
+                             "il controllo prende ancora il recupero Levante-Ath Bilbao")
+            un_giorno_prima = datetime(2026, 10, 8, 12, 0, tzinfo=timezone.utc)
+            self.assertEqual([], [e for e in SR.validate_live_csvs(db.tmp, un_giorno_prima)
+                                   if chiave in e],
+                             "un giorno di scarto e' la tolleranza dichiarata, non un errore")
+
     def test_coppia_ripetuta_nella_stessa_stagione_e_errore(self):
         with _DBTemp() as db:
             live = db.tmp / "LaLiga_Live.csv"
@@ -547,7 +712,10 @@ class TestControlloLiveCsv(unittest.TestCase):
                                  [("21/10/2026", "Levante", "Ath Bilbao", 0, 0)])
             errori = SR.validate_current_rosters(database_dir=db.tmp, current_season=2026,
                                                  now=datetime(2026, 10, 8))
-            self.assertTrue(any("DATA FUTURA" in e for e in errori),
+            # Si cerca LA riga del fixture, non un "DATA FUTURA" qualsiasi: la
+            # copia ``_DBTemp`` porta anche le righe reali giocate dopo
+            # l'orologio iniettato, e non deve far verdesi il test per sbaglio.
+            self.assertTrue(any("DATA FUTURA" in e and "Levante-Ath Bilbao" in e for e in errori),
                             f"il roster e' valido: resta il solo errore del CSV, trovati: {errori}")
 
     def test_database_reale_senza_date_future_ne_coppie_ripetute(self):

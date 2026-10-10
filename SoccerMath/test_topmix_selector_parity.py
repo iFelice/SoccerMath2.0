@@ -453,9 +453,10 @@ def _esegui(vecchio: bool, elemi):
         ns["carica_indice_quote_live"] = lambda: {"stato": "assente", "indice": None}
         for _nome, testo in _blocchi_nuovi():
             exec(testo, ns)
-        (top_mercato, top_current, top_legacy, missing, ombra,
-         senza_quote) = ns["fetch_and_calc_top_mix"]()
+        (top_mercato, top_current, top_legacy, missing, ombra, senza_quote,
+         letture) = ns["fetch_and_calc_top_mix"]()
         assert top_mercato == [] and senza_quote == [], "senza quote non ci sono righe di mercato"
+        assert letture == [], "senza quote non ci sono letture di mercato da riallineare"
         completo = {"top_mercato": top_mercato, "top_current": top_current,
                     "top_legacy": top_legacy, "missing": missing, "ombra": ombra,
                     "senza_quote": senza_quote}

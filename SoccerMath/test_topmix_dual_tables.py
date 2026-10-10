@@ -86,8 +86,12 @@ class TestDueMotoriStessoSelettore(unittest.TestCase):
         cur_elo = lambda h, a, l, season=None: {"1": 0.70, "X": 0.18, "2": 0.12}
         leg_elo = lambda h, a, l, season=None: {"1": 0.55, "X": 0.25, "2": 0.20}
         righe = self._righe(cur_elo, leg_elo)
+        # "letture": la lettura di mercato di ogni partita con quote, usata dal
+        # rinfresco delle righe in attesa (rifinitura dopo la PR #53). Empty qui
+        # perche' `quote=None`, come il set vuoto di "mercato" qui sotto.
         self.assertEqual({MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY, "mercato",
-                          "senza_quote"}, set(righe))
+                          "senza_quote", "letture"}, set(righe))
+        self.assertEqual([], righe["letture"])
         # senza l'indice delle quote (quote=None, come nel replay walk-forward)
         # la tabella di mercato e' vuota e non viene segnalata nessuna partita:
         # non e' "senza quote", e' "quote non richieste".
@@ -185,7 +189,8 @@ class TestNessunTetto(unittest.TestCase):
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
             (top_mercato, top_current, top_legacy, missing, ombra,
-             senza_quote) = app.fetch_and_calc_top_mix()
+             senza_quote, letture) = app.fetch_and_calc_top_mix()
+        self.assertEqual([], letture, "quote assenti: nessuna lettura di mercato")
         n_leghe = len(app.LEAGUES_CONFIG)
         # Questo test riguarda il TETTO delle tabelle, non le quote: il file
         # delle quote viene dichiarato assente (``carica_indice_quote_live``
@@ -275,9 +280,17 @@ class TestGuardieTab2(unittest.TestCase):
 
     def test_il_registro_visibile_prende_solo_le_scelte_di_mercato(self):
         self.assertIn("args_reg, kwargs_reg = argomenti_registro_top_mix_mercato(p)", self.tab2)
-        self.assertIn("save_prediction_entry(*args_reg, **kwargs_reg)", self.tab2)
-        self.assertEqual(1, self.tab2.count("save_prediction_entry("),
-                         "un solo punto di scrittura per il Registro visibile")
+        # Il record lo costruisce `build_prediction_entry` con gli STESSI
+        # argomenti del percorso di scrittura (una sola forma della riga).
+        self.assertIn("build_prediction_entry(*args_reg, **kwargs_reg", self.tab2)
+        # Scrittura: UN SOLO `save_predictions` per click. `save_prediction_entry`
+        # scrive a ogni chiamata e nel ciclo costava una riscrittura del file per
+        # riga (rifinitura dopo la PR #53): qui non deve comparire affatto.
+        self.assertIn("save_predictions(preds)", self.tab2)
+        self.assertEqual(0, self.tab2.count("save_prediction_entry("),
+                         "il Registro visibile si scrive in un punto solo, una volta per click")
+        # Le righe gia' registrate vengono riallineate alla lettura del turno
+        self.assertIn("aggiorna_righe_mercato_in_attesa(preds, letture", self.tab2)
         self.assertIn("for p in top_mercato:", self.tab2)
         self.assertNotIn("for variante, righe_tab in (", self.tab2)
         self.assertNotIn("[:10]", self.tab2)

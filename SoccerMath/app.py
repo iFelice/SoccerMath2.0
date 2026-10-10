@@ -98,6 +98,11 @@ from prediction_registry import (
     PROB_MERCATO_PRIMA_FIELD, QUOTA_MERCATO_PRIMA_FIELD,
     PROB_MODELLO_PRIMA_FIELD, ACCORDO_MODELLO_PRIMA_FIELD,
     QUOTE_LIVE_ISTANTE_PRIMA_FIELD,
+    # Rinfresco delle righe di mercato in attesa (sopra e sotto soglia) e
+    # statistiche per registrazione: rifinitura dopo la PR #53.
+    aggiorna_righe_mercato_in_attesa, SOTTO_SOGLIA_ORA_FIELD,
+    REGISTRAZIONE_PRIMA, REGISTRAZIONE_ULTIMA,
+    compute_calibration_per_registrazione,
     OMBRA_FIELD, OMBRA_MERCATO_FIELD, OMBRA_CONFIDENCE_FIELD, OMBRA_AMMESSA_FIELD,
     OMBRA_SOGLIA_FIELD, OMBRA_VINCENTE_GLOBALE_FIELD, OMBRA_DATI_MANCANTI_FIELD,
     OMBRA_SOGLIA_TOTALI,
@@ -558,7 +563,7 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
                            selector_version=None,
                            prob_mercato=None, quota_mercato=None, mercato_fonte=None,
                            mercato_n_libri=None, accordo_modello=None, prob_modello=None,
-                           quote_live_istante=None):
+                           quote_live_istante=None, sotto_soglia_ora=None):
     """Costruisce il record del registro (nessun I/O): la forma della riga vive QUI.
 
     E' la stessa funzione per il salvataggio live (``save_prediction_entry``)
@@ -631,6 +636,17 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
         entry[PROB_MODELLO_PRIMA_FIELD] = prob_modello
         entry[ACCORDO_MODELLO_PRIMA_FIELD] = bool(accordo_modello)
         entry[QUOTE_LIVE_ISTANTE_PRIMA_FIELD] = quote_live_istante
+        # Flag "sotto soglia adesso" (campo OPZIONALE, dentro il gate di mercato:
+        # una riga del modello non ha una soglia di mercato da dichiarare). Una
+        # riga che entra nel Top Mix e' per definizione sopra soglia (l'ha ammessa
+        # il selettore), quindi il percorso di scrittura passa False; il valore
+        # cambia solo col rinfresco delle righe in attesa
+        # (``aggiorna_righe_mercato_in_attesa``), che passa True quando la lettura
+        # del turno e' ricaduta sotto soglia. ``None`` = non dichiarato: le righe
+        # gia' scritte non guadagnano il campo per sbaglio, e le statistiche lo
+        # dicono (``sotto_soglia_ora`` in ``compute_calibration_per_registrazione``).
+        if sotto_soglia_ora is not None:
+            entry[SOTTO_SOGLIA_ORA_FIELD] = bool(sotto_soglia_ora)
     return entry
 
 
@@ -643,7 +659,7 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
                           model_variant=MODEL_VARIANT_CURRENT, selector_version=None,
                           prob_mercato=None, quota_mercato=None, mercato_fonte=None,
                           mercato_n_libri=None, accordo_modello=None, prob_modello=None,
-                          quote_live_istante=None):
+                          quote_live_istante=None, sotto_soglia_ora=None):
     """Scrive UNA previsione nel registro e dice cosa ha fatto.
 
     Due modifiche puntuali, entrambe richieste da
@@ -684,7 +700,8 @@ def save_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostico
         model_variant=model_variant, selector_version=selector_version,
         prob_mercato=prob_mercato, quota_mercato=quota_mercato, mercato_fonte=mercato_fonte,
         mercato_n_libri=mercato_n_libri, accordo_modello=accordo_modello,
-        prob_modello=prob_modello, quote_live_istante=quote_live_istante)
+        prob_modello=prob_modello, quote_live_istante=quote_live_istante,
+        sotto_soglia_ora=sotto_soglia_ora)
     preds, azione = upsert_prediction_entry(preds, entry)
     if azione in ("gia_graduata", "gia_presente_altra_versione"):
         # gia_graduata: la previsione e' gia' stata giudicata, NON si tocca.
@@ -2168,11 +2185,26 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
       Top Mix e viene SEGNALATA, mai inventata.
 
     Ritorna ``{"current": [...], "legacy": [...], "mercato": [...],
-    "senza_quote": [...]}``: le due liste del modello alimentano il registro
-    OMBRA, ``"mercato"`` e' il Top Mix visibile.
+    "senza_quote": [...], "letture": [...]}``: le due liste del modello
+    alimentano il registro OMBRA, ``"mercato"`` e' il Top Mix visibile.
+
+    ``"letture"`` e' la lista delle partite di mercato che il Registro ha GIA' e
+    che il turno deve riallineare (rifinitura dopo la PR #53): per costruzione il
+    selettore scarta le partite ricadute sotto soglia e quindi ``"mercato"`` non
+    le contiene piu', mentre la riga registrata resta li' a leggere il prezzo di
+    ieri. Invece di far decidere al Registro quali partite vedere, questa lista
+    riporta fuori dalla funzione cached la lettura grezza di mercato DI OGNI
+    partita con quote valide — perche' sia la lista sia le righe in tabella
+    devono nascere dagli STESSI oggetti ``prob_mkt``/``mkt["odds"]``/``prob_drago``
+    dell'ISTESSO giro di ``probabilita_mercato``: una lettura ricalcolata a parte
+    potrebbe essere devigata su un file diverso o a un'ora diversa, e il confronto
+    fra "cosa ho registrato" e "cosa dice il mercato adesso" smetterebbe di avere
+    senso. Nessuna selezione qui dentro: solo ``match_id``, i tre campi comuni e
+    ``per_esito`` da ``market_odds.letture_registrazione``.
     """
     team_stats, avg_h, avg_a, _ = engine
-    righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: [], "mercato": [], "senza_quote": []}
+    righe = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: [], "mercato": [],
+             "senza_quote": [], "letture": []}
     indice_quote = (quote or {}).get("indice") if isinstance(quote, dict) else None
     istante_quote = (quote or {}).get("generato_il") if isinstance(quote, dict) else None
     for match in matches:
@@ -2265,6 +2297,26 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None):
                     "motivo": motivo,
                 })
                 continue
+            # Lettura di mercato per il rinfresco del Registro: la si costruisce
+            # PRIMA del gate di soglia e con gli STESSI oggetti di riga_mkt, cosi'
+            # una partita che scende sotto 0,55 continua ad avere un "adesso" con
+            # cui confrontare l'"allora" scritto nella riga.
+            righe["letture"].append({
+                "match_id": match.get("id"),
+                "league": league,
+                "home": h_disp, "away": a_disp,
+                # `utcDate` serve al chiamante per il filtro anti-kickoff
+                # (`righe_non_iniziate`), che si applica anche qui: dopo il
+                # fischio d'inizio la quota non e' piu' una previsione.
+                "utcDate": match["utcDate"],
+                # Gli STESSI valori della riga ammessa: `istante_quote` e'
+                # l'istante del file, non un istante per evento, e una riga sopra
+                # soglia deve ritrovarselo identico (altrimenti il rinfresco
+                # riscriverebbe una riga che l'upsert ha appena scritta).
+                "mercato_fonte": mkt["fonte"], "mercato_n_libri": mkt["n_libri"],
+                "quote_live_istante": istante_quote,
+                "per_esito": market_odds.letture_registrazione(prob_mkt, mkt["odds"], prob_drago),
+            })
             riga_mkt = seleziona_riga_top_mix_mercato(
                 prob_mkt, mkt["odds"], prob_drago, fonte=mkt["fonte"],
                 n_libri=mkt["n_libri"], home=h_disp, away=a_disp)
@@ -2355,7 +2407,8 @@ def fetch_and_calc_top_mix():
     timeout sulla GET, fallback Elo marcato, coda di rate-limit solo FRA le leghe
     (l'ultima non aspetta piu' nulla) e `rank` sulla riga.
 
-    Ritorna ``(top_mercato, top_current, top_legacy, missing, ombra, senza_quote)``:
+    Ritorna ``(top_mercato, top_current, top_legacy, missing, ombra, senza_quote,
+    letture)``:
 
     * ``top_mercato``  il Top Mix VISIBILE (scelte del mercato, una tabella sola);
     * ``top_current`` / ``top_legacy``  le scelte 1X2 dei due motori: NON sono
@@ -2363,10 +2416,14 @@ def fetch_and_calc_top_mix():
     * ``missing``      le leghe senza motore;
     * ``ombra``        le scelte Totali per ogni partita candidata (non mostrate);
     * ``senza_quote``  le partite senza alcuna quota: escluse dal Top Mix e
-      segnalate in UI (Analisi Rapida le elenca per nome).
+      segnalate in UI (Analisi Rapida le elenca per nome);
+    * ``letture``      la lettura di mercato di OGNI partita con quote valide,
+      anche sotto soglia: e' il canale con cui il click riallinea le righe gia'
+      registrate (``prediction_registry.aggiorna_righe_mercato_in_attesa``). Non
+      e' una tabella e non viene mostrata: nessuna riga nuova nasce da qui.
     """
     per_variante, missing = {MODEL_VARIANT_CURRENT: [], MODEL_VARIANT_LEGACY: []}, []
-    righe_mercato, senza_quote = [], []
+    righe_mercato, senza_quote, letture = [], [], []
     ombra = []
     quote = carica_indice_quote_live()
     leghe = list(LEAGUES_CONFIG.keys())
@@ -2390,10 +2447,11 @@ def fetch_and_calc_top_mix():
             per_variante[variante].extend(righe[variante])
         righe_mercato.extend(righe["mercato"])
         senza_quote.extend(righe["senza_quote"])
+        letture.extend(righe["letture"])
     top_current = classifica_top_mix(per_variante[MODEL_VARIANT_CURRENT])
     top_legacy = classifica_top_mix(per_variante[MODEL_VARIANT_LEGACY])
     top_mercato = classifica_top_mix(righe_mercato)
-    return top_mercato, top_current, top_legacy, missing, ombra, senza_quote
+    return top_mercato, top_current, top_legacy, missing, ombra, senza_quote, letture
 
 
 def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
@@ -2477,6 +2535,11 @@ def argomenti_registro_top_mix_mercato(p):
         mercato_n_libri=p.get("n_libri"),
         accordo_modello=bool(p.get("accordo")),
         quote_live_istante=p.get("quote_live_istante"),
+        # Una riga che arriva fin qui e' sopra soglia PER DEFINIZIONE (l'ha
+        # ammessa il selettore): il flag parte False e lo gira il rinfresco dei
+        # turni successivi. `p.get(...)` perche' il replay/le altre chiamate
+        # passano dalla stessa funzione e una riga declassata ce l'ha gia'.
+        sotto_soglia_ora=bool(p.get(SOTTO_SOGLIA_ORA_FIELD, False)),
         model_variant=MODEL_VARIANT_CURRENT,
         selector_version=SELECTOR_VERSION_CURRENT,
     )
@@ -3221,14 +3284,25 @@ def etichetta_riga_multipla(p):
 def calcolatore_multipla(righe):
     """Calcolatore di multipla del Top Mix di mercato (fino a 5 righe).
 
-    Mostra probabilita' combinata, quota equa combinata (1/probabilita') e
-    confronto con la quota offerta (prodotto delle quote selezionate), con
-    l'edge risultante. L'avviso sull'indipendenza e' SEMPRE mostrato: non e' una
-    nota a pie' di pagina opzionale, e' l'ipotesi su cui si regge il calcolo.
+    Mostra probabilita' combinata e quota equa combinata (1/probabilita'), piu' —
+    SOLO se l'utente la inserisce — il margine sulla quota offerta dal proprio
+    bookmaker. L'avviso sull'indipendenza e' SEMPRE mostrato: non e' una nota a
+    pie' di pagina opzionale, e' l'ipotesi su cui si regge il calcolo.
+
+    Perche' il campo opzionale al posto del confronto con le quote del file (che
+    c'era prima): ``multipla`` continuava a calcolare ``quota_offerta``/``edge``,
+    ma quell'``edge`` non era una informazione — era il margine composto della
+    fonte delle quote (Pinnacle o la media dei libri), quindi NEGATIVO per
+    costruzione e quasi uguale per tutte le multiple dello stesso giro. Confrontare
+    due letture della STESSA fonte dice solo quanto quella fonte trattiene. Il
+    numero che serve davvero e' il prezzo che il bookmaker in cui si gioca offre
+    sulla multipla costruita: non c'e' in nessun file, lo sa solo chi sta giocando,
+    e per questo e' un campo di testo — facoltativo. Se resta vuoto non si mostra
+    nessun margine (e non si inventa nessuna quota); se e' compilato con un valore
+    che non e' una quota decimale lo si dice, e il margine resta fuori.
 
     Non giudica le quote basse: una quota 1,10 entra nella multipla come
-    qualsiasi altra, l'edge dice quanto paga. La scelta di una quota minima
-    resta dell'utente.
+    qualsiasi altra. La scelta di una quota minima resta dell'utente.
     """
     st.markdown("##### 🎟️ Calcolatore di multipla")
     if not righe:
@@ -3246,24 +3320,44 @@ def calcolatore_multipla(righe):
     if not scelte:
         return
     selezionate = righe_multipla(righe, scelte)
+    # Campo OPZIONALE: il prezzo della multipla dal bookmaker in cui si gioca.
+    # `value=None` e' il modo dichiarativo di dire "vuoto": non un 0 di default,
+    # che sarebbe una quota inventata e darebbe un margine fasullo.
+    quota_bookmaker = st.number_input(
+        "Quota offerta dal tuo bookmaker (opzionale)",
+        min_value=0.0, step=0.01, format="%.2f", value=None,
+        key="multipla_quota_bookmaker",
+        help="La quota decimale che il TUO bookmaker offre su questa multipla. "
+             "Lascia vuoto per non calcolare nessun margine: le quote in tabella "
+             "sono quelle della fonte (Pinnacle o media dei libri) e confrontarle "
+             "con le loro stesse probabilita' direbbe solo il margine della fonte.")
     esito = multipla([{"partita": f"{p['home']} vs {p['away']}", "esito": p["esito"],
-                       "prob": p["prob"], "quota": p["quota"]} for p in selezionate])
+                       "prob": p["prob"], "quota": p["quota"]} for p in selezionate],
+                     quota_bookmaker=quota_bookmaker)
     if not esito.get("ok"):
         st.error(esito.get("errore") or "Selezione non valida.")
         return
-    c1, c2, c3, c4 = st.columns(4)
+    if esito.get("errore_quota_bookmaker"):
+        st.warning(esito["errore_quota_bookmaker"])
+    c1, c2, c3 = st.columns(3)
     c1.metric("Probabilita' combinata", f"{esito['probabilita_combinata'] * 100:.2f}%")
     c2.metric("Quota equa (1/prob)", f"{esito['quota_equa']:.2f}")
-    c3.metric("Quota offerta", f"{esito['quota_offerta']:.2f}")
-    c4.metric("Edge", f"{esito['edge'] * 100:+.2f}%",
-              help="quota offerta / quota equa - 1. Positivo: la quota offerta "
-                   "paga piu' della quota equa ricavata dalle probabilita' di mercato.")
+    if esito.get("margine") is None:
+        c3.caption("Margine: non calcolato (nessuna quota inserita).")
+    else:
+        c3.metric("Margine sulla tua quota", f"{esito['margine'] * 100:+.2f}%",
+                  help="quota inserita * probabilita' combinata - 1. Negativo: il "
+                       "bookmaker paga meno della quota equa di queste probabilita' "
+                       "(e' il suo margine, la norma); positivo: paga di piu'.")
+        st.caption(f"Quota tua {esito['quota_bookmaker']:.2f} contro quota equa "
+                   f"{esito['quota_equa']:.2f}: {esito['n_righe']} righe, "
+                   f"probabilita' combinata {esito['probabilita_combinata'] * 100:.2f}%.")
+        if esito["margine"] < 0.0:
+            st.info("Margine negativo: la quota offerta paga MENO della quota equa. "
+                    "E' la situazione normale (il margine del bookmaker), non un errore.")
     st.dataframe(pd.DataFrame(esito["righe"]).rename(columns={
         "n": "#", "partita": "Partita", "esito": "Esito", "prob": "Probabilita'",
-        "quota": "Quota"}), width="stretch", hide_index=True)
-    if esito["edge"] < 0:
-        st.info("Edge negativo: la quota offerta paga MENO della quota equa. "
-                "E' la situazione normale (margine del bookmaker), non un errore.")
+        "quota": "Quota (fonte)"}), width="stretch", hide_index=True)
 
 
 # Nomi dei due modelli come li chiama il progetto (solo UI/etichette).
@@ -3289,7 +3383,12 @@ REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_s
 
 
 def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420):
-    """Una delle DUE tabelle del Registro: solo le righe di un motore.
+    """Una delle DUE tabelle del Registro storico: le righe di UN motore.
+
+    Il taglio lo fa chi chiama, e incrocia le due domande: motore (``variante``)
+    e famiglia di selettore. Una riga del mercato porta ``model_variant =
+    current`` perche' le scrive lo stesso codice di scrittura, quindi la sola
+    variante la farebbe comparire qui, dentro l'archivio del modello storico.
 
     L'etichetta del modello sta nell'intestazione, come nel Top Mix: dentro la
     tabella la colonna della variante sarebbe la stessa parola ripetuta su ogni
@@ -3332,8 +3431,123 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
 # del modello e segnale d'accordo, se registrati.
 REGISTRO_MERCATO_COLONNE = ["data", "stagione", "campionato", "home", "away",
                             "mercato_standard", "prob_sicuro",
-                            "prob_modello_col", "accordo_col",
+                            "prob_modello_col", "accordo_col", "stato_col",
                             "risultato_reale", "esito", "origine"]
+
+
+def _mostra_statistiche_registrazione(records):
+    """Hit rate, Brier e gap del Registro di mercato alle DUE registrazioni.
+
+    Perche' due numeri e non uno (rifinitura dopo la PR #53): una riga di mercato
+    porta DUE letture della stessa previsione. La PRIMA (campi ``*_prima``) e'
+    quello che il mercato diceva quando la scelta e' entrata in tabella — l'unica
+    informazione che chi giocava aveva in mano, e per questo e' la misura
+    PRINCIPALE. L'ULTIMA (campi attuali) e' il prezzo dell'ultimo turno in cui la
+    riga e' stata vista: dal rinfresco delle righe in attesa include anche le
+    partite ricadute sotto soglia, quindi non e' piu' "il mercato al momento della
+    scelta" e va letta come dato di supporto, non in mezzo alla stessa frase della
+    prima.
+
+    L'HIT RATE e' lo stesso numero su entrambe le registrazioni, e non e' un
+    bug: la registrazione sposta la probabilita', non la scelta giudicata. Cambiano
+    Brier e gap (la probabilita' sotto i tre numeri e' diversa). Dirlo qui evita
+    che si legga la seconda riga come una conferma della prima.
+
+    I conteggi di righe NON sono il totale della tabella: ``con_probabilita'`` sono
+    le righe giudicate E con una probabilita' leggibile (una riga senza numero non
+    entra in un Brier, e non si inventa niente per farla entrare).
+    """
+    prima = compute_calibration_per_registrazione(records, REGISTRAZIONE_PRIMA)
+    ultima = compute_calibration_per_registrazione(records, REGISTRAZIONE_ULTIMA)
+    if not prima["total"]:
+        return
+
+    def _fmt(v, formato="{:.1f}"):
+        return "n/d" if v is None else formato.format(v)
+
+    st.markdown("**Affidabilita' per registrazione** (solo famiglia mercato, con i filtri attivi)")
+    st.caption(
+        "Le scelte del mercato vengono lette due volte: alla **prima** registrazione "
+        "(quando la partita e' entrata in tabella — la misura principale, perche' e' "
+        "quello che si aveva in mano prima di giocare) e all'**ultima** (il prezzo "
+        "dell'ultimo turno visto, che dal rinfresco delle righe in attesa include "
+        "anche le partite ricadute sotto soglia). L'hit rate per costruzione "
+        "coincide — la registrazione sposta la probabilita', non la scelta — mentre "
+        "Brier e gap possono divergere: se divergono, il mercato si e' mosso dopo "
+        "l'ammissione.")
+    for etichetta, s, principale in (("PRIMA registrazione (misura principale)", prima, True),
+                                     ("ULTIMA registrazione (di supporto)", ultima, False)):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric(f"{etichetta} — Hit rate", _fmt(s["hit_rate"]) + ("" if s["hit_rate"] is None else "%"),
+                  help="Percentuale di esiti indovinati sulle righe giudicate con una "
+                       "probabilita' leggibile di questa registrazione."
+                       if principale else None)
+        c2.metric("Brier medio", _fmt(s["brier"], "{:.4f}"),
+                  help="Media di (probabilita' di QUESTA registrazione - esito)^2. "
+                       "Piu' basso = piu' calibrato." if principale else None)
+        c3.metric("Gap prob - hit", _fmt(s["gap"], "{:+.1f} pp"),
+                  help="Probabilita' media meno hit rate: positivo = il mercato "
+                       "sovrastimava." if principale else None)
+        c4.metric("Righe usate / giudicate", f"{s['con_probabilita']} / {s['decise']}")
+    if prima["senza_probabilita"] or ultima["senza_probabilita"]:
+        st.caption(f"ℹ️ {prima['senza_probabilita']} righe giudicate senza una probabilita' "
+                   f"leggibile alla prima registrazione, {ultima['senza_probabilita']} "
+                   "all'ultima: restano fuori da Brier e gap (nessun numero inventato).")
+    n_ricostruite = prima["senza_prima_registrazione"]
+    if n_ricostruite:
+        st.warning(
+            f"♻️ {n_ricostruite} righe su {prima['total']} hanno una **prima registrazione "
+            f"ricostruita**: sono state scritte prima che i campi ``*_prima`` esistessero, "
+            "quindi per loro la misura \"prima\" coincide con il valore attuale e NON e' "
+            "un'osservazione storica. Vanno contate a parte: la statistica principale su "
+            "queste righe e' la stessa cosa che legge l'ultima registrazione.")
+    n_sotto = ultima["sotto_soglia_ora"]
+    if n_sotto:
+        st.caption(f"🔄 {n_sotto} righe portano il flag ``sotto_soglia_ora``: sono state "
+                   "rinfrescate anche se la loro probabilita' di mercato e' ricaduta sotto "
+                   "lo 0,55 (erano il buco del Registro: aggiornate solo quando salivano). "
+                   "Sono righe gia' registrate, non scelte nuove ammesse in tabella.")
+    else:
+        st.caption("🔄 Nessuna riga con il flag ``sotto_soglia_ora``: nessun rinfresco ha "
+                   "incontrato una riga in attesa scesa sotto soglia (o il Registro non ha "
+                   "ancora righe scritte da questo codice).")
+
+
+def _metriche_famiglia_registro(records, famiglia, etichetta, nota):
+    """Intestazione di FAMIGLIA del Registro: titolo, nota e i cinque numeri.
+
+    Un posto solo per la coppia "titolo di famiglia + Totali/Vinte/Perse-Brier-gap",
+    perche' la usano sia la famiglia Mercato (visibile in apertura) sia il Modello
+    storico (che dal punto 5 della commessa sta dentro l'archivio, nel riquadro
+    chiuso): le due intestazioni non possono divergere per come contano, e ognuna
+    conta SOLO la propria famiglia. Sommarle conterebbe due volte la stessa
+    partita quando le due scelte coincidono (PR #49 §4d: 1144 su 1302) e
+    mescolerebbe due probabilita' diverse nello stesso Brier.
+
+    Ritorna True se la famiglia ha righe. Senza righe lo dice una volta e non
+    espone nessun numero: nessun totale a zero, nessun Brier inventato.
+    """
+    _stat = compute_stats(records, famiglia=famiglia)
+    _cal = compute_calibration_stats(records, famiglia=famiglia)
+    st.markdown(f"###### {FAMIGLIA_ICONA[famiglia]} {etichetta}")
+    st.caption(nota)
+    if not _stat["total"]:
+        st.caption("Nessuna riga di questa famiglia nel Registro visibile "
+                   "(con i filtri selezionati).")
+        return False
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Totale", _stat["total"])
+    c2.metric("Vinte", f"{_stat['wins']} ({_stat['win_rate']:.1f}%)",
+              help="Percentuale sulle sole partite gia' giudicate.")
+    c3.metric("Perse / Attesa", f"{_stat['losses']} / {_stat['pending']}")
+    c4.metric("Brier medio",
+              f"{_cal['brier']:.4f}" if _cal["brier"] is not None else "n/d",
+              help="Media di (probabilita' dichiarata - esito)^2 sulle "
+                   "partite giudicate. Calcolato SOLO su questa famiglia: "
+                   "mescolare modello e mercato non descriverebbe nessuno dei due.")
+    c5.metric("Gap prob - hit",
+              f"{_cal['gap']:+.1f} pp" if _cal["gap"] is not None else "n/d")
+    return True
 
 
 def _mostra_registro_mercato(righe, altezza=420):
@@ -3342,6 +3556,14 @@ def _mostra_registro_mercato(righe, altezza=420):
     Mostra la probabilita' di mercato (prob_sicuro), la probabilita' del
     modello (Drago) se registrata, e il segnale d'accordo. Se i campi
     mancano, lo dice esplicitamente.
+
+    La colonna "Stato" dice se il valore mostrato e' anche una scelta oggi in
+    tabella: dopo il rinfresco delle righe in attesa una riga puo' leggere 0,52
+    senza essere mai stata cancellata dal Registro, e senza quel contrassegno
+    sarebbe impossibile capire perche' non compare nel Top Mix. "flag non
+    dichiarato" non e' un'etichetta di comodo: sono le righe scritte prima che il
+    campo esistesse, per le quali NON si sa cosa il mercato dicesse nei turni
+    successivi.
     """
     st.markdown(f"<div class='top-mix-model top-mix-mercato'><b>🌟 Mercato (topmix_mercato_v3)</b>"
                 f" — {len(righe)} righe"
@@ -3362,6 +3584,12 @@ def _mostra_registro_mercato(righe, altezza=420):
             lambda x: "✅" if x else "—" if x is not None else "non registrato")
     else:
         df["accordo_col"] = "non registrato"
+    if SOTTO_SOGLIA_ORA_FIELD in df.columns:
+        df["stato_col"] = ["sotto soglia (aggiornata)" if v is True else
+                           "in tabella" if v is False else "flag non dichiarato"
+                           for v in df[SOTTO_SOGLIA_ORA_FIELD]]
+    else:
+        df["stato_col"] = "flag non dichiarato"
 
     colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
     st.dataframe(
@@ -3373,6 +3601,7 @@ def _mostra_registro_mercato(righe, altezza=420):
             "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
             "prob_modello_col": st.column_config.TextColumn("P modello Drago %"),
             "accordo_col": st.column_config.TextColumn("D'accordo"),
+            "stato_col": st.column_config.TextColumn("Stato"),
         },
     )
 
@@ -3392,7 +3621,7 @@ with tab2:
     # Registro avviene SOLO qui, alla pressione esplicita del pulsante.
     if st.button("🚀 Calcola Top Mix", type="primary"):
         (top_mercato, top_current, top_legacy, missing, ombra,
-         senza_quote) = fetch_and_calc_top_mix()
+         senza_quote, letture) = fetch_and_calc_top_mix()
         # fetch_and_calc_top_mix e' cached (ttl=1800) e il suo `now` e' congelato:
         # si rifiltra contro l'orologio reale PRIMA di mostrare e di salvare, cosi'
         # nessuna partita gia' iniziata puo' entrare nel registro (problema
@@ -3403,6 +3632,10 @@ with tab2:
         # Stesso filtro sul registro ombra: nessuna partita gia' iniziata entra.
         ombra, _scartate_ombra = righe_non_iniziate(ombra)
         senza_quote, _scartate_sq = righe_non_iniziate(senza_quote)
+        # Le letture seguono la stessa regola delle righe in tabella: dopo il
+        # fischio d'inizio la quota non e' piu' una previsione, e una riga in
+        # attesa non deve essere aggiornata con il prezzo della partita in corso.
+        letture, _scartate_letture = righe_non_iniziate(letture)
 
         # --- Persisti in session_state: sopravvive ai rerun ---
         st.session_state["topmix_mercato"] = top_mercato
@@ -3413,31 +3646,87 @@ with tab2:
         st.session_state["topmix_senza_quote"] = senza_quote
         st.session_state["topmix_scartate_inizio"] = scartate_mkt + scartate_cur + scartate_leg
 
-        # --- Scrittura Registro: solo su click, mai su rerun ---
-        esiti_save = []
+        # --- Scrittura Registro: UN SOLO save_predictions per click ---
+        # Prima di questa rifinitura c'era un `save_prediction_entry` dentro il
+        # ciclo, uno per riga: ognuno rileggeva il Registro da disco, faceva il
+        # proprio backup e il proprio PUT remoto. Con ~40 scelte sopra soglia
+        # erano ~40 riscritture dello stesso file (e ~40 backup), e il rinfresco
+        # delle righe in attesa ne avrebbe aggiunta una 41esima; oltre al costo,
+        # ogni scrittura parziale era uno snapshot in cui le righe scritte prima
+        # erano gia' allineate e quelle dopo no. Ora il registro vive in UNA
+        # lista: `load_predictions` una volta, un upsert in blocco per le righe
+        # ammesse, il rinfresco per le righe gia' registrate, e UNA scrittura
+        # (nessuna, se non e' cambiato niente) come fa gia' `salva_registro_ombra`.
+        # Un'eccezione nella costruzione di una riga ferma tutto il click: prima
+        # lasciava a meta' un registro parzialmente scritto, qui non si scrive
+        # proprio nulla (nessuna riga a meta').
+        ora = datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M")
+        sha = snapshot_fingerprint(DATABASE_DIR)      # una volta sola per il blocco
+        nuove = []
         for p in top_mercato:
             if not p.get('match_id'):
                 continue
             args_reg, kwargs_reg = argomenti_registro_top_mix_mercato(p)
-            esiti_save.append(save_prediction_entry(*args_reg, **kwargs_reg))
+            nuove.append(build_prediction_entry(*args_reg, **kwargs_reg,
+                                                 snapshot_sha=sha, salvato_il=ora))
+        preds = load_predictions()
+        preds, azioni_upsert = upsert_prediction_entries(preds, nuove)
+        # Righe di mercato GIA' nel registro la cui partita e' ancora in attesa:
+        # vengono riallineate alla lettura del turno anche se la probabilita' e'
+        # ricaduta sotto soglia (era il buco chiuso da questa rifinitura).
+        preds, azioni_refresh = aggiorna_righe_mercato_in_attesa(preds, letture, salvato_il=ora)
+        n_rinf = azioni_refresh.get("aggiornata", 0)
+        n_sotto = azioni_refresh.get("sotto_soglia", 0)
+        if (azioni_upsert.get("aggiunta") or azioni_upsert.get("aggiornata")
+                or azioni_upsert.get("senza_chiave") or n_rinf):
+            esito_save = save_predictions(preds)
+        else:
+            # Ne' le righe ammesse ne' quelle in attesa sono cambiate: il file non
+            # si tocca, e nessun backup nuovo. E' il percorso del rinfresco, non
+            # un "doppio click innocuo": le righe ammesse vengono riscritte anche
+            # a dati invariati (timestamp nuovo) e quindi una scrittura c'e'. 
+            esito_save = {"locale": None, "remoto": "nessuna_scrittura"}
         # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
         # quando la scrittura remota (PUT su JSONBin, HSET su Upstash) era
         # fallita dentro un `except: pass`.
-        n_err_remoto = sum(1 for e in esiti_save if e.get("remoto") == "errore")
-        n_nuove = sum(1 for e in esiti_save if e.get("azione") == "aggiunta")
-        n_agg = sum(1 for e in esiti_save if e.get("azione") == "aggiornata")
-        n_gia = sum(1 for e in esiti_save
-                    if e.get("azione") in ("gia_graduata", "gia_presente_altra_versione"))
-        n_senza_id = sum(1 for e in esiti_save if e.get("azione") == "senza_chiave")
-        if not esiti_save:
-            st.info("Nessuna previsione da salvare: nessuna riga del Top Mix ha un match_id valido.")
+        n_nuove = azioni_upsert.get("aggiunta", 0)
+        n_agg = azioni_upsert.get("aggiornata", 0)
+        n_gia = (azioni_upsert.get("gia_graduata", 0)
+                 + azioni_upsert.get("gia_presente_altra_versione", 0)
+                 + azioni_refresh.get("gia_graduata", 0))
+        n_senza_id = azioni_upsert.get("senza_chiave", 0)
+        n_attesa = azioni_refresh.get("senza_lettura", 0)
+        n_allineate = azioni_refresh.get("gia_allineata", 0)
+        if not nuove:
+            # Nessuna scelta da scrivere: si dice comunque se il rinfresco ha
+            # lavorato, perche' e' l'altra meta' del click e non deve sembrare
+            # "non e' successo niente" quando una riga e' stata aggiornata.
+            if n_rinf:
+                st.info(f"Registro: nessuna scelta ammessa in tabella; {n_rinf} righe in "
+                        f"attesa riallineate ({n_sotto} ora sotto soglia).")
+            else:
+                st.info("Nessuna previsione da salvare: nessuna riga del Top Mix ha un "
+                        "match_id valido e nessuna riga in attesa aveva una lettura nuova.")
         else:
             dettaglio = f"{n_nuove} nuove, {n_agg} aggiornate, {n_gia} gia' giudicate (non toccate)"
+            if n_rinf or n_allineate or n_attesa or n_sotto:
+                dettaglio += f"; rinfresco righe in attesa: {n_rinf} riallineate"
+                if n_sotto:
+                    dettaglio += f" ({n_sotto} ora SOTTO soglia, aggiornate lo stesso)"
+                if n_allineate:
+                    dettaglio += f", {n_allineate} gia' allineate"
+                if n_attesa:
+                    dettaglio += f", {n_attesa} senza quote in questo turno (non toccate)"
             if n_senza_id:
                 dettaglio += f", {n_senza_id} senza match_id"
-            if n_err_remoto:
-                st.warning(f"⚠️ {n_err_remoto}/{len(esiti_save)} righe salvate SOLO in locale: "
-                           f"scrittura remota fallita (vedi log). Registro: {dettaglio}.")
+            if esito_save.get("remoto") == "nessuna_scrittura":
+                st.info(f"Registro gia' allineato: nessuna scrittura, nessun backup nuovo. "
+                        f"{dettaglio}.")
+            elif esito_save.get("remoto") == "errore" or esito_save.get("locale") is False:
+                st.warning(f"⚠️ Registro NON del tutto salvato: {dettaglio}. "
+                           f"Locale: {'ok' if esito_save.get('locale') else 'FALLITO'}; "
+                           f"remoto: {esito_save.get('remoto')} "
+                           f"({esito_save.get('remoto_dettaglio', 'n/d')})")
             else:
                 st.success(f"✅ Top Mix nel registro: {dettaglio}.")
 
@@ -3626,8 +3915,9 @@ with tab5:
         # valori mancanti/non validi diventano NaT e finiscono in fondo.
         df_preds['data'] = build_registry_datetime_column(df_preds['data'])
 
-        # NIENTE filtro "Modello": le due tabelle del Registro sono gia' una per
-        # motore (Attuale / Legacy). Un filtro in piu' potrebbe svuotarne una e
+        # NIENTE filtro "Modello": le due tabelle dell'archivio del modello
+        # storico (Attuale / Legacy) sono gia' una per motore, e stanno nel
+        # riquadro chiuso qui sotto. Un filtro in piu' potrebbe svuotarne una e
         # far credere che quel motore non abbia righe.
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         with f_col1:
@@ -3651,8 +3941,8 @@ with tab5:
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
         if filter_origine != "Tutti": df_preds = df_preds[df_preds["origine"] == filter_origine]
-        # Nessun filtro sulla variante: le due tabelle piu' sotto sono gia' una
-        # per motore, e nessuna riga viene nascosta da un filtro in piu'.
+        # Nessun filtro sulla variante: le due tabelle dell'archivio sono gia'
+        # una per motore, e nessuna riga viene nascosta da un filtro in piu'.
 
         # Fix visivo: converte i vecchi 'None' in '⏳' e i risultati vuoti in '-'
         df_display = df_preds.fillna({"esito": "⏳", "risultato_reale": "-"})
@@ -3662,8 +3952,30 @@ with tab5:
         # DataFrame di pandas invece crea la colonna con NaN, e `str(nan)` e'
         # "nan": le righe senza campo sparivano dal blocco legacy (bug corretto
         # anche dentro `model_variant_read`, ma qui non si passa piu' di li').
+        # FAMIGLIE prima, motori dentro la famiglia: dal 09/10/2026 il Registro
+        # visibile ha DUE famiglie di selettore e le righe del mercato portano
+        # `model_variant = current` perche' le scrive lo stesso codice di
+        # scrittura. Tagliare solo sulla variante, quindi, metterebbe le scelte di
+        # mercato nelle tabelle intitolate a un motore del modello storico: qui le
+        # due maschere dei motori si incrociano con la famiglia, cosi' l'archivio
+        # contiene davvero solo l'archivio (e i suoi totali tornano con
+        # l'intestazione della famiglia).
+        maschera_mercato = df_display.apply(
+            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
+        maschera_modello = ~maschera_mercato
+        # Variante letta fuori dai due motori, DENTRO il modello storico: e' il
+        # materiale della terza tabella di controllo. Le righe del mercato non
+        # entrano qui per costruzione: stanno gia' tutte nella loro tabella,
+        # qualunque variante portino.
+        maschera_resto = (~(df_display["variante_codice"].isin(
+            [MODEL_VARIANT_CURRENT, MODEL_VARIANT_LEGACY]))) & maschera_modello
         maschera_attuale = df_display["variante_codice"] == MODEL_VARIANT_CURRENT
         maschera_legacy = df_display["variante_codice"] == MODEL_VARIANT_LEGACY
+        # ...e qui le stesse due maschere diventano quelle DELL'ARCHIVIO: i blocchi
+        # statistica, le due tabelle e l'affidabilita' le leggono entrambe, quindi
+        # nessun numero del riquadro puo' parlare di righe che non mostra.
+        maschera_attuale = maschera_attuale & maschera_modello
+        maschera_legacy = maschera_legacy & maschera_modello
         # DUE blocchi, uno per motore, con le STESSE righe delle due tabelle piu'
         # sotto. La fetta "scheda vecchia" del Registro non e' un terzo modello:
         # sono righe della tabella Legacy, quindi contano nel blocco Legacy e
@@ -3671,54 +3983,79 @@ with tab5:
         attuale_records = df_display[maschera_attuale].to_dict("records")
         legacy_records = df_display[maschera_legacy].to_dict("records")
         parti_variante = {MODEL_VARIANT_CURRENT: attuale_records, MODEL_VARIANT_LEGACY: legacy_records}
-        resto_records = df_display[~(maschera_attuale | maschera_legacy)].to_dict("records")
+        resto_records = df_display[maschera_resto].to_dict("records")
         if resto_records:
             # Variante non riconosciuta: non si nasconde (vedi la terza tabella).
             parti_variante["altro"] = resto_records
         all_records = df_display.to_dict("records")
         schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
-        # NESSUN totale unico: dal 09/10/2026 il Registro visibile contiene due
-        # FAMIGLIE di selettore (le scelte storiche del MODELLO e quelle del
-        # MERCATO). Sommarle conterebbe due volte la stessa partita quando le
-        # due scelte coincidono (PR #49 §4d: 1144 su 1302) e mescolerebbe due
-        # probabilita' diverse nello stesso Brier. Una intestazione per famiglia,
-        # ciascuna con il proprio totale, win rate e Brier.
-        for _fam, _etichetta, _nota in (
-            (FAMIGLIA_SELETTORE_MODELLO,
-             f"Modello storico (fino al {CONFINE_FAMIGLIA_MERCATO})",
-             "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
-             "di mercato. Da questa data le nuove scelte del modello vanno nel "
-             "registro ombra, quindi questa famiglia non cresce piu'."),
-            (FAMIGLIA_SELETTORE_MERCATO,
-             f"Mercato (topmix_mercato_v3) — dal {CONFINE_FAMIGLIA_MERCATO}",
-             "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
-             "soglia 0,55, fonte Pinnacle o media dei libri."),
-        ):
-            _stat = compute_stats(all_records, famiglia=_fam)
-            _cal = compute_calibration_stats(all_records, famiglia=_fam)
-            st.markdown(f"###### {FAMIGLIA_ICONA[_fam]} {_etichetta}")
-            st.caption(_nota)
-            if not _stat["total"]:
-                st.caption("Nessuna riga di questa famiglia nel Registro visibile "
-                           "(con i filtri selezionati).")
-                continue
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Totale", _stat["total"])
-            c2.metric("Vinte", f"{_stat['wins']} ({_stat['win_rate']:.1f}%)",
-                      help="Percentuale sulle sole partite gia' giudicate.")
-            c3.metric("Perse / Attesa", f"{_stat['losses']} / {_stat['pending']}")
-            c4.metric("Brier medio",
-                      f"{_cal['brier']:.4f}" if _cal["brier"] is not None else "n/d",
-                      help="Media di (probabilita' dichiarata - esito)^2 sulle "
-                           "partite giudicate. Calcolato SOLO su questa famiglia: "
-                           "mescolare modello e mercato non descriverebbe nessuno dei due.")
-            c5.metric("Gap prob - hit",
-                      f"{_cal['gap']:+.1f} pp" if _cal["gap"] is not None else "n/d")
+        # NESSUN totale unico: una intestazione per famiglia, ciascuna con il
+        # proprio totale, win rate e Brier (``_metriche_famiglia_registro``).
+        #
+        # LAYOUT del tab, punto 5 della commessa "rifiniture": in apertura si
+        # vedono SOLO la famiglia Mercato e il registro ombra. Il modello storico
+        # non riceve piu' righe dal 09/10/2026 (le nuove scelte di Drago e Legacy
+        # finiscono nel registro ombra), quindi le sue statistiche e le sue DUE
+        # tabelle stanno in un ``st.expander`` CHIUSO per default: restano
+        # consultabili riga per riga, ma non occupano la pagina e - con un filtro
+        # "In Attesa" attivo - non lasciano in vista due intestazioni di motore con
+        # la scritta "nessuna riga", che era rumore puro.
+        if _metriche_famiglia_registro(
+                all_records, FAMIGLIA_SELETTORE_MERCATO,
+                f"Mercato (topmix_mercato_v3) — dal {CONFINE_FAMIGLIA_MERCATO}",
+                "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
+                "soglia 0,55, fonte Pinnacle o media dei libri."):
+            # Hit rate, Brier e gap letti alle DUE registrazioni (la prima e' la
+            # misura principale, l'ultima il dato di supporto). Ha senso solo qui:
+            # il modello storico ha UNA sola lettura perche' la sua riga non viene
+            # piu' aggiornata, quindi "prima o ultima?" non e' una domanda.
+            _mostra_statistiche_registrazione(all_records)
 
-            # --- Sotto-famiglia MODELLO STORICO: blocchi Drago/Legacy ---
-            if _fam == FAMIGLIA_SELETTORE_MODELLO:
-                # Blocchi per motore, DENTRO la famiglia del modello
+        # --- TABELLA DEL REGISTRO: famiglia MERCATO (una sola, visibile) ---
+        df_mercato = df_display[maschera_mercato]
+        if not df_mercato.empty:
+            _mostra_registro_mercato(df_mercato)
+        else:
+            st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
+
+        # La SCHEDA del record (con quale versione di pipeline la riga e' stata
+        # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
+        # non compare piu' come colonna: si dice a parole, una volta. Le tre
+        # etichette qui sotto descrivono le righe dell'ARCHIVIO del modello
+        # storico, cioe' il riquadro chiuso che segue: li' il titolo del riquadro
+        # dice il MOTORE, non la scheda.
+        st.caption(
+            "**Come sono state scritte le righe** (non e' il motore: quello titola "
+            "le due tabelle dell'archivio del modello storico, nel riquadro chiuso "
+            "qui sotto) · "
+            f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
+            f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
+            f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
+            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
+        )
+
+        st.divider()
+
+        # --- ARCHIVIO DEL MODELLO STORICO: riquadro CHIUSO per default ---
+        # Dentro ci sta tutto quello che riguarda i due motori: intestazione della
+        # famiglia, i due blocchi, l'affidabilita' e le DUE tabelle. Fuori resta
+        # solo la tabella di controllo delle varianti non riconosciute, perche
+        # nascondere in un riquadro chiuso un'anomalia dei dati vorrebbe dire non
+        # accorgersene mai (e infatti non e' mai una tabella vuota: esiste solo se
+        # ha righe).
+        with st.expander(f"Modello storico (archivio fino al {CONFINE_FAMIGLIA_MERCATO})"):
+            if _metriche_famiglia_registro(
+                    all_records, FAMIGLIA_SELETTORE_MODELLO,
+                    f"Modello storico (fino al {CONFINE_FAMIGLIA_MERCATO})",
+                    "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
+                    "di mercato. Da quella data le nuove scelte del modello vanno nel "
+                    "registro ombra: questa famiglia non cresce piu', ed e' il perche' "
+                    "stia in un archivio chiuso e non in apertura di pagina."):
+                # Blocchi per motore, DENTRO la famiglia del modello, con le STESSE
+                # righe delle due tabelle piu' sotto (la stessa maschera, gia'
+                # tagliata sulla famiglia): nessun numero del riquadro puo' parlare
+                # di righe che il riquadro non mostra.
                 _mostra_blocco_modello(
                     attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
                     f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
@@ -3740,58 +4077,37 @@ with tab5:
                         "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
                         "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
                     )
-                # Affidabilita' (Brier) per motore DENTRO la famiglia modello
-                righe_famiglia_modello = [r for r in all_records
-                                          if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
-                parti_variante_modello = {k: [r for r in v
-                                              if famiglia_selettore(r) == FAMIGLIA_SELETTORE_MODELLO]
-                                          for k, v in parti_variante.items()}
-                if len(parti_variante_modello) > 1:
-                    for v in sorted(parti_variante_modello, key=lambda v: v != MODEL_VARIANT_CURRENT):
-                        _mostra_affidabilita(parti_variante_modello[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
+                # Affidabilita' (Brier) per motore DENTRO la famiglia modello. Le
+                # parti sono gia' tagliate sulla famiglia dalle maschere, quindi
+                # ``parti_variante`` qui e' esattamente quello che prima si
+                # riformava con ``parti_variante_modello``: un filtro in meno,
+                # gli stessi numeri.
+                if len(parti_variante) > 1:
+                    for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
+                        _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
                 else:
-                    _mostra_affidabilita(righe_famiglia_modello)
+                    _mostra_affidabilita(attuale_records + legacy_records + resto_records)
 
-        # La SCHEDA del record (con quale versione di pipeline la riga e' stata
-        # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
-        # non compare piu' come colonna: si dice a parole, una volta.
-        st.caption(
-            "**Come sono state scritte le righe** (non e' il motore, che e' il titolo delle due tabelle): "
-            f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
-            f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
-            f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
-            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
-        )
+                # Le DUE tabelle del Registro storico, una per motore
+                _mostra_registro_modello(
+                    df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+                    "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
+                    "top-mix-current")
+                _mostra_registro_modello(
+                    df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
+                    "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
+                    "top-mix-legacy")
 
-        # --- TABELLE DEL REGISTRO: organizzate per FAMIGLIA ---
-        # Famiglia MERCATO: una tabella sola con probabilita' del modello e accordo
-        maschera_mercato = df_display.apply(
-            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
-        df_mercato = df_display[maschera_mercato]
-        if not df_mercato.empty:
-            _mostra_registro_mercato(df_mercato)
-        else:
-            st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
-
-        st.divider()
-
-        # Famiglia MODELLO STORICO: due tabelle, una per motore
-        _mostra_registro_modello(
-            df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
-            "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
-            "top-mix-current")
-        _mostra_registro_modello(
-            df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
-            "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
-            "top-mix-legacy")
         # Una riga con una variante fuori dalle due non sparisce dal Registro:
         # finisce in una terza tabella di controllo, cosi' il totale mostrato
-        # resta verificabile a occhio.
-        resto = df_display[~(maschera_attuale | maschera_legacy)]
+        # resta verificabile a occhio. Sta FUORI dall'archivio (vedi sopra) e non
+        # e' mai una tabella vuota.
+        resto = df_display[maschera_resto]
         if len(resto):
             st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
                        f"mostrate a parte, non nascoste.")
             st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)
+
 
         # --- REGISTRO OMBRA: statistiche read-only ---
         # "Aggiorna Risultati" giudica anche le righe ombra (aggiorna_esiti_ombra,

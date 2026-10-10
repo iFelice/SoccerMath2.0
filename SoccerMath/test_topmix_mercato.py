@@ -11,7 +11,13 @@ Cosa viene provato (punti 3, 4, 5, 6 e 9 della commessa "quote live nel Top Mix"
   Drago separata nel tab2 (guardia sul sorgente);
 * **calcolatore di multipla**: 1 riga e 5 righe (casi richiesti), oltre le 5
   rifiutato, quota equa = 1/probabilita', edge = quota offerta/equa - 1, avviso
-  sull'indipendenza sempre presente;
+  sull'indipendenza sempre presente. Dalla rifinitura dopo la PR #53 la UI non
+  mostra piu' quell'edge (e' il margine composto della fonte delle quote, sempre
+  negativo e identico per tutto il giro) e offre il campo OPZIONALE
+  ``quota_bookmaker``, da cui viene ``margine = quota * probabilita' - 1``: i
+  due numeri restano nel dizionario di ritorno perche' ``multipla`` e' usata
+  anche altrove, e il margine non calcolato resta ``None``. Vedi
+  ``test_rifiniture_registro.py``;
 * **registro**: le righe di mercato vanno nel Registro visibile con
   ``topmix_mercato_v3``; Drago e Legacy vanno nel registro ombra con
   ``topmix_ombra_1x2_v1`` e due chiavi di dedup distinte (stesse regole
@@ -322,9 +328,18 @@ class TestTabellaUnica(unittest.TestCase):
         # una sola tabella di scelte, quella del mercato
         self.assertEqual(1, tab2.count("_mostra_tabella_top_mix_mercato("))
         self.assertIn("calcolatore_multipla(top_mercato)", tab2)
-        # un solo punto di scrittura nel Registro visibile: le righe di mercato
-        self.assertEqual(1, tab2.count("save_prediction_entry("))
+        # UN SOLO punto di scrittura nel Registro visibile per click (rifinitura
+        # dopo la PR #53): le righe di mercato passano da `build_prediction_entry`
+        # e il blocco si chiude con UNA `save_predictions`. `save_prediction_entry`
+        # (che scrive a ogni chiamata) non deve piu' comparire nel tab2: prima
+        # girava una volta per riga, cioe' ~40 scritture + ~40 backup + ~40 PUT.
+        self.assertEqual(0, tab2.count("save_prediction_entry("),
+                         "il tab2 deve scrivere il Registro una volta sola")
+        self.assertEqual(1, tab2.count("save_predictions("))
+        self.assertEqual(1, tab2.count("build_prediction_entry("))
         self.assertIn("argomenti_registro_top_mix_mercato(p)", tab2)
+        # e le righe gia' registrate vengono riallineate anche sotto soglia
+        self.assertIn("aggiorna_righe_mercato_in_attesa(", tab2)
         # Drago e Legacy finiscono nel registro ombra
         self.assertIn("salva_registro_ombra(", tab2)
         self.assertIn("righe_modello=", tab2)
@@ -573,8 +588,9 @@ class TestEndToEndConQuoteSimulate(unittest.TestCase):
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
             out = app.fetch_and_calc_top_mix()
-        self.assertEqual(6, len(out))
-        top_mercato, top_current, top_legacy, missing, ombra, senza_quote = out
+        self.assertEqual(7, len(out))
+        (top_mercato, top_current, top_legacy, missing, ombra, senza_quote,
+         letture) = out
         n_leghe = len(app.LEAGUES_CONFIG)
         # 2 partite con quote per lega, entrambe sopra soglia -> 2 * n_leghe
         self.assertEqual(2 * n_leghe, len(top_mercato))
@@ -610,10 +626,11 @@ class TestEndToEndConQuoteSimulate(unittest.TestCase):
                                return_value={"stato": mo.STATO_ASSENTE, "indice": None}), \
              mock.patch.object(app.time, "sleep", lambda s: None):
             app.fetch_and_calc_top_mix.clear()
-            top_mercato, top_current, top_legacy, missing, ombra, senza_quote = \
-                app.fetch_and_calc_top_mix()
+            (top_mercato, top_current, top_legacy, missing, ombra, senza_quote,
+             letture) = app.fetch_and_calc_top_mix()
         self.assertEqual([], top_mercato)
         self.assertEqual([], senza_quote)
+        self.assertEqual([], letture, "senza file delle quote non c'e' nessuna lettura")
         self.assertEqual(len(app.LEAGUES_CONFIG), len(top_current))
 
 
