@@ -246,4 +246,20 @@ referto: /tmp/soccermath_topmix_followup/replay_topmix_mercato.md
 
 ### CI GitHub
 
-<!-- Inserire qui gli esiti reali per workflow e i passaggi `success` / `skipped` dopo aver aperto la PR. -->
+Esiti **reali** dei controlli GitHub Actions sulla PR #61, commit `4875987ba0c7cd58a379f9abaec1e7891d220d99`:
+
+| Workflow | Esito / durata | Passi eseguiti | Passi saltati |
+|---|---|---|---|
+| [Suite completa (pytest + test_theme_toggle)](https://github.com/iFelice/SoccerMath2.0/actions/runs/38084464377) | **success**, 5m42s | Setup, checkout con storia completa, controllo filtro documentazione, Python/dipendenze, diagnostica runner, elenco test, suite pytest, `test_theme_toggle.py`, riepilogo, artifact e cleanup. Ogni step concluso `success`. | Nessuno. |
+| [Audit Top Mix (sola lettura)](https://github.com/iFelice/SoccerMath2.0/actions/runs/38084464357) | **success**, 4m43s | Checkout, filtro documentazione, setup Python/dipendenze, cartella report, test diagnostici Top Mix/Elo, replay offline `topmix_mercato_v3`, GET JSONBin Schalke–Bayern (sola lettura), ricostruzione, ispezione AST, riepilogo, controllo no-write, pubblicazione artifact e cleanup. Ogni step concluso `success`. | Nessuno. |
+| [Replay Top Mix legacy (walk-forward, no-leakage)](https://github.com/iFelice/SoccerMath2.0/actions/runs/38084464398) | **success**, 5s | Setup job e controllo «File rilevanti per il replay»; entrambi `success`. Nessun file rilevante per questo workflow nel diff. | Finestra replay, checkout, Python/dipendenze, secrets, test no-leakage, replay, controlli Registro, riepilogo, verifica no-write e artifact: tutti `skipped` dal filtro. |
+| `totals_probe` | **non avviato** | — | Workflow manuale: non eseguito, coerentemente con il vincolo di non lanciare la sonda. |
+
+GitHub ha inoltre emesso annotazioni informative sulla deprecazione Node.js 20 delle actions e sulla futura migrazione di `ubuntu-latest`; non hanno causato errori. Gli esiti qui sopra sono quelli della SHA indicata, prima del commit documentale che aggiunge questa tabella; i controlli sul nuovo HEAD della PR saranno riportati nell'aggiornamento conclusivo senza cambiare le regole preregistrate.
+
+### Non verificato / in attesa
+
+- **Punto 1:** confronto OOS 2017/18–2021/22, coperture, quote invalide, ΔLogLoss/ΔBrier, bootstrap, sensibilità alle quote di chiusura e calibrazione; attende i 25 CSV originali di Felice perché la fonte è irraggiungibile dal sandbox.
+- **Punto 4:** nessuna seconda sonda live e nessuna misura di copertura/concordanza della nuova regola; non è disponibile uno snapshot successivo al baseline. Il baseline 10/10 resta escluso e non è stata formulata una conclusione PR #60 dal caso Manchester United–Tottenham.
+- Nessuna verifica tramite chiamata a The Odds API (esclusa per vincolo); nessuna valutazione della regola totals sullo snapshot del 10/10.
+- Il PR resta aperto e non è stato fatto merge.
