@@ -1,0 +1,123 @@
+name: Sonda totals (The Odds API, manuale)
+
+# Sonda di FATTIBILITA' del mercato Over/Under (totals) per le 5 leghe.
+# Scarica una chiamata per lega: markets=totals, regions=eu (1 credito per
+# chiamata, 5 crediti in tutto, verificati dagli header x-requests-last).
+# Salva la risposta GREZZA in audit/data/totals_probe/ e committa quei file.
+#
+# Trigger: SOLO workflow_dispatch. Nessun cron, nessun pull_request: la sonda
+# costa crediti e va lanciata a mano.
+#
+# Chiave: secret ODDS_API_KEY, letta dall'ambiente, MAI stampata e MAI scritta
+# nei file (totals_probe.py maschera gli URL e rifiuta di scrivere un file con
+# apiKey= reale). Nessun `set -x`.
+#
+# Dopo la sonda: l'analisi (python audit/totals_probe_analysis.py) gira nello
+# stesso job e scrive audit/results/totals_probe_analysis.md.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: totals-probe
+  cancel-in-progress: false
+
+jobs:
+  sonda:
+    name: Sonda totals (una chiamata per lega)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: "Dipendenze (solo requests: la sonda non importa streamlit)"
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # Esistenza del secret SENZA leggerne il valore (come live_odds.yml).
+      - name: Verifica ODDS_API_KEY (senza stamparla)
+        env:
+          CHIAVE: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          if [ -z "$CHIAVE" ]; then
+            echo "::error::ODDS_API_KEY mancante. Aggiungila in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "ODDS_API_KEY presente (valore non letto, non stampato)."
+
+      - name: Scarica le risposte totals (5 chiamate, regions=eu)
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          set +e
+          python audit/totals_probe.py 2>&1 | tee /tmp/totals_probe.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$rc"
+          # 1 = almeno una lega con errore (le altre sono salvate); 3 = chiave assente.
+          if [ "$rc" = "3" ]; then
+            echo "::error::ODDS_API_KEY assente nell'ambiente"
+            exit 1
+          fi
+          if [ "$rc" != "0" ]; then
+            echo "::warning::sonda con errori su almeno una lega: vedi audit/data/totals_probe/_summary.json"
+          fi
+
+      - name: Analisi offline (nessuna rete)
+        run: python audit/totals_probe_analysis.py
+
+      - name: Nessuna chiave nei file salvati
+        run: |
+          if grep -rEq 'apiKey=[A-Za-z0-9]{8,}' audit/data/totals_probe audit/results/totals_probe_analysis.md; then
+            echo "::error::una chiave non mascherata e' finita nei file salvati"
+            exit 1
+          fi
+          echo "OK: nessuna chiave nei file."
+
+      - name: Riepilogo nel job
+        run: |
+          cat audit/results/totals_probe_analysis.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report come artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: totals-probe-${{ github.run_id }}
+          path: |
+            audit/data/totals_probe/
+            audit/results/totals_probe_analysis.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      # Commit con retry: stesso schema di live_odds.yml (rebase prima del push).
+      - name: Commit degli snapshot grezzi
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add audit/data/totals_probe audit/results/totals_probe_analysis.md
+          if git diff --cached --quiet; then
+            echo "nessuna modifica da committare"
+            exit 0
+          fi
+          git commit -m "audit: sonda totals The Odds API (snapshot grezzi, manuale)"
+          for i in 1 2 3; do
+            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
+              echo "push ok"
+              exit 0
+            fi
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            sleep 5
+          done
+          echo "::error::push fallito dopo 3 tentativi"
+          exit 1
