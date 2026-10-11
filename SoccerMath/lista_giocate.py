@@ -352,6 +352,14 @@ def cerca_proposta_multipla(
 
     valid_combos = [v for v in best_by_k.values() if v is not None]
     best_abs = max(valid_combos, key=lambda x: x["probabilita"]) if valid_combos else None
+
+    # Guardia logica EV su combinazioni calcolate solo con quote stimate
+    for item in list(valid_combos):
+        has_manual = any(g.get("is_manual") for g in item.get("giocate", []))
+        if not has_manual and item.get("ev", 0.0) > 0.0:
+            item["stima_incoerente"] = True
+            resp = [g for g in item.get("giocate", []) if (g.get("quota_b365_stimata") or 0.0) * g["probabilita"] > 1.0]
+            item["giocata_responsabile"] = resp[0] if resp else item.get("giocate", [{}])[0]
     
     messaggio = None
     if best_abs is None:

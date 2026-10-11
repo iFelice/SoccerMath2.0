@@ -3435,13 +3435,24 @@ def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
     p_tot = prop_item["probabilita"]
     q_tot = prop_item["quota_totale"]
     q_eq = prop_item["quota_equa"]
-    ev = prop_item["ev"]
+    ev_stimato = prop_item["ev"]
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Probabilità di vincita", f"{p_tot * 100:.2f}%")
-    col2.metric("Quota totale stimata", f"{q_tot:.2f}")
-    col3.metric("Quota equa (1/p)", f"{q_eq:.2f}")
-    col4.metric("Valore Atteso (EV)", f"{ev * 100:+.2f}%", help="probabilità × quota stimata − 1 (per euro giocato)")
+    # Guardia sul valore atteso con sole quote stimate:
+    # Una proposta costruita solo con quote stimate non può avere EV > 0.
+    # Se accade, l'interfaccia blocca la proposta e stampa un errore esplicito "stima incoerente" indicando la giocata responsabile.
+    if ev_stimato > 0.0:
+        giocata_responsabile = None
+        for g in prop_item.get("giocate", []):
+            p_g = g["probabilita"]
+            q_g = g.get("quota_b365_stimata") or 0.0
+            if p_g * q_g > 1.0:
+                giocata_responsabile = g
+                break
+        if not giocata_responsabile and prop_item.get("giocate"):
+            giocata_responsabile = prop_item["giocate"][0]
+        resp_desc = f"{giocata_responsabile['partita']} ({giocata_responsabile['giocata']})" if giocata_responsabile else "n/d"
+        st.error(f"⚠️ Stima incoerente: valore atteso positivo ({ev_stimato * 100:+.2f}%) con sole quote stimate non ammesso. Giocata responsabile: {resp_desc}.")
+        return
 
     # Dettaglio giocate con sovrascrittura manuale
     rows = []
@@ -3472,14 +3483,27 @@ def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
             "Stato quota": "inserita" if is_override else ("stima non verificata" if g.get("is_dc") else "stimata")
         })
 
+    q_eff_tot = 1.0
+    for qv in new_q_list:
+        q_eff_tot *= qv
+    ev_eff = p_tot * q_eff_tot - 1.0
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Probabilità di vincita", f"{p_tot * 100:.2f}%")
+    col2.metric("Quota totale", f"{q_eff_tot:.2f}" if override_happened else f"{q_tot:.2f}")
+    col3.metric("Quota equa (1/p)", f"{q_eq:.2f}")
+    if override_happened and ev_eff > 0:
+        col4.metric("Valore Atteso (EV)", f"{ev_eff * 100:+.2f}%", help="Valore atteso positivo dipendente dalle quote inserite a mano.")
+    else:
+        col4.metric("Valore Atteso (EV)", f"{(ev_eff if override_happened else ev_stimato) * 100:+.2f}%", help="probabilità × quota − 1 (per euro giocato)")
+
     st.table(pd.DataFrame(rows))
 
     if override_happened:
-        q_eff_tot = 1.0
-        for qv in new_q_list:
-            q_eff_tot *= qv
-        ev_eff = p_tot * q_eff_tot - 1.0
-        st.info(f"📊 Valori ricalcolati con quote inserite: Quota totale = **{q_eff_tot:.2f}**, Valore Atteso = **{ev_eff * 100:+.2f}%**.")
+        if ev_eff > 0:
+            st.info(f"📊 Valori ricalcolati con quote inserite: Quota totale = **{q_eff_tot:.2f}**, Valore Atteso = **{ev_eff * 100:+.2f}%** (valore atteso positivo dipendente dalle quote inserite a mano).")
+        else:
+            st.info(f"📊 Valori ricalcolati con quote inserite: Quota totale = **{q_eff_tot:.2f}**, Valore Atteso = **{ev_eff * 100:+.2f}%**.")
 
     if st.button("📥 Carica proposta nel calcolatore di multipla", key=f"btn_load_{key_pfx}"):
         if top_mercato:

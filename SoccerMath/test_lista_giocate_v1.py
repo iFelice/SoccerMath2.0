@@ -347,5 +347,56 @@ class TestRegistroOmbraMultipla(unittest.TestCase):
             self.assertIn("A vs B", storage_ombra[0]["top3"][0])
 
 
+class TestGuardiaValoreAtteso(unittest.TestCase):
+    """Verifica che una combinazione con sole quote stimate non possa avere EV positivo in silenzio."""
+
+    def test_guardia_ev_positivo_stima_incoerente(self):
+        # Se una quota stimata anomala produce EV > 0 (ad es. p=0.60, q=2.20 -> p*q = 1.32 > 1.0),
+        # la logica di calcolo segnala stima_incoerente=True indicando la giocata responsabile.
+        giocata_anomala = {
+            "match_id": "m1",
+            "partita": "Squadra A vs Squadra B",
+            "lega": "Serie A",
+            "giocata": "1",
+            "probabilita": 0.60,
+            "quota_b365_stimata": 2.20,
+            "quota_stimata_effettiva": 2.20,
+            "is_dc": False,
+        }
+        res = lg.cerca_proposta_multipla([giocata_anomala], fascia_min=2.0, fascia_max=3.0)
+        migliore = res["migliore_assoluta"]
+        self.assertIsNotNone(migliore)
+        self.assertGreater(migliore["ev"], 0.0)
+        self.assertTrue(migliore.get("stima_incoerente"))
+        self.assertEqual("m1", migliore.get("giocata_responsabile", {}).get("match_id"))
+
+
+class TestInvarianteMargineImplicito(unittest.TestCase):
+    """Invariante sullo stimatore di produzione su snapshot reale di live_odds.json.
+
+    Per ogni giocata candidata:
+    1. Quota stimata < Quota equa (1/p)
+    2. Margine implicito (p * quota - 1) compreso fra -12% e -1% (anche per doppia chance)
+    """
+
+    def test_invariante_margine_implicito_snapshot_reale(self):
+        snap = mo.carica_quote_live()
+        self.assertIsNotNone(snap)
+        res = lg.calcola_lista_giocate(snap)
+        giocate = res["giocate"]
+        self.assertGreater(len(giocate), 0)
+
+        for g in giocate:
+            p = g["probabilita"]
+            q = g["quota_b365_stimata"]
+            q_equa = 1.0 / p
+            self.assertLess(q, q_equa, f"Quota {q} >= quota equa {q_equa} per {g['partita']} {g['giocata']}")
+            margine = p * q - 1.0
+            self.assertGreaterEqual(margine, -0.12, f"Margine {margine} < -12% per {g['partita']} {g['giocata']}")
+            self.assertLessEqual(margine, -0.01, f"Margine {margine} > -1% per {g['partita']} {g['giocata']}")
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
