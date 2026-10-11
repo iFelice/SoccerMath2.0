@@ -1,0 +1,6 @@
+{
+  "commit_live_odds": "078beefaadbd8c903a38b0b35329a6c6c048282f",
+  "path_live_odds": "SoccerMath/database/live_odds.json",
+  "generato_il": "2026-10-10T09:08:52Z",
+  "nota": "Copia versionata fissata per le analisi dello snapshot totals del 2026-10-10: la terna 1X2 va letta SEMPRE da questo file (o dal blob commit_live_odds nella storia git) e mai dal file vivo SoccerMath/database/live_odds.json, che il workflow live_odds.yml riscrive ogni giorno. Copia verificata identica al blob git del commit indicato."
+}

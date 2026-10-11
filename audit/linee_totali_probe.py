@@ -8,11 +8,19 @@ nessuna chiave, nessuna nuova richiesta a The Odds API.
 Fonti (entrambe gia' nel repository):
   * linee e quote totals: ``audit/data/totals_probe/2026-10-10_1703/*.json`` (82 eventi,
     mercato ``totals``, regione eu);
-  * terna 1X2: ``SoccerMath/database/live_odds.json`` (h2h, libro **Pinnacle**,
-    snapshot 2026-10-10T09:08:52Z). La sonda totals NON contiene l'1X2 (la richiesta
-    era ``markets=totals``) e senza 1X2 il fit non esiste: questa e' l'unica fonte
-    reale sugli stessi eventi gia' presente nel repository. Eventi agganciati per
-    ``id``. Il disallineamento temporale (circa 8 ore) e' un limite dichiarato.
+  * terna 1X2: la COPIA VERSIONATA fissata per questa analisi (#44),
+    ``audit/data/totals_probe/2026-10-10_1703/_live_odds_1x2_2026-10-10T090852Z.json`` —
+    h2h, libro **Pinnacle**, snapshot 2026-10-10T09:08:52Z, identica al blob
+    ``078beef:SoccerMath/database/live_odds.json`` della storia git (provenienza in
+    ``audit/data/totals_probe/2026-10-10_1703/_live_odds_pin.json``). La sonda totals
+    NON contiene l'1X2 (la richiesta era ``markets=totals``) e senza 1X2 il fit non
+    esiste: e' l'unica fonte reale sugli stessi eventi gia' presente nel repository.
+    Eventi agganciati per ``id``. Il disallineamento temporale (circa 8 ore) e' un
+    limite dichiarato. Il file vivo ``SoccerMath/database/live_odds.json`` NON e'
+    piu' ammissibile: lo riscrive il workflow live_odds.yml ogni giorno e
+    dall'aggiornamento del 2026-10-11T14:56Z (gli eventi gia' giocati escono dal
+    file) i confrontabili scendono da 42 a 35 — questo conteggio non e' piu'
+    riproducibile leggendo il file vivo.
 
 REGOLE DICHIARATE (identiche a §0.2 del referto; scritte prima dei numeri):
 
@@ -59,7 +67,10 @@ from griglia_core import (  # noqa: E402
 
 PROBE_ROOT = os.path.join(_AUDIT_DIR, "data", "totals_probe")
 PROBE_DIR = os.path.join(PROBE_ROOT, "2026-10-10_1703")
-LIVE_ODDS = os.path.join(_REPO, "SoccerMath", "database", "live_odds.json")
+# Terna 1X2 FISSATA (#44) su una copia versionata accanto alla sonda: il file vivo
+# SoccerMath/database/live_odds.json (riscritto ogni giorno dal workflow
+# live_odds.yml) NON e' un default ammissibile per un'analisi su snapshot storico.
+LIVE_ODDS_PINNED = os.path.join(PROBE_DIR, "_live_odds_1x2_2026-10-10T090852Z.json")
 REPORT = os.path.join(_AUDIT_DIR, "results", "punto4_fit_linea_generalizzata.md")
 JSON_OUT = os.path.join(_AUDIT_DIR, "output", "punto4_linee.json")
 
@@ -140,9 +151,14 @@ def load_probe():
     return eventi
 
 
-def load_1x2():
-    """id evento -> (o_home, o_draw, o_away) di Pinnacle da SoccerMath/database/live_odds.json."""
-    with open(LIVE_ODDS, encoding="utf-8") as fh:
+def load_1x2(live_odds_path=LIVE_ODDS_PINNED):
+    """id evento -> (o_home, o_draw, o_away) di Pinnacle dal file indicato.
+
+    ``live_odds_path`` e' la copia versionata fissata per la sonda
+    (``_live_odds_1x2_2026-10-10T090852Z.json``): ne e' parametro esplicito e
+    NON ha un default che punti al file vivo, che il workflow riscrive ogni giorno.
+    """
+    with open(live_odds_path, encoding="utf-8") as fh:
         d = json.load(fh)
     out = {}
     generato = d.get("generato_il")
@@ -176,7 +192,7 @@ def main(argv=None) -> int:
     MASCHERE = _maschere()
 
     probe = load_probe()
-    h2h, generato_1x2 = load_1x2()
+    h2h, generato_1x2 = load_1x2(LIVE_ODDS_PINNED)
     ora = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # ---- conteggio delle linee utilizzabili (P4.5) ----
@@ -278,9 +294,11 @@ def main(argv=None) -> int:
     A = T.append
     A("## 4. Punto 4 — fit della griglia su una linea totals qualunque\n")
     A(f"Generato da `audit/linee_totali_probe.py` il {ora} · linee e quote totals dalla sonda in "
-      f"`audit/data/totals_probe/` (2026-10-10T17:03Z) · terna 1X2 Pinnacle da "
-      f"`SoccerMath/database/live_odds.json` ({generato_1x2}) · nessuna nuova chiamata a The Odds "
-      "API, nessuna chiave, nessuna modifica a `SoccerMath/`.\n")
+      f"`audit/data/totals_probe/` (2026-10-10T17:03Z) · terna 1X2 Pinnacle dalla copia versionata "
+      f"`audit/data/totals_probe/2026-10-10_1703/_live_odds_1x2_2026-10-10T090852Z.json` "
+      f"({generato_1x2}; = blob `078beef` del file vivo, fissato dopo che il workflow "
+      f"live_odds.yml del 2026-10-11T14:56Z lo ha riscritto) · nessuna nuova chiamata a The "
+      "Odds API, nessuna chiave, nessuna modifica a `SoccerMath/`.\n")
     A("### 4.1 Estensione del fit (audit/griglia_core.py)\n")
     A("Il terzo vincolo del fit non è più la sola P(Over 2,5) ma la **probabilità giusta** di una "
       "linea qualsiasi, calcolata con le regole di pagamento del mercato:\n")

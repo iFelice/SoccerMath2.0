@@ -15,7 +15,7 @@ la copertura della regola dell'85 % e la classificazione delle cause (PR #59,
 regole D1/D2) e il numero di eventi confrontabili con mediana e massimo della
 differenza assoluta su P(Over 2,5) fra le due griglie (PR #60, regole P4.1/P4.2).
 
-Generato da `audit/totals_probe_senza_avviati.py` il 2026-10-10T21:55:21Z dallo snapshot reale `/home/user/SoccerMath2.0/audit/data/totals_probe/2026-10-10_1703` (sola lettura). Nessuna rete, nessuna chiamata a The Odds API, nessuna modifica a `SoccerMath/`.
+Generato da `audit/totals_probe_senza_avviati.py` il 2026-10-11T21:28:08Z dallo snapshot reale `/home/user/SoccerMath2.0/audit/data/totals_probe/2026-10-10_1703` (sola lettura). Nessuna rete, nessuna chiamata a The Odds API, nessuna modifica a `SoccerMath/`.
 
 ## 1. Eventi già iniziati alla chiamata
 

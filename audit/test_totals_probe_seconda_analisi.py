@@ -148,5 +148,129 @@ class TestSecondaSondaTotals(unittest.TestCase):
         self.assertIn("### (c) Proponibilità", report)
 
 
+def _evento_totals_id(eid, fetched, kickoff_offset_h=24):
+    """Evento totals CONFRONTABILE: Pinnacle su linea ≠2,5 e 3 altri libri a 2,5."""
+    def book(key, linea, over, under):
+        return {"key": key, "last_update": fetched.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "markets": [{"key": "totals", "outcomes": [
+                    {"name": "Over", "point": linea, "price": over},
+                    {"name": "Under", "point": linea, "price": under}]}]}
+    return {"id": eid, "home_team": f"Casa-{eid}", "away_team": f"Trasferta-{eid}",
+            "commence_time": (fetched + timedelta(hours=kickoff_offset_h)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"),
+            "bookmakers": [book("pinnacle", 2.75, 1.83, 2.01),
+                           book("betfair", 2.5, 1.90, 1.90),
+                           book("unibet", 2.5, 1.92, 1.88),
+                           book("williamhill", 2.5, 1.88, 1.92)]}
+
+
+def _live_payload(eventi, generato_il="2026-10-17T09:00:00Z"):
+    """Mini live_odds.json con UNA sola lega e la terna Pinnacle data."""
+    return {"schema": "soccermath_live_odds_v1", "generato_il": generato_il,
+            "leghe": {"Serie A": {"sport_key": "soccer_italy_serie_a",
+                                  "eventi": [{"id": eid, "home_team": "C", "away_team": "T",
+                                              "commence_time": "2026-10-19T15:00:00Z",
+                                              "libri": [{"key": "pinnacle",
+                                                         "h2h": {"home": fh2, "draw": fd2,
+                                                                 "away": fa2}}]}
+                                            for eid, (fh2, fd2, fa2) in eventi]}}}
+
+
+class TestPinQuote1x2(unittest.TestCase):
+    """Il file vivo si legge UNA volta per snapshot: poi regna il pin.
+
+    Regola: rieseguire l'analisi dopo un cambio di live_odds.json deve dare
+    numeri identici — la terna riletta e' quella pinnata alla prima analisi.
+    Il fixture usa due "pacchetti pinnati" (id evento con prefisso
+    ``testpin-``): un cambiamento della fonte 1X2 che li lascia senza terna
+    Pinnacle e' SEMPRE rilevabile dal conteggio dei pacchetti senza coppia
+    (esattamente il quale-dei-due-file-cambio che deve rimanere invisibile
+    alla riesecuzione).
+    """
+
+    FETCHED = datetime(2026, 10, 18, 17, 3, 43, tzinfo=timezone.utc)
+    PACCHETTI = (f"{tps.MOCK_TEAM_NAME_PREFIX}alfa", f"{tps.MOCK_TEAM_NAME_PREFIX}beta")
+
+    def _scrivi_snapshot(self, root):
+        snapdir = os.path.join(root, "2026-10-18_1703")
+        os.makedirs(snapdir)
+        with open(os.path.join(snapdir, "_summary.json"), "w", encoding="utf-8") as fh:
+            json.dump({"generato_il": "2026-10-18T17:03:43Z"}, fh)
+        env = {"fetched_at_utc": "2026-10-18T17:03:43Z", "lega": "Serie A",
+               "body": [_evento_totals_id(pid, self.FETCHED) for pid in self.PACCHETTI]}
+        with open(os.path.join(snapdir, "soccer_italy_serie_a.json"), "w",
+                  encoding="utf-8") as fh:
+            json.dump(env, fh)
+        return snapdir
+
+    def _scrivi_live(self, root, nome, ids_con_terna, generato_il="2026-10-17T09:00:00Z"):
+        """Mini live_odds.json: terna Pinnacle solo per gli id indicati (gli altri
+        pacchetti restano silenziosi dalle statistiche — e il nuovo conteggio li censisce)."""
+        path = os.path.join(root, nome)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(_live_payload([(pid, (1.62, 4.10, 5.60)) for pid in ids_con_terna],
+                                    generato_il=generato_il), fh)
+        return path
+
+    def _esegui(self, snapdir, live_path):
+        with tempfile.TemporaryDirectory() as rep_dir:
+            report = os.path.join(rep_dir, "report.md")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(tps.main(["--snapshot", snapdir,
+                                           "--live-odds", live_path,
+                                           "--report", report]), 0)
+            with open(report, encoding="utf-8") as fh:
+                testo = fh.read()
+        return testo
+
+    def test_rerun_identico_dopo_cambio_di_live_odds(self):
+        with tempfile.TemporaryDirectory() as d:
+            snapdir = self._scrivi_snapshot(d)
+            live_completo = self._scrivi_live(d, "live_a.json", self.PACCHETTI)
+            live_bucato = self._scrivi_live(d, "live_b.json", self.PACCHETTI[:1])
+
+            primo = self._esegui(snapdir, live_completo)
+            self.assertIn("senza terna 1X2 Pinnacle (esclusi dai confrontabili): **0**", primo)
+            # il pin e' nato accanto allo snapshot, con la copia integrale del file
+            pin_path = os.path.join(snapdir, tps.PIN_FILENAME)
+            self.assertTrue(os.path.exists(pin_path))
+            with open(pin_path, encoding="utf-8") as fh:
+                pin = json.load(fh)
+            self.assertEqual(pin["file_copia"], tps.PIN_COPY_FILENAME)
+            self.assertTrue(os.path.exists(os.path.join(snapdir, tps.PIN_COPY_FILENAME)))
+            # file NON tracciato dal repository: nessun commit fittizio, solo la copia
+            self.assertIsNone(pin["commit_live_odds"])
+            self.assertIn("prima analisi", primo)
+
+            # ora il file vivo "cambia": a un pacchetto pinnato sparisce la terna.
+            # Con il pin NON se ne accorge nessun numero della sezione risultati.
+            secondo = self._esegui(snapdir, live_bucato)
+            self.assertIn("copia pinnata", secondo)
+            tail = lambda s: s[s.index("## Risultati"):]
+            self.assertEqual(tail(primo), tail(secondo),
+                             "la riesecuzione deve rileggere il pin, non il file cambiato")
+
+    def test_senza_pin_i_numeri_seguono_davvero_il_file_vivo(self):
+        # Controllo negativo: se il pin non c'e' piu', lo stesso cambiamento del
+        # file vivo sposta il conteggio dei pacchetti scoperti (il test del pin
+        # non e' cieco: il fixture distingue le due fonti).
+        with tempfile.TemporaryDirectory() as d:
+            snapdir = self._scrivi_snapshot(d)
+            live_completo = self._scrivi_live(d, "live_a.json", self.PACCHETTI)
+            live_bucato = self._scrivi_live(d, "live_b.json", self.PACCHETTI[:1])
+            primo = self._esegui(snapdir, live_completo)
+            os.remove(os.path.join(snapdir, tps.PIN_FILENAME))
+            os.remove(os.path.join(snapdir, tps.PIN_COPY_FILENAME))
+            altro = self._esegui(snapdir, live_bucato)
+            self.assertIn("senza terna 1X2 Pinnacle (esclusi dai confrontabili): **1**", altro)
+            tail = lambda s: s[s.index("## Risultati"):]
+            self.assertNotEqual(tail(primo), tail(altro))
+
+    def test_commit_registrato_solo_per_file_tracciato(self):
+        # commit_live_odds_per_file e' None per file fuori dal repository e
+        # registra il commit in vigore solo per il file tracciato.
+        self.assertIsNone(tps.commit_live_odds_per_file("/tmp/live_finto.json"))
+
+
 if __name__ == "__main__":
     unittest.main()
