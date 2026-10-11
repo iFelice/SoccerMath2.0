@@ -3322,6 +3322,246 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None):
     st.dataframe(tabella_top_mix_mercato(righe), width="stretch", height=420, hide_index=True)
 
 
+import lista_giocate as lg
+
+def tabella_lista_giocate(giocate):
+    """Costruisce DataFrame per la visualizzazione della Lista giocate."""
+    if not giocate:
+        return pd.DataFrame(columns=[
+            "Data", "Lega", "Partita", "Giocata", "Probabilita'", "Quota equa",
+            "Quota bet365 stimata", "Nota stima", "Fonte quote", "Eta' quote"
+        ])
+    rows = []
+    for g in giocate:
+        eta = f"{g['eta_ore']:.1f} h" if g.get("eta_ore") is not None else "n/d"
+        rows.append({
+            "Data": g.get("data", ""),
+            "Lega": g.get("lega", ""),
+            "Partita": g.get("partita", ""),
+            "Giocata": g.get("giocata", ""),
+            "Probabilita'": f"{g.get('prob_percentuale', 0.0):.2f}%",
+            "Quota equa": f"{g.get('quota_equa', 0.0):.2f}",
+            "Quota bet365 stimata": f"{g.get('quota_b365_stimata'):.2f}" if g.get("quota_b365_stimata") is not None else "n/d",
+            "Nota stima": g.get("nota_stima", ""),
+            "Fonte quote": g.get("fonte", ""),
+            "Eta' quote": eta,
+        })
+    return pd.DataFrame(rows)
+
+
+def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
+    """Sezione Lista giocate (lista_giocate_v1) sotto la tabella Top Mix di mercato."""
+    st.markdown("---")
+    st.markdown("##### 📋 Lista giocate (`lista_giocate_v1`)")
+    st.caption(
+        "Tutte le 6 giocate per ogni partita non iniziata con quote valide (Pinnacle de-vig proporzionale "
+        "/ media libri). Probabilità della doppia chance = somma delle due probabilità 1X2. "
+        "Quota bet365 stimata secondo il modello calibrato su 2024/25 (PR #58 punto D). "
+        "La stima della doppia chance è calcolata come 1 / (1/qa + 1/qb) ed è marcata come 'stima non verificata'."
+    )
+
+    payload = (stato_quote or {}).get("payload") if isinstance(stato_quote, dict) else None
+    if payload is None:
+        payload = market_odds.carica_quote_live()
+
+    if not payload:
+        st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
+        return
+
+    res = lg.calcola_lista_giocate(payload)
+    giocate = res.get("giocate", [])
+
+    c_tot, c_amm, c_ini, c_noq = st.columns(4)
+    c_tot.metric("Partite totali", res.get("n_partite_totali", 0))
+    c_amm.metric("Partite ammesse", res.get("n_partite_ammesse", 0))
+    c_ini.metric("Escluse (già iniziate)", res.get("n_escluse_iniziate", 0))
+    c_noq.metric("Escluse (senza quote)", res.get("n_escluse_senza_quote", 0))
+
+    if not giocate:
+        st.info("Nessuna giocata disponibile per le partite in programma.")
+        return
+
+    # Filtri per lega e per data
+    leghe_disp = sorted(list({g["lega"] for g in giocate if g.get("lega")}))
+    date_disp = sorted(list({g["data"].split()[0] for g in giocate if g.get("data")}))
+
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        leghe_sel = st.multiselect("Filtra per lega", leghe_disp, default=leghe_disp, key="lg_filtro_lega")
+    with col_f2:
+        date_sel = st.multiselect("Filtra per data", date_disp, default=date_disp, key="lg_filtro_data")
+
+    filtrate = [
+        g for g in giocate
+        if (not leghe_sel or g.get("lega") in leghe_sel)
+        and (not date_sel or g.get("data", "").split()[0] in date_sel)
+    ]
+
+    st.caption(f"Mostrate {len(filtrate)} su {len(giocate)} giocate candidate (ordinate per probabilità decrescente).")
+    df_lista = tabella_lista_giocate(filtrate)
+    st.table(df_lista)
+
+    # 3. Proposta di multipla
+    st.markdown("##### 🎯 Proposta di multipla (ricerca combinatoria esaustiva)")
+    st.caption(
+        "Ricerca tra tutte le combinazioni da 1 a 4 giocate con quota totale stimata tra 2,00 e 3,00, "
+        "massimizzando il prodotto delle probabilità. Ipotesi: eventi di partite diverse sono trattati come indipendenti. "
+        "Al massimo una giocata per partita. Candidati limitati alle 40 giocate con probabilità più alta più tutte le singole con quota stimata in [2,00, 3,00]. "
+        "Le giocate non giocabili (quota stimata arrotondata ≤ 1,01) sono escluse."
+    )
+
+    prop = lg.cerca_proposta_multipla(giocate)
+    best_by_k = prop.get("per_k", {})
+
+    if not any(best_by_k.values()):
+        st.info(prop.get("messaggio") or "Nessuna combinazione da 1 a 4 giocate rientra nella fascia di quota stimata fra 2,00 e 3,00.")
+        return
+
+    # Elemento principale: tabella per numero di giocate (1, 2, 3, 4)
+    rows_k = []
+    for k in (1, 2, 3, 4):
+        item = best_by_k.get(k)
+        if item is not None:
+            p_val = item["probabilita"]
+            q_val = item["quota_totale"]
+            q_eq = item["quota_equa"]
+            ev_val = item["ev"]
+            descr_eventi = ", ".join([f"{g['partita']} ({g['giocata']})" for g in item.get("giocate", [])])
+            rows_k.append({
+                "N. Giocate (k)": k,
+                "Probabilità": f"{p_val * 100:.2f}%",
+                "Quota stimata": f"{q_val:.2f}",
+                "Quota equa": f"{q_eq:.2f}",
+                "Valore Atteso (EV)": f"{ev_val * 100:+.2f}%",
+                "Eventi combinati": descr_eventi,
+            })
+        else:
+            rows_k.append({
+                "N. Giocate (k)": k,
+                "Probabilità": "—",
+                "Quota stimata": "—",
+                "Quota equa": "—",
+                "Valore Atteso (EV)": "—",
+                "Eventi combinati": "Nessuna combinazione valida in fascia [2,00; 3,00]",
+            })
+
+    st.table(pd.DataFrame(rows_k))
+
+    # Riga di testo con il costo in punti di probabilità di ogni evento aggiunto rispetto a k-1
+    costi_testo = []
+    for k in (2, 3, 4):
+        cur = best_by_k.get(k)
+        prev = best_by_k.get(k - 1)
+        if cur and prev:
+            diff_pt = (cur["probabilita"] - prev["probabilita"]) * 100.0
+            costi_testo.append(f"k={k} vs k={k-1}: {diff_pt:+.2f} punti di probabilità ({cur['probabilita']*100:.2f}% vs {prev['probabilita']*100:.2f}%)")
+        elif cur and not prev:
+            costi_testo.append(f"k={k}: disponibile ({cur['probabilita']*100:.2f}%), k={k-1} non disponibile")
+    if costi_testo:
+        st.info("📉 **Costo per evento aggiunto:** " + " | ".join(costi_testo))
+
+    # Schede dettagliate per k con sovrascrittura manuale e pulsante di caricamento per riga
+    st.markdown("###### Dettaglio combinazioni per dimensione (1, 2, 3, 4 giocate)")
+    for k in (1, 2, 3, 4):
+        item = best_by_k.get(k)
+        if item is not None:
+            with st.expander(f"Dettaglio proposta a {k} {'giocata' if k == 1 else 'giocate'} (Quota stimata: {item['quota_totale']:.2f}, Prob: {item['probabilita']*100:.2f}%)", expanded=(k == 1)):
+                _mostra_scheda_proposta(item, top_mercato=top_mercato, key_pfx=f"k_{k}")
+
+
+def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
+    p_tot = prop_item["probabilita"]
+    q_tot = prop_item["quota_totale"]
+    q_eq = prop_item["quota_equa"]
+    ev_stimato = prop_item["ev"]
+
+    # Guardia sul valore atteso con sole quote stimate:
+    # Una proposta costruita solo con quote stimate non può avere EV > 0.
+    # Se accade, l'interfaccia blocca la proposta e stampa un errore esplicito "stima incoerente" indicando la giocata responsabile.
+    if ev_stimato > 0.0:
+        giocata_responsabile = None
+        for g in prop_item.get("giocate", []):
+            p_g = g["probabilita"]
+            q_g = g.get("quota_b365_stimata") or 0.0
+            if p_g * q_g > 1.0:
+                giocata_responsabile = g
+                break
+        if not giocata_responsabile and prop_item.get("giocate"):
+            giocata_responsabile = prop_item["giocate"][0]
+        resp_desc = f"{giocata_responsabile['partita']} ({giocata_responsabile['giocata']})" if giocata_responsabile else "n/d"
+        st.error(f"⚠️ Stima incoerente: valore atteso positivo ({ev_stimato * 100:+.2f}%) con sole quote stimate non ammesso. Giocata responsabile: {resp_desc}.")
+        return
+
+    # Dettaglio giocate con sovrascrittura manuale
+    rows = []
+    override_happened = False
+    new_q_list = []
+    new_p_list = []
+
+    for i, g in enumerate(prop_item.get("giocate", [])):
+        q_init = float(g.get("quota_b365_stimata") or 1.0)
+        input_key = f"override_{key_pfx}_{g['match_id']}_{g['giocata']}"
+        val_ins = st.number_input(
+            f"Quota per {g['partita']} ({g['giocata']}) [stimata: {q_init:.2f}]",
+            min_value=1.01, max_value=100.0, step=0.01,
+            value=float(st.session_state.get(input_key, q_init)),
+            key=input_key
+        )
+        is_override = abs(val_ins - q_init) > 0.001
+        if is_override:
+            override_happened = True
+        new_q_list.append(val_ins)
+        new_p_list.append(g["probabilita"])
+        rows.append({
+            "Partita": g["partita"],
+            "Lega": g["lega"],
+            "Giocata": g["giocata"],
+            "Probabilità": f"{g['probabilita'] * 100:.2f}%",
+            "Quota": f"{val_ins:.2f}",
+            "Stato quota": "inserita" if is_override else ("stima non verificata" if g.get("is_dc") else "stimata")
+        })
+
+    q_eff_tot = 1.0
+    for qv in new_q_list:
+        q_eff_tot *= qv
+    ev_eff = p_tot * q_eff_tot - 1.0
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Probabilità di vincita", f"{p_tot * 100:.2f}%")
+    col2.metric("Quota totale", f"{q_eff_tot:.2f}" if override_happened else f"{q_tot:.2f}")
+    col3.metric("Quota equa (1/p)", f"{q_eq:.2f}")
+    if override_happened and ev_eff > 0:
+        col4.metric("Valore Atteso (EV)", f"{ev_eff * 100:+.2f}%", help="Valore atteso positivo dipendente dalle quote inserite a mano.")
+    else:
+        col4.metric("Valore Atteso (EV)", f"{(ev_eff if override_happened else ev_stimato) * 100:+.2f}%", help="probabilità × quota − 1 (per euro giocato)")
+
+    st.table(pd.DataFrame(rows))
+
+    if override_happened:
+        if ev_eff > 0:
+            st.info(f"📊 Valori ricalcolati con quote inserite: Quota totale = **{q_eff_tot:.2f}**, Valore Atteso = **{ev_eff * 100:+.2f}%** (valore atteso positivo dipendente dalle quote inserite a mano).")
+        else:
+            st.info(f"📊 Valori ricalcolati con quote inserite: Quota totale = **{q_eff_tot:.2f}**, Valore Atteso = **{ev_eff * 100:+.2f}%**.")
+
+    if st.button("📥 Carica proposta nel calcolatore di multipla", key=f"btn_load_{key_pfx}"):
+        if top_mercato:
+            etichette_da_selezionare = []
+            for g in prop_item.get("giocate", []):
+                for r in top_mercato:
+                    if (r.get("home") == g.get("home") and r.get("away") == g.get("away")) or (f"{r.get('home')} vs {r.get('away')}" == g.get("partita")):
+                        if r.get("esito") == g.get("giocata"):
+                            etichette_da_selezionare.append(etichetta_riga_multipla(r))
+            if etichette_da_selezionare:
+                st.session_state["multipla_selezione"] = etichette_da_selezionare
+                st.success(f"Caricate {len(etichette_da_selezionare)} partite nel calcolatore di multipla.")
+                st.rerun()
+            else:
+                st.info("Le giocate della proposta appartengono alla lista estesa e non alle righe filtrate del Top Mix (soglia 0,55).")
+        else:
+            st.info("Top Mix non disponibile al momento.")
+
+
+
 def righe_multipla(righe, etichette):
     """Le righe del Top Mix di mercato scelte per la multipla (per etichetta)."""
     per_etichetta = {etichetta_riga_multipla(p): p for p in righe}
@@ -3877,6 +4117,17 @@ with tab2:
         if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
             st.warning(f"⚠️ Registro ombra non scritto: "
                        f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
+        # Registro ombra: proposte di multipla_proposta_v1 (una riga per ciascun k disponibile: 1, 2, 3, 4)
+        try:
+            payload_q = market_odds.carica_quote_live()
+            if payload_q:
+                res_lg = lg.calcola_lista_giocate(payload_q)
+                prop_lg = lg.cerca_proposta_multipla(res_lg.get("giocate", []))
+                best_by_k_lg = prop_lg.get("per_k", {})
+                if any(best_by_k_lg.values()):
+                    lg.salva_tutte_proposte_k_registro_ombra(best_by_k_lg, snapshot_sha=sha)
+        except Exception as _e_lg:
+            logging.warning(f"Registro ombra (multipla_proposta_v1) non scritto: {_e_lg}")
 
     # --- Visualizzazione risultati da session_state (sopravvive ai rerun) ---
     # Tabella e calcolatore restano visibili finché l'utente non ricarica la
@@ -3904,6 +4155,7 @@ with tab2:
         _avviso_stato_quote(stato_quote, "Top Mix")
         _mostra_non_abbinati_fonte(stato_quote, "Top Mix")
         _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
+        _mostra_sezione_lista_giocate(top_mercato, stato_quote)
         calcolatore_multipla(top_mercato)
 
 with tab3:
