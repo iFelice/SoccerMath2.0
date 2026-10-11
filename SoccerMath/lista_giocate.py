@@ -220,6 +220,10 @@ def calcola_lista_giocate(
         
         for esito, p_val, q_val, is_dc in specs:
             fair = 1.0 / p_val if p_val > 0 else float("inf")
+            q_arr = round(q_val, 2) if q_val is not None else None
+            is_giocabile = bool(q_arr is not None and q_arr > 1.01)
+            nota_stima = "stima non verificata" if is_dc else "fit 2024/25"
+            stato_quota = "non giocabile" if not is_giocabile else nota_stima
             giocate.append({
                 "match_id": match_id,
                 "partita": match_str,
@@ -233,9 +237,12 @@ def calcola_lista_giocate(
                 "probabilita": p_val,
                 "prob_percentuale": round(p_val * 100.0, 2),
                 "quota_equa": round(fair, 2),
-                "quota_b365_stimata": round(q_val, 2) if q_val is not None else None,
+                "quota_b365_stimata": q_arr,
+                "quota_stimata_effettiva": q_arr,
                 "is_dc": is_dc,
-                "nota_stima": "stima non verificata" if is_dc else "fit 2024/25",
+                "giocabile": is_giocabile,
+                "nota_stima": nota_stima,
+                "stato_quota": stato_quota,
                 "fonte": "Pinnacle" if fonte == mo.FONTE_PINNACLE else f"media {mkt.get('n_libri')} libri",
                 "eta_ore": eta_ore,
                 "generato_il": payload_quote.get("generato_il"),
@@ -264,6 +271,9 @@ def cerca_proposta_multipla(
 
     Al massimo 1 giocata per partita.
     Candidati: 40 giocate con probabilità più alta + tutte le singole con quota in [2, 3].
+    Le giocate non giocabili (quota stimata arrotondata <= 1.01) non entrano fra i candidati.
+    Il campo quota_stimata_effettiva si ricava da quota_b365_stimata dentro la funzione
+    prima di selezionare i candidati.
     Massimizza il prodotto delle probabilità.
     """
     import itertools
@@ -276,23 +286,38 @@ def cerca_proposta_multipla(
             "messaggio": "Nessuna giocata disponibile per la proposta di multipla."
         }
 
-    # Candidati: 40 con prob più alta + singole con quota stimata in [2.00, 3.00]
-    top_plays = list(giocate_ordinate[:top_k])
+    # Normalizza e filtra giocate giocabili (> 1.01)
+    giocate_giocabili = []
+    for g in giocate_ordinate:
+        g_c = dict(g)
+        if g_c.get("quota_stimata_effettiva") is None:
+            g_c["quota_stimata_effettiva"] = g_c.get("quota_b365_stimata")
+        q_eff = g_c.get("quota_stimata_effettiva")
+        # Escludi giocate non giocabili (<= 1.01) o con quota mancante
+        if q_eff is not None and round(float(q_eff), 2) > 1.01:
+            giocate_giocabili.append(g_c)
+
+    if not giocate_giocabili:
+        return {
+            "migliore_assoluta": None,
+            "per_k": {1: None, 2: None, 3: None, 4: None},
+            "candidati_totali": 0,
+            "messaggio": "Nessuna giocata giocabile disponibile per la proposta di multipla."
+        }
+
+    # Candidati: 40 con prob più alta + singole con quota stimata in [fascia_min, fascia_max]
+    top_plays = list(giocate_giocabili[:top_k])
     extra_singles = [
-        g for g in giocate_ordinate[top_k:]
+        g for g in giocate_giocabili[top_k:]
         if g.get("quota_stimata_effettiva") is not None
         and fascia_min <= g["quota_stimata_effettiva"] <= fascia_max
     ]
     
     candidati_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for g in top_plays + extra_singles:
-        # Prepara quota_stimata_effettiva se non presente
-        g_copy = dict(g)
-        if "quota_stimata_effettiva" not in g_copy:
-            g_copy["quota_stimata_effettiva"] = g_copy.get("quota_b365_stimata")
-        k = (str(g_copy.get("match_id")), str(g_copy.get("giocata")))
+        k = (str(g.get("match_id")), str(g.get("giocata")))
         if k not in candidati_map:
-            candidati_map[k] = g_copy
+            candidati_map[k] = g
             
     candidati = list(candidati_map.values())
     
@@ -384,7 +409,8 @@ def settimana_gioco(dt: Optional[datetime]) -> str:
 def build_ombra_multipla_entry(
     proposta: Dict[str, Any],
     istante_utc: Optional[datetime] = None,
-    snapshot_sha: Optional[str] = None
+    snapshot_sha: Optional[str] = None,
+    k: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Costruisce il record per il registro ombra (famiglia multipla_proposta_v1)."""
     now = istante_utc or mo._adesso_utc()
@@ -405,15 +431,18 @@ def build_ombra_multipla_entry(
     p_tot = float(proposta.get("probabilita", 0.0))
     q_tot = float(proposta.get("quota_totale", 0.0))
     ev = float(proposta.get("ev", p_tot * q_tot - 1.0))
+    n_ev = len(giocate_serializzabili)
+    k_val = k if k is not None else proposta.get("k", n_ev)
+    match_id_str = f"multipla_{settimana}_k{k_val}" if k_val else f"multipla_{settimana}"
     
     entry = {
-        "match_id": f"multipla_{settimana}",
-        "home": f"Multipla proposta {settimana}",
-        "away": f"{len(giocate_serializzabili)} eventi",
+        "match_id": match_id_str,
+        "home": f"Multipla proposta {settimana} (k={k_val})",
+        "away": f"{n_ev} eventi",
         "campionato": "Multi-lega",
         "giornata": 0,
         "data": now.strftime("%d/%m/%Y %H:%M"),
-        "pronostico_sicuro": f"Multipla {len(giocate_serializzabili)} eventi @ {q_tot:.2f}",
+        "pronostico_sicuro": f"Multipla {n_ev} eventi @ {q_tot:.2f}",
         "top3": [f"{g['partita']} ({g['giocata']})" for g in giocate_serializzabili[:3]],
         "prob_sicuro": round(p_tot * 100.0, 1),
         "quota": round(q_tot, 2),
@@ -429,8 +458,9 @@ def build_ombra_multipla_entry(
         "ombra": True,
         "ombra_famiglia": FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA,
         "settimana": settimana,
+        "k": k_val,
         "giocate": giocate_serializzabili,
-        "n_eventi": len(giocate_serializzabili),
+        "n_eventi": n_ev,
     }
     return entry
 
@@ -438,17 +468,65 @@ def build_ombra_multipla_entry(
 def salva_proposta_multipla_registro_ombra(
     proposta: Dict[str, Any],
     istante_utc: Optional[datetime] = None,
-    snapshot_sha: Optional[str] = None
+    snapshot_sha: Optional[str] = None,
+    k: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Salva la proposta migliore nel registro ombra come famiglia multipla_proposta_v1.
+    """Salva una proposta nel registro ombra come famiglia multipla_proposta_v1.
 
-    Prima registrazione per settimana di gioco mai sovrascritta.
+    Prima registrazione per settimana di gioco (per ciascun k) mai sovrascritta.
     Nessuna scrittura nel registro di mercato.
     """
     import registry_store as rs
     if not proposta or not proposta.get("giocate"):
         return {"remoto": "nessuna_riga", "motivo": "proposta_vuota"}
         
+    now = istante_utc or mo._adesso_utc()
+    settimana = settimana_gioco(now)
+    k_val = k if k is not None else proposta.get("k", len(proposta.get("giocate", [])))
+    match_id_target = f"multipla_{settimana}_k{k_val}" if k_val else f"multipla_{settimana}"
+    
+    try:
+        esistenti, fonte = rs.load_ombra_rows(strict=True)
+    except Exception as e:
+        return {"remoto": "errore", "errore": f"load_ombra_rows: {e}"}
+        
+    esistenti = esistenti or []
+    
+    # Verifica se esiste già una riga per questa settimana nella famiglia multipla_proposta_v1 per questo k (o legacy senza k)
+    gia_registrata = any(
+        e.get("ombra_famiglia") == FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA
+        and e.get("settimana") == settimana
+        and (e.get("match_id") == match_id_target or (k_val is None and e.get("match_id") == f"multipla_{settimana}"))
+        for e in esistenti
+    )
+    if gia_registrata:
+        return {
+            "remoto": "gia_registrata_settimana",
+            "settimana": settimana,
+            "k": k_val,
+            "motivo": f"Prima registrazione per la settimana {settimana} (k={k_val}) gia' presente: mai sovrascritta."
+        }
+        
+    entry = build_ombra_multipla_entry(proposta, istante_utc=now, snapshot_sha=snapshot_sha, k=k_val)
+    nuove_righe = list(esistenti) + [entry]
+    
+    try:
+        esito = rs.save_ombra_rows(nuove_righe)
+        return esito
+    except Exception as e:
+        return {"remoto": "errore", "errore": f"save_ombra_rows: {e}"}
+
+
+def salva_tutte_proposte_k_registro_ombra(
+    best_by_k: Dict[int, Optional[Dict[str, Any]]],
+    istante_utc: Optional[datetime] = None,
+    snapshot_sha: Optional[str] = None
+) -> Dict[str, Any]:
+    """Salva una riga per ciascun k disponibile (1, 2, 3, 4) nel registro ombra.
+
+    Stessa regola di prima registrazione settimanale mai sovrascritta per ogni k.
+    """
+    import registry_store as rs
     now = istante_utc or mo._adesso_utc()
     settimana = settimana_gioco(now)
     
@@ -458,24 +536,39 @@ def salva_proposta_multipla_registro_ombra(
         return {"remoto": "errore", "errore": f"load_ombra_rows: {e}"}
         
     esistenti = esistenti or []
-    
-    # Verifica se esiste già una riga per questa settimana nella famiglia multipla_proposta_v1
-    gia_registrata = any(
-        e.get("ombra_famiglia") == FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA and e.get("settimana") == settimana
-        for e in esistenti
-    )
-    if gia_registrata:
+    nuove_righe = list(esistenti)
+    salvate_k = []
+    gia_presenti_k = []
+
+    for k in (1, 2, 3, 4):
+        item = best_by_k.get(k)
+        if not item or not item.get("giocate"):
+            continue
+        match_id_target = f"multipla_{settimana}_k{k}"
+        gia_registrata = any(
+            e.get("ombra_famiglia") == FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA
+            and e.get("settimana") == settimana
+            and (e.get("match_id") == match_id_target or e.get("k") == k)
+            for e in nuove_righe
+        )
+        if gia_registrata:
+            gia_presenti_k.append(k)
+            continue
+        entry = build_ombra_multipla_entry(item, istante_utc=now, snapshot_sha=snapshot_sha, k=k)
+        nuove_righe.append(entry)
+        salvate_k.append(k)
+
+    if not salvate_k:
         return {
-            "remoto": "gia_registrata_settimana",
+            "remoto": "gia_registrata_settimana" if gia_presenti_k else "nessuna_riga",
             "settimana": settimana,
-            "motivo": f"Prima registrazione per la settimana {settimana} gia' presente: mai sovrascritta."
+            "gia_presenti_k": gia_presenti_k,
         }
-        
-    entry = build_ombra_multipla_entry(proposta, istante_utc=now, snapshot_sha=snapshot_sha)
-    nuove_righe = list(esistenti) + [entry]
-    
+
     try:
         esito = rs.save_ombra_rows(nuove_righe)
+        esito["salvate_k"] = salvate_k
+        esito["gia_presenti_k"] = gia_presenti_k
         return esito
     except Exception as e:
         return {"remoto": "errore", "errore": f"save_ombra_rows: {e}"}

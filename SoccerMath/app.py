@@ -3406,28 +3406,66 @@ def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
     st.caption(
         "Ricerca tra tutte le combinazioni da 1 a 4 giocate con quota totale stimata tra 2,00 e 3,00, "
         "massimizzando il prodotto delle probabilità. Ipotesi: eventi di partite diverse sono trattati come indipendenti. "
-        "Al massimo una giocata per partita. Candidati limitati alle 40 giocate con probabilità più alta più tutte le singole con quota stimata in [2,00, 3,00]."
+        "Al massimo una giocata per partita. Candidati limitati alle 40 giocate con probabilità più alta più tutte le singole con quota stimata in [2,00, 3,00]. "
+        "Le giocate non giocabili (quota stimata arrotondata ≤ 1,01) sono escluse."
     )
 
     prop = lg.cerca_proposta_multipla(giocate)
-    migliore_abs = prop.get("migliore_assoluta")
     best_by_k = prop.get("per_k", {})
 
-    if not migliore_abs:
+    if not any(best_by_k.values()):
         st.info(prop.get("messaggio") or "Nessuna combinazione da 1 a 4 giocate rientra nella fascia di quota stimata fra 2,00 e 3,00.")
         return
 
-    # Mostra migliore in assoluto e migliore per ciascun k (1, 2, 3, 4)
-    st.markdown("###### 🏆 Proposta migliore in assoluto")
-    _mostra_scheda_proposta(migliore_abs, top_mercato=top_mercato, key_pfx="abs")
+    # Elemento principale: tabella per numero di giocate (1, 2, 3, 4)
+    rows_k = []
+    for k in (1, 2, 3, 4):
+        item = best_by_k.get(k)
+        if item is not None:
+            p_val = item["probabilita"]
+            q_val = item["quota_totale"]
+            q_eq = item["quota_equa"]
+            ev_val = item["ev"]
+            descr_eventi = ", ".join([f"{g['partita']} ({g['giocata']})" for g in item.get("giocate", [])])
+            rows_k.append({
+                "N. Giocate (k)": k,
+                "Probabilità": f"{p_val * 100:.2f}%",
+                "Quota stimata": f"{q_val:.2f}",
+                "Quota equa": f"{q_eq:.2f}",
+                "Valore Atteso (EV)": f"{ev_val * 100:+.2f}%",
+                "Eventi combinati": descr_eventi,
+            })
+        else:
+            rows_k.append({
+                "N. Giocate (k)": k,
+                "Probabilità": "—",
+                "Quota stimata": "—",
+                "Quota equa": "—",
+                "Valore Atteso (EV)": "—",
+                "Eventi combinati": "Nessuna combinazione valida in fascia [2,00; 3,00]",
+            })
 
-    with st.expander("Dettaglio per numero di giocate (1, 2, 3, 4)"):
-        for k in (1, 2, 3, 4):
-            item = best_by_k.get(k)
-            st.markdown(f"**Migliore con {k} {'giocata' if k == 1 else 'giocate'}:**")
-            if item is None:
-                st.write(f"Nessuna combinazione a {k} eventi con quota tra 2,00 e 3,00.")
-            else:
+    st.table(pd.DataFrame(rows_k))
+
+    # Riga di testo con il costo in punti di probabilità di ogni evento aggiunto rispetto a k-1
+    costi_testo = []
+    for k in (2, 3, 4):
+        cur = best_by_k.get(k)
+        prev = best_by_k.get(k - 1)
+        if cur and prev:
+            diff_pt = (cur["probabilita"] - prev["probabilita"]) * 100.0
+            costi_testo.append(f"k={k} vs k={k-1}: {diff_pt:+.2f} punti di probabilità ({cur['probabilita']*100:.2f}% vs {prev['probabilita']*100:.2f}%)")
+        elif cur and not prev:
+            costi_testo.append(f"k={k}: disponibile ({cur['probabilita']*100:.2f}%), k={k-1} non disponibile")
+    if costi_testo:
+        st.info("📉 **Costo per evento aggiunto:** " + " | ".join(costi_testo))
+
+    # Schede dettagliate per k con sovrascrittura manuale e pulsante di caricamento per riga
+    st.markdown("###### Dettaglio combinazioni per dimensione (1, 2, 3, 4 giocate)")
+    for k in (1, 2, 3, 4):
+        item = best_by_k.get(k)
+        if item is not None:
+            with st.expander(f"Dettaglio proposta a {k} {'giocata' if k == 1 else 'giocate'} (Quota stimata: {item['quota_totale']:.2f}, Prob: {item['probabilita']*100:.2f}%)", expanded=(k == 1)):
                 _mostra_scheda_proposta(item, top_mercato=top_mercato, key_pfx=f"k_{k}")
 
 
@@ -4079,15 +4117,15 @@ with tab2:
         if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
             st.warning(f"⚠️ Registro ombra non scritto: "
                        f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
-        # Registro ombra: proposta migliore di multipla_proposta_v1
+        # Registro ombra: proposte di multipla_proposta_v1 (una riga per ciascun k disponibile: 1, 2, 3, 4)
         try:
             payload_q = market_odds.carica_quote_live()
             if payload_q:
                 res_lg = lg.calcola_lista_giocate(payload_q)
                 prop_lg = lg.cerca_proposta_multipla(res_lg.get("giocate", []))
-                migl_lg = prop_lg.get("migliore_assoluta")
-                if migl_lg:
-                    lg.salva_proposta_multipla_registro_ombra(migl_lg, snapshot_sha=sha)
+                best_by_k_lg = prop_lg.get("per_k", {})
+                if any(best_by_k_lg.values()):
+                    lg.salva_tutte_proposte_k_registro_ombra(best_by_k_lg, snapshot_sha=sha)
         except Exception as _e_lg:
             logging.warning(f"Registro ombra (multipla_proposta_v1) non scritto: {_e_lg}")
 

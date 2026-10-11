@@ -26,8 +26,11 @@ from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(HERE, ".."))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 import lista_giocate as lg
 import market_odds as mo
@@ -138,14 +141,17 @@ class TestStimaBet365(unittest.TestCase):
         self.assertIn("R_fixed", params)
 
     def test_parita_numerica_errore_mediano_test_2025_26(self):
-        # Riproduce esattamente il calcolo del test OOS 2025/26 da audit/griglia_implicita.py
+        # Riproduce esattamente il calcolo del test OOS 2025/26 da audit/griglia_implicita.py.
+        # Fallisce se i moduli di audit non sono importabili dalla radice del repo e non salta mai in CI.
         try:
             import pandas as pd
             import numpy as np
             from audit.backtest_experiment_all import LEAGUES
             from audit.griglia_implicita import load_quotes, bet365_pairs, odd_band
         except ImportError as e:
-            self.skipTest(f"Moduli di audit non disponibili per test parità OOS: {e}")
+            if os.environ.get("GITHUB_ACTIONS"):
+                self.fail(f"I moduli di audit devono essere importabili in CI: {e}")
+            self.skipTest(f"Moduli di audit (pandas/numpy) non disponibili in ambiente locale privo di dipendenze: {e}")
 
         quotes = pd.concat([load_quotes(pfx, lg_name) for pfx, lg_name in LEAGUES], ignore_index=True)
         pairs = bet365_pairs(quotes)
@@ -187,34 +193,34 @@ class TestPropostaMultiplaERicercaEsaustiva(unittest.TestCase):
     """Verifica della ricerca combinatoria esaustiva contro forza bruta indipendente."""
 
     def test_forza_bruta_indipendente_su_insieme_ridotto(self):
-        # Creiamo un piccolo insieme controllato di giocate (3 partite, 2 esiti ciascuna)
+        # Insieme ridotto di prova generato senza campi derivati del modulo
         giocate = [
-            {"partita": "P1", "match_id": "1", "giocata": "1", "probabilita": 0.70, "quota_stimata_effettiva": 1.35},
-            {"partita": "P1", "match_id": "1", "giocata": "X", "probabilita": 0.20, "quota_stimata_effettiva": 4.50},
-            {"partita": "P2", "match_id": "2", "giocata": "1", "probabilita": 0.65, "quota_stimata_effettiva": 1.45},
-            {"partita": "P2", "match_id": "2", "giocata": "2", "probabilita": 0.25, "quota_stimata_effettiva": 3.80},
-            {"partita": "P3", "match_id": "3", "giocata": "1X", "probabilita": 0.80, "quota_stimata_effettiva": 1.20},
-            {"partita": "P3", "match_id": "3", "giocata": "2", "probabilita": 0.20, "quota_stimata_effettiva": 4.80},
+            {"partita": "P1", "match_id": "1", "giocata": "1", "probabilita": 0.70, "quota_b365_stimata": 1.35},
+            {"partita": "P1", "match_id": "1", "giocata": "X", "probabilita": 0.20, "quota_b365_stimata": 4.50},
+            {"partita": "P2", "match_id": "2", "giocata": "1", "probabilita": 0.65, "quota_b365_stimata": 1.45},
+            {"partita": "P2", "match_id": "2", "giocata": "2", "probabilita": 0.25, "quota_b365_stimata": 3.80},
+            {"partita": "P3", "match_id": "3", "giocata": "1X", "probabilita": 0.80, "quota_b365_stimata": 1.20},
+            {"partita": "P3", "match_id": "3", "giocata": "2", "probabilita": 0.20, "quota_b365_stimata": 4.80},
         ]
         
-        # Forza bruta di riferimento completamente indipendente
+        # Forza bruta di riferimento completamente indipendente:
+        # enumera TUTTE le giocate dell'insieme ridotto senza pre-selezione candidati né campi derivati
         all_combos = []
         # Singole
         for g in giocate:
-            q = g["quota_stimata_effettiva"]
+            q = g["quota_b365_stimata"]
             if 2.0 <= q <= 3.0:
                 all_combos.append((g["probabilita"], q, [g]))
-        # 2 e 3 eventi
+        # 2 e 3 eventi (max 1 per partita)
         for k in (2, 3):
             for c in itertools.combinations(giocate, k):
-                # max 1 per partita
                 partiti = [x["partita"] for x in c]
                 if len(set(partiti)) < len(partiti):
                     continue
                 q_tot = 1.0
                 p_tot = 1.0
                 for x in c:
-                    q_tot *= x["quota_stimata_effettiva"]
+                    q_tot *= x["quota_b365_stimata"]
                     p_tot *= x["probabilita"]
                 if 2.0 <= q_tot <= 3.0:
                     all_combos.append((p_tot, q_tot, list(c)))
@@ -232,6 +238,22 @@ class TestPropostaMultiplaERicercaEsaustiva(unittest.TestCase):
             self.assertAlmostEqual(ref_best[0], migliore["probabilita"], places=8)
             self.assertAlmostEqual(ref_best[1], migliore["quota_totale"], places=8)
             self.assertEqual(len(ref_best[2]), len(migliore["giocate"]))
+
+    def test_percorso_reale_singola_in_fascia(self):
+        # Output di calcola_lista_giocate su snapshot reale passato senza modifiche a cerca_proposta_multipla
+        snap = mo.carica_quote_live()
+        self.assertIsNotNone(snap)
+        now = datetime.fromisoformat("2026-10-11T13:00:00Z")
+        res_lg = lg.calcola_lista_giocate(snap, adesso_utc=now)
+        giocate = res_lg["giocate"]
+        
+        prop = lg.cerca_proposta_multipla(giocate, fascia_min=2.00, fascia_max=3.00)
+        k1 = prop["per_k"][1]
+        self.assertIsNotNone(k1, "k=1 non deve essere None quando esiste una singola in fascia [2,00; 3,00]")
+        self.assertEqual("Celta Vigo vs Alavés", k1["giocate"][0]["partita"])
+        self.assertEqual("1", k1["giocate"][0]["giocata"])
+        self.assertAlmostEqual(0.4732, k1["probabilita"], delta=0.001)
+        self.assertAlmostEqual(2.00, k1["quota_totale"], delta=0.01)
 
     def test_ev_anche_se_negativo(self):
         giocate = [
@@ -330,7 +352,7 @@ class TestRegistroOmbraMultipla(unittest.TestCase):
              mock.patch("registry_store.save_ombra_rows", side_effect=fake_save):
             
             # Primo salvataggio: aggiunge la riga
-            esito1 = lg.salva_proposta_multipla_registro_ombra(proposta1, istante_utc=now)
+            esito1 = lg.salva_proposta_multipla_registro_ombra(proposta1, istante_utc=now, k=1)
             self.assertEqual("ok", esito1.get("remoto"))
             self.assertEqual(1, len(storage_ombra))
             entry_salvata = storage_ombra[0]
@@ -338,13 +360,31 @@ class TestRegistroOmbraMultipla(unittest.TestCase):
             self.assertEqual(settimana, entry_salvata["settimana"])
             self.assertEqual(45.0, entry_salvata["prob_sicuro"])
 
-            # Secondo salvataggio nella stessa settimana: NON sovrascrive
-            esito2 = lg.salva_proposta_multipla_registro_ombra(proposta2, istante_utc=now)
+            # Secondo salvataggio nella stessa settimana per stesso k: NON sovrascrive
+            esito2 = lg.salva_proposta_multipla_registro_ombra(proposta2, istante_utc=now, k=1)
             self.assertEqual("gia_registrata_settimana", esito2.get("remoto"))
             self.assertEqual(1, len(storage_ombra))
             # Contenuto rimasto identico a proposta1
             self.assertEqual(45.0, storage_ombra[0]["prob_sicuro"])
             self.assertIn("A vs B", storage_ombra[0]["top3"][0])
+
+            # Salvataggio di tutte le proposte k (1..4)
+            best_by_k_mock = {
+                1: proposta1,
+                2: {
+                    "k": 2, "probabilita": 0.40, "quota_totale": 2.15, "ev": -0.14,
+                    "giocate": [
+                        {"partita": "A vs B", "lega": "Serie A", "giocata": "1", "probabilita": 0.60, "quota_b365_stimata": 1.40},
+                        {"partita": "C vs D", "lega": "Serie A", "giocata": "X", "probabilita": 0.66, "quota_b365_stimata": 1.53},
+                    ]
+                }
+            }
+            esito_k = lg.salva_tutte_proposte_k_registro_ombra(best_by_k_mock, istante_utc=now)
+            # k=1 era già presente, quindi viene salvato solo k=2
+            self.assertEqual("ok", esito_k.get("remoto"))
+            self.assertIn(2, esito_k.get("salvate_k", []))
+            self.assertIn(1, esito_k.get("gia_presenti_k", []))
+            self.assertEqual(2, len(storage_ombra))
 
 
 class TestGuardiaValoreAtteso(unittest.TestCase):
@@ -394,6 +434,37 @@ class TestInvarianteMargineImplicito(unittest.TestCase):
             margine = p * q - 1.0
             self.assertGreaterEqual(margine, -0.12, f"Margine {margine} < -12% per {g['partita']} {g['giocata']}")
             self.assertLessEqual(margine, -0.01, f"Margine {margine} > -1% per {g['partita']} {g['giocata']}")
+
+
+class TestQuoteNonGiocabili(unittest.TestCase):
+    """Test su snapshot reale con conteggio delle giocate escluse (quota stimata arrotondata <= 1.01)."""
+
+    def test_conteggio_giocate_non_giocabili_snapshot_reale(self):
+        snap = mo.carica_quote_live()
+        self.assertIsNotNone(snap)
+        # Istante 2020-01-01 per includere tutte le 93 partite dello snapshot
+        res = lg.calcola_lista_giocate(snap, adesso_utc=datetime(2020, 1, 1, tzinfo=timezone.utc))
+        giocate = res["giocate"]
+        self.assertEqual(558, len(giocate))  # 93 partite * 6 esiti
+
+        non_giocabili = [g for g in giocate if not g.get("giocabile")]
+        # Sullo snapshot del 10/10 ci sono esattamente 3 giocate con quota stimata arrotondata <= 1.01:
+        # 1. Barcelona vs Getafe (1X): quota 0.99
+        # 2. Paris Saint Germain vs Le Mans FC (1X): quota 1.00
+        # 3. Inter Milan vs Parma (1X): quota 1.01
+        self.assertEqual(3, len(non_giocabili))
+        for g in non_giocabili:
+            self.assertLessEqual(g["quota_b365_stimata"], 1.01)
+            self.assertEqual("non giocabile", g["stato_quota"])
+
+        # Verifica che restino in tabella (presenti in giocate) ma non entrino nei candidati della multipla
+        prop = lg.cerca_proposta_multipla(giocate)
+        candidati_ids = [
+            (cg.get("partita"), cg.get("giocata"))
+            for cg in (prop.get("migliore_assoluta", {}).get("giocate", []) if prop.get("migliore_assoluta") else [])
+        ]
+        for ng in non_giocabili:
+            self.assertNotIn((ng["partita"], ng["giocata"]), candidati_ids)
 
 
 if __name__ == "__main__":
