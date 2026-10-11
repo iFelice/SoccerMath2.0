@@ -140,6 +140,12 @@ class FileTemporaneo:
 class TestStatiDelFile(FileTemporaneo, RipristinaLogging, unittest.TestCase):
     """Un messaggio per ogni modo di non avere quote."""
 
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(mo, "_adesso_utc", return_value=ADESSO)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_assente(self):
         s = self.stato()
         self.assertEqual(mo.STATO_ASSENTE, s["stato"])
