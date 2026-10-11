@@ -3269,67 +3269,111 @@ def tabella_top_mix_mercato(righe):
         columns=COLONNE_TOP_MIX_MERCATO + ["Lega", "Inizio"])
 
 
-def _mostra_tabella_top_mix_mercato(righe, quote_meta=None):
-    """La TABELLA UNICA del Top Mix (mercato) + il calcolatore di multipla.
+def tabella_top_mix_mercato_visibile(righe, adesso=None):
+    """La tabella del Top Mix in PAROLE (parte in vista della scheda TOP MIX).
 
-    Nessun'altra tabella di scelte: Drago e Legacy non hanno una tabella
-    visibile (le loro righe vanno nel registro ombra). Quando il file delle
-    quote manca o non copre il turno lo si dice esplicitamente, invece di
-    mostrare una tabella vuota che sembrerebbe "nessuna partita probabile".
+    Stessi numeri di ``tabella_top_mix_mercato`` (probabilita', quote, scelte:
+    nulla viene ricalcolato), presentati per chi non conosce gergo: la giocata
+    in parole, la probabilita' come "N volte su 100", la quota come "N volte
+    la puntata". Le partite lontane (calcio d'inizio fra piu' di 3 giorni)
+    portano il marcatore delle quote provvisorie (punto 8).
     """
-    st.markdown("##### 🌟 Top Mix — scelte del mercato")
+    # Punto 5a: le colonne in vista sono ESATTAMENTE queste sei. La quota
+    # ("Paga") non sta piu' qui: quanto paga una giocata si vede provandola
+    # in "Prova la tua giocata", dove le quote entrano davvero nel calcolo.
+    colonne = ["Quando", "Campionato", "Partita", "Giocata", "Riesce circa",
+               "Il nostro modello è d'accordo"]
+    rows = []
+    for p in righe or []:
+        quanto = {"commence_time": p.get("kickoff_utc") or p.get("utcDate")}
+        rows.append({
+            "Quando": lg.quando_italiano(p.get("utcDate")),
+            "Campionato": p.get("league") or "",
+            "Partita": f"{p.get('home')} vs {p.get('away')}" + lg.suffisso_provvisoria(quanto, adesso),
+            "Giocata": lg.giocata_in_parole_con_sigla(p.get("esito"), p.get("home"), p.get("away")),
+            "Riesce circa": lg.riesce_circa(p.get("prob", (p.get("prob_val") or 0) / 100.0)),
+            "Il nostro modello è d'accordo": "sì" if p.get("accordo") else "no",
+        })
+    return pd.DataFrame(rows, columns=colonne)
+
+
+def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None):
+    """La tabella del Top Mix (mercato) in parole, nella parte in vista.
+
+    Il contenuto tecnico di un tempo (fonte e eta' delle quote riga per riga,
+    probabilita' del modello, quota numerica) NON e' sparito: e' nel riquadro
+    chiuso "Dettagli" piu' sotto, insieme al resto. Le persone che non
+    conoscono il gergo leggono qui; chi vuole i numeri apre il riquadro.
+    Quando il file delle quote manca o non copre il turno lo si dice
+    esplicitamente, invece di mostrare una tabella vuota che sembrerebbe
+    "nessuna partita probabile".
+    """
+    st.markdown("##### 🌟 Le scelte più sicure secondo le quote")
+    st.caption("Le probabilità vengono dalle quote dei bookmaker, che in media "
+               "sbagliano meno di qualunque modello.")
     meta = quote_meta if isinstance(quote_meta, dict) else {}
     stato = meta.get("stato")
     if stato == STATO_OK:
-        crediti = meta.get("crediti") or {}
-        eta = meta.get("eta_ore")
-        st.caption(
-            f"Quote scaricate il **{meta.get('generato_il') or 'n/d'}** "
-            + (f"(eta' **{eta:.1f} h**)" if eta is not None else "(eta' n/d)") + ", "
-            f"{meta.get('fonte') or 'the-odds-api'}, regioni {meta.get('regioni') or 'eu'}, "
-            f"{meta.get('n_leghe_ok')}/{meta.get('n_leghe_richieste')} leghe con eventi, "
-            f"crediti residui {crediti.get('residui', 'n/d')} su "
-            f"{crediti.get('quota_mensile', 500)}. "
-            f"Soglia di ammissione: probabilita' di mercato ≥ "
-            f"{SOGLIA_TOPMIX_MERCATO:.2f}. Nessun filtro sulle quote basse: la tabella "
-            f"individua le partite piu' probabili, la quota minima la decide l'utente.")
-        if meta.get("obsoleto"):
+        st.caption(lg.aggiornamento_quote_parole(meta.get("generato_il"), adesso))
+        if meta.get("obsoleto") and meta.get("eta_ore") is not None:
             # Quote vecchie: le righe RESTANO visibili (meglio una quota vecchia
-            # dichiarata che una tabella vuota senza spiegazione), ma l'eta' si
-            # legge qui e su ogni riga, non va indovinata.
-            st.error(
-                f"⚠️ Quote OBSOLETE: eta' {eta:.1f} h, oltre la soglia di "
-                f"{SOGLIA_ORE_QUOTE} h (scaricate il {meta.get('generato_il') or 'n/d'}). "
-                "Il workflow `live_odds.yml` non ha scritto di recente, oppure la sua "
-                "quota di crediti e' esaurita e il file precedente e' stato conservato. "
-                "Le probabilita' di mercato qui sotto sono quelle di allora.")
+            # dichiarata che una tabella vuota senza spiegazione), ma la data
+            # si legge qui, non va indovinata.
+            eta = meta["eta_ore"]
+            st.warning(
+                f"⚠️ Le quote sono ferme a {eta / 24.0:.1f} giorni fa "
+                f"(aggiornate il {meta.get('generato_il') or 'n/d'}): l'aggiornamento "
+                "quotidiano non e' riuscito, quindi le probabilita' qui sotto sono "
+                "quelle di allora.")
     elif stato is not None:
         st.caption(_DETTAGLIO_STATO_QUOTE.get(stato, stato))
     else:
-        st.caption("File delle quote non disponibile: il workflow `live_odds.yml` non ha "
+        st.caption("File delle quote non disponibile: l'aggiornamento quotidiano non ha "
                    "ancora scritto `SoccerMath/database/live_odds.json` (oppure la quota "
                    "crediti era esaurita e il file precedente e' stato conservato).")
     if not righe:
-        st.info("Nessuna partita con probabilita' di mercato ≥ "
-                f"{SOGLIA_TOPMIX_MERCATO:.2f} in questo turno"
+        st.info("Nessuna partita abbastanza sicura in questo turno secondo le quote "
+                "(sopra il 55%)"
                 + ("" if stato == STATO_OK else " (nessuna quota disponibile)."))
         return
-    n_accordo = sum(1 for p in righe if p.get("accordo"))
-    st.caption(f"{len(righe)} partite sopra soglia (nessun tetto di righe) · "
-               f"{n_accordo} con il modello d'accordo · {len(righe) - n_accordo} senza accordo. "
-               f"Nessuna tabella Legacy o Drago separata: le scelte dei due motori vanno nel "
-               f"registro ombra.")
-    st.dataframe(tabella_top_mix_mercato(righe), width="stretch", height=420, hide_index=True)
+    # Punto 5a: la tabella in parole segue lo STESSO controllo «Periodo» dei
+    # riquadri qui sopra (stesso selettore, key `lg_periodo`): con «Questa
+    # giornata» le partite dopo il lunedì alle 23:59 non compaiono qui dentro.
+    if adesso is None:
+        adesso = market_odds._adesso_utc()
+    periodo_lbl = st.session_state.get("lg_periodo", lg.ETICHETTA_PERIODO_GIORNATA)
+    periodo_val = lg.PERIODO_GIORNATA if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA else lg.PERIODO_TUTTE
+    in_periodo = lg.righe_mercato_nel_periodo(righe, adesso, periodo_val)
+    if not in_periodo:
+        prossima = None
+        prossime = [p for p in righe]
+        kickoffs = [market_odds.parse_commence_time(p.get("kickoff_utc") or p.get("utcDate"))
+                    for p in prossime]
+        futuri = [k for k in kickoffs if k is not None and k > adesso]
+        prossima = min(futuri) if futuri else None
+        quando = (f" La prima in tabella gioca {lg.quando_italiano(prossima)}."
+                  if prossima else "")
+        st.info(f"In questa giornata nessuna partita della tabella.{quando} "
+                f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
+        return
+    n_accordo = sum(1 for p in in_periodo if p.get("accordo"))
+    nascoste = len(righe) - len(in_periodo)
+    st.caption(f"{len(in_periodo)} partite in tabella (nessun limite di righe) · "
+               f"{n_accordo} con il modello d'accordo · {len(in_periodo) - n_accordo} senza."
+               + (f" Altre {nascoste} dopo lunedì: passa a «{lg.ETICHETTA_PERIODO_TUTTE}»."
+                  if nascoste > 0 else ""))
+    st.dataframe(tabella_top_mix_mercato_visibile(in_periodo, adesso=adesso),
+                 width="stretch", height=420, hide_index=True)
 
 
 import lista_giocate as lg
 
 def tabella_lista_giocate(giocate):
-    """Costruisce DataFrame per la visualizzazione della Lista giocate."""
+    """Costruisce DataFrame per la visualizzazione della Lista giocate (tecnica)."""
     if not giocate:
         return pd.DataFrame(columns=[
             "Data", "Lega", "Partita", "Giocata", "Probabilita'", "Quota equa",
-            "Quota bet365 stimata", "Nota stima", "Fonte quote", "Eta' quote"
+            "Quota bet365 stimata", "Stato quota", "Nota stima", "Fonte quote", "Eta' quote"
         ])
     rows = []
     for g in giocate:
@@ -3342,6 +3386,10 @@ def tabella_lista_giocate(giocate):
             "Probabilita'": f"{g.get('prob_percentuale', 0.0):.2f}%",
             "Quota equa": f"{g.get('quota_equa', 0.0):.2f}",
             "Quota bet365 stimata": f"{g.get('quota_b365_stimata'):.2f}" if g.get("quota_b365_stimata") is not None else "n/d",
+            # Marcatore "non giocabile" (punto 4): vive in `stato_quota` e qui
+            # diventa leggibile, insieme alla "Nota stima" con il marcatore
+            # "stima non verificata" delle doppie chance.
+            "Stato quota": g.get("stato_quota", ""),
             "Nota stima": g.get("nota_stima", ""),
             "Fonte quote": g.get("fonte", ""),
             "Eta' quote": eta,
@@ -3349,75 +3397,204 @@ def tabella_lista_giocate(giocate):
     return pd.DataFrame(rows)
 
 
-def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
-    """Sezione Lista giocate (lista_giocate_v1) sotto la tabella Top Mix di mercato."""
-    st.markdown("---")
-    st.markdown("##### 📋 Lista giocate (`lista_giocate_v1`)")
-    st.caption(
-        "Tutte le 6 giocate per ogni partita non iniziata con quote valide (Pinnacle de-vig proporzionale "
-        "/ media libri). Probabilità della doppia chance = somma delle due probabilità 1X2. "
-        "Quota bet365 stimata secondo il modello calibrato su 2024/25 (PR #58 punto D). "
-        "La stima della doppia chance è calcolata come 1 / (1/qa + 1/qb) ed è marcata come 'stima non verificata'."
-    )
-
-    payload = (stato_quote or {}).get("payload") if isinstance(stato_quote, dict) else None
-    if payload is None:
-        payload = market_odds.carica_quote_live()
-
-    if not payload:
-        st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
-        return
-
-    res = lg.calcola_lista_giocate(payload)
-    giocate = res.get("giocate", [])
-
-    c_tot, c_amm, c_ini, c_noq = st.columns(4)
-    c_tot.metric("Partite totali", res.get("n_partite_totali", 0))
-    c_amm.metric("Partite ammesse", res.get("n_partite_ammesse", 0))
-    c_ini.metric("Escluse (già iniziate)", res.get("n_escluse_iniziate", 0))
-    c_noq.metric("Escluse (senza quote)", res.get("n_escluse_senza_quote", 0))
-
-    if not giocate:
-        st.info("Nessuna giocata disponibile per le partite in programma.")
-        return
-
-    # Filtri per lega e per data
-    leghe_disp = sorted(list({g["lega"] for g in giocate if g.get("lega")}))
-    date_disp = sorted(list({g["data"].split()[0] for g in giocate if g.get("data")}))
-
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        leghe_sel = st.multiselect("Filtra per lega", leghe_disp, default=leghe_disp, key="lg_filtro_lega")
-    with col_f2:
-        date_sel = st.multiselect("Filtra per data", date_disp, default=date_disp, key="lg_filtro_data")
-
-    filtrate = [
-        g for g in giocate
-        if (not leghe_sel or g.get("lega") in leghe_sel)
-        and (not date_sel or g.get("data", "").split()[0] in date_sel)
-    ]
-
-    st.caption(f"Mostrate {len(filtrate)} su {len(giocate)} giocate candidate (ordinate per probabilità decrescente).")
-    df_lista = tabella_lista_giocate(filtrate)
-    st.table(df_lista)
-
-    # 3. Proposta di multipla
-    st.markdown("##### 🎯 Proposta di multipla (ricerca combinatoria esaustiva)")
-    st.caption(
-        "Ricerca tra tutte le combinazioni da 1 a 4 giocate con quota totale stimata tra 2,00 e 3,00, "
-        "massimizzando il prodotto delle probabilità. Ipotesi: eventi di partite diverse sono trattati come indipendenti. "
-        "Al massimo una giocata per partita. Candidati limitati alle 40 giocate con probabilità più alta più tutte le singole con quota stimata in [2,00, 3,00]. "
-        "Le giocate non giocabili (quota stimata arrotondata ≤ 1,01) sono escluse."
-    )
-
-    prop = lg.cerca_proposta_multipla(giocate)
+def _mostra_riquadro_raddoppio(in_periodo, top_mercato, adesso):
+    """Riquadro "Per raddoppiare" (punto 1): max 4 righe, una per numero di
+    partite combinate, dai risultati GIA' calcolati di cerca_proposta_multipla
+    sulle giocate del periodo scelto. Nessun ricalcolo: sono gli stessi
+    numeri del dettaglio tecnico sotto forma leggibile."""
+    prop = lg.cerca_proposta_multipla(in_periodo)
     best_by_k = prop.get("per_k", {})
+    righe = lg.righe_riquadro_raddoppio(best_by_k, adesso)
+    with st.container(border=True):
+        st.markdown("**🎯 Per raddoppiare**")
+        st.caption("Le giocate combinate che pagano fra 2 e 3 volte la puntata, "
+                   "da 1 a 4 partite: quanto pagano e quante volte su 100 riescono.")
+        if not righe:
+            st.info("Oggi nessuna giocata paga fra 2 e 3 volte la puntata.")
+        else:
+            rows = []
+            for r in righe:
+                rows.append({
+                    "★": "★" if r.get("migliore") else "",
+                    "Partite": "\n".join(r["partite"]),
+                    "Riesce circa": r["riesce"],
+                    "Paga circa": r["paga"],
+                    "Su 100 € giocati tornano in media": f"{r['ritorno_100']} €",
+                })
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+            st.caption("★ = la giocata che riesce più spesso, non un consiglio a puntare di più.")
+            cols_btn = st.columns(len(righe))
+            for i, r in enumerate(righe):
+                item = best_by_k[r["k"]]
+                if cols_btn[i].button("Usa nel calcolatore", key=f"usa_calc_r_{r['k']}"):
+                    _carica_proposta_nel_calcolatore(item, top_mercato)
+        st.caption("Ogni partita aggiunta abbassa le probabilità di riuscita: "
+                   "di solito la giocata singola è quella che riesce più spesso.")
 
+
+def _mostra_piu_probabili(in_periodo, adesso):
+    """Lista "Le più probabili" (punto 2): una sola riga per partita — la
+    giocata con la probabilita' piu' alta fra quelle che pagano almeno
+    quanto scelto — con filtro per campionato e pulsante "Mostra altre"."""
+    st.markdown("##### ✅ Le più probabili")
+    col_q, col_camp = st.columns(2)
+    with col_q:
+        paga_lbl = st.selectbox("Paga almeno", ["1,10", "1,20", "1,50", "2,00"],
+                                index=1, key="lg_paga_almeno")
+        quota_min = float(paga_lbl.replace(",", "."))
+    with col_camp:
+        leghe = sorted({g["lega"] for g in in_periodo if g.get("lega")})
+        campionato = st.selectbox("Campionato", ["Tutti"] + leghe, key="lg_campionato")
+    # Cambiando campionato o minimo di quota la lista riparte dalle prime 10 righe.
+    combo = f"{quota_min}|{campionato}"
+    if st.session_state.get("lg_combo_probabili") != combo:
+        st.session_state["lg_combo_probabili"] = combo
+        st.session_state["lg_n_mostrate"] = 10
+    base = [g for g in in_periodo if campionato == "Tutti" or g.get("lega") == campionato]
+    migliori = lg.migliori_giocate_per_partita(base, quota_min)
+    if not migliori:
+        st.info(f"Nessuna giocata paga almeno {paga_lbl} volte la puntata: "
+                "prova ad abbassare «Paga almeno» o a cambiare campionato.")
+        return
+    n_mostrate = int(st.session_state.get("lg_n_mostrate", 10))
+    visibili = migliori[:n_mostrate]
+    rows = []
+    for g in visibili:
+        rows.append({
+            "Quando": lg.quando_italiano(g.get("commence_time")),
+            "Partita": g.get("partita", "") + lg.suffisso_provvisoria(g, adesso),
+            "Giocata": lg.giocata_in_parole_con_sigla(g.get("giocata"), g.get("home"), g.get("away")),
+            "Riesce circa": lg.riesce_circa(g.get("probabilita")),
+            "Paga circa": lg.paga_circa(g.get("quota_b365_stimata")),
+        })
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    if len(migliori) > n_mostrate:
+        if st.button(f"Mostra altre (ne restano {len(migliori) - n_mostrate})",
+                     key="lg_mostra_altre"):
+            st.session_state["lg_n_mostrate"] = n_mostrate + 10
+            st.rerun()
+
+
+def _carica_proposta_nel_calcolatore(prop_item, top_mercato=None):
+    """Punto 3 («Usa nel calcolatore»): le giocate della proposta entrano nel
+    riquadro "Prova la tua giocata" pronte — numero di partite e, per ogni
+    riga, partita e giocata — e il riquadro si apre. Le caselle «Quota che
+    vedi su bet365» restano VUOTE: le compila chi gioca guardando il sito.
+
+    Il passaggio avviene per identificativo (``match_id|sigla``), risolto
+    dentro il riquadro contro la lista giocate del periodo: niente abbinamenti
+    per nome, e una giocata che la lista non rintraccia piu' (partita appena
+    iniziata) non ha casella mentre le altre restano al loro posto. Prima il
+    caricamento passava dal Top Mix e le gambe sotto il 55% non trovavano
+    riga: adesso l'abbinamento e' diretto, sulla stessa lista da cui la
+    proposta e' stata costruita.
+    """
+    identificativi = [lg.identificativo_giocata(g) for g in prop_item.get("giocate", [])]
+    if not identificativi:
+        st.info("La proposta non ha partite da caricare.")
+        return
+    st.session_state["prova_loader"] = identificativi
+    st.session_state["prova_aperto"] = True
+    st.rerun()
+
+
+def _dettaglio_meta_mercato(meta):
+    """Riga tecnica completa su fonte/eta'/crediti delle quote di mercato:
+    vive nel riquadro "Dettagli" (punto 4/5), non nella parte in vista."""
+    if not isinstance(meta, dict) or meta.get("stato") != STATO_OK:
+        return
+    crediti = meta.get("crediti") or {}
+    eta = meta.get("eta_ore")
+    st.caption(
+        f"Quote scaricate il **{meta.get('generato_il') or 'n/d'}** "
+        + (f"(eta' **{eta:.1f} h**)" if eta is not None else "(eta' n/d)") + ", "
+        f"{meta.get('fonte') or 'the-odds-api'}, regioni {meta.get('regioni') or 'eu'}, "
+        f"{meta.get('n_leghe_ok')}/{meta.get('n_leghe_richieste')} leghe con eventi, "
+        f"crediti residui {crediti.get('residui', 'n/d')} su "
+        f"{crediti.get('quota_mensile', 500)}. "
+        f"Soglia di ammissione: probabilita' di mercato ≥ "
+        f"{SOGLIA_TOPMIX_MERCATO:.2f}. Nessun filtro sulle quote basse: la tabella "
+        f"individua le partite piu' probabili, la quota minima la decide l'utente.")
+
+
+def _mostra_dettagli_tecnici(res, in_periodo, top_mercato, stato_quote, adesso):
+    """Il riquadro chiuso "Dettagli" (punto 4): raccoglie TUTTO il contenuto
+    tecnico di oggi — tabella completa via st.dataframe, filtri, fonte ed eta'
+    delle quote, quota equa, marcatori "stima non verificata" e "non
+    giocabile", conteggi delle partite escluse, sovrascrittura manuale delle
+    quote, ipotesi di indipendenza e il dettaglio delle proposte per numero
+    di partite. Chiuso di default: chi apre trova tutto come prima."""
+    with st.expander("🔎 Dettagli", expanded=False):
+        # (a) La tabella tecnica del Top Mix di mercato, com'e' sempre stata.
+        if top_mercato:
+            st.markdown("##### 🌟 Top Mix — scelte del mercato (vista tecnica)")
+            _dettaglio_meta_mercato(stato_quote if isinstance(stato_quote, dict) else {})
+            n_acc = sum(1 for p in top_mercato if p.get("accordo"))
+            st.caption(
+                f"{len(top_mercato)} partite sopra la soglia di ammissione "
+                f"({SOGLIA_TOPMIX_MERCATO:.2f}, nessun tetto di righe) · {n_acc} con il modello d'accordo · "
+                f"{len(top_mercato) - n_acc} senza accordo. "
+                "Nessuna tabella Legacy o Drago separata: le scelte dei due motori vanno nel registro ombra.")
+            st.dataframe(tabella_top_mix_mercato(top_mercato), width="stretch",
+                         height=420, hide_index=True)
+
+        # (b) Conteggi delle partite escluse (punto 4).
+        c_tot, c_amm, c_ini, c_noq = st.columns(4)
+        c_tot.metric("Partite totali", res.get("n_partite_totali", 0))
+        c_amm.metric("Partite ammesse", res.get("n_partite_ammesse", 0))
+        c_ini.metric("Escluse (già iniziate)", res.get("n_escluse_iniziate", 0))
+        c_noq.metric("Escluse (senza quote)", res.get("n_escluse_senza_quote", 0))
+
+        giocate = res.get("giocate", [])
+        st.markdown("##### 📋 Tabella completa (`lista_giocate_v1`)")
+        st.caption(
+            "Tutte le 6 giocate per ogni partita non iniziata con quote valide (Pinnacle de-vig proporzionale "
+            "/ media libri). Probabilità della doppia chance = somma delle due probabilità 1X2. "
+            "Quota bet365 stimata secondo il modello calibrato su 2024/25 (PR #58 punto D). "
+            "La stima della doppia chance è calcolata come 1 / (1/qa + 1/qb) ed è marcata come 'stima non verificata'."
+        )
+        if giocate:
+            leghe_disp = sorted(list({g["lega"] for g in giocate if g.get("lega")}))
+            date_disp = sorted(list({g["data"].split()[0] for g in giocate if g.get("data")}))
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                leghe_sel = st.multiselect("Filtra per lega", leghe_disp, default=leghe_disp, key="lg_filtro_lega")
+            with col_f2:
+                date_sel = st.multiselect("Filtra per data", date_disp, default=date_disp, key="lg_filtro_data")
+            filtrate = [
+                g for g in giocate
+                if (not leghe_sel or g.get("lega") in leghe_sel)
+                and (not date_sel or g.get("data", "").split()[0] in date_sel)
+            ]
+            st.caption(f"Mostrate {len(filtrate)} su {len(giocate)} giocate candidate (ordinate per probabilità decrescente).")
+            st.dataframe(tabella_lista_giocate(filtrate), width="stretch",
+                         height=480, hide_index=True)
+        else:
+            st.info("Nessuna giocata disponibile per le partite in programma.")
+
+        # (c) Proposte: dettaglio completo, stesse combinazioni del riquadro
+        # "Per raddoppiare" (stesso periodo scelto, punto 8).
+        st.markdown("##### 🎯 Proposta di multipla (ricerca combinatoria esaustiva)")
+        st.caption(
+            "Ricerca tra tutte le combinazioni da 1 a 4 giocate con quota totale stimata tra 2,00 e 3,00, "
+            "massimizzando il prodotto delle probabilità. Ipotesi: eventi di partite diverse sono trattati come indipendenti. "
+            "Al massimo una giocata per partita. Candidati limitati alle 40 giocate con probabilità più alta più tutte le singole con quota stimata in [2,00, 3,00]. "
+            "Le giocate non giocabili (quota stimata arrotondata ≤ 1,01) sono escluse."
+        )
+        if not in_periodo:
+            st.info("Nessuna giocata nel periodo scelto: cambia «Periodo» per il dettaglio delle proposte.")
+        else:
+            _mostra_dettaglio_proposte(lg.cerca_proposta_multipla(in_periodo), top_mercato)
+
+
+def _mostra_dettaglio_proposte(prop, top_mercato):
+    """Vista tecnica delle proposte per numero di giocate (1..4): la tabella
+    per k, il costo di ogni evento aggiunto e le schede con la sovrascrittura
+    manuale delle quote (tutto dentro il riquadro "Dettagli")."""
+    best_by_k = prop.get("per_k", {})
     if not any(best_by_k.values()):
         st.info(prop.get("messaggio") or "Nessuna combinazione da 1 a 4 giocate rientra nella fascia di quota stimata fra 2,00 e 3,00.")
         return
-
-    # Elemento principale: tabella per numero di giocate (1, 2, 3, 4)
     rows_k = []
     for k in (1, 2, 3, 4):
         item = best_by_k.get(k)
@@ -3444,10 +3621,7 @@ def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
                 "Valore Atteso (EV)": "—",
                 "Eventi combinati": "Nessuna combinazione valida in fascia [2,00; 3,00]",
             })
-
-    st.table(pd.DataFrame(rows_k))
-
-    # Riga di testo con il costo in punti di probabilità di ogni evento aggiunto rispetto a k-1
+    st.dataframe(pd.DataFrame(rows_k), hide_index=True, width="stretch")
     costi_testo = []
     for k in (2, 3, 4):
         cur = best_by_k.get(k)
@@ -3459,14 +3633,92 @@ def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
             costi_testo.append(f"k={k}: disponibile ({cur['probabilita']*100:.2f}%), k={k-1} non disponibile")
     if costi_testo:
         st.info("📉 **Costo per evento aggiunto:** " + " | ".join(costi_testo))
-
-    # Schede dettagliate per k con sovrascrittura manuale e pulsante di caricamento per riga
+    # Dettagli senza riquadri annidati: le schede stanno in fila, una sotto
+    # l'altra, tutte dentro il riquadro dei Dettagli.
     st.markdown("###### Dettaglio combinazioni per dimensione (1, 2, 3, 4 giocate)")
     for k in (1, 2, 3, 4):
         item = best_by_k.get(k)
         if item is not None:
-            with st.expander(f"Dettaglio proposta a {k} {'giocata' if k == 1 else 'giocate'} (Quota stimata: {item['quota_totale']:.2f}, Prob: {item['probabilita']*100:.2f}%)", expanded=(k == 1)):
-                _mostra_scheda_proposta(item, top_mercato=top_mercato, key_pfx=f"k_{k}")
+            st.markdown(f"**Proposta a {k} {'giocata' if k == 1 else 'giocate'}** "
+                        f"(Quota stimata: {item['quota_totale']:.2f}, Prob: {item['probabilita']*100:.2f}%)")
+            _mostra_scheda_proposta(item, top_mercato=top_mercato, key_pfx=f"k_{k}")
+
+
+def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
+    """La parte in vista in parole (punti 1, 2 e 8): freschezza delle quote,
+    controllo «Periodo», riquadro "Per raddoppiare" e lista "Le più probabili".
+
+    Dopo questa sezione, nello stesso blocco del tab2, vengono IN ORDINE: la
+    tabella in parole del mercato (punto 5a, stesso «Periodo», filtrato da
+    ``_mostra_tabella_top_mix_mercato``), il riquadro chiuso «Dettagli»
+    (punto 4, ``_mostra_dettagli_lista_giocate``) e il riquadro chiuso «Prova
+    la tua giocata» (punto 3, ``calcolatore_multipla``). I numeri NON
+    cambiano: arrivano dalle stesse funzioni di `lista_giocate` calcolate
+    sullo stesso payload."""
+    st.markdown("---")
+    st.markdown("##### 📋 Lista giocate")
+
+    payload = (stato_quote or {}).get("payload") if isinstance(stato_quote, dict) else None
+    if payload is None:
+        payload = market_odds.carica_quote_live()
+
+    if not payload:
+        st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
+        return
+
+    adesso = market_odds._adesso_utc()
+    res = lg.calcola_lista_giocate(payload, adesso_utc=adesso)
+    giocate = res.get("giocate", [])
+
+    # Freschezza delle quote sotto il titolo (punto 8), in italiano.
+    st.caption(lg.aggiornamento_quote_parole(payload.get("generato_il"), adesso))
+
+    # Periodo di gioco (punto 8): di default fino al lunedì alle 23:59.
+    periodo_lbl = st.radio("Periodo", [lg.ETICHETTA_PERIODO_GIORNATA, lg.ETICHETTA_PERIODO_TUTTE],
+                           index=0, horizontal=True, key="lg_periodo")
+    periodo_val = "giornata" if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA else "tutte"
+    in_periodo = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
+
+    if in_periodo and lg.miccia_provvisoria(in_periodo, adesso):
+        st.caption(lg.FRASE_QUOTE_PROVVISORIE)
+
+    if not giocate:
+        st.info("Nessuna giocata disponibile per le partite in programma.")
+    elif not in_periodo:
+        # Periodo vuoto (punto 8): non una tabella vuota — data della prossima
+        # partita in programma e invito a cambiare periodo.
+        prossima = lg.prossima_partita(giocate, adesso)
+        quando = (f" La prossima partita in programma è {lg.quando_italiano(prossima)}."
+                  if prossima else "")
+        st.info(f"In questa giornata non ci sono ancora partite da mostrare.{quando} "
+                f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
+    else:
+        _mostra_riquadro_raddoppio(in_periodo, top_mercato, adesso)
+        _mostra_piu_probabili(in_periodo, adesso)
+
+
+def _mostra_dettagli_lista_giocate(top_mercato=None, stato_quote=None):
+    """Il riquadro chiuso «Dettagli» del punto 4.
+
+    Nell'ordine nuovo della scheda sta DOPO la tabella in parole del mercato
+    e PRIMA di «Prova la tua giocata». Contenuto identico a prima
+    (``_mostra_dettagli_tecnici``): tabella completa via ``st.dataframe``,
+    filtri, fonte ed eta' delle quote, quota equa, marcatori, partite
+    escluse, sovrascrittura manuale, ipotesi di indipendenza, proposte per
+    numero di partite. Chiuso di default.
+    """
+    payload = (stato_quote or {}).get("payload") if isinstance(stato_quote, dict) else None
+    if payload is None:
+        payload = market_odds.carica_quote_live()
+    if not payload:
+        return
+    adesso = market_odds._adesso_utc()
+    res = lg.calcola_lista_giocate(payload, adesso_utc=adesso)
+    giocate = res.get("giocate", [])
+    periodo_lbl = st.session_state.get("lg_periodo", lg.ETICHETTA_PERIODO_GIORNATA)
+    periodo_val = "giornata" if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA else "tutte"
+    in_periodo = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
+    _mostra_dettagli_tecnici(res, in_periodo, top_mercato, stato_quote, adesso)
 
 
 def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
@@ -3544,113 +3796,121 @@ def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
             st.info(f"📊 Valori ricalcolati con quote inserite: Quota totale = **{q_eff_tot:.2f}**, Valore Atteso = **{ev_eff * 100:+.2f}%**.")
 
     if st.button("📥 Carica proposta nel calcolatore di multipla", key=f"btn_load_{key_pfx}"):
-        if top_mercato:
-            etichette_da_selezionare = []
-            for g in prop_item.get("giocate", []):
-                for r in top_mercato:
-                    if (r.get("home") == g.get("home") and r.get("away") == g.get("away")) or (f"{r.get('home')} vs {r.get('away')}" == g.get("partita")):
-                        if r.get("esito") == g.get("giocata"):
-                            etichette_da_selezionare.append(etichetta_riga_multipla(r))
-            if etichette_da_selezionare:
-                st.session_state["multipla_selezione"] = etichette_da_selezionare
-                st.success(f"Caricate {len(etichette_da_selezionare)} partite nel calcolatore di multipla.")
-                st.rerun()
-            else:
-                st.info("Le giocate della proposta appartengono alla lista estesa e non alle righe filtrate del Top Mix (soglia 0,55).")
-        else:
-            st.info("Top Mix non disponibile al momento.")
+        _carica_proposta_nel_calcolatore(prop_item, top_mercato)
 
 
 
-def righe_multipla(righe, etichette):
-    """Le righe del Top Mix di mercato scelte per la multipla (per etichetta)."""
-    per_etichetta = {etichetta_riga_multipla(p): p for p in righe}
-    return [per_etichetta[e] for e in etichette if e in per_etichetta]
+def calcolatore_multipla(righe, adesso=None):
+    """Riquadro chiuso «Prova la tua giocata» (punto 3), un solo expander.
 
+    Per OGNI riga della combinazione c'e' una casella «Quota che vedi su
+    bet365» che parte VUOTA (nessun numero inventato): sotto ogni casella
+    l'app dice quanto si aspettava («L'app si aspetta circa 2,00», con
+    «stima meno precisa» per le doppie chance), e quando la casella e'
+    riempita dice subito se bet365 paga piu', meno o come previsto
+    (tolleranza +-0,02). Le probabilita' e il calcolo combinato NON cambiano:
+    restano quelli di ``cerca_proposta_multipla``/``esito_prova_giocata`` —
+    prodotto delle probabilita' e prodotto delle quote; cambia solo da dove
+    arriva la quota di ogni gamba (stima dell'app oppure quella letta sul
+    sito, se la casella e' compilata). Diciture sopra i numeri:
 
-def etichetta_riga_multipla(p):
-    """Etichetta univoca di una riga nel selettore della multipla."""
-    return (f"#{p.get('rank') or '-'} {p['home']} vs {p['away']} — {p['esito']} "
-            f"({p['prob_val']}% @ {p['quota'] if p.get('quota') is not None else 'n/d'})")
+    * tutte le caselle vuote:    «Con le quote previste dall'app»
+    * alcune compilate:          «Con N quote di bet365 e M previste dall'app»
+    * tutte compilate:           «Con le quote di bet365»
 
+    Se «Su 100 € giocati tornano in media» vale meno di 100, sotto compare
+    anche quanto il bookmaker si tiene. Le due righe di spiegazione fisse
+    (istruzioni e partite indipendenti) stanno in cima al riquadro, sempre.
 
-def calcolatore_multipla(righe):
-    """Calcolatore di multipla del Top Mix di mercato (fino a 5 righe).
-
-    Mostra probabilita' combinata e quota equa combinata (1/probabilita'), piu' —
-    SOLO se l'utente la inserisce — il margine sulla quota offerta dal proprio
-    bookmaker. L'avviso sull'indipendenza e' SEMPRE mostrato: non e' una nota a
-    pie' di pagina opzionale, e' l'ipotesi su cui si regge il calcolo.
-
-    Perche' il campo opzionale al posto del confronto con le quote del file (che
-    c'era prima): ``multipla`` continuava a calcolare ``quota_offerta``/``edge``,
-    ma quell'``edge`` non era una informazione — era il margine composto della
-    fonte delle quote (Pinnacle o la media dei libri), quindi NEGATIVO per
-    costruzione e quasi uguale per tutte le multiple dello stesso giro. Confrontare
-    due letture della STESSA fonte dice solo quanto quella fonte trattiene. Il
-    numero che serve davvero e' il prezzo che il bookmaker in cui si gioca offre
-    sulla multipla costruita: non c'e' in nessun file, lo sa solo chi sta giocando,
-    e per questo e' un campo di testo — facoltativo. Se resta vuoto non si mostra
-    nessun margine (e non si inventa nessuna quota); se e' compilato con un valore
-    che non e' una quota decimale lo si dice, e il margine resta fuori.
-
-    Non giudica le quote basse: una quota 1,10 entra nella multipla come
-    qualsiasi altra. La scelta di una quota minima resta dell'utente.
+    Il pulsante «Usa nel calcolatore» del riquadro "Per raddoppiare" scrive
+    in session_state la lista degli identificativi delle gambe e apre questo
+    riquadro: qui vengono risolti contro la lista del periodo e precaricati
+    numero di giocate, partita e giocata di ogni riga; le caselle delle quote
+    restano vuote.
     """
-    st.markdown("##### 🎟️ Calcolatore di multipla")
-    if not righe:
-        st.info("Nessuna riga nel Top Mix di mercato: la multipla non si puo' comporre.")
-        return
-    etichette = [etichetta_riga_multipla(p) for p in righe]
-    scelte = st.multiselect(
-        "Seleziona fino a 5 righe", etichette,
-        max_selections=MASSIMO_RIGHE_MULTIPLA,
-        help=f"Massimo {MASSIMO_RIGHE_MULTIPLA} righe. Probabilita' e quota vengono "
-             f"dalla stessa fonte (Pinnacle o media dei libri).",
-        key="multipla_selezione",
-    )
-    st.caption(AVVISO_INDIPENDENZA)
-    if not scelte:
-        return
-    selezionate = righe_multipla(righe, scelte)
-    # Campo OPZIONALE: il prezzo della multipla dal bookmaker in cui si gioca.
-    # `value=None` e' il modo dichiarativo di dire "vuoto": non un 0 di default,
-    # che sarebbe una quota inventata e darebbe un margine fasullo.
-    quota_bookmaker = st.number_input(
-        "Quota offerta dal tuo bookmaker (opzionale)",
-        min_value=0.0, step=0.01, format="%.2f", value=None,
-        key="multipla_quota_bookmaker",
-        help="La quota decimale che il TUO bookmaker offre su questa multipla. "
-             "Lascia vuoto per non calcolare nessun margine: le quote in tabella "
-             "sono quelle della fonte (Pinnacle o media dei libri) e confrontarle "
-             "con le loro stesse probabilita' direbbe solo il margine della fonte.")
-    esito = multipla([{"partita": f"{p['home']} vs {p['away']}", "esito": p["esito"],
-                       "prob": p["prob"], "quota": p["quota"]} for p in selezionate],
-                     quota_bookmaker=quota_bookmaker)
-    if not esito.get("ok"):
-        st.error(esito.get("errore") or "Selezione non valida.")
-        return
-    if esito.get("errore_quota_bookmaker"):
-        st.warning(esito["errore_quota_bookmaker"])
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Probabilita' combinata", f"{esito['probabilita_combinata'] * 100:.2f}%")
-    c2.metric("Quota equa (1/prob)", f"{esito['quota_equa']:.2f}")
-    if esito.get("margine") is None:
-        c3.caption("Margine: non calcolato (nessuna quota inserita).")
-    else:
-        c3.metric("Margine sulla tua quota", f"{esito['margine'] * 100:+.2f}%",
-                  help="quota inserita * probabilita' combinata - 1. Negativo: il "
-                       "bookmaker paga meno della quota equa di queste probabilita' "
-                       "(e' il suo margine, la norma); positivo: paga di piu'.")
-        st.caption(f"Quota tua {esito['quota_bookmaker']:.2f} contro quota equa "
-                   f"{esito['quota_equa']:.2f}: {esito['n_righe']} righe, "
-                   f"probabilita' combinata {esito['probabilita_combinata'] * 100:.2f}%.")
-        if esito["margine"] < 0.0:
-            st.info("Margine negativo: la quota offerta paga MENO della quota equa. "
-                    "E' la situazione normale (il margine del bookmaker), non un errore.")
-    st.dataframe(pd.DataFrame(esito["righe"]).rename(columns={
-        "n": "#", "partita": "Partita", "esito": "Esito", "prob": "Probabilita'",
-        "quota": "Quota (fonte)"}), width="stretch", hide_index=True)
+    if adesso is None:
+        adesso = market_odds._adesso_utc()
+    aperto = bool(st.session_state.get("prova_aperto", False))
+    with st.expander("🧮 Prova la tua giocata", expanded=aperto):
+        st.caption(lg.ISTRUZIONI_PROVA_LA_TUA_GIOCATA)
+        st.caption(lg.LINEA_PARTITE_INDIPENDENTI)
+
+        # Le gambe della lista estesa nel periodo scelto: stesso insieme del
+        # riquadro "Per raddoppiare" (righe >= 55% e anche sotto 55% fino a
+        # quota stimata < 1,20), ordinate per probabilita' decrescente.
+        payload = market_odds.carica_quote_live()
+        res = lg.calcola_lista_giocate(payload, adesso) if payload else {"giocate": []}
+        giocate = res.get("giocate", []) if isinstance(res, dict) else []
+        periodo_lbl = st.session_state.get("lg_periodo", lg.ETICHETTA_PERIODO_GIORNATA)
+        periodo_val = (lg.PERIODO_GIORNATA if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA
+                       else lg.PERIODO_TUTTE)
+        gambe = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
+        if not gambe:
+            st.info("Quando ci saranno partite in programma nel periodo scelto, "
+                    "potrai provare qui le tue combinazioni.")
+            return
+
+        per_etichetta = {}
+        for g in gambe:
+            etichetta = lg.descrivi_leg(g, adesso)
+            scorta = 2
+            base = etichetta
+            while etichetta in per_etichetta:
+                # Etichetta duplicata (stesso match/stessa giocata ripetuta):
+                # si distingue con un contatore, mai con la chiave tecnica.
+                etichetta = f"{base} ({scorta})"
+                scorta += 1
+            per_etichetta[etichetta] = g
+        opzioni = list(per_etichetta.keys())
+        n_max = min(MASSIMO_RIGHE_MULTIPLA, len(opzioni))
+
+        # Precaricamento da «Usa nel calcolatore»: chiavi delle gambe attese.
+        attese = st.session_state.pop("prova_loader", None) or []
+        if attese:
+            st.session_state["prova_n_gambe"] = min(len(attese), n_max)
+            for i in range(len(attese)):
+                for etichetta, g in per_etichetta.items():
+                    if lg.identificativo_giocata(g) == attese[i]:
+                        st.session_state[f"prova_gamba_{i}"] = etichetta
+                        break
+                # Le caselle delle quote restano vuote: l'utente scrive
+                # quello che vede su bet365, non l'app.
+                st.session_state.pop(f"prova_quota_{i}", None)
+            # Le gambe oltre le attese (scelte a mano prima) passano di indice.
+            st.session_state["prova_aperto"] = True
+
+        n_gambe = int(st.selectbox("Quante giocate combini?", list(range(1, n_max + 1)),
+                                   key="prova_n_gambe") or 1)
+        gambe_scelte: list = []
+        quote_inserite: list = []
+        for i in range(n_gambe):
+            etichetta = st.selectbox(f"Giocata {i + 1}", opzioni, key=f"prova_gamba_{i}")
+            g = per_etichetta[etichetta]
+            gambe_scelte.append(g)
+            quota_inserita = st.number_input(
+                f"Quota che vedi su bet365 ({g['partita']} — "
+                f"{lg.giocata_in_parole_con_sigla(str(g.get('giocata') or ''), g.get('home') or '?', g.get('away') or '?')})",
+                min_value=1.01, step=0.01, format="%.2f", value=None,
+                key=f"prova_quota_{i}",
+                placeholder="lascia vuota per usare la stima dell'app",
+            )
+            # Sotto OGNI casella: quanto l'app si aspetta (prima) e, quando
+            # la casella e' compilata, il verdetto riga per riga (dopo).
+            st.caption(lg.hint_quota_stimata(g))
+            stima = lg.quota_stimata_giocata(g)
+            if quota_inserita is not None and stima is not None:
+                st.caption(lg.confronto_quota_bet365(quota_inserita, stima))
+            quote_inserite.append(quota_inserita)
+
+        esito = lg.esito_prova_giocata(gambe_scelte, quote_inserite)
+        st.markdown(f"**{esito['titolo']}**")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Riesce circa", esito["riesce"])
+        c2.metric("Paga circa", esito["paga"])
+        c3.metric("Su 100 € giocati tornano in media", f"{esito['ritorno_100']} €")
+        if esito["ritorno_100"] < 100 and esito["trattenuta_su_100"] is not None:
+            st.caption(f"Il bookmaker si tiene circa {esito['trattenuta_su_100']} € "
+                       "ogni 100: e' il suo guadagno, non un errore della giocata.")
 
 
 # Nomi dei due modelli come li chiama il progetto (solo UI/etichette).
@@ -3891,13 +4151,92 @@ def _metriche_famiglia_registro(records, famiglia, etichetta, nota):
     return True
 
 
-def _mostra_registro_mercato(righe, altezza=420):
-    """Tabella Registro per la famiglia MERCATO (topmix_mercato_v3).
+def _tabella_registro_mercato_in_parole(df):
+    """Tabella in parole della famiglia Mercato del Registro (punto 5): le
+    stesse righe, con la giocata tradotta (la sigla resta in piccolo fra
+    parentesi, come impone il punto 3) e la probabilita' del mercato come
+    "N volte su 100". Risultato ed Esito restano quelli del Registro."""
+    quando = [q.strftime("%d/%m/%Y %H:%M") if hasattr(q, "strftime") else str(q or "")
+              for q in df["data"]]
+    return pd.DataFrame({
+        "Quando": quando,
+        "Campionato": df["campionato"].tolist(),
+        "Partita": [f"{r.get('home')} vs {r.get('away')}" for _i, r in df.iterrows()],
+        "Giocata": [lg.giocata_in_parole_con_sigla(r.get("mercato_standard"),
+                                                   r.get("home"), r.get("away"))
+                    for _i, r in df.iterrows()],
+        "Riesce circa": [(lg.riesce_circa(r.get("prob_sicuro") / 100.0)
+                          if isinstance(r.get("prob_sicuro"), (int, float)) else "n/d")
+                         for _i, r in df.iterrows()],
+        "Il nostro modello è d'accordo": ["sì" if r.get("accordo_modello") else "no"
+                                           for _i, r in df.iterrows()],
+        "Risultato": df["risultato_reale"].tolist(),
+        "Esito": df["esito"].tolist(),
+    })
 
-    Mostra la probabilita' di mercato (prob_sicuro), la differenza fra ultima
-    e prima registrazione (in punti percentuali), la probabilita' del modello
-    (Drago) se registrata e il segnale d'accordo. Se la prima e'
-    ricostruita, il delta resta vuoto e la colonna dedicata lo dichiara.
+
+def _sintesi_registro_mercato(righe) -> tuple:
+    """Punto 5b: le due righe di bilancio sopra la tabella, da valori GIA' nel
+    Registro (niente ricalcoli sulle probabilita': si leggono solo le colonne
+    ``esito`` e ``quota_mercato_prima``).
+
+    Riga 1: "Finora N giocate concluse, M riuscite (X su 100)" — N = righe con
+    esito ✅/❌, M = quelle ✅, X = percentuale intera.
+    Riga 2: "Su 100 giocate da 1 €, chi le avesse seguite tutte avrebbe oggi
+    ±Y €", con il pareggio esatto detto "pari" (una giocata vinta restituisce
+    la quota della prima registrazione, una persa restituisce 0; la media e'
+    per 100 giocate da 1 €). Primo valore negativo = "avrebbe oggi Y € in
+    meno"; positivo = "Y € in più"; a zero esatto = "pari".
+    Quota mancante su una riga vinta: la riga non conta nel netto (resa n/d,
+    non inventata) e la dizione lo dichiara in coda con "quota n/d".
+    """
+    esiti = righe["esito"].tolist() if "esito" in righe.columns else []
+    quote = righe[QUOTA_MERCATO_PRIMA_FIELD].tolist() if QUOTA_MERCATO_PRIMA_FIELD in righe.columns else [None] * len(esiti)
+    concluse = [(e, q) for e, q in zip(esiti, quote) if e in ("✅", "❌")]
+    n = len(concluse)
+    if n == 0:
+        return None, None
+    m = sum(1 for e, _q in concluse if e == "✅")
+    x_cento = int(round(100.0 * m / n))
+    riga1 = f"Finora {n} giocate concluse, {m} riuscite ({x_cento} su 100)"
+    netto = 0.0
+    nd = 0
+    for e, q in concluse:
+        if e == "❌":
+            netto -= 1.0
+            continue
+        try:
+            quota = float(str(q).replace(",", ".")) if q is not None else None
+        except (TypeError, ValueError):
+            quota = None
+        if quota is None or not math.isfinite(quota) or quota <= 1.0:
+            nd += 1
+            continue
+        netto += quota - 1.0
+    per_100 = 100.0 * netto / n if n else 0.0
+    if abs(per_100) < 0.05:
+        riga2 = "Su 100 giocate da 1 €, chi le avesse seguite tutte sarebbe pari"
+    elif per_100 > 0:
+        riga2 = (f"Su 100 giocate da 1 €, chi le avesse seguite tutte avrebbe oggi "
+                 f"{per_100:.2f} € in più".replace(".", ","))
+    else:
+        riga2 = (f"Su 100 giocate da 1 €, chi le avesse seguite tutte avrebbe oggi "
+                 f"{abs(per_100):.2f} € in meno".replace(".", ","))
+    if nd:
+        riga2 += f" ({nd} con quota n/d, non contate nel netto)"
+    return riga1, riga2
+
+
+def _mostra_registro_mercato(righe, altezza=420):
+    """Registro della famiglia MERCATO in parole (punto 5).
+
+    In vista: Quando, Campionato, Partita, Giocata in parole, "Riesce circa",
+    "Il nostro modello e' d'accordo", Risultato, Esito. Nel riquadro chiuso
+    "Dettagli" la tabella tecnica completa di un tempo: P modello,
+    "Δ dalla prima", Prima registrazione, Stato, origine, stagione (fonte ed
+    eta' delle quote stanno nel Dettaglio della scheda TOP MIX, dove le righe
+    di mercato nascono). Nessun dato del Registro e' toccato: e' solo lettura
+    presentata diversamente.
 
     La colonna "Stato" dice se il valore mostrato e' anche una scelta oggi in
     tabella: dopo il rinfresco delle righe in attesa una riga puo' leggere 0,52
@@ -3907,13 +4246,22 @@ def _mostra_registro_mercato(righe, altezza=420):
     campo esistesse, per le quali NON si sa cosa il mercato dicesse nei turni
     successivi.
     """
-    st.markdown(f"<div class='top-mix-model top-mix-mercato'><b>🌟 Mercato (topmix_mercato_v3)</b>"
-                f" — {len(righe)} righe"
-                f"<br><small>Scelte del mercato: de-vig proporzionale, soglia 0,55.</small></div>",
+    st.markdown(f"<div class='top-mix-model top-mix-mercato'><b>🌟 Com'è andata: le scelte secondo le quote</b>"
+                f" — {len(righe)} righe</div>",
                 unsafe_allow_html=True)
+    st.caption("Le probabilità vengono dalle quote dei bookmaker, che in media "
+               "sbagliano meno di qualunque modello.")
     if righe.empty:
         st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
         return
+    # Punto 5b: il bilancio in parole sopra la tabella (stessi numeri di
+    # sempre, letti dalle colonne del Registro — vedi _sintesi_registro_mercato).
+    bil_riga1, bil_riga2 = _sintesi_registro_mercato(righe)
+    if bil_riga1 is not None:
+        st.markdown(f"**{bil_riga1}**")
+        st.caption(bil_riga2)
+    st.dataframe(_tabella_registro_mercato_in_parole(righe), width="stretch",
+                 height=altezza, hide_index=True)
     # Prepara le colonne per il modello e l'accordo
     df = righe.copy()
     if "prob_modello" in df.columns:
@@ -3936,45 +4284,49 @@ def _mostra_registro_mercato(righe, altezza=420):
     df["Δ dalla prima"] = [valore for valore, _stato in delta_e_stato_prima]
     df["Prima registrazione"] = [stato for _valore, stato in delta_e_stato_prima]
 
-    colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
-    tabella = df[colonne].sort_values(by="data", ascending=False, na_position="last")
-    # Streamlit conserva il DataFrame sottostante (quindi ordinamento e copia
-    # restano normali) ma applica il colore al testo della freccia.
-    tabella_stile = tabella.style.apply(
-        lambda colonna: [_stile_delta_dalla_prima(v) for v in colonna],
-        axis=0, subset=["Δ dalla prima"])
-    st.dataframe(
-        tabella_stile,
-        width="stretch",
-        height=altezza,
-        column_config={
-            "data": st.column_config.DatetimeColumn(None, format="DD/MM/YYYY HH:mm"),
-            "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
-            "Δ dalla prima": st.column_config.TextColumn(
-                "Δ dalla prima",
-                help="Probabilita' di mercato dell'ultima registrazione meno la prima, "
-                     "in punti percentuali. Freccia verde da +2,0 pp, rossa da -2,0 pp; "
-                     "per una variazione inferiore a 2 pp in valore assoluto non c'e' freccia."),
-            "Prima registrazione": st.column_config.TextColumn(
-                "Prima registrazione",
-                help="'ricostruita' significa che il Registro non conserva una prima "
-                     "probabilita' scritta: il delta resta vuoto, non vale zero."),
-            "prob_modello_col": st.column_config.TextColumn("P modello Drago %"),
-            "accordo_col": st.column_config.TextColumn("D'accordo"),
-            "stato_col": st.column_config.TextColumn("Stato"),
-        },
-    )
+    with st.expander("🔎 Dettagli", expanded=False):
+        st.caption(f"Vista tecnica completa della famiglia mercato "
+                   f"(topmix_mercato_v3): scelte del mercato con de-vig proporzionale, "
+                   f"soglia di ammissione {SOGLIA_TOPMIX_MERCATO:.2f}. Colonne: P modello Drago, "
+                   "Δ dalla prima, Prima registrazione, Stato, origine, stagione.")
+        colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
+        tabella = df[colonne].sort_values(by="data", ascending=False, na_position="last")
+        # Streamlit conserva il DataFrame sottostante (quindi ordinamento e copia
+        # restano normali) ma applica il colore al testo della freccia.
+        tabella_stile = tabella.style.apply(
+            lambda colonna: [_stile_delta_dalla_prima(v) for v in colonna],
+            axis=0, subset=["Δ dalla prima"])
+        st.dataframe(
+            tabella_stile,
+            width="stretch",
+            height=altezza,
+            column_config={
+                "data": st.column_config.DatetimeColumn(None, format="DD/MM/YYYY HH:mm"),
+                "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
+                "Δ dalla prima": st.column_config.TextColumn(
+                    "Δ dalla prima",
+                    help="Probabilita' di mercato dell'ultima registrazione meno la prima, "
+                         "in punti percentuali. Freccia verde da +2,0 pp, rossa da -2,0 pp; "
+                         "per una variazione inferiore a 2 pp in valore assoluto non c'e' freccia."),
+                "Prima registrazione": st.column_config.TextColumn(
+                    "Prima registrazione",
+                    help="'ricostruita' significa che il Registro non conserva una prima "
+                         "probabilita' scritta: il delta resta vuoto, non vale zero."),
+                "prob_modello_col": st.column_config.TextColumn("P modello Drago %"),
+                "accordo_col": st.column_config.TextColumn("D'accordo"),
+                "stato_col": st.column_config.TextColumn("Stato"),
+            },
+        )
 
 
 with tab2:
-    st.caption("Una tabella sola, basata sul **mercato**: la scelta (1/X/2) e' quella con la "
-               "probabilita' di mercato piu' alta, ammessa se supera il **55%**. Accanto, la "
-               "probabilita' del modello (Drago) sullo stesso esito e il segnale **d'accordo** "
-               "(modello e mercato entrambi ≥ 55% sullo stesso esito). "
-               "Le quote arrivano dal file scritto ogni giorno dal workflow `live_odds.yml`: "
-               "l'app non chiama nessuna API di quote. "
-               "Le scelte 1X2 di Drago e Legacy non sono piu' in tabella: continuano a essere "
-               "registrate nel registro ombra (`sm:registro:ombra`).")
+    st.caption("Una tabella sola, costruita sulle **quote dei bookmaker**: la scelta (1/X/2) e' "
+               "quella con la probabilita' piu' alta, e compare se supera il **55%**. Accanto, "
+               "la probabilita' del nostro modello sullo stesso esito e il segnale **d'accordo** "
+               "(modello e quote entrambi al 55% o piu'). "
+               "Le quote vengono aggiornate ogni giorno: l'app non chiama nessun servizio esterno. "
+               "Le scelte 1X2 dei due modelli interni non sono piu' in tabella: continuano a "
+               "essere annotate dietro le quinte, per il controllo dei risultati.")
     # --- Pulsante "Calcola Top Mix": calcola, salva nel registro e persisti ---
     # Il risultato va in session_state cosi' un rerun (es. selezione di una riga
     # nel multiselect della multipla) non azzera la sezione. La scrittura nel
@@ -4115,19 +4467,28 @@ with tab2:
             ombra, righe_modello={MODEL_VARIANT_CURRENT: top_current,
                                   MODEL_VARIANT_LEGACY: top_legacy})
         if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
-            st.warning(f"⚠️ Registro ombra non scritto: "
+            st.warning(f"⚠️ Note di controllo non scritte: "
                        f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
-        # Registro ombra: proposte di multipla_proposta_v1 (una riga per ciascun k disponibile: 1, 2, 3, 4)
+        # Proposte della settimana di gioco (una riga per ciascun numero di
+        # partite disponibile: 1, 2, 3, 4). Punto 9: la proposta registrata e'
+        # quella del PERIODO DI DEFAULT ("Questa giornata (fino a lunedì)") e
+        # la scrittura avviene solo fra venerdì 00:00 e lunedì 23:59: il
+        # controllo della finestra e' dentro salva_tutte_proposte_k_registro_ombra.
         try:
             payload_q = market_odds.carica_quote_live()
             if payload_q:
-                res_lg = lg.calcola_lista_giocate(payload_q)
-                prop_lg = lg.cerca_proposta_multipla(res_lg.get("giocate", []))
+                ora_utc = market_odds._adesso_utc()
+                res_lg = lg.calcola_lista_giocate(payload_q, adesso_utc=ora_utc)
+                giocate_periodo = lg.giocate_nel_periodo(res_lg.get("giocate", []),
+                                                         ora_utc, "giornata")
+                prop_lg = lg.cerca_proposta_multipla(giocate_periodo)
                 best_by_k_lg = prop_lg.get("per_k", {})
                 if any(best_by_k_lg.values()):
-                    lg.salva_tutte_proposte_k_registro_ombra(best_by_k_lg, snapshot_sha=sha)
+                    lg.salva_tutte_proposte_k_registro_ombra(best_by_k_lg,
+                                                             istante_utc=ora_utc,
+                                                             snapshot_sha=sha)
         except Exception as _e_lg:
-            logging.warning(f"Registro ombra (multipla_proposta_v1) non scritto: {_e_lg}")
+            logging.warning(f"Note di controllo (proposte della settimana) non scritte: {_e_lg}")
 
     # --- Visualizzazione risultati da session_state (sopravvive ai rerun) ---
     # Tabella e calcolatore restano visibili finché l'utente non ricarica la
@@ -4154,8 +4515,12 @@ with tab2:
         stato_quote = carica_indice_quote_live()
         _avviso_stato_quote(stato_quote, "Top Mix")
         _mostra_non_abbinati_fonte(stato_quote, "Top Mix")
-        _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
+        # Ordine (punti 1-5a): prima i riquadri in parole, poi la tabella in
+        # parole del mercato (stesso «Periodo»), poi il riquadro chiuso
+        # «Dettagli» e infine «Prova la tua giocata».
         _mostra_sezione_lista_giocate(top_mercato, stato_quote)
+        _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
+        _mostra_dettagli_lista_giocate(top_mercato, stato_quote)
         calcolatore_multipla(top_mercato)
 
 with tab3:
@@ -4391,11 +4756,15 @@ with tab5:
         # consultabili riga per riga, ma non occupano la pagina e - con un filtro
         # "In Attesa" attivo - non lasciano in vista due intestazioni di motore con
         # la scritta "nessuna riga", che era rumore puro.
+        # Punto 5b: il titolo della famiglia NON nomina versioni interne,
+        # soglie o trattamenti tecnici — in vista restano solo parole capite
+        # da chi non segue il progetto (i numeri delle metriche sono gli
+        # stessi e non cambiano).
         if _metriche_famiglia_registro(
                 all_records, FAMIGLIA_SELETTORE_MERCATO,
-                f"Mercato (topmix_mercato_v3) — dal {CONFINE_FAMIGLIA_MERCATO}",
-                "Scelte del mercato (`topmix_mercato_v3`): de-vig proporzionale, "
-                "soglia 0,55, fonte Pinnacle o media dei libri."):
+                f"Le scelte secondo le quote — dal {CONFINE_FAMIGLIA_MERCATO}",
+                "Le giocate che vengono dalle quote dei bookmaker: in vista c'e' "
+                "quello che e' successo dopo, non il nome delle formule."):
             # Hit rate, Brier e gap letti alle DUE registrazioni (la prima e' la
             # misura principale, l'ultima il dato di supporto). Ha senso solo qui:
             # il modello storico ha UNA sola lettura perche' la sua riga non viene

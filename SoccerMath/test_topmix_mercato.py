@@ -38,6 +38,7 @@ if HERE not in sys.path:
 logging.getLogger("streamlit").setLevel(logging.ERROR)
 
 import market_odds as mo  # noqa: E402
+import lista_giocate as lg  # noqa: E402
 import prediction_registry as R  # noqa: E402
 import app  # noqa: E402
 from prediction_registry import (  # noqa: E402
@@ -408,17 +409,35 @@ class TestCalcolatoreMultipla(unittest.TestCase):
         self.assertIn("non lo sono", out["avviso"].lower())
 
     def test_selezione_per_etichetta(self):
-        righe = [{"home": "Inter", "away": "Roma", "esito": "1", "prob_val": 60.0,
-                  "quota": 1.7, "prob": 0.6, "rank": 1},
-                 {"home": "Milan", "away": "Napoli", "esito": "2", "prob_val": 55.0,
-                  "quota": 2.1, "prob": 0.55, "rank": 2}]
-        etichette = [app.etichetta_riga_multipla(p) for p in righe]
+        """Adattamento di interfaccia (punto 3, rifinitura): il vecchio selettore
+        per etichetta delle RIGHE DEL TOP MIX e' diventato un selettore per
+        GAMBA della lista giocate («Prova la tua giocata»). Quel che resta da
+        garantire e' lo stesso di prima: etichette univoche, identificativo
+        stabile (partita+sigla, non la formattazione), e nessuna gamba
+        inventata da un valore fuori lista."""
+        gambe = [
+            {"match_id": 1, "partita": "Inter vs Roma", "home": "Inter", "away": "Roma",
+             "giocata": "1", "probabilita": 0.60,
+             "quota_b365_stimata": 1.70, "commence_time": "2026-10-17T18:00:00Z"},
+            {"match_id": 2, "partita": "Milan vs Napoli", "home": "Milan", "away": "Napoli",
+             "giocata": "2", "probabilita": 0.55,
+             "quota_b365_stimata": 2.10, "commence_time": "2026-10-17T20:45:00Z"},
+        ]
+        etichette = [lg.descrivi_leg(g) for g in gambe]
         self.assertEqual(len(etichette), len(set(etichette)), "etichette non univoche")
-        scelte = app.righe_multipla(righe, [etichette[1]])
-        self.assertEqual(1, len(scelte))
-        self.assertEqual("Milan", scelte[0]["home"])
-        # un'etichetta che non c'e' non inventa una riga
-        self.assertEqual([], app.righe_multipla(righe, ["inesistente"]))
+        identificativi = [lg.identificativo_giocata(g) for g in gambe]
+        self.assertEqual(len(identificativi), len(set(identificativi)),
+                         "l'identificativo distingue le gambe (match_id|sigla)")
+        # stessa partita, giocata diversa = gamba diversa
+        altra = dict(gambe[0], giocata="1X")
+        self.assertNotEqual(lg.identificativo_giocata(gambe[0]),
+                            lg.identificativo_giocata(altra))
+        # l'esito della prova usa SOLO le gambe scelte: la seconda selezionata
+        # da sola resta quella di Milan vs Napoli, senza righe inventate.
+        esito = lg.esito_prova_giocata([gambe[1]], [None])
+        self.assertAlmostEqual(0.55, esito["probabilita"], places=12)
+        self.assertAlmostEqual(2.10, esito["quota_totale"], places=12)
+        self.assertEqual("Con le quote previste dall'app", esito["titolo"])
 
 
 class TestRegistro(unittest.TestCase):
