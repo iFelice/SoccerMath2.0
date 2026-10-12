@@ -242,6 +242,13 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
 
         patch(pr, "backup_prediction_file", backup)
 
+        # La cache di @st.cache_data e' process-global e condivisa fra gli
+        # AppTest di file diversi: svuotarla prima del primo run, altrimenti
+        # il click di "Calcola Top Mix" rilegge dati calcolati da un altro
+        # fixture (es. lo snapshot da 90 eventi di
+        # test_apptest_topmix_presentazione).
+        import streamlit as st
+        st.cache_data.clear()
         cls.at = AppTest.from_file(APP_PATH, default_timeout=600)
         cls.at.run()
         cls.eccezioni("apertura della pagina")
@@ -348,49 +355,77 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
                          "il flag di mercato non finisce nelle righe di altra famiglia")
         self.assertNotIn(pr.PROB_MERCATO_FIELD, storico)
 
-        # --- 4) multipla: tabella e calcolatore restano visibili ------------
-        mss = [m for m in self.at.multiselect if m.key == "multipla_selezione"]
-        self.assertEqual(1, len(mss), "il multiselect della multipla c'e'")
-        self.assertEqual(2, len(mss[0].options), "due righe da scegliere, le due ammesse")
+        # --- 4) «Prova la tua giocata»: il nuovo calcolatore resta visibile --
+        # Adattamento di interfaccia (punto 3, rifinitura): il multiselect delle
+        # righe + campo opzionale unico e' diventato, in un expander chiuso, un
+        # numero di giocate + un menu per gamba + una casella bet365 per gamba.
+        # Quello che NON deve cambiare: nessuna scrittura nel Registro, nessuna
+        # chiamata HTTP nei rerun di UI, e la matematica (prodotto di
+        # probabilita' e prodotto di quote) che qui si misura sui numeri resi.
+        exp_prova = [e for e in self.at.expander if "Prova la tua giocata" in (e.label or "")]
+        self.assertEqual(1, len(exp_prova), "il riquadro «Prova la tua giocata» c'e'")
         self.scritture.clear()
         self.chiamate.clear()
-        mss[0].set_value(list(mss[0].options))
+        # Giorno-indipendente: il calcolatore segue il controllo «Periodo», e
+        # a 20 ore dal calcio la "giornata" puo' essere gia' chiusa (lunedì
+        # sera). Si passa a "Tutte": il contenuto del riquadro non cambia.
+        import lista_giocate as _lg
+        from datetime import datetime as _dt, timezone as _tz
+        _adesso = _dt.now(_tz.utc)
+        periodi = [r for r in self.at.radio if (r.key or "") == "lg_periodo"]
+        self.assertEqual(1, len(periodi), "il controllo «Periodo» c'e'")
+        periodo_val = ("giornata" if periodi[0].value == _lg.ETICHETTA_PERIODO_GIORNATA
+                       else "tutte")
+        if _lg.lunedi_gioco(_adesso) <= _adesso + timedelta(hours=20):
+            periodi[0].set_value(_lg.ETICHETTA_PERIODO_TUTTE)
+            self.at.run()
+            periodo_val = "tutte"
+        quota_payload = json.loads((self.prediction_file.parent / "live_odds.json").read_text())
+        sel_n = [s for s in self.at.selectbox if s.key == "prova_n_gambe"]
+        self.assertEqual(1, len(sel_n), "il selettore del numero di giocate c'e'")
+        sel_n[0].set_value(2)
         self.at.run()
-        self.eccezioni("selezione di due righe")
-
+        self.eccezioni("scelte 2 giocate da combinare")
+        gambe_sel = [s for s in self.at.selectbox if (s.key or "").startswith("prova_gamba_")]
+        self.assertEqual(2, len(gambe_sel), "un menu per gamba")
+        _res = _lg.calcola_lista_giocate(quota_payload, adesso_utc=_adesso)
+        _attese = _lg.giocate_nel_periodo(_res["giocate"], _adesso, periodo_val)
+        self.assertEqual(len(_attese), len(gambe_sel[0].options),
+                         "le opzioni sono esattamente le giocate della lista del periodo")
+        # le due gambe piu' probabili, in cima alla lista ordinata
+        gambe_sel[0].set_value(gambe_sel[0].options[0])
+        gambe_sel[1].set_value(gambe_sel[1].options[1])
+        self.at.run()
+        self.eccezioni("due gambe scelte")
         self.assertEqual([], self.scritture,
                          "un rerun di UI non scrive il Registro: la scrittura vive nel click")
         self.assertEqual([], self.chiamate, "un rerun non rifà le chiamate HTTP")
         df = [e for e in self.at if type(e).__name__ in ("Dataframe", "ArrowDataFrame")]
-        self.assertGreaterEqual(len(df), 2, "tabella Top Mix + tabella della multipla visibili")
-        ms_dopo = [m for m in self.at.multiselect if m.key == "multipla_selezione"]
-        self.assertEqual(1, len(ms_dopo), "il calcolatore non e' sparito col rerun")
-        self.assertEqual(2, len(ms_dopo[0].value), "la selezione resta dopo il rerun")
+        self.assertGreaterEqual(len(df), 2, "tabelle Top Mix e liste visibili")
         metriche = {m.label: m.value for m in self.at.metric}
-        self.assertIn("Probabilita' combinata", metriche, list(metriche))
-        self.assertIn("Quota equa (1/prob)", metriche, list(metriche))
+        self.assertIn("Riesce circa", metriche, list(metriche))
+        self.assertIn("Paga circa", metriche, list(metriche))
+        self.assertIn("Su 100 € giocati tornano in media", metriche, list(metriche))
 
-        # --- 5) campo opzionale vuoto = nessun margine ---------------------
-        nis = [n for n in self.at.number_input if n.key == "multipla_quota_bookmaker"]
-        self.assertEqual(1, len(nis), "il campo 'Quota offerta dal tuo bookmaker' c'e'")
-        self.assertIsNone(nis[0].value, "il campo parte VUOTO: nessuna quota di default")
-        self.assertNotIn("Margine sulla tua quota", metriche,
-                         "senza quota inserita il margine non si mostra")
-
-        # --- 6) quota inserita -> margine = quota * prob - 1 ----------------
-        prob_comb = 1.0
-        for r in top:
-            prob_comb *= r["prob"]
-        self.assertTrue(0.0 < prob_comb < 1.0, prob_comb)
-        quota = 2.85
-        nis[0].set_value(quota)
+        # --- 5) caselle vuote = stime dell'app, titolo e numeri -------------
+        nis = [n for n in self.at.number_input if (n.key or "").startswith("prova_quota_")]
+        self.assertEqual(2, len(nis), "una casella bet365 per gamba")
+        self.assertTrue(all(n.value is None for n in nis),
+                        "le caselle partono VUOTE: nessuna quota di default")
+        testi = [c.body for c in self.at.markdown if c.body] + [c.body for c in self.at.caption if c.body]
+        self.assertTrue(any("Con le quote previste dall'app" in t for t in testi),
+                        "caselle vuote: il titolo dichiara l'uso delle stime")
+        # --- 6) casella compilata: cambia solo il contributo di quella gamba
+        quota_mia = 2.85
+        nis[0].set_value(quota_mia)
         self.at.run()
-        self.eccezioni("quota del bookmaker inserita")
-        dopo = {m.label: m.value for m in self.at.metric}
-        self.assertIn("Margine sulla tua quota", dopo, list(dopo))
-        mostrato = float(dopo["Margine sulla tua quota"].replace("%", "").replace("+", ""))
-        self.assertAlmostEqual(quota * prob_comb - 1.0, mostrato / 100.0, places=3)
-        self.assertEqual([], self.scritture, "nemmeno la multipla scrive il Registro")
+        self.eccezioni("quota bet365 della prima gamba inserita")
+        testi_dopo = [c.body for c in self.at.markdown if c.body] + [c.body for c in self.at.caption if c.body]
+        self.assertTrue(any("Con 1 quote di bet365" in t for t in testi_dopo),
+                        "una casella compilata: il titolo conta le quote lette")
+        self.assertTrue(any("bet365 paga" in t for t in testi_dopo),
+                        "sotto la casella compilata c'e' il verdetto in parole")
+        self.assertEqual([], self.scritture, "nemmeno la prova scrive il Registro")
 
         # --- 7) secondo click: SEMPRE una scrittura per click, non per riga ---
         # Il secondo click non e' "niente da fare": le righe ammesse vengono
@@ -499,7 +534,9 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         # leggibile: ..."), che e' un altro modo dello stesso blocco di esserci.
         testi_fuori = (md_fuori + " · " + _testi(_fuori(self.at.info))
                        + " · " + _testi(_fuori(self.at.warning)))
-        self.assertIn("Mercato (topmix_mercato_v3)", md_fuori)
+        # Adattamento di interfaccia (punto 5b): il titolo della famiglia non
+        # nomina piu' la versione del selettore — resta il concetto, in parole.
+        self.assertIn("Le scelte secondo le quote — dal", md_fuori)
         self.assertIn("Affidabilita' per registrazione", md_fuori,
                       "le statistiche per registrazione della famiglia mercato restano visibili")
         self.assertIn("Registro ombra", testi_fuori,
@@ -542,7 +579,7 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         self.assertIn("Nessuna riga di questa famiglia nel Registro visibile",
                       _testi(archivio.markdown) + " · " + _testi(archivio.caption),
                       "il riquadro dice lui che la famiglia e' vuota, senza inventare totali")
-        self.assertIn("Mercato (topmix_mercato_v3)", _testi(_fuori(self.at.markdown)),
+        self.assertIn("Le scelte secondo le quote — dal", _testi(_fuori(self.at.markdown)),
                       "la famiglia mercato conserva la sua intestazione")
 
 if __name__ == "__main__":

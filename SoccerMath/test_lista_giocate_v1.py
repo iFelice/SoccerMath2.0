@@ -240,9 +240,20 @@ class TestPropostaMultiplaERicercaEsaustiva(unittest.TestCase):
             self.assertEqual(len(ref_best[2]), len(migliore["giocate"]))
 
     def test_percorso_reale_singola_in_fascia(self):
-        # Output di calcola_lista_giocate su snapshot reale passato senza modifiche a cerca_proposta_multipla
-        snap = mo.carica_quote_live()
-        self.assertIsNotNone(snap)
+        # Output di calcola_lista_giocate su snapshot reale passato senza modifiche a cerca_proposta_multipla.
+        # Adattamento di interfaccia (nessuna asserzione numerica cambiata): lo snapshot NON e'
+        # piu' letto dal file su disco, che il workflow live_odds.yml rigenera ogni giorno e su
+        # cui i valori attesi qui sotto non valgono piu'; si legge il blob storico 078beef (93
+        # eventi, generato 2026-10-10T09:08Z) — quello su cui le asserzioni sono nate, con lo
+        # stesso meccanismo `git show` del test di parita' (fc1b45e).
+        try:
+            raw = subprocess.check_output(
+                ["git", "show", "078beef:SoccerMath/database/live_odds.json"],
+                stderr=subprocess.DEVNULL
+            ).decode("utf-8")
+            snap = json.loads(raw)
+        except Exception as e:
+            self.skipTest(f"Impossibile leggere snapshot da git: {e}")
         now = datetime.fromisoformat("2026-10-11T13:00:00Z")
         res_lg = lg.calcola_lista_giocate(snap, adesso_utc=now)
         giocate = res_lg["giocate"]
@@ -319,7 +330,12 @@ class TestRegistroOmbraMultipla(unittest.TestCase):
     """Test del registro ombra per multipla_proposta_v1: prima registrazione immutabile."""
 
     def test_prima_registrazione_settimana_mai_sovrascritta(self):
-        now = datetime.now(timezone.utc)
+        # Adattamento di interfaccia (nessuna asserzione numerica cambiata): dal punto 9 la
+        # prima registrazione avviene SOLO fra venerdì 00:00 e lunedì 23:59 (Europe/Rome),
+        # quindi l'istante del calcolo va fissato a un venerdì — con `datetime.now()` il test
+        # fallirebbe da martedì a giovedì ("fuori_finestra") senza che nulla sia rotto.
+        # Venerdì 2026-10-16 18:00 ora italiana (16:00 UTC): finestra aperta.
+        now = datetime(2026, 10, 16, 16, 0, tzinfo=timezone.utc)
         settimana = lg.settimana_gioco(now)
         
         proposta1 = {
@@ -440,8 +456,17 @@ class TestQuoteNonGiocabili(unittest.TestCase):
     """Test su snapshot reale con conteggio delle giocate escluse (quota stimata arrotondata <= 1.01)."""
 
     def test_conteggio_giocate_non_giocabili_snapshot_reale(self):
-        snap = mo.carica_quote_live()
-        self.assertIsNotNone(snap)
+        # Adattamento di interfaccia (nessuna asserzione numerica cambiata): anche qui lo
+        # snapshot si legge dal blob storico 078beef — le 93 partite / 558 giocate sono QUELLE,
+        # non quelle del file su disco che il workflow rigenera ogni giorno.
+        try:
+            raw = subprocess.check_output(
+                ["git", "show", "078beef:SoccerMath/database/live_odds.json"],
+                stderr=subprocess.DEVNULL
+            ).decode("utf-8")
+            snap = json.loads(raw)
+        except Exception as e:
+            self.skipTest(f"Impossibile leggere snapshot da git: {e}")
         # Istante 2020-01-01 per includere tutte le 93 partite dello snapshot
         res = lg.calcola_lista_giocate(snap, adesso_utc=datetime(2020, 1, 1, tzinfo=timezone.utc))
         giocate = res["giocate"]

@@ -1,6 +1,6 @@
 ## 4. Punto 4 — fit della griglia su una linea totals qualunque
 
-Generato da `audit/linee_totali_probe.py` il 2026-10-10T19:37:34Z · linee e quote totals dalla sonda in `audit/data/totals_probe/` (2026-10-10T17:03Z) · terna 1X2 Pinnacle da `SoccerMath/database/live_odds.json` (2026-10-10T09:08:52Z) · nessuna nuova chiamata a The Odds API, nessuna chiave, nessuna modifica a `SoccerMath/`.
+Generato da `audit/linee_totali_probe.py` il 2026-10-11T21:28:02Z · linee e quote totals dalla sonda in `audit/data/totals_probe/` (2026-10-10T17:03Z) · terna 1X2 Pinnacle dalla copia versionata `audit/data/totals_probe/2026-10-10_1703/_live_odds_1x2_2026-10-10T090852Z.json` (2026-10-10T09:08:52Z; = blob `078beef` del file vivo, fissato dopo che il workflow live_odds.yml del 2026-10-11T14:56Z lo ha riscritto) · nessuna nuova chiamata a The Odds API, nessuna chiave, nessuna modifica a `SoccerMath/`.
 
 ### 4.1 Estensione del fit (audit/griglia_core.py)
 
@@ -12,7 +12,7 @@ Il terzo vincolo del fit non è più la sola P(Over 2,5) ma la **probabilità gi
 | intera (2 / 3) | rimborso se i gol totali sono uguali alla linea | P(sopra) / (1 − P(uguale)) |
 | a quarti (2,25 / 2,75) | mezza puntata su ciascuna delle due linee adiacenti | quota equa da EV nullo: p = W / (W + Lp) |
 
-`W` = frazione di puntata che vince, `Lp` = frazione che perde, il resto è rimborsato. Con questa definizione p(sopra) + p(sotto) = 1 per ogni tipo di linea, quindi il de-vig a due vie è applicabile senza correzioni. Test di andata e ritorno su parametri noti per ogni tipo di linea: `audit/test_griglia_core_linee.py` (81 test; 96 in tutto insieme a `audit/test_griglia_core.py` e `audit/test_griglia_varianti.py`), residuo richiesto < 1e-9 e quote eque verificate con tabelle di profitto scritte a mano.
+`W` = frazione di puntata che vince, `Lp` = frazione che perde, il resto è rimborsato. Con questa definizione p(sopra) + p(sotto) = 1 per ogni tipo di linea, quindi il de-vig a due vie è applicabile senza correzioni. Test di andata e ritorno su parametri noti per ogni tipo di linea: `audit/test_griglia_core_linee.py` (96 test con `audit/test_griglia_core.py` e `audit/test_griglia_varianti.py`), residuo richiesto < 1e-9.
 
 ### 4.2 Verifica su dati reali
 

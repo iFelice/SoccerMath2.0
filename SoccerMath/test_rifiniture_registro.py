@@ -709,12 +709,35 @@ class TestRifinitureNelCodiceDellApp(unittest.TestCase):
         self.assertIn("letture, _scartate_letture = righe_non_iniziate(letture)", self.tab2)
 
     def test_il_calcolatore_espone_il_campo_opzionale(self):
-        self.assertIn("Quota offerta dal tuo bookmaker", self.calc)
-        self.assertIn("value=None", self.calc, "il campo deve poter restare vuoto")
-        self.assertIn('key="multipla_quota_bookmaker"', self.calc)
-        self.assertIn("quota_bookmaker=quota_bookmaker", self.calc)
-        self.assertIn('metric("Margine sulla tua quota"', self.calc)
-        # le due metriche che non dicevano niente sono sparite
+        """Adattamento di interfaccia (punto 3, rifinitura): il confronto con
+        la quota del bookmaker non e' piu' UN campo opzionale sulla multipla
+        intera — e' una casella per gamba («Quota che vedi su bet365»), che
+        parte sempre VUOTA (``value=None``: mai una quota inventata), nel
+        riquadro chiuso «Prova la tua giocata». I numeri restano quelli di
+        ``esito_prova_giocata``: prodotto delle probabilita' e prodotto delle
+        quote (stima dell'app quando la casella e' vuota, quota letta quando
+        e' compilata)."""
+        self.assertIn('st.expander("🧮 Prova la tua giocata"', self.calc)
+        self.assertIn("Quota che vedi su bet365", self.calc)
+        self.assertIn("value=None", self.calc, "ogni casella deve poter restare vuota")
+        self.assertIn('key="prova_n_gambe"', self.calc)
+        self.assertIn('key=f"prova_gamba_{i}"', self.calc)
+        self.assertIn('key=f"prova_quota_{i}"', self.calc)
+        self.assertIn("lg.hint_quota_stimata(", self.calc,
+                      "sotto ogni casella si dice quanto l'app si aspetta")
+        self.assertIn("lg.confronto_quota_bet365(", self.calc,
+                      "casella compilata = verdetto bet365 paga piu'/meno/come previsto")
+        self.assertIn("lg.esito_prova_giocata(", self.calc)
+        self.assertIn('metric("Riesce circa"', self.calc)
+        self.assertIn('metric("Paga circa"', self.calc)
+        self.assertIn('metric("Su 100 € giocati tornano in media"', self.calc)
+        self.assertIn("lg.ISTRUZIONI_PROVA_LA_TUA_GIOCATA", self.calc)
+        self.assertIn("lg.LINEA_PARTITE_INDIPENDENTI", self.calc)
+        # il vecchio calcolatore (multiselect + campo unico opzionale) e' sparito
+        self.assertNotIn("multipla_selezione", self.calc)
+        self.assertNotIn("multipla_quota_bookmaker", self.calc)
+        self.assertNotIn('metric("Margine sulla tua quota"', self.calc)
+        self.assertNotIn('metric("Differenza sulla tua quota"', self.calc)
         self.assertNotIn('metric("Edge"', self.calc)
         self.assertNotIn('metric("Quota offerta"', self.calc)
 

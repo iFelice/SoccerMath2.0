@@ -23,6 +23,14 @@ Cosa si ricalcola senza gli eventi iniziati:
 
 Nessuna rete, nessuna chiamata a The Odds API, nessuna modifica a ``SoccerMath/``.
 
+Fonte della terna 1X2 (PR #60): la copia versionata fissata accanto allo
+snapshot (``audit/data/totals_probe/2026-10-10_1703/_live_odds_1x2_2026-10-10T090852Z.json``,
+= blob ``078beef`` del 2026-10-10T09:08:52Z). Il file vivo
+``SoccerMath/database/live_odds.json`` NON si usa: lo riscrive il workflow
+live_odds.yml ogni giorno e dall'aggiornamento 2026-10-11T14:56Z (che ha
+espulso gli eventi già giocati) i confrontabili letti da lì non sono più
+riproducibili (42 → 35).
+
 Output: ``audit/results/totals_probe_senza_avviati.md``,
 ``audit/output/totals_probe_senza_avviati.json``.
 Uso: ``python audit/totals_probe_senza_avviati.py``
@@ -73,7 +81,10 @@ def avviati(eventi):
             if e.get("giorni") is not None and float(e["giorni"]) <= 0.0]
 
 
-def calcola() -> dict:
+def calcola(live_odds_path=L.LIVE_ODDS_PINNED) -> dict:
+    """Ricalcolo descrittivo. ``live_odds_path`` e' parametro esplicito: la terna
+    1X2 di questo snapshot storico si legge dalla copia versionata fissata
+    (default ``linee_totali_probe.LIVE_ODDS_PINNED``), MAI dal file vivo."""
     # ---- PR #59: regola dell'85 % e cause (funzioni originali, logica invariata) ----
     snaps = T.load_snapshots()
     eventi = T.analizza(snaps)
@@ -96,7 +107,7 @@ def calcola() -> dict:
     # ---- PR #60: eventi confrontabili e differenza su P(Over 2,5) (logica invariata) ----
     L.MASCHERE = L._maschere()
     probe = L.load_probe()
-    h2h, _gen = L.load_1x2()
+    h2h, _gen = L.load_1x2(live_odds_path)
 
     def confronti(ev_ids):
         out = []

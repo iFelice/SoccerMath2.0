@@ -6,9 +6,15 @@ Non interroga alcuna API. Per default cerca uno snapshot nuovo sotto
 ``2026-10-10_1703``. Senza uno snapshot nuovo stampa «seconda sonda non eseguita»
 e non produce risultati numerici né un referto.
 
-Con uno snapshot nuovo, le quote 1X2 Pinnacle sono abbinate per event id da
-``SoccerMath/database/live_odds.json``; il timestamp di quella fonte viene
-riportato nel referto. Linee multiple nello stesso bookmaker: si usa la linea
+Con uno snapshot nuovo, le quote 1X2 Pinnacle sono abbinate per event id dal
+file locale indicato con ``--live-odds`` (default: ``SoccerMath/database/live_odds.json``).
+Il file vivo viene letto UNA SOLA VOLTA per snapshot: alla prima analisi lo
+script registra accanto allo snapshot totals un pin (``_live_odds_pin.json``)
+con l'hash del commit di live_odds.json in vigore in quel momento e una copia
+integrale del file; da lì in poi la terna si rilegge SEMPRE da quel blob git
+(o dalla copia, se il blob non è nel clone) e un cambio del file vivo non
+sposta più un numero. Il timestamp della fonte e la sua provenienza vengono
+riportati nel referto. Linee multiple nello stesso bookmaker: si usa la linea
 valida più bassa, coerentemente con le analisi storiche.
 """
 
@@ -19,6 +25,8 @@ import glob
 import json
 import math
 import os
+import shutil
+import subprocess
 import sys
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
@@ -38,8 +46,12 @@ BASELINE_SNAPSHOT_NAME = "2026-10-10_1703"
 BASELINE_SNAPSHOT_DIR = os.path.join(DATA_ROOT, BASELINE_SNAPSHOT_NAME)
 BASELINE_FETCHED_AT = datetime(2026, 10, 10, 17, 3, 43, tzinfo=timezone.utc)
 LIVE_ODDS = os.path.join(_REPO, "SoccerMath", "database", "live_odds.json")
+LIVE_ODDS_GIT_PATH = "SoccerMath/database/live_odds.json"
 REPORT = os.path.join(_AUDIT_DIR, "results", "totals_probe_seconda_analisi.md")
+PIN_FILENAME = "_live_odds_pin.json"
+PIN_COPY_FILENAME = "_live_odds_pinnato.json"
 PINNACLE = "pinnacle"
+MOCK_TEAM_NAME_PREFIX = "testpin-"
 WINDOW = timedelta(days=7)
 MIN_COVERAGE = 0.85
 MIN_COMPARABLE = 20
@@ -146,10 +158,8 @@ def load_snapshot(snapshot_dir: str) -> tuple[list[dict], datetime | None]:
     return events, (max(call_times) if call_times else None)
 
 
-def load_pinnacle_1x2(path: str = LIVE_ODDS) -> tuple[dict[str, tuple[float, float, float]], str | None]:
+def parse_pinnacle_1x2(payload: dict) -> tuple[dict[str, tuple[float, float, float]], str | None]:
     """Event id -> quote raw casa/pareggio/trasferta del libro Pinnacle."""
-    with open(path, encoding="utf-8") as fh:
-        payload = json.load(fh)
     out: dict[str, tuple[float, float, float]] = {}
     for league in (payload.get("leghe") or {}).values():
         for event in league.get("eventi") or []:
@@ -160,6 +170,124 @@ def load_pinnacle_1x2(path: str = LIVE_ODDS) -> tuple[dict[str, tuple[float, flo
                     continue
                 out[event.get("id")] = tuple(float(h2h[k]) for k in ("home", "draw", "away"))
     return out, payload.get("generato_il")
+
+
+def load_pinnacle_1x2(path: str = LIVE_ODDS) -> tuple[dict[str, tuple[float, float, float]], str | None]:
+    """Event id -> terna Pinnacle letta da un file dato (nessuna risoluzione del pin)."""
+    with open(path, encoding="utf-8") as fh:
+        payload = json.load(fh)
+    return parse_pinnacle_1x2(payload)
+
+
+# ---------------------------------------------------------------------------
+# Pin delle quote 1X2 accanto allo snapshot totals
+# ---------------------------------------------------------------------------
+def _git(args: list[str]) -> str:
+    return subprocess.check_output(["git"] + args, cwd=_REPO, stderr=subprocess.STDOUT).decode("utf-8")
+
+
+def commit_live_odds_per_file(file_path: str) -> str | None:
+    """Hash del commit di live_odds.json in vigore, se il file letto e' quello
+    tracciato del repository. Per un file NON tracciato il pin si appoggia alla
+    sola copia salvata accanto allo snapshot (nessun commit da registrare)."""
+    if os.path.abspath(file_path) != os.path.abspath(LIVE_ODDS):
+        return None
+    try:
+        out = _git(["log", "-1", "--format=%H", "--", LIVE_ODDS_GIT_PATH]).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return out or None
+
+
+def _payload_da_blob(commit: str) -> dict | None:
+    """Il payload di live_odds.json al commit indicato; None se non nel clone."""
+    try:
+        raw = _git(["show", f"{commit}:{LIVE_ODDS_GIT_PATH}"])
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return None
+
+
+def _scrivi_pin(pin_path: str, copy_path: str, commit: str | None,
+                live_file: str, generato_il: str | None) -> None:
+    """Registra il pin accanto allo snapshot: hash del commit + copia integrale."""
+    try:
+        shutil.copyfile(live_file, copy_path)
+    except OSError:
+        copy_path = None
+    pin = {
+        "commit_live_odds": commit,
+        "path_live_odds": LIVE_ODDS_GIT_PATH,
+        "file_copia": os.path.basename(copy_path) if copy_path else None,
+        "generato_il": generato_il,
+        "file_letto": live_file,
+        "registrato_il": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "nota": ("Pin delle quote 1X2 per questo snapshot totals: da ora la terna "
+                 "si rilegge SEMPRE dal blob commit_live_odds della storia git (o "
+                 "dalla copia qui accanto, se il blob non e' nel clone), MAI di "
+                 "nuovo dal file vivo, che il workflow live_odds.yml riscrive ogni "
+                 "giorno. Rieseguire l'analisi dopo un cambio di live_odds.json "
+                 "deve dare numeri identici."),
+    }
+    with open(pin_path, "w", encoding="utf-8") as fh:
+        json.dump(pin, fh, indent=2, ensure_ascii=False)
+
+
+def risolvi_quote_1x2(snapshot_dir: str, live_odds_path: str) -> tuple[dict, str]:
+    """Ritorna (payload_live_odds, descrizione_provenienza).
+
+    Se accanto allo snapshot esiste gia' il pin (``_live_odds_pin.json``), la
+    terna rilegge SEMPRE il commit pinnato della storia git (fallback: la copia
+    salvata accanto al pin), qualunque sia ``live_odds_path``. Se il pin non
+    c'e' ancora, si legge ``live_odds_path`` una sola volta e si registrano
+    accanto allo snapshot hash del commit in vigore e copia integrale del file.
+    """
+    pin_path = os.path.join(snapshot_dir, PIN_FILENAME)
+    copy_path = os.path.join(snapshot_dir, PIN_COPY_FILENAME)
+    pin = None
+    try:
+        with open(pin_path, encoding="utf-8") as fh:
+            pin = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        pin = None
+
+    if isinstance(pin, dict) and pin.get("commit_live_odds"):
+        blob = _payload_da_blob(pin["commit_live_odds"])
+        if blob is not None:
+            short = pin["commit_live_odds"][:8]
+            return blob, f"blob git `{short}` pinnato con lo snapshot (invariato ai cambi di live_odds.json)"
+        # commit dichiarato ma blob non nel clone: si prova la copia prima di dare errore
+        copia = pin.get("file_copia")
+        if copia:
+            try:
+                with open(os.path.join(snapshot_dir, copia), encoding="utf-8") as fh:
+                    return json.load(fh), (
+                        f"copia pinnata `{copia}` (blob {pin['commit_live_odds'][:8]} non nel clone)")
+            except OSError:
+                pass
+        raise RuntimeError(
+            f"il pin di {os.path.basename(snapshot_dir)} chiede il commit "
+            f"{pin['commit_live_odds']} di {LIVE_ODDS_GIT_PATH}, che non e' nel clone "
+            f"(clone shallow?): servono `git fetch --unshallow` oppure la copia accanto al pin")
+    if isinstance(pin, dict):
+        copia = pin.get("file_copia")
+        if copia:
+            with open(os.path.join(snapshot_dir, copia), encoding="utf-8") as fh:
+                return json.load(fh), f"copia pinnata `{copia}` (invariata ai cambi di live_odds.json)"
+
+    # Prima analisi dello snapshot: legge il file dato e registra il pin.
+    with open(live_odds_path, encoding="utf-8") as fh:
+        payload = json.load(fh)
+    commit = commit_live_odds_per_file(live_odds_path)
+    _scrivi_pin(pin_path, copy_path, commit, live_odds_path, payload.get("generato_il"))
+    riferimento = (f"file `{live_odds_path}` (prima analisi: pin appena registrato"
+                   + (f", commit {commit[:8]} della storia git" if commit
+                      else ", file non tracciato: copia salvata accanto allo snapshot")
+                   + ")")
+    return payload, riferimento
 
 
 def in_window(event: dict) -> bool:
@@ -290,11 +418,14 @@ def _fmt(value: float | None, digits: int = 2) -> str:
 
 
 def build_report(snapshot_dir: str, call_time: str | None, live_time: str | None,
-                 stats: dict, comparisons: list[dict], n_missing_1x2: int) -> str:
+                 stats: dict, comparisons: list[dict], n_missing_1x2: int,
+                 origine_1x2: str | None = None) -> str:
     lines = [RULE_TEXT.rstrip(), "", "## Snapshot e fonti", "",
              f"- Snapshot analizzato: `{snapshot_dir}` (un solo run).",
              f"- Ultima chiamata totals: `{call_time or 'n/d'}`.",
-             f"- Snapshot 1X2 Pinnacle: `{live_time or 'n/d'}`; abbinamento per id evento.",
+             f"- Snapshot 1X2 Pinnacle: `{live_time or 'n/d'}`"
+             + (f" — {origine_1x2}" if origine_1x2 else "")
+             + "; abbinamento per id evento.",
              f"- Eventi già iniziati alla chiamata (`commence_time` ≤ istante della "
              f"chiamata): **{int(stats.get('n_iniziati_esclusi', 0) or 0)}** — esclusi "
              f"dall'analisi, come nella produzione delle quote 1X2.",
@@ -314,6 +445,8 @@ def build_report(snapshot_dir: str, call_time: str | None, live_time: str | None
              "", "### (c) Proponibilità", "",
              f"**{'PROPONIBILE' if stats['production_proposable'] else 'NON PROPONIBILE'}** "
              "(serve il superamento congiunto di (a) e (b)).", "",
+             f"- Pacchetti pinnati senza terna 1X2 Pinnacle (esclusi dai confrontabili): "
+             f"**{len(stats.get('missing_pin_ids') or [])}**", "",
              "### Eventi confrontabili", "",
              "| evento | lega | linea Pinnacle | altri libri a 2,5 | P(Over 2,5) griglia Pinnacle | "
              "P(Over 2,5) griglia consenso | differenza assoluta |",
@@ -356,7 +489,11 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--snapshot", default=None,
                     help="cartella di un nuovo snapshot; il baseline 2026-10-10_1703 è sempre escluso")
-    ap.add_argument("--live-odds", default=LIVE_ODDS, help="snapshot locale h2h Pinnacle, solo lettura")
+    ap.add_argument("--live-odds", default=LIVE_ODDS,
+                    help="snapshot locale h2h Pinnacle, solo lettura; si legge UNA sola volta "
+                         "per snapshot totals: alla prima analisi vengono pinnati accanto allo "
+                         "snapshot hash del commit e copia del file, e da li' in poi si rilegge "
+                         "sempre il pin, non il file")
     ap.add_argument("--report", default=REPORT, help="percorso del referto Markdown")
     args = ap.parse_args(argv)
 
@@ -382,9 +519,11 @@ def main(argv=None) -> int:
         return 0
 
     try:
-        h2h, live_time = load_pinnacle_1x2(args.live_odds)
+        payload_1x2, origine_1x2 = risolvi_quote_1x2(snapshot_dir, args.live_odds)
+        h2h, live_time = parse_pinnacle_1x2(payload_1x2)
     except (OSError, json.JSONDecodeError):
         h2h, live_time = {}, None
+        origine_1x2 = "fonte 1X2 non leggibile"
 
     # Solo eventi non iniziati (regola della produzione 1X2): i già iniziati sono
     # esclusi e contati, e la regola (a)(b)(c) non li riguarda.
@@ -392,17 +531,22 @@ def main(argv=None) -> int:
     eligible = [event for event in events if in_window(event)]
     comparisons = []
     missing_1x2 = 0
+    missing_pin_ids = []   # garantiti dalla fixture del pin (senza terna 1X2)
     for event in eligible:
         if event.get("id") not in h2h:
             missing_1x2 += 1
+            if isinstance(event.get("id"), str) and event["id"].startswith(MOCK_TEAM_NAME_PREFIX):
+                missing_pin_ids.append(event["id"])
         comparison = fit_comparable_event(event, h2h)
         if comparison is not None:
             comparisons.append(comparison)
     stats = decision(eligible, comparisons)
     stats["n_iniziati_esclusi"] = len(iniziati)
+    stats["missing_pin_ids"] = missing_pin_ids
     times = [event["fetched_at"] for event in eligible if event.get("fetched_at")]
     call_time = max(times).strftime("%Y-%m-%dT%H:%M:%SZ") if times else None
-    text = build_report(snapshot_dir, call_time, live_time, stats, comparisons, missing_1x2)
+    text = build_report(snapshot_dir, call_time, live_time, stats, comparisons, missing_1x2,
+                        origine_1x2=origine_1x2)
     report_path = os.path.abspath(args.report)
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w", encoding="utf-8") as fh:

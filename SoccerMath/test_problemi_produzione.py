@@ -157,10 +157,17 @@ class TestProblema1_MultiplaPersistenza(unittest.TestCase):
                         "save_prediction_entry deve essere nel blocco del pulsante")
 
     def test_multiselect_key_stabile(self):
-        """Il multiselect ha una key stabile (non dipende dal contenuto)."""
+        """Le chiavi dei selettori della multipla sono stabili (non dipendono
+        dal contenuto). Adattamento di interfaccia (punto 3, rifinitura): il
+        multiselect unico e' diventato un selettore per gamba nel riquadro
+        «Prova la tua giocata» — stessa promessa sulle key."""
         app_src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
-        self.assertIn('key="multipla_selezione"', app_src,
-                      "Il multiselect deve avere key='multipla_selezione' stabile")
+        self.assertIn('key="prova_n_gambe"', app_src,
+                      "il numero di giocate combinate deve avere key stabile")
+        self.assertIn('key=f"prova_gamba_{i}"', app_src,
+                      "il selettore di ogni gamba deve avere key stabile")
+        self.assertIn('key=f"prova_quota_{i}"', app_src,
+                      "la casella bet365 di ogni gamba deve avere key stabile")
 
     def test_calcolo_multipla_probabilita_prodotto(self):
         """Probabilità combinata = prodotto delle probabilità singole."""
