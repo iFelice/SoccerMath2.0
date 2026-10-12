@@ -19,8 +19,8 @@ Cosa verifica, in parole povere:
   preme «📝 Registra le giocate della giornata»;
 * quel pulsante scrive, e un secondo clic sullo stesso turno di quote non
   aggiunge righe doppie;
-* se il confronto col modello non riesce, la colonna lo dice («non
-  disponibile») e «Per raddoppiare» resta dov'e';
+* se il confronto col modello non riesce, «Modello %» lo dice («n/d») e
+  «Per raddoppiare» resta dov'e';
 * la scheda «📒 Com'è andata» apre con il riepilogo in parole, i cui numeri
   tornano con quelli contati a mano sulle stesse righe, e il controllo dei
   risultati parte DA SOLO una volta per sessione (e non parte se nessuna
@@ -317,9 +317,18 @@ class TestSchedeLettura(_BaseAppTest):
                                   f"parola vietata fuori dai Dettagli: {parola!r}")
         self.assertTrue(dentro, "i Dettagli devono contenere qualcosa")
 
-    def test_04_colonna_modello_presente(self):
-        fuori, _ = _testi_della_tab(self.at, 0)
-        self.assertIn("Il nostro modello è d'accordo", " \n".join(fuori))
+    def test_04_colonna_modello_percento_presente(self):
+        """La vista mostra «Modello %» (probabilità del modello per lo stesso
+        esito); la colonna del segnale «d'accordo» esce dalla vista (il campo
+        resta nei dati, nel Registro e nei Dettagli)."""
+        fuori, dentro = _testi_della_tab(self.at, 0)
+        testo = " \n".join(fuori)
+        self.assertIn("Modello %", testo)
+        self.assertIn("Quote %", testo)
+        self.assertNotIn("Il nostro modello è d'accordo", testo,
+                         "la colonna del segnale d'accordo non sta piu' in vista")
+        self.assertIn("d'accordo", " \n".join(dentro).lower(),
+                      "il campo resta nei Dettagli (tabella tecnica)")
 
     def test_05_andata_riepilogo_torna_con_i_conti_fatti_a_mano(self):
         """I numeri della frase in testa sono quelli delle righe del fixture."""
@@ -459,7 +468,8 @@ class TestScrittureSoloSuClick(_BaseAppTest):
                              "una scrittura per clic, anche il secondo")
 
     def test_05_se_il_modello_non_risponde_il_resto_resta_in_piedi(self):
-        """Fonte del calendario giu': la colonna lo dice, «Per raddoppiare» resta."""
+        """Fonte del calendario giu': «Modello %» dice «n/d», la didascalia
+        «non disponibile», e «Per raddoppiare» resta dove e'."""
         import requests
         self.chiamate_registro.clear()
         self._st.cache_data.clear()
@@ -481,8 +491,10 @@ class TestScrittureSoloSuClick(_BaseAppTest):
         testo = " \n".join(fuori)
         self.assertIn("Per raddoppiare", testo,
                       "il confronto col modello non e' un prerequisito")
-        self.assertIn("non disponibile", testo,
-                      "la colonna dice che il confronto non c'e', non lo inventa")
+        self.assertIn("n/d", testo,
+                      "la colonna «Modello %» dice che il numero non c'e', non lo inventa")
+        self.assertIn("senza confronto", testo,
+                      "la didascalia dichiara le righe senza il giro del modello")
         self.assertEqual([], self._scritture(self.chiamate_registro),
                          "un confronto fallito non scrive nulla")
 

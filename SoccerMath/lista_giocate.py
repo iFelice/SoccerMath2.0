@@ -353,17 +353,16 @@ def aggiornamento_quote_parole(
 def descrivi_leg(g: Dict[str, Any], istante: Optional[datetime] = None) -> str:
     """Una giocata di una proposta in una riga sola, con data e ora italiane.
 
-    "venerdì 16/10, ore 20:45 — Frosinone vs Sassuolo: Vince Frosinone (1)"
-    piu' il marcatore delle quote lontane quando serve.
+    "venerdì 16/10, ore 20:45 — Frosinone - Sassuolo: 1"
+    piu' il marcatore delle quote lontane quando serve. La giocata e' la SOLA
+    sigla (1, X, 2, 1X, X2, 12): le tabelle e i riquadri in vista non mostrano
+    piu' il pronostico in parole (nessun numero cambia: e' solo presentazione).
     """
-    giocata = str(g.get("giocata") or g.get("esito") or "")
-    try:
-        parole = giocata_in_parole_con_sigla(giocata, g.get("home") or "?", g.get("away") or "?")
-    except Exception:
-        parole = giocata
+    giocata = str(g.get("giocata") or g.get("esito") or "").strip()
+    casa = g.get("home") or "?"
+    trasferta = g.get("away") or "?"
     return (f"{quando_italiano(g.get('commence_time'))} — "
-            f"{g.get('partita') or (str(g.get('home','?')) + ' vs ' + str(g.get('away','?')))}: "
-            f"{parole}{suffisso_provvisoria(g, istante)}")
+            f"{casa} - {trasferta}: {giocata}{suffisso_provvisoria(g, istante)}")
 
 
 def righe_riquadro_raddoppio(
