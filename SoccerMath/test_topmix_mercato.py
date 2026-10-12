@@ -319,16 +319,25 @@ class TestTabellaUnica(unittest.TestCase):
         self.assertTrue(df.empty)
         self.assertIn("Partita", df.columns)
 
-    def test_il_tab2_non_ha_piu_due_tabelle_di_modello(self):
+    def test_la_registrazione_non_ha_piu_due_tabelle_di_modello(self):
         src = open(APP_PATH, encoding="utf-8").read()
-        tab2 = src[src.index("with tab2:"):src.index("with tab3:")]
+        # Le scritture non stanno piu' nel corpo modulo della scheda: sono
+        # nella funzione chiamata dal pulsante «Registra le giocate della
+        # giornata». La fetta di sorgente da guardare e' quella.
+        i = src.index("def registra_giocate_della_giornata(")
+        tab2 = src[i:src.index("\n\ndef ", i + 10)]
         # nessuna tabella Legacy / Drago separata nel Top Mix
         self.assertNotIn("MODEL_VARIANT_LEGACY, top_legacy,", tab2)
         self.assertNotIn("MODEL_VARIANT_CURRENT, top_current,", tab2)
         self.assertNotIn("_mostra_tabella_top_mix(", tab2)
-        # una sola tabella di scelte, quella del mercato
-        self.assertEqual(1, tab2.count("_mostra_tabella_top_mix_mercato("))
-        self.assertIn("calcolatore_multipla(top_mercato)", tab2)
+        # una sola tabella di scelte, quella del mercato. La scheda oggi e' in
+        # due pezzi (la parte in vista nel blocco `with tab_giocate:` e le
+        # scritture nella funzione del pulsante): la tabella visibile resta
+        # UNA sola contando tutta la superficie della scheda.
+        scheda = src[src.index("with tab_giocate:"):]
+        self.assertEqual(1, scheda.count("_mostra_tabella_top_mix_mercato("),
+                         "la tabella di mercato in vista e' una sola")
+        self.assertIn("calcolatore_multipla(righe_quote, adesso", scheda)
         # UN SOLO punto di scrittura nel Registro visibile per click (rifinitura
         # dopo la PR #53): le righe di mercato passano da `build_prediction_entry`
         # e il blocco si chiude con UNA `save_predictions`. `save_prediction_entry`

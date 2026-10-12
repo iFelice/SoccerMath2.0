@@ -138,23 +138,29 @@ class TestProblema1_MultiplaPersistenza(unittest.TestCase):
         # "if ... in session_state" NON fa salvataggio.
         # Verifichiamo che save_prediction_entry sia DENTRO il blocco button
         # e NON nel blocco session_state.
-        lines = app_src.split("\n")
-        button_start = None
-        session_start = None
-        save_in_button = False
-        save_in_session = False
-        for i, line in enumerate(lines):
-            if 'Calcola Top Mix' in line and 'button' in line:
-                button_start = i
-            if button_start and 'topmix_mercato" in st.session_state' in line:
-                session_start = i
-            if 'save_prediction_entry' in line:
-                if button_start and (session_start is None or i < session_start):
-                    save_in_button = True
-                elif session_start and i > session_start:
-                    save_in_session = True
-        self.assertTrue(save_in_button,
-                        "save_prediction_entry deve essere nel blocco del pulsante")
+        # La scheda oggi e' divisa: il pulsante («Registra le giocate della
+        # giornata») chiama `registra_giocate_della_giornata`, e la scrittura
+        # sta SOLO li'. Verifichiamo che (a) la scrittura sia dentro quella
+        # funzione, (b) sia UN SOLO `save_predictions` (non una scrittura per
+        # riga), e (c) nessuna funzione di lettura/resa scriva.
+        import ast as _ast
+        tree = _ast.parse(app_src)
+        fn = next(n for n in tree.body if isinstance(n, _ast.FunctionDef)
+                  and n.name == "registra_giocate_della_giornata")
+        corpo = _ast.get_source_segment(app_src, fn)
+        self.assertEqual(1, corpo.count("save_predictions("),
+                         "il Registro si scrive una volta sola, dentro la funzione del pulsante")
+        self.assertEqual(0, corpo.count("save_prediction_entry("),
+                         "una scrittura per riga: deve restare fuori")
+        self.assertIn('st.button("📝 Registra le giocate della giornata"', app_src)
+        for nome in ("_mostra_intestazione_giocate", "_mostra_dettagli_giocate",
+                     "_mostra_pulsante_registrazione", "ultima_registrazione_mercato"):
+            f = next(n for n in tree.body if isinstance(n, _ast.FunctionDef)
+                     and n.name == nome)
+            src_f = _ast.get_source_segment(app_src, f)
+            self.assertNotIn("save_predictions(", src_f, f"{nome} non deve scrivere")
+            self.assertNotIn("save_prediction_entry(", src_f, f"{nome} non deve scrivere")
+            self.assertNotIn("save_ombra_rows(", src_f, f"{nome} non deve scrivere")
 
     def test_multiselect_key_stabile(self):
         """Le chiavi dei selettori della multipla sono stabili (non dipendono

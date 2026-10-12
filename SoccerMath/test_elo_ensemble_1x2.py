@@ -581,7 +581,7 @@ class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
         self.assertIn("m = blend_elo_into_1x2(", helper,
                       "il loop card giornata (tab1, via dati_card_partita) deve "
                       "restare come da d21f5c3: 1X2 mostrato blendato")
-        tab1 = src[src.index("with tab1:"):src.index("with tab2:")]
+        tab1 = src[src.index("with tab_partite:"):src.index("with tab_giocate:")]
         self.assertIn("dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)",
                       tab1, "il tab1 costruisce le card tramite dati_card_partita")
 
@@ -593,7 +593,7 @@ class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
         self.assertLess(i_poisson, i_blend,
                         "il Poisson puro va calcolato PRIMA del blend "
                         "(anche nella card della scheda PARTITE)")
-        tab1 = src[src.index("with tab1:"):src.index("with tab2:")]
+        tab1 = src[src.index("with tab_partite:"):src.index("with tab_giocate:")]
         self.assertIn(
             "args=(h_api, a_api, m, m_poisson, camp_sel, g_sel)", tab1,
             "show_details deve ricevere sia m (blendato) sia m_poisson "
