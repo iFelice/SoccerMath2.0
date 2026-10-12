@@ -34,6 +34,11 @@ from models.elo_engine import get_current_elo, get_elo_engine, get_elo_leaderboa
 from models.dixon_coles import get_dixon_coles_matrix, predict_dixon_coles_probs, get_dixon_coles_team_strengths
 from models.backtest import run_backtest, compare_models_backtest, detect_value_bets
 from display_names import display_name
+# Nomi canonici delle squadre: la scheda Giocate costruisce le sue righe dalle
+# sole quote dal vivo, quindi l'abbinamento con il confronto del modello passa
+# dallo stesso resolver di produzione usato da ``market_odds.indice_partite``
+# (nessun fuzzy matching inventato qui).
+from team_names import resolve_team_name
 # Quote 1X2 dal vivo: l'app LEGGE il file scritto dal workflow live_odds.yml,
 # non chiama mai The Odds API (vincolo della commessa, verificato da
 # test_quote_live.py::TestLAppNonChiamaLaFonte).
@@ -2894,180 +2899,218 @@ st.markdown("""<div class="safari-safe-banner"></div>""", unsafe_allow_html=True
 if not API_KEY_DATA:
     st.error("🔴 **FOOTBALL_DATA_API_KEY mancante!** Vai su Streamlit Cloud → **App Settings → Secrets** e aggiungi:\n```toml\nFOOTBALL_DATA_API_KEY = \"tua-chiave\"\n```")
 
+# CSS della modalita' chiara forzata (interruttore «Segui tema sistema»
+# spento). Vive a livello di modulo perche' la barra laterale lo inietta da
+# dentro il riquadro «Impostazioni e diagnostica»: un blocco <style> vale per
+# tutta la pagina indipendentemente da dove viene renderizzato.
+CSS_TEMA_CHIARO_FORZATO = """
+    <style>
+        :root {
+            color-scheme: light;
+            --sm-card-bg: #ffffff !important;
+            --sm-card-text: #1a1d23 !important;
+            --sm-card-border: rgba(128,128,128,0.2) !important;
+            --sm-accent: #0056b3 !important;
+            --sm-muted-bg: #f8f9fa !important;
+        }
+        /* Sfondo pagina, header e toolbar */
+        body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stToolbar"] {
+            background-color: #ffffff !important;
+            color: #1a1d23 !important;
+        }
+        [data-testid="stDecoration"] { background-color: #ffffff !important; }
+        /* Sidebar */
+        .stSidebar, [data-testid="stSidebar"], [data-testid="stSidebarContent"] {
+            background-color: #f0f2f6 !important;
+            color: #1a1d23 !important;
+        }
+        /* Testo generico: markdown (card incluse), titoli, caption, label */
+        [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMarkdownContainer"] li { color: #1a1d23 !important; }
+        h1, h2, h3, h4, h5, h6 { color: #1a1d23 !important; }
+        [data-testid="stCaptionContainer"] { color: #555555 !important; }
+        label { color: #1a1d23 !important; }
+        /* Widget di input */
+        .stButton button { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #d1d5db !important; }
+        .stTextInput input, .stTextArea textarea { background-color: #ffffff !important; color: #1a1d23 !important; }
+        .stSelectbox div[data-baseweb="select"], .stSelectbox div[data-baseweb="select"] > div,
+        .stMultiSelect div[data-baseweb="select"] { background-color: #ffffff !important; color: #1a1d23 !important; }
+        .stSelectbox [data-baseweb="popover"] *, .stMultiSelect [data-baseweb="popover"] * { color: #1a1d23 !important; background-color: #ffffff !important; }
+        /* Tab */
+        .stTabs [data-baseweb="tab-list"] { background-color: #ffffff !important; }
+        .stTabs [data-baseweb="tab"] { color: #1a1d23 !important; }
+        .stTabs [aria-selected="true"] { color: #0056b3 !important; }
+        /* Metriche (registro e backtest): valore ed etichetta ben visibili */
+        [data-testid="stMetricValue"] { color: #1a1d23 !important; }
+        [data-testid="stMetricLabel"] { color: #555555 !important; }
+        [data-testid="stMetricDelta"] { color: #0056b3 !important; }
+        /* Expander e toggle */
+        [data-testid="stExpander"] { background-color: #f8f9fa !important; color: #1a1d23 !important; }
+        [data-testid="stToggle"] label { color: #1a1d23 !important; }
+        /* Card custom: forzate a chiaro (il testo inline colorato, es. verde,
+           resta intatto perché qui non usiamo selettori universali) */
+        .match-card { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
+        .stat-container { background-color: #f8f9fa !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
+        .top-mix-row { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
+        .top-mix-model { color: #1a1d23 !important; }
+        .team-name { color: #1a1d23 !important; }
+        .label-header { color: #0056b3 !important; border-bottom: 2px solid #e0e4e9 !important; }
+        .match-date { color: #0056b3 !important; }
+    </style>
+"""
+
 # --- SIDEBAR ---
+# In vista restano SOLO i due comandi che servono per usare le schede: il
+# campionato (lo legge la scheda Partite) e l'interruttore «Strumenti
+# avanzati», spento all'avvio. Tutto il resto - diagnostica, sincronizzazione,
+# chat con Billy, tema e scelta della giornata - sta nel riquadro chiuso
+# «Impostazioni e diagnostica». Spostarli non cambia il loro funzionamento:
+# Streamlit esegue il contenuto di un expander anche quando e' chiuso, quindi
+# pulsanti, caselle, selettori e CSS continuano a fare esattamente quello che
+# facevano; cambia solo che per leggerne l'esito bisogna aprire il riquadro.
 with st.sidebar:
     st.title("🎩 Billy Walters Chat")
-    with st.expander("🔧 Diagnostica", expanded=False):
+
+    camp_sel = st.selectbox("CAMPIONATO", list(LEAGUES_CONFIG.keys()))
+    strumenti_avanzati = st.toggle(
+        "🔧 Strumenti avanzati", value=False, key="strumenti_avanzati",
+        help="Acceso aggiunge la scheda «🔧 Strumenti avanzati» con Elo e "
+             "Backtest, invariati. Spento all'avvio: le schede sono tre "
+             "(Giocate, Partite, Com'è andata).")
+
+    with st.expander("⚙️ Impostazioni e diagnostica", expanded=False):
         if not Groq: st.error("Lib 'groq' non installata (pip3 install groq)")
         elif not GROQ_API_KEY: st.error("GROQ_API_KEY mancante nel file .env!")
         else: st.success("✅ Billy OK")
-        
+
         if not API_KEY_DATA: st.error("FOOTBALL_DATA_API_KEY mancante!")
         else: st.success("✅ API Data OK")
 
-    camp_sel = st.selectbox("CAMPIONATO", list(LEAGUES_CONFIG.keys()))
-    camp_cached = st.session_state.get("live_camp", None)
-    has_data = bool("live_data" in st.session_state and st.session_state.get("live_data") and camp_cached == camp_sel)
+        camp_cached = st.session_state.get("live_camp", None)
+        has_data = bool("live_data" in st.session_state and st.session_state.get("live_data") and camp_cached == camp_sel)
 
-    do_sync = st.button("🟢 SINCRONIZZA", disabled=has_data, width="stretch")
-    do_refresh = st.button("♾️ Refresh", width="stretch")
+        do_sync = st.button("🟢 SINCRONIZZA", disabled=has_data, width="stretch")
+        do_refresh = st.button("♾️ Refresh", width="stretch")
 
-    # --- CHAT BILLY ---
-    st.divider()
-    st.subheader("💬 Chiedi a Billy")
-    chat_msg = st.text_input("Scrivi qui...", placeholder="Es: Chi vince Milan-Inter?", key="billy_chat_input", label_visibility="collapsed")
-    if st.button("Invia", width="stretch", key="billy_chat_send") and chat_msg and groq_client:
-        with st.spinner("Billy pensa..."):
-            try:
-                chat_res = groq_client.chat.completions.create(
-                    model="openai/gpt-oss-120b",
-                    messages=[{"role": "user", "content": f"Sei Billy Walters, esperto di betting. Rispondi in italiano, breve e concreto. Domanda: {chat_msg}"}],
-                    max_tokens=400,
-                    temperature=0.5
-                )
-                # teniamo la risposta in session_state: così non sparisce alla
-                # prima interazione successiva (click su un tab, un filtro, ecc.)
-                st.session_state["billy_chat_answer"] = (chat_msg, chat_res.choices[0].message.content)
-            except Exception as e:
-                st.session_state["billy_chat_answer"] = (chat_msg, f"__ERR__{e}")
-    if "billy_chat_answer" in st.session_state:
-        asked, answer = st.session_state["billy_chat_answer"]
-        answer = answer or "(nessuna risposta dal modello)"
-        with st.container():
-            st.caption(f"💭 {asked}")
-            if answer.startswith("__ERR__"):
-                st.error(f"Errore chat: {answer[7:]}")
-            else:
-                st.info(answer)
-    elif chat_msg and not groq_client:
-        st.error("Billy non è configurato. Aggiungi GROQ_API_KEY nei Secrets.")
-
-    # --- TEMA ---
-    st.divider()
-    follow_system = st.toggle("🌓 Segui tema sistema", value=True, key="follow_system_toggle",
-                              help="Attivo = si adatta al tema del dispositivo. Disattivo = forza modalità chiara.")
-    if not follow_system:
-        # Modalità chiara forzata. Streamlit resta internamente in dark (se il sistema
-        # è dark), quindi NON basta toccare le variabili: il testo nativo (markdown,
-        # metriche, widget) ha colori iniettati via Emotion. Qui forziamo in modo
-        # esplicito sfondi CHIARI e testi SCURI con !important, sia per gli elementi
-        # custom sia per i componenti Streamlit, per evitare testo bianco su bianco.
-        st.markdown("""
-        <style>
-            :root {
-                color-scheme: light;
-                --sm-card-bg: #ffffff !important;
-                --sm-card-text: #1a1d23 !important;
-                --sm-card-border: rgba(128,128,128,0.2) !important;
-                --sm-accent: #0056b3 !important;
-                --sm-muted-bg: #f8f9fa !important;
-            }
-            /* Sfondo pagina, header e toolbar */
-            body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stToolbar"] {
-                background-color: #ffffff !important;
-                color: #1a1d23 !important;
-            }
-            [data-testid="stDecoration"] { background-color: #ffffff !important; }
-            /* Sidebar */
-            .stSidebar, [data-testid="stSidebar"], [data-testid="stSidebarContent"] {
-                background-color: #f0f2f6 !important;
-                color: #1a1d23 !important;
-            }
-            /* Testo generico: markdown (card incluse), titoli, caption, label */
-            [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p,
-            [data-testid="stMarkdownContainer"] li { color: #1a1d23 !important; }
-            h1, h2, h3, h4, h5, h6 { color: #1a1d23 !important; }
-            [data-testid="stCaptionContainer"] { color: #555555 !important; }
-            label { color: #1a1d23 !important; }
-            /* Widget di input */
-            .stButton button { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #d1d5db !important; }
-            .stTextInput input, .stTextArea textarea { background-color: #ffffff !important; color: #1a1d23 !important; }
-            .stSelectbox div[data-baseweb="select"], .stSelectbox div[data-baseweb="select"] > div,
-            .stMultiSelect div[data-baseweb="select"] { background-color: #ffffff !important; color: #1a1d23 !important; }
-            .stSelectbox [data-baseweb="popover"] *, .stMultiSelect [data-baseweb="popover"] * { color: #1a1d23 !important; background-color: #ffffff !important; }
-            /* Tab */
-            .stTabs [data-baseweb="tab-list"] { background-color: #ffffff !important; }
-            .stTabs [data-baseweb="tab"] { color: #1a1d23 !important; }
-            .stTabs [aria-selected="true"] { color: #0056b3 !important; }
-            /* Metriche (registro e backtest): valore ed etichetta ben visibili */
-            [data-testid="stMetricValue"] { color: #1a1d23 !important; }
-            [data-testid="stMetricLabel"] { color: #555555 !important; }
-            [data-testid="stMetricDelta"] { color: #0056b3 !important; }
-            /* Expander e toggle */
-            [data-testid="stExpander"] { background-color: #f8f9fa !important; color: #1a1d23 !important; }
-            [data-testid="stToggle"] label { color: #1a1d23 !important; }
-            /* Card custom: forzate a chiaro (il testo inline colorato, es. verde,
-               resta intatto perché qui non usiamo selettori universali) */
-            .match-card { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
-            .stat-container { background-color: #f8f9fa !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
-            .top-mix-row { background-color: #ffffff !important; color: #1a1d23 !important; border: 1px solid #e0e4e9 !important; }
-            .top-mix-model { color: #1a1d23 !important; }
-            .team-name { color: #1a1d23 !important; }
-            .label-header { color: #0056b3 !important; border-bottom: 2px solid #e0e4e9 !important; }
-            .match-date { color: #0056b3 !important; }
-        </style>
-        """, unsafe_allow_html=True)
-
-    if do_sync or do_refresh:
-        if not API_KEY_DATA:
-            st.error("⚠️ Impossibile sincronizzare: API Key Football-Data mancante. Configurala nei Secrets.")
-        else:
-            with st.spinner("Scaricando dati da Football-Data..."):
+        # --- CHAT BILLY ---
+        st.divider()
+        st.subheader("💬 Chiedi a Billy")
+        chat_msg = st.text_input("Scrivi qui...", placeholder="Es: Chi vince Milan-Inter?", key="billy_chat_input", label_visibility="collapsed")
+        if st.button("Invia", width="stretch", key="billy_chat_send") and chat_msg and groq_client:
+            with st.spinner("Billy pensa..."):
                 try:
-                    resp = requests.get(
-                        f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/matches",
-                        headers={'X-Auth-Token': API_KEY_DATA},
+                    chat_res = groq_client.chat.completions.create(
+                        model="openai/gpt-oss-120b",
+                        messages=[{"role": "user", "content": f"Sei Billy Walters, esperto di betting. Rispondi in italiano, breve e concreto. Domanda: {chat_msg}"}],
+                        max_tokens=400,
+                        temperature=0.5
+                    )
+                    # teniamo la risposta in session_state: così non sparisce alla
+                    # prima interazione successiva (click su un tab, un filtro, ecc.)
+                    st.session_state["billy_chat_answer"] = (chat_msg, chat_res.choices[0].message.content)
+                except Exception as e:
+                    st.session_state["billy_chat_answer"] = (chat_msg, f"__ERR__{e}")
+        if "billy_chat_answer" in st.session_state:
+            asked, answer = st.session_state["billy_chat_answer"]
+            answer = answer or "(nessuna risposta dal modello)"
+            with st.container():
+                st.caption(f"💭 {asked}")
+                if answer.startswith("__ERR__"):
+                    st.error(f"Errore chat: {answer[7:]}")
+                else:
+                    st.info(answer)
+        elif chat_msg and not groq_client:
+            st.error("Billy non è configurato. Aggiungi GROQ_API_KEY nei Secrets.")
+
+        # --- TEMA ---
+        st.divider()
+        follow_system = st.toggle("🌓 Segui tema sistema", value=True, key="follow_system_toggle",
+                                  help="Attivo = si adatta al tema del dispositivo. Disattivo = forza modalità chiara.")
+        if not follow_system:
+            # Modalità chiara forzata. Streamlit resta internamente in dark (se il sistema
+            # è dark), quindi NON basta toccare le variabili: il testo nativo (markdown,
+            # metriche, widget) ha colori iniettati via Emotion. Qui forziamo in modo
+            # esplicito sfondi CHIARI e testi SCURI con !important, sia per gli elementi
+            # custom sia per i componenti Streamlit, per evitare testo bianco su bianco.
+            st.markdown(CSS_TEMA_CHIARO_FORZATO, unsafe_allow_html=True)
+
+        if do_sync or do_refresh:
+            if not API_KEY_DATA:
+                st.error("⚠️ Impossibile sincronizzare: API Key Football-Data mancante. Configurala nei Secrets.")
+            else:
+                with st.spinner("Scaricando dati da Football-Data..."):
+                    try:
+                        resp = requests.get(
+                            f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/matches",
+                            headers={'X-Auth-Token': API_KEY_DATA},
+                            timeout=15
+                        )
+                        if resp.status_code == 200:
+                            st.session_state.live_data = resp.json().get('matches', [])
+                            st.session_state.live_camp = camp_sel
+                            st.success(f"✅ {len(st.session_state.live_data)} partite caricate!")
+                        elif resp.status_code == 401:
+                            st.error("🔴 Errore 401: API Key non valida o scaduta. Verifica su football-data.org.")
+                        elif resp.status_code == 429:
+                            st.error("🟠 Errore 429: troppe richieste. Aspetta 1 minuto e riprova.")
+                        else:
+                            st.error(f"Errore API ({resp.status_code}): {resp.text[:200]}")
+                    except requests.exceptions.Timeout:
+                        st.error("⏱️ Timeout: il server Football-Data non risponde. Riprova tra qualche istante.")
+                    except Exception as e:
+                        st.error(f"Errore imprevisto: {e}")
+                try:
+                    stand_resp = requests.get(
+                        f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/standings",
+                        headers={"X-Auth-Token": API_KEY_DATA},
                         timeout=15
                     )
-                    if resp.status_code == 200:
-                        st.session_state.live_data = resp.json().get('matches', [])
-                        st.session_state.live_camp = camp_sel
-                        st.success(f"✅ {len(st.session_state.live_data)} partite caricate!")
-                    elif resp.status_code == 401:
-                        st.error("🔴 Errore 401: API Key non valida o scaduta. Verifica su football-data.org.")
-                    elif resp.status_code == 429:
-                        st.error("🟠 Errore 429: troppe richieste. Aspetta 1 minuto e riprova.")
-                    else:
-                        st.error(f"Errore API ({resp.status_code}): {resp.text[:200]}")
-                except requests.exceptions.Timeout:
-                    st.error("⏱️ Timeout: il server Football-Data non risponde. Riprova tra qualche istante.")
-                except Exception as e:
-                    st.error(f"Errore imprevisto: {e}")
-            try:
-                stand_resp = requests.get(
-                    f"https://api.football-data.org/v4/competitions/{LEAGUE_CODE_MAP[camp_sel]}/standings",
-                    headers={"X-Auth-Token": API_KEY_DATA},
-                    timeout=15
-                )
-                if stand_resp.status_code == 200:
-                    st.session_state.classifica = {
-                        clean_name(r["team"].get("shortName") or r["team"].get("name")): {
-                            "pos": r["position"], "punti": r["points"], "pg": r["playedGames"],
-                            "gf": r["goalsFor"], "gs": r["goalsAgainst"]
+                    if stand_resp.status_code == 200:
+                        st.session_state.classifica = {
+                            clean_name(r["team"].get("shortName") or r["team"].get("name")): {
+                                "pos": r["position"], "punti": r["points"], "pg": r["playedGames"],
+                                "gf": r["goalsFor"], "gs": r["goalsAgainst"]
+                            }
+                            for r in stand_resp.json().get("standings", [])[0].get("table", [])
                         }
-                        for r in stand_resp.json().get("standings", [])[0].get("table", [])
-                    }
-            except Exception:
-                pass
+                except Exception:
+                    pass
         
-    if "live_data" in st.session_state and st.session_state.live_data:
-        giornate = sorted(list(set([int(m.get('matchday', 0)) for m in st.session_state.live_data])))
-        default_idx = 0
-        now_utc = datetime.now(timezone.utc)
-        for i, g in enumerate(giornate):
-            for m in st.session_state.live_data:
-                if m['matchday'] == g:
-                    try:
-                        if datetime.fromisoformat(m["utcDate"].replace("Z", "+00:00")) > now_utc: default_idx = i; break
-                    except: pass
-            if default_idx != 0: break
-        g_sel = st.selectbox("GIORNATA", giornate, index=default_idx)
-    else: g_sel = None
+        if "live_data" in st.session_state and st.session_state.live_data:
+            giornate = sorted(list(set([int(m.get('matchday', 0)) for m in st.session_state.live_data])))
+            default_idx = 0
+            now_utc = datetime.now(timezone.utc)
+            for i, g in enumerate(giornate):
+                for m in st.session_state.live_data:
+                    if m['matchday'] == g:
+                        try:
+                            if datetime.fromisoformat(m["utcDate"].replace("Z", "+00:00")) > now_utc: default_idx = i; break
+                        except: pass
+                if default_idx != 0: break
+            g_sel = st.selectbox("GIORNATA", giornate, index=default_idx)
+        else: g_sel = None
 
 engine = get_league_engine(camp_sel)
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏟️ PARTITE", "🌟 TOP MIX", "⚡ ELO RATING", "📊 BACKTEST", "📒 REGISTRO"])
 
-with tab1:
+# --- SCHEDE ---
+# Tre schede, nell'ordine in cui si usano: le giocate (la PRIMA, quindi quella
+# aperta all'avvio), le partite e com'è andata. ELO RATING e BACKTEST escono
+# dalle schede: compaiono solo con l'interruttore «Strumenti avanzati» della
+# barra laterale (spento all'avvio) come quarta scheda, con i due contenuti
+# invariati uno sotto l'altro. Nessuna funzione di calcolo viene rimossa.
+TITOLO_SCHEDA_GIOCATE = "🎯 Giocate"
+TITOLO_SCHEDA_PARTITE = "🏟️ Partite"
+TITOLO_SCHEDA_ANDATA = "📒 Com'è andata"
+TITOLO_SCHEDA_STRUMENTI = "🔧 Strumenti avanzati"
+
+_etichette_schede = [TITOLO_SCHEDA_GIOCATE, TITOLO_SCHEDA_PARTITE, TITOLO_SCHEDA_ANDATA]
+if strumenti_avanzati:
+    _etichette_schede.append(TITOLO_SCHEDA_STRUMENTI)
+_schede = st.tabs(_etichette_schede)
+tab_giocate, tab_partite, tab_andata = _schede[0], _schede[1], _schede[2]
+tab_strumenti = _schede[3] if len(_schede) > 3 else None
+
+with tab_partite:
     if 'live_data' in st.session_state and st.session_state.live_data and g_sel is not None and engine:
         team_stats, avg_h, avg_a, _ = engine
         matches = [m for m in st.session_state.live_data if int(m.get('matchday', 0)) == int(g_sel)]
@@ -3269,14 +3312,19 @@ def tabella_top_mix_mercato(righe):
         columns=COLONNE_TOP_MIX_MERCATO + ["Lega", "Inizio"])
 
 
-def tabella_top_mix_mercato_visibile(righe, adesso=None):
-    """La tabella del Top Mix in PAROLE (parte in vista della scheda TOP MIX).
+def tabella_top_mix_mercato_visibile(righe, adesso=None, stato_confronto=None,
+                                     mappa_accordo=None):
+    """La tabella del Top Mix in PAROLE (parte in vista della scheda Giocate).
 
     Stessi numeri di ``tabella_top_mix_mercato`` (probabilita', quote, scelte:
     nulla viene ricalcolato), presentati per chi non conosce gergo: la giocata
     in parole, la probabilita' come "N volte su 100", la quota come "N volte
     la puntata". Le partite lontane (calcio d'inizio fra piu' di 3 giorni)
     portano il marcatore delle quote provvisorie (punto 8).
+
+    La colonna del modello non dipende dalle righe: arriva dal confronto
+    (``testo_accordo_modello``), quindi mentre il calcolo gira dice "in calcolo"
+    e se non riesce "non disponibile" senza che la tabella sparisca.
     """
     # Punto 5a: le colonne in vista sono ESATTAMENTE queste sei. La quota
     # ("Paga") non sta piu' qui: quanto paga una giocata si vede provandola
@@ -3292,12 +3340,13 @@ def tabella_top_mix_mercato_visibile(righe, adesso=None):
             "Partita": f"{p.get('home')} vs {p.get('away')}" + lg.suffisso_provvisoria(quanto, adesso),
             "Giocata": lg.giocata_in_parole_con_sigla(p.get("esito"), p.get("home"), p.get("away")),
             "Riesce circa": lg.riesce_circa(p.get("prob", (p.get("prob_val") or 0) / 100.0)),
-            "Il nostro modello è d'accordo": "sì" if p.get("accordo") else "no",
+            "Il nostro modello è d'accordo": testo_accordo_modello(p, stato_confronto, mappa_accordo),
         })
     return pd.DataFrame(rows, columns=colonne)
 
 
-def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None):
+def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
+                                    stato_confronto=None, mappa_accordo=None):
     """La tabella del Top Mix (mercato) in parole, nella parte in vista.
 
     Il contenuto tecnico di un tempo (fonte e eta' delle quote riga per riga,
@@ -3307,6 +3356,10 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None):
     Quando il file delle quote manca o non copre il turno lo si dice
     esplicitamente, invece di mostrare una tabella vuota che sembrerebbe
     "nessuna partita probabile".
+
+    ``stato_confronto``/``mappa_accordo`` alimentano la colonna del modello:
+    la tabella non aspetta il giro del modello, quindi mentre quello gira la
+    colonna dice "in calcolo" e le righe restano tutte li'.
     """
     st.markdown("##### 🌟 Le scelte più sicure secondo le quote")
     st.caption("Le probabilità vengono dalle quote dei bookmaker, che in media "
@@ -3347,7 +3400,10 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None):
     if not in_periodo:
         prossima = None
         prossime = [p for p in righe]
-        kickoffs = [market_odds.parse_commence_time(p.get("kickoff_utc") or p.get("utcDate"))
+        # ``lg.parse_commence_time`` e' il parser della catena (``market_odds``
+        # non ne ha uno pubblico: chiamarlo li' era un AttributeError latente,
+        # visibile solo quando il periodo scelto restava vuoto).
+        kickoffs = [lg.parse_commence_time(p.get("kickoff_utc") or p.get("utcDate"))
                     for p in prossime]
         futuri = [k for k in kickoffs if k is not None and k > adesso]
         prossima = min(futuri) if futuri else None
@@ -3356,17 +3412,416 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None):
         st.info(f"In questa giornata nessuna partita della tabella.{quando} "
                 f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
         return
-    n_accordo = sum(1 for p in in_periodo if p.get("accordo"))
     nascoste = len(righe) - len(in_periodo)
+    testi = [testo_accordo_modello(p, stato_confronto, mappa_accordo) for p in in_periodo]
+    if stato_confronto == "pronto":
+        n_accordo = sum(1 for t in testi if t == "sì")
+        n_senza = sum(1 for t in testi if t == "no")
+        n_nd = sum(1 for t in testi if t == CONFRONTO_NON_DISPONIBILE)
+        dettaglio_accordo = f"{n_accordo} con il modello d'accordo · {n_senza} senza"
+        if n_nd:
+            dettaglio_accordo += f" · {n_nd} senza confronto"
+    elif stato_confronto in (None, "in_calcolo"):
+        dettaglio_accordo = "confronto con il nostro modello in calcolo"
+    else:
+        dettaglio_accordo = "confronto con il nostro modello non disponibile"
     st.caption(f"{len(in_periodo)} partite in tabella (nessun limite di righe) · "
-               f"{n_accordo} con il modello d'accordo · {len(in_periodo) - n_accordo} senza."
+               f"{dettaglio_accordo}."
                + (f" Altre {nascoste} dopo lunedì: passa a «{lg.ETICHETTA_PERIODO_TUTTE}»."
                   if nascoste > 0 else ""))
-    st.dataframe(tabella_top_mix_mercato_visibile(in_periodo, adesso=adesso),
+    st.dataframe(tabella_top_mix_mercato_visibile(in_periodo, adesso=adesso,
+                                                  stato_confronto=stato_confronto,
+                                                  mappa_accordo=mappa_accordo),
                  width="stretch", height=420, hide_index=True)
 
 
 import lista_giocate as lg
+
+
+# ---------------------------------------------------------------------------
+# Scheda GIOCATE: le righe di mercato nate SOLO da live_odds.json
+# ---------------------------------------------------------------------------
+def righe_mercato_dalle_quote(payload, adesso=None):
+    """Le scelte del mercato della scheda Giocate, ricavate SOLO dalle quote.
+
+    La scheda si guarda senza premere niente, quindi le sue righe NON possono
+    aspettare il giro del modello (calendario football-data + Elo + Poisson):
+    nascono dal file ``live_odds.json`` scritto dal workflow, con le STESSE
+    funzioni di sempre -- ``market_odds.probabilita_mercato`` per la de-vig e
+    ``seleziona_riga_top_mix_mercato`` (selettore ``topmix_mercato_v3``, sotto
+    impronta di versione) per la scelta e per l'ammissione sopra 0,55. Nessun
+    numero viene ricalcolato qui: probabilita', esito e quota sono quelli del
+    selettore.
+
+    Differenza rispetto alle righe del calcolo del modello: qui non c'e' il
+    calendario, quindi le righe non portano ``prob_modello`` e l'accordo parte
+    ``False``. Il confronto con il modello arriva dopo, a calcolo pronto, e
+    viene abbinato per coppia di nomi canonici (``accordo_modello_per_partita``).
+
+    Ritorna ``(righe, info)``: ``righe`` ordinate per probabilita' decrescente
+    (``classifica_top_mix``, nessun tetto di righe) e ``info`` con i conteggi
+    delle partite escluse (gia' iniziate / senza quote valide) e l'elenco delle
+    partite senza quote, che la scheda dichiara invece di nascondere.
+    """
+    info = {"n_eventi": 0, "n_ammesse": 0, "n_iniziate": 0, "senza_quote": []}
+    if not isinstance(payload, dict) or not payload:
+        return [], info
+    now = adesso if adesso is not None else market_odds._adesso_utc()
+    istante_quote = payload.get("generato_il")
+    eventi = market_odds.eventi_quote(payload)
+    info["n_eventi"] = len(eventi)
+    righe = []
+    for ev in eventi:
+        home = ev.get("home_team") or "?"
+        away = ev.get("away_team") or "?"
+        commence = ev.get("commence_time")
+        dt = lg.parse_commence_time(commence)
+        if dt is not None and dt <= now:
+            info["n_iniziate"] += 1
+            continue
+        mkt = probabilita_mercato(ev.get("libri") or [])
+        if mkt.get("probs") is None:
+            info["senza_quote"].append({
+                "home": home, "away": away, "league": ev.get("lega") or "?",
+                "motivo": MOTIVO_TERNA_NON_VALIDA % mkt.get("n_libri_totale", 0),
+            })
+            continue
+        info["n_ammesse"] += 1
+        sel = seleziona_riga_top_mix_mercato(
+            mkt["probs"], mkt["odds"], None, fonte=mkt.get("fonte"),
+            n_libri=mkt.get("n_libri"), home=home, away=away)
+        if sel is None:
+            continue
+        righe.append({
+            "league": ev.get("lega") or "?", "giornata": None,
+            "home": home, "away": away,
+            "match_id": ev.get("id"),
+            "utcDate": commence, "kickoff_utc": commence, "commence_time": commence,
+            "market": sel["market"], "mercato_standard": sel["mercato_standard"],
+            "esito": sel["esito"], "prob": sel["prob"], "prob_val": sel["prob_val"],
+            "quota": sel["quota"], "prob_modello": None, "prob_modello_val": None,
+            "accordo": False, "fonte": sel["fonte"], "n_libri": sel["n_libri"],
+            "quote_live_istante": istante_quote, "rank": None,
+        })
+    return classifica_top_mix(righe), info
+
+
+def _chiave_partita_canonica(home, away):
+    """Coppia di nomi canonici usata per abbinare quote e modello.
+
+    Passa dal resolver di produzione (``team_names.resolve_team_name``): la
+    fonte quote e il calendario dicono la stessa squadra in modi diversi, e
+    l'indice delle quote abbinava gia' cosi'. Un nome non riconosciuto torna
+    ``None``: nessun abbinamento inventato.
+    """
+    h = resolve_team_name(home)
+    a = resolve_team_name(away)
+    if not (h.mapped and a.mapped):
+        return None
+    return (h.canonical, a.canonical)
+
+
+def accordo_modello_per_partita(righe_modello):
+    """``{(casa, trasferta) canonici: {"accordo", "prob_modello"}}`` del modello.
+
+    Le righe vengono da ``fetch_and_calc_top_mix`` (il Top Mix di mercato del
+    giro del modello): la colonna "Il nostro modello e' d'accordo" della scheda
+    legge solo questa mappa, quindi il valore mostrato e' quello del selettore,
+    non un confronto rifatto in pagina.
+    """
+    mappa = {}
+    for r in righe_modello or []:
+        chiave = _chiave_partita_canonica(r.get("home"), r.get("away"))
+        if chiave is None:
+            continue
+        mappa[chiave] = {"accordo": bool(r.get("accordo")),
+                         "prob_modello": r.get("prob_modello"),
+                         "prob_modello_val": r.get("prob_modello_val")}
+    return mappa
+
+
+# Stati della colonna "Il nostro modello e' d'accordo".
+CONFRONTO_IN_CALCOLO = "in calcolo"
+CONFRONTO_NON_DISPONIBILE = "non disponibile"
+CONFRONTO_STATO_CHIAVE = "confronto_modello_stato"
+CONFRONTO_RIGHE_CHIAVE = "confronto_modello_righe"
+CONFRONTO_ERRORE_CHIAVE = "confronto_modello_errore"
+CONFRONTO_SPINNER = "Confronto con il nostro modello…"
+
+
+def testo_accordo_modello(riga, stato, mappa_accordo):
+    """Testo della colonna del modello per UNA riga di mercato.
+
+    * calcolo non ancora terminato -> "in calcolo";
+    * calcolo fallito, oppure partita che il giro del modello non copre ->
+      "non disponibile" (un'assenza non e' un consenso e non diventa "no");
+    * calcolo pronto e partita coperta -> "sì"/"no" del selettore.
+    """
+    if stato != "pronto":
+        return CONFRONTO_IN_CALCOLO if stato in (None, "in_calcolo") else CONFRONTO_NON_DISPONIBILE
+    dato = (mappa_accordo or {}).get(_chiave_partita_canonica(riga.get("home"), riga.get("away")))
+    if dato is None:
+        return CONFRONTO_NON_DISPONIBILE
+    return "sì" if dato.get("accordo") else "no"
+
+
+def avvia_confronto_modello():
+    """Fa partire il confronto col modello: una volta per sessione, sola lettura.
+
+    Ritorna lo stato corrente SENZA calcolare: il calcolo vero sta in
+    ``concludi_confronto_modello``, chiamato in coda alla scheda cosi' tutto il
+    resto (aggiornamento quote, "Per raddoppiare", "Le più probabili", tabella,
+    "Prova la tua giocata", "Dettagli") e' gia' in pagina quando parte.
+    """
+    stato = st.session_state.get(CONFRONTO_STATO_CHIAVE)
+    if stato in (None, "in_calcolo"):
+        st.session_state[CONFRONTO_STATO_CHIAVE] = "in_calcolo"
+        return "in_calcolo"
+    return stato
+
+
+def concludi_confronto_modello():
+    """Esegue ``fetch_and_calc_top_mix`` (stessa cache di prima) se serve.
+
+    Ritorna ``True`` se lo stato e' cambiato in questo giro (il chiamante fa
+    ``st.rerun()`` per mostrare la colonna piena). NON scrive nulla: ne'
+    registro di mercato, ne' registro ombra, ne' proposte della settimana.
+    """
+    if st.session_state.get(CONFRONTO_STATO_CHIAVE) != "in_calcolo":
+        return False
+    try:
+        with st.spinner(CONFRONTO_SPINNER):
+            top_mercato, _current, _legacy, _missing, _ombra, _senza, _letture = \
+                fetch_and_calc_top_mix()
+        st.session_state[CONFRONTO_RIGHE_CHIAVE] = top_mercato
+        st.session_state[CONFRONTO_STATO_CHIAVE] = "pronto"
+    except Exception as e:
+        # Il confronto e' un valore aggiunto, non un prerequisito: se il giro
+        # del modello non viene (rete, calendario, motore) la colonna lo dice e
+        # il resto della scheda resta in piedi.
+        st.session_state[CONFRONTO_STATO_CHIAVE] = "non_disponibile"
+        st.session_state[CONFRONTO_ERRORE_CHIAVE] = f"{type(e).__name__}: {e}"[:300]
+        logging.warning("Confronto con il modello non riuscito: %s",
+                        st.session_state[CONFRONTO_ERRORE_CHIAVE])
+    return True
+
+
+def _parse_salvato_il(testo):
+    """``salvato_il`` del Registro (``gg/mm/AAAA HH:MM``, ora italiana) -> datetime."""
+    try:
+        return datetime.strptime(str(testo), "%d/%m/%Y %H:%M").replace(tzinfo=ITALY_TZ)
+    except Exception:
+        return None
+
+
+def ultima_registrazione_mercato(righe_registro=None):
+    """Frase "Ultima registrazione: ...", letta dal Registro (famiglia Mercato).
+
+    Legge il ``salvato_il`` piu' recente fra le righe della famiglia Mercato:
+    una data scritta dal Registro, non un orario ricostruito qui. Senza righe
+    (o senza una data leggibile) dice "Nessuna registrazione finora".
+    """
+    righe = righe_registro if righe_registro is not None else righe_visibili(load_predictions())
+    istanti = []
+    for r in righe or []:
+        if not isinstance(r, dict) or famiglia_selettore(r) != FAMIGLIA_SELETTORE_MERCATO:
+            continue
+        dt = _parse_salvato_il(r.get("salvato_il"))
+        if dt is not None:
+            istanti.append(dt)
+    if not istanti:
+        return "Nessuna registrazione finora"
+    dt = max(istanti)
+    giorno = lg.GIORNI_SETTIMANA_IT[dt.weekday()]
+    return (f"Ultima registrazione: {giorno} {dt.strftime('%d/%m/%Y')}, "
+            f"ore {dt.strftime('%H:%M')}")
+
+
+def registra_giocate_della_giornata():
+    """Le scritture del pulsante «📝 Registra le giocate della giornata».
+
+    Sono ESATTAMENTE le scritture che faceva il pulsante «Calcola Top Mix»:
+    registro di mercato (un solo ``save_predictions`` per clic), registro ombra
+    (Totali + 1X2 di Drago e Legacy) e proposte della settimana
+    (``multipla_proposta_v1``, solo fra venerdì e lunedì). Stesse funzioni,
+    stesse regole: prima registrazione mai sovrascritta, filtro sulle partite
+    gia' iniziate e solo pre-partita, finestra venerdì-lunedì per la multipla.
+    Nessuna scrittura avviene all'apertura della scheda: solo qui.
+
+    Ritorna un dict con ``riga_esito`` (la frase in vista, una riga) e
+    ``dettaglio`` (il dettaglio tecnico, che sta nel riquadro "Dettagli").
+    """
+    esito = {"riga_esito": "", "dettaglio": "", "scritto": False}
+    # Se il giro del modello non e' ancora pronto (la scheda lo fa partire da
+    # sola, ma potrebbe non aver finito) il clic LO ATTENDE: le scritture nascono
+    # dagli stessi dati che la colonna del modello mostra, mai da un giro a meta'.
+    if st.session_state.get(CONFRONTO_STATO_CHIAVE) != "pronto":
+        concludi_confronto_modello()
+
+    (top_mercato, top_current, top_legacy, missing, ombra,
+     senza_quote, letture) = fetch_and_calc_top_mix()
+    # fetch_and_calc_top_mix e' cached (ttl=1800) e il suo `now` e' congelato:
+    # si rifiltra contro l'orologio reale PRIMA di mostrare e di salvare, cosi'
+    # nessuna partita gia' iniziata puo' entrare nel registro (problema
+    # `cache_30min` in audit/results/topmix_registry_tracking.json).
+    top_mercato, scartate_mkt = righe_non_iniziate(top_mercato)
+    top_current, scartate_cur = righe_non_iniziate(top_current)
+    top_legacy, scartate_leg = righe_non_iniziate(top_legacy)
+    # Stesso filtro sul registro ombra: nessuna partita gia' iniziata entra.
+    ombra, _scartate_ombra = righe_non_iniziate(ombra)
+    senza_quote, _scartate_sq = righe_non_iniziate(senza_quote)
+    # Le letture seguono la stessa regola delle righe in tabella: dopo il
+    # fischio d'inizio la quota non e' piu' una previsione, e una riga in
+    # attesa non deve essere aggiornata con il prezzo della partita in corso.
+    letture, _scartate_letture = righe_non_iniziate(letture)
+    # --- SOLO PRE-PARTITA (regola delle quote): una quota vale SOLO se
+    # l'acquisizione precede il kickoff e il kickoff non e' passato adesso.
+    # `righe_non_iniziate` sopra guarda l'`utcDate` del calendario, che
+    # puo' essere stale (commence passato, utcDate futuro): qui si guarda
+    # il `commence_time` della fonte quote (con fallback utcDate), sia
+    # contro `quote_live_istante` (istante del file) sia contro l'ora reale
+    # del click. Solo il ramo mercato: le righe del modello non leggono
+    # quote. Applicato PRIMA di session_state, della scrittura e del
+    # rinfresco -> nessuna riga nuova e nessuna "ultima registrazione"
+    # toccata per partite non piu' pre-partita; la "prima registrazione"
+    # non arriva neppure da qui (l'upsert la preserva comunque).
+    top_mercato, scartate_pre = righe_solo_pre_partita(top_mercato)
+    letture, scartate_pre_letture = righe_solo_pre_partita(letture)
+    if scartate_pre or scartate_pre_letture:
+        logging.info("Quote non pre-partita scartate: %d righe, %d letture "
+                     "(kickoff <= istante delle quote o kickoff gia' passato).",
+                     scartate_pre, scartate_pre_letture)
+
+    # --- Persisti in session_state: sopravvive ai rerun ---
+    st.session_state["topmix_mercato"] = top_mercato
+    st.session_state["topmix_current"] = top_current
+    st.session_state["topmix_legacy"] = top_legacy
+    st.session_state["topmix_missing"] = missing
+    st.session_state["topmix_ombra"] = ombra
+    st.session_state["topmix_senza_quote"] = senza_quote
+    st.session_state["topmix_scartate_inizio"] = (scartate_mkt + scartate_cur + scartate_leg
+                                                  + scartate_pre)
+
+    # --- Scrittura Registro: UN SOLO save_predictions per click ---
+    # Prima di questa rifinitura c'era un `save_prediction_entry` dentro il
+    # ciclo, uno per riga: ognuno rileggeva il Registro da disco, faceva il
+    # proprio backup e il proprio PUT remoto. Con ~40 scelte sopra soglia
+    # erano ~40 riscritture dello stesso file (e ~40 backup), e il rinfresco
+    # delle righe in attesa ne avrebbe aggiunta una 41esima; oltre al costo,
+    # ogni scrittura parziale era uno snapshot in cui le righe scritte prima
+    # erano gia' allineate e quelle dopo no. Ora il registro vive in UNA
+    # lista: `load_predictions` una volta, un upsert in blocco per le righe
+    # ammesse, il rinfresco per le righe gia' registrate, e UNA scrittura
+    # (nessuna, se non e' cambiato niente) come fa gia' `salva_registro_ombra`.
+    # Un'eccezione nella costruzione di una riga ferma tutto il click: prima
+    # lasciava a meta' un registro parzialmente scritto, qui non si scrive
+    # proprio nulla (nessuna riga a meta').
+    ora = datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M")
+    sha = snapshot_fingerprint(DATABASE_DIR)      # una volta sola per il blocco
+    nuove = []
+    for p in top_mercato:
+        if not p.get('match_id'):
+            continue
+        args_reg, kwargs_reg = argomenti_registro_top_mix_mercato(p)
+        nuove.append(build_prediction_entry(*args_reg, **kwargs_reg,
+                                             snapshot_sha=sha, salvato_il=ora))
+    preds = load_predictions()
+    preds, azioni_upsert = upsert_prediction_entries(preds, nuove)
+    # Righe di mercato GIA' nel registro la cui partita e' ancora in attesa:
+    # vengono riallineate alla lettura del turno anche se la probabilita' e'
+    # ricaduta sotto soglia (era il buco chiuso da questa rifinitura).
+    preds, azioni_refresh = aggiorna_righe_mercato_in_attesa(preds, letture, salvato_il=ora)
+    n_rinf = azioni_refresh.get("aggiornata", 0)
+    n_sotto = azioni_refresh.get("sotto_soglia", 0)
+    if (azioni_upsert.get("aggiunta") or azioni_upsert.get("aggiornata")
+            or azioni_upsert.get("senza_chiave") or n_rinf):
+        esito_save = save_predictions(preds)
+    else:
+        # Ne' le righe ammesse ne' quelle in attesa sono cambiate: il file non
+        # si tocca, e nessun backup nuovo. E' il percorso del rinfresco, non
+        # un "doppio click innocuo": le righe ammesse vengono riscritte anche
+        # a dati invariati (timestamp nuovo) e quindi una scrittura c'e'.
+        esito_save = {"locale": None, "remoto": "nessuna_scrittura"}
+    n_nuove = azioni_upsert.get("aggiunta", 0)
+    n_agg = azioni_upsert.get("aggiornata", 0)
+    n_gia = (azioni_upsert.get("gia_graduata", 0)
+             + azioni_upsert.get("gia_presente_altra_versione", 0)
+             + azioni_refresh.get("gia_graduata", 0))
+    n_senza_id = azioni_upsert.get("senza_chiave", 0)
+    n_attesa = azioni_refresh.get("senza_lettura", 0)
+    n_allineate = azioni_refresh.get("gia_allineata", 0)
+
+    # --- Esito in UNA riga in vista; il dettaglio tecnico sta nei Dettagli ---
+    salvataggio_fallito = (esito_save.get("remoto") == "errore"
+                           or esito_save.get("locale") is False)
+    if salvataggio_fallito and (nuove or n_rinf):
+        esito["riga_esito"] = "⚠️ Non è stato possibile salvare: riprova"
+    elif n_nuove:
+        esito["riga_esito"] = f"✅ Registrate {n_nuove} giocate nuove"
+    else:
+        esito["riga_esito"] = "ℹ️ Niente di nuovo da registrare"
+    esito["scritto"] = bool(not salvataggio_fallito and (n_nuove or n_agg or n_rinf))
+
+    dettaglio = (f"Famiglia Mercato: {n_nuove} nuove, {n_agg} aggiornate, "
+                 f"{n_gia} gia' giudicate (non toccate)")
+    if n_rinf or n_allineate or n_attesa or n_sotto:
+        dettaglio += f"; rinfresco righe in attesa: {n_rinf} riallineate"
+        if n_sotto:
+            dettaglio += f" ({n_sotto} ora SOTTO soglia, aggiornate lo stesso)"
+        if n_allineate:
+            dettaglio += f", {n_allineate} gia' allineate"
+        if n_attesa:
+            dettaglio += f", {n_attesa} senza quote in questo turno (non toccate)"
+    if n_senza_id:
+        dettaglio += f", {n_senza_id} senza match_id"
+    dettaglio += (f" · Locale: {'ok' if esito_save.get('locale') else 'FALLITO' if salvataggio_fallito else 'nessuna scrittura'}; "
+                  f"remoto: {esito_save.get('remoto')}")
+    if esito_save.get("remoto_dettaglio"):
+        dettaglio += f" ({esito_save['remoto_dettaglio']})"
+    if st.session_state.get("topmix_scartate_inizio"):
+        dettaglio += f" · {st.session_state['topmix_scartate_inizio']} righe scartate perche' la partita e' gia' iniziata"
+    if missing:
+        dettaglio += f" · leghe senza motore: {', '.join(missing)}"
+    if senza_quote:
+        dettaglio += (f" · {len(senza_quote)} partite senza quote di mercato: "
+                      + "; ".join(f"{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})"
+                                  for r in senza_quote))
+    esito["dettaglio"] = dettaglio
+
+    # --- Registro OMBRA: Totali (due righe per candidata) + 1X2 di Drago e
+    # Legacy, che non sono piu' il Top Mix visibile. Non vengono mostrate.
+    # Se la scrittura fallisce si dice SOLO che non e' avvenuta (mai il contenuto).
+    esito_ombra = salva_registro_ombra(
+        ombra, righe_modello={MODEL_VARIANT_CURRENT: top_current,
+                              MODEL_VARIANT_LEGACY: top_legacy})
+    if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
+        esito["dettaglio"] += (f" · Note di controllo non scritte: "
+                               f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
+    else:
+        esito["dettaglio"] += f" · Note di controllo: {esito_ombra.get('remoto')}"
+
+    # Proposte della settimana di gioco (una riga per ciascun numero di
+    # partite disponibile: 1, 2, 3, 4). La proposta registrata e' quella del
+    # PERIODO DI DEFAULT ("Questa giornata (fino a lunedì)") e la scrittura
+    # avviene solo fra venerdì 00:00 e lunedì 23:59: il controllo della
+    # finestra e' dentro salva_tutte_proposte_k_registro_ombra.
+    try:
+        payload_q = market_odds.carica_quote_live()
+        if payload_q:
+            ora_utc = market_odds._adesso_utc()
+            res_lg = lg.calcola_lista_giocate(payload_q, adesso_utc=ora_utc)
+            giocate_periodo = lg.giocate_nel_periodo(res_lg.get("giocate", []),
+                                                     ora_utc, "giornata")
+            prop_lg = lg.cerca_proposta_multipla(giocate_periodo)
+            best_by_k_lg = prop_lg.get("per_k", {})
+            if any(best_by_k_lg.values()):
+                lg.salva_tutte_proposte_k_registro_ombra(best_by_k_lg,
+                                                         istante_utc=ora_utc,
+                                                         snapshot_sha=sha)
+    except Exception as _e_lg:
+        logging.warning(f"Note di controllo (proposte della settimana) non scritte: {_e_lg}")
+        esito["dettaglio"] += f" · Proposte della settimana non scritte: {_e_lg}"
+    return esito
 
 def tabella_lista_giocate(giocate):
     """Costruisce DataFrame per la visualizzazione della Lista giocate (tecnica)."""
@@ -3524,67 +3979,68 @@ def _mostra_dettagli_tecnici(res, in_periodo, top_mercato, stato_quote, adesso):
     giocabile", conteggi delle partite escluse, sovrascrittura manuale delle
     quote, ipotesi di indipendenza e il dettaglio delle proposte per numero
     di partite. Chiuso di default: chi apre trova tutto come prima."""
-    with st.expander("🔎 Dettagli", expanded=False):
-        # (a) La tabella tecnica del Top Mix di mercato, com'e' sempre stata.
-        if top_mercato:
-            st.markdown("##### 🌟 Top Mix — scelte del mercato (vista tecnica)")
-            _dettaglio_meta_mercato(stato_quote if isinstance(stato_quote, dict) else {})
-            n_acc = sum(1 for p in top_mercato if p.get("accordo"))
-            st.caption(
-                f"{len(top_mercato)} partite sopra la soglia di ammissione "
-                f"({SOGLIA_TOPMIX_MERCATO:.2f}, nessun tetto di righe) · {n_acc} con il modello d'accordo · "
-                f"{len(top_mercato) - n_acc} senza accordo. "
-                "Nessuna tabella Legacy o Drago separata: le scelte dei due motori vanno nel registro ombra.")
-            st.dataframe(tabella_top_mix_mercato(top_mercato), width="stretch",
-                         height=420, hide_index=True)
-
-        # (b) Conteggi delle partite escluse (punto 4).
-        c_tot, c_amm, c_ini, c_noq = st.columns(4)
-        c_tot.metric("Partite totali", res.get("n_partite_totali", 0))
-        c_amm.metric("Partite ammesse", res.get("n_partite_ammesse", 0))
-        c_ini.metric("Escluse (già iniziate)", res.get("n_escluse_iniziate", 0))
-        c_noq.metric("Escluse (senza quote)", res.get("n_escluse_senza_quote", 0))
-
-        giocate = res.get("giocate", [])
-        st.markdown("##### 📋 Tabella completa (`lista_giocate_v1`)")
+    # (a) La tabella tecnica del Top Mix di mercato, com'e' sempre stata.
+    if top_mercato:
+        st.markdown("##### 🌟 Top Mix — scelte del mercato (vista tecnica)")
+        _dettaglio_meta_mercato(stato_quote if isinstance(stato_quote, dict) else {})
+        n_acc = sum(1 for p in top_mercato if p.get("accordo"))
         st.caption(
-            "Tutte le 6 giocate per ogni partita non iniziata con quote valide (Pinnacle de-vig proporzionale "
-            "/ media libri). Probabilità della doppia chance = somma delle due probabilità 1X2. "
-            "Quota bet365 stimata secondo il modello calibrato su 2024/25 (PR #58 punto D). "
-            "La stima della doppia chance è calcolata come 1 / (1/qa + 1/qb) ed è marcata come 'stima non verificata'."
-        )
-        if giocate:
-            leghe_disp = sorted(list({g["lega"] for g in giocate if g.get("lega")}))
-            date_disp = sorted(list({g["data"].split()[0] for g in giocate if g.get("data")}))
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                leghe_sel = st.multiselect("Filtra per lega", leghe_disp, default=leghe_disp, key="lg_filtro_lega")
-            with col_f2:
-                date_sel = st.multiselect("Filtra per data", date_disp, default=date_disp, key="lg_filtro_data")
-            filtrate = [
-                g for g in giocate
-                if (not leghe_sel or g.get("lega") in leghe_sel)
-                and (not date_sel or g.get("data", "").split()[0] in date_sel)
-            ]
-            st.caption(f"Mostrate {len(filtrate)} su {len(giocate)} giocate candidate (ordinate per probabilità decrescente).")
-            st.dataframe(tabella_lista_giocate(filtrate), width="stretch",
-                         height=480, hide_index=True)
-        else:
-            st.info("Nessuna giocata disponibile per le partite in programma.")
+            f"{len(top_mercato)} partite sopra la soglia di ammissione "
+            f"({SOGLIA_TOPMIX_MERCATO:.2f}, nessun tetto di righe) · {n_acc} con il modello d'accordo · "
+            f"{len(top_mercato) - n_acc} senza accordo. "
+            "Nessuna tabella Legacy o Drago separata: le scelte dei due motori vanno nel registro ombra.")
+        st.dataframe(tabella_top_mix_mercato(top_mercato), width="stretch",
+                     height=420, hide_index=True)
 
-        # (c) Proposte: dettaglio completo, stesse combinazioni del riquadro
-        # "Per raddoppiare" (stesso periodo scelto, punto 8).
-        st.markdown("##### 🎯 Proposta di multipla (ricerca combinatoria esaustiva)")
-        st.caption(
-            "Ricerca tra tutte le combinazioni da 1 a 4 giocate con quota totale stimata tra 2,00 e 3,00, "
-            "massimizzando il prodotto delle probabilità. Ipotesi: eventi di partite diverse sono trattati come indipendenti. "
-            "Al massimo una giocata per partita. Candidati limitati alle 40 giocate con probabilità più alta più tutte le singole con quota stimata in [2,00, 3,00]. "
-            "Le giocate non giocabili (quota stimata arrotondata ≤ 1,01) sono escluse."
-        )
-        if not in_periodo:
-            st.info("Nessuna giocata nel periodo scelto: cambia «Periodo» per il dettaglio delle proposte.")
-        else:
-            _mostra_dettaglio_proposte(lg.cerca_proposta_multipla(in_periodo), top_mercato)
+    # (b) Conteggi delle partite escluse (punto 4).
+    c_tot, c_amm, c_ini, c_noq = st.columns(4)
+    c_tot.metric("Partite totali", res.get("n_partite_totali", 0))
+    c_amm.metric("Partite ammesse", res.get("n_partite_ammesse", 0))
+    c_ini.metric("Escluse (già iniziate)", res.get("n_escluse_iniziate", 0))
+    c_noq.metric("Escluse (senza quote)", res.get("n_escluse_senza_quote", 0))
+
+    giocate = res.get("giocate", [])
+    st.markdown("##### 📋 Tabella completa (`lista_giocate_v1`)")
+    st.caption(
+        "Tutte le 6 giocate per ogni partita non iniziata con quote valide (Pinnacle de-vig proporzionale "
+        "/ media libri). Probabilità della doppia chance = somma delle due probabilità 1X2. "
+        "Quota bet365 stimata secondo il modello calibrato su 2024/25 (PR #58 punto D). "
+        "La stima della doppia chance è calcolata come 1 / (1/qa + 1/qb) ed è marcata come 'stima non verificata'."
+    )
+    if giocate:
+        leghe_disp = sorted(list({g["lega"] for g in giocate if g.get("lega")}))
+        date_disp = sorted(list({g["data"].split()[0] for g in giocate if g.get("data")}))
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            leghe_sel = st.multiselect("Filtra per lega", leghe_disp, default=leghe_disp, key="lg_filtro_lega")
+        with col_f2:
+            date_sel = st.multiselect("Filtra per data", date_disp, default=date_disp, key="lg_filtro_data")
+        filtrate = [
+            g for g in giocate
+            if (not leghe_sel or g.get("lega") in leghe_sel)
+            and (not date_sel or g.get("data", "").split()[0] in date_sel)
+        ]
+        st.caption(f"Mostrate {len(filtrate)} su {len(giocate)} giocate candidate (ordinate per probabilità decrescente).")
+        st.dataframe(tabella_lista_giocate(filtrate), width="stretch",
+                     height=480, hide_index=True)
+    else:
+        st.info("Nessuna giocata disponibile per le partite in programma.")
+
+    # (c) Proposte: dettaglio completo, stesse combinazioni del riquadro
+    # "Per raddoppiare" (stesso periodo scelto, punto 8).
+    st.markdown("##### 🎯 Proposta di multipla (ricerca combinatoria esaustiva)")
+    st.caption(
+        "Ricerca tra tutte le combinazioni da 1 a 4 giocate con quota totale stimata tra 2,00 e 3,00, "
+        "massimizzando il prodotto delle probabilità. Ipotesi: eventi di partite diverse sono trattati come indipendenti. "
+        "Al massimo una giocata per partita. Candidati limitati alle 40 giocate con probabilità più alta più tutte le singole con quota stimata in [2,00, 3,00]. "
+        "Le giocate non giocabili (quota stimata arrotondata ≤ 1,01) sono escluse."
+    )
+    if not in_periodo:
+        st.info("Nessuna giocata nel periodo scelto: cambia «Periodo» per il dettaglio delle proposte.")
+    else:
+        _mostra_dettaglio_proposte(lg.cerca_proposta_multipla(in_periodo), top_mercato)
+
+
 
 
 def _mostra_dettaglio_proposte(prop, top_mercato):
@@ -3644,33 +4100,20 @@ def _mostra_dettaglio_proposte(prop, top_mercato):
             _mostra_scheda_proposta(item, top_mercato=top_mercato, key_pfx=f"k_{k}")
 
 
-def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
-    """La parte in vista in parole (punti 1, 2 e 8): freschezza delle quote,
-    controllo «Periodo», riquadro "Per raddoppiare" e lista "Le più probabili".
+def _mostra_intestazione_giocate(payload, adesso, res):
+    """Testa della scheda Giocate: riga dell'aggiornamento quote e «Periodo».
 
-    Dopo questa sezione, nello stesso blocco del tab2, vengono IN ORDINE: la
-    tabella in parole del mercato (punto 5a, stesso «Periodo», filtrato da
-    ``_mostra_tabella_top_mix_mercato``), il riquadro chiuso «Dettagli»
-    (punto 4, ``_mostra_dettagli_lista_giocate``) e il riquadro chiuso «Prova
-    la tua giocata» (punto 3, ``calcolatore_multipla``). I numeri NON
-    cambiano: arrivano dalle stesse funzioni di `lista_giocate` calcolate
-    sullo stesso payload."""
-    st.markdown("---")
-    st.markdown("##### 📋 Lista giocate")
-
-    payload = (stato_quote or {}).get("payload") if isinstance(stato_quote, dict) else None
-    if payload is None:
-        payload = market_odds.carica_quote_live()
-
+    Ritorna la lista delle giocate del periodo scelto, che i riquadri qui sotto
+    (\"Per raddoppiare\", \"Le più probabili\") e la tabella del mercato usano:
+    un solo calcolo, gli stessi numeri dappertutto. Tutto nasce dal file delle
+    quote, quindi questa parte non aspetta il giro del modello.
+    """
     if not payload:
         st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
-        return
-
-    adesso = market_odds._adesso_utc()
-    res = lg.calcola_lista_giocate(payload, adesso_utc=adesso)
+        return []
     giocate = res.get("giocate", [])
 
-    # Freschezza delle quote sotto il titolo (punto 8), in italiano.
+    # Freschezza delle quote in testa alla scheda (punto 8), in italiano.
     st.caption(lg.aggiornamento_quote_parole(payload.get("generato_il"), adesso))
 
     # Periodo di gioco (punto 8): di default fino al lunedì alle 23:59.
@@ -3692,33 +4135,62 @@ def _mostra_sezione_lista_giocate(top_mercato=None, stato_quote=None):
                   if prossima else "")
         st.info(f"In questa giornata non ci sono ancora partite da mostrare.{quando} "
                 f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
-    else:
-        _mostra_riquadro_raddoppio(in_periodo, top_mercato, adesso)
-        _mostra_piu_probabili(in_periodo, adesso)
+    return in_periodo
 
 
-def _mostra_dettagli_lista_giocate(top_mercato=None, stato_quote=None):
-    """Il riquadro chiuso «Dettagli» del punto 4.
+def _mostra_pulsante_registrazione():
+    """Il pulsante che scrive, e le due righe che gli stanno sotto.
 
-    Nell'ordine nuovo della scheda sta DOPO la tabella in parole del mercato
-    e PRIMA di «Prova la tua giocata». Contenuto identico a prima
-    (``_mostra_dettagli_tecnici``): tabella completa via ``st.dataframe``,
-    filtri, fonte ed eta' delle quote, quota equa, marcatori, partite
-    escluse, sovrascrittura manuale, ipotesi di indipendenza, proposte per
-    numero di partite. Chiuso di default.
+    Posto dopo il riquadro \"Per raddoppiare\": e' l'UNICO punto della scheda che
+    scrive (registro di mercato, registro ombra, proposte della settimana). Al
+    clic una riga dice com'e' andata; sotto, sempre, quando e' avvenuta
+    l'ultima registrazione (letta dal Registro, non ricordata qui).
     """
-    payload = (stato_quote or {}).get("payload") if isinstance(stato_quote, dict) else None
-    if payload is None:
-        payload = market_odds.carica_quote_live()
-    if not payload:
-        return
-    adesso = market_odds._adesso_utc()
-    res = lg.calcola_lista_giocate(payload, adesso_utc=adesso)
-    giocate = res.get("giocate", [])
-    periodo_lbl = st.session_state.get("lg_periodo", lg.ETICHETTA_PERIODO_GIORNATA)
-    periodo_val = "giornata" if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA else "tutte"
-    in_periodo = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
-    _mostra_dettagli_tecnici(res, in_periodo, top_mercato, stato_quote, adesso)
+    cliccato = st.button("📝 Registra le giocate della giornata", type="primary",
+                         key="btn_registra_giornata")
+    if cliccato:
+        esito = registra_giocate_della_giornata()
+        st.session_state["esito_registrazione"] = esito
+    st.caption(ultima_registrazione_mercato())
+    ultimo = st.session_state.get("esito_registrazione")
+    if isinstance(ultimo, dict) and ultimo.get("riga_esito"):
+        st.markdown(f"**{ultimo['riga_esito']}**")
+    return cliccato
+
+
+def _mostra_dettagli_giocate(res, in_periodo, righe, stato_quote, adesso):
+    """Il riquadro chiuso «Dettagli» della scheda Giocate.
+
+    Contenuto tecnico identico a prima (``_mostra_dettagli_tecnici``): tabella
+    completa via ``st.dataframe``, filtri, fonte ed eta' delle quote, quota
+    equa, marcatori, partite escluse, sovrascrittura manuale, ipotesi di
+    indipendenza, proposte per numero di partite. Chiuso di default.
+
+    In piu', perche' la scheda non scrive piu' niente da sola: il dettaglio
+    tecnico dell'ultima registrazione (conteggi per famiglia, allineate, in
+    attesa, remoto) e il pulsante che rifa' il confronto col modello svuotando
+    la cache. Nemmeno quello scrive.
+    """
+    with st.expander("🔎 Dettagli", expanded=False):
+        _mostra_dettagli_tecnici(res, in_periodo, righe, stato_quote, adesso)
+        ultimo = st.session_state.get("esito_registrazione")
+        if isinstance(ultimo, dict) and ultimo.get("dettaglio"):
+            st.caption("**Ultima registrazione (dettaglio tecnico):** " + ultimo["dettaglio"])
+        else:
+            st.caption("Nessuna registrazione fatta in questa sessione: il Registro "
+                       "non e' stato toccato.")
+        if st.button("Ricalcola il confronto col modello", key="btn_ricalcola_confronto"):
+            # Svuota la cache del giro del modello e lo ripete: sola lettura,
+            # nessuna scrittura nel Registro.
+            fetch_and_calc_top_mix.clear()
+            st.session_state[CONFRONTO_STATO_CHIAVE] = None
+            st.session_state.pop(CONFRONTO_RIGHE_CHIAVE, None)
+            st.session_state.pop(CONFRONTO_ERRORE_CHIAVE, None)
+            st.rerun()
+        if st.session_state.get(CONFRONTO_STATO_CHIAVE) == "non_disponibile":
+            st.warning(f"⚠️ Confronto con il modello non disponibile: "
+                       f"{st.session_state.get(CONFRONTO_ERRORE_CHIAVE) or 'motivo non noto'}. "
+                       "Le giocate qui sopra vengono dalle quote e non cambiano.")
 
 
 def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
@@ -3800,7 +4272,7 @@ def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
 
 
 
-def calcolatore_multipla(righe, adesso=None):
+def calcolatore_multipla(righe, adesso=None, gambe_pre=None):
     """Riquadro chiuso «Prova la tua giocata» (punto 3), un solo expander.
 
     Per OGNI riga della combinazione c'e' una casella «Quota che vedi su
@@ -3838,13 +4310,19 @@ def calcolatore_multipla(righe, adesso=None):
         # Le gambe della lista estesa nel periodo scelto: stesso insieme del
         # riquadro "Per raddoppiare" (righe >= 55% e anche sotto 55% fino a
         # quota stimata < 1,20), ordinate per probabilita' decrescente.
-        payload = market_odds.carica_quote_live()
-        res = lg.calcola_lista_giocate(payload, adesso) if payload else {"giocate": []}
-        giocate = res.get("giocate", []) if isinstance(res, dict) else []
-        periodo_lbl = st.session_state.get("lg_periodo", lg.ETICHETTA_PERIODO_GIORNATA)
-        periodo_val = (lg.PERIODO_GIORNATA if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA
-                       else lg.PERIODO_TUTTE)
-        gambe = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
+        if gambe_pre is not None:
+            # Le gambe del periodo sono gia' state calcolate in testa alla
+            # scheda (un solo giro di ``calcola_lista_giocate`` per disegno):
+            # stesse funzioni, stessi numeri, nessun ricalcolo qui.
+            gambe = list(gambe_pre)
+        else:
+            payload = market_odds.carica_quote_live()
+            res = lg.calcola_lista_giocate(payload, adesso) if payload else {"giocate": []}
+            giocate = res.get("giocate", []) if isinstance(res, dict) else []
+            periodo_lbl = st.session_state.get("lg_periodo", lg.ETICHETTA_PERIODO_GIORNATA)
+            periodo_val = (lg.PERIODO_GIORNATA if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA
+                           else lg.PERIODO_TUTTE)
+            gambe = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
         if not gambe:
             st.info("Quando ci saranno partite in programma nel periodo scelto, "
                     "potrai provare qui le tue combinazioni.")
@@ -4176,29 +4654,60 @@ def _tabella_registro_mercato_in_parole(df):
 
 
 def _sintesi_registro_mercato(righe) -> tuple:
-    """Punto 5b: le due righe di bilancio sopra la tabella, da valori GIA' nel
+    """Il riepilogo in parole della scheda Com'è andata, da valori GIA' nel
     Registro (niente ricalcoli sulle probabilita': si leggono solo le colonne
-    ``esito`` e ``quota_mercato_prima``).
+    ``esito``, ``quota_mercato_prima`` e la probabilita' della PRIMA
+    registrazione).
 
-    Riga 1: "Finora N giocate concluse, M riuscite (X su 100)" — N = righe con
-    esito ✅/❌, M = quelle ✅, X = percentuale intera.
-    Riga 2: "Su 100 giocate da 1 €, chi le avesse seguite tutte avrebbe oggi
-    ±Y €", con il pareggio esatto detto "pari" (una giocata vinta restituisce
-    la quota della prima registrazione, una persa restituisce 0; la media e'
-    per 100 giocate da 1 €). Primo valore negativo = "avrebbe oggi Y € in
-    meno"; positivo = "Y € in più"; a zero esatto = "pari".
+    Riga 1 (in testa alla scheda): "Finora N giocate concluse, M riuscite
+    (X su 100). Le quote si aspettavano Y su 100." — N = righe con esito ✅/❌,
+    M = quelle ✅, X = percentuale intera, Y = media delle probabilita' della
+    PRIMA registrazione sulle STESSE righe (``prob_di_registrazione`` con
+    ``REGISTRAZIONE_PRIMA``): e' quello che il mercato si aspettava quando la
+    giocata e' entrata in tabella, quindi il confronto con X e' alla pari. Una
+    riga giudicata senza probabilita' leggibile resta fuori da Y (non si
+    inventa niente) e la frase lo dice in coda.
+    Riga 2 (sta nei Dettagli: e' un conto, non una descrizione): "Su 100
+    giocate da 1 €, chi le avesse seguite tutte avrebbe oggi ±Z €", con il
+    pareggio esatto detto "pari" (una giocata vinta restituisce la quota della
+    prima registrazione, una persa restituisce 0; la media e' per 100 giocate
+    da 1 €). Primo valore negativo = "avrebbe oggi Z € in meno"; positivo =
+    "Z € in più"; a zero esatto = "pari".
     Quota mancante su una riga vinta: la riga non conta nel netto (resa n/d,
     non inventata) e la dizione lo dichiara in coda con "quota n/d".
+
+    Ritorna ``(riga1, riga2)``; ``(None, None)`` se non c'e' nessuna giocata
+    conclusa.
     """
     esiti = righe["esito"].tolist() if "esito" in righe.columns else []
     quote = righe[QUOTA_MERCATO_PRIMA_FIELD].tolist() if QUOTA_MERCATO_PRIMA_FIELD in righe.columns else [None] * len(esiti)
+    record = righe.to_dict("records") if hasattr(righe, "to_dict") else [{}] * len(esiti)
     concluse = [(e, q) for e, q in zip(esiti, quote) if e in ("✅", "❌")]
+    concluse_records = [r for r, e in zip(record, esiti) if e in ("✅", "❌")]
     n = len(concluse)
     if n == 0:
         return None, None
     m = sum(1 for e, _q in concluse if e == "✅")
     x_cento = int(round(100.0 * m / n))
-    riga1 = f"Finora {n} giocate concluse, {m} riuscite ({x_cento} su 100)"
+    # Y: media delle probabilita' della PRIMA registrazione sulle stesse righe.
+    prime = []
+    senza_prima_prob = 0
+    for r in concluse_records:
+        p, _ricostruita = prob_di_registrazione(r, REGISTRAZIONE_PRIMA)
+        if p is None:
+            senza_prima_prob += 1
+        else:
+            prime.append(float(p))
+    if prime:
+        y_cento = int(round(100.0 * (sum(prime) / len(prime))))
+        coda_y = (f" ({senza_prima_prob} senza probabilità leggibile alla prima "
+                  f"registrazione, fuori dalla media)" if senza_prima_prob else "")
+        riga1 = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento} su 100). "
+                 f"Le quote si aspettavano {y_cento} su 100.{coda_y}")
+    else:
+        riga1 = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento} su 100). "
+                 "Nessuna probabilità leggibile alla prima registrazione: il "
+                 "confronto con le quote non si può fare.")
     netto = 0.0
     nd = 0
     for e, q in concluse:
@@ -4228,23 +4737,18 @@ def _sintesi_registro_mercato(righe) -> tuple:
 
 
 def _mostra_registro_mercato(righe, altezza=420):
-    """Registro della famiglia MERCATO in parole (punto 5).
+    """Registro della famiglia MERCATO in parole (parte IN VISTA).
 
     In vista: Quando, Campionato, Partita, Giocata in parole, "Riesce circa",
-    "Il nostro modello e' d'accordo", Risultato, Esito. Nel riquadro chiuso
-    "Dettagli" la tabella tecnica completa di un tempo: P modello,
-    "Δ dalla prima", Prima registrazione, Stato, origine, stagione (fonte ed
-    eta' delle quote stanno nel Dettaglio della scheda TOP MIX, dove le righe
-    di mercato nascono). Nessun dato del Registro e' toccato: e' solo lettura
-    presentata diversamente.
+    "Il nostro modello e' d'accordo", Risultato, Esito — e le partite ancora da
+    giocare separate in una seconda tabella "In attesa di risultato": un esito
+    non ancora scritto non e' una giocata andata male, e mischiarlo alle
+    concluse farebbe leggere male il riepilogo in testa.
 
-    La colonna "Stato" dice se il valore mostrato e' anche una scelta oggi in
-    tabella: dopo il rinfresco delle righe in attesa una riga puo' leggere 0,52
-    senza essere mai stata cancellata dal Registro, e senza quel contrassegno
-    sarebbe impossibile capire perche' non compare nel Top Mix. "flag non
-    dichiarato" non e' un'etichetta di comodo: sono le righe scritte prima che il
-    campo esistesse, per le quali NON si sa cosa il mercato dicesse nei turni
-    successivi.
+    La tabella tecnica completa di un tempo (P modello, "Δ dalla prima", Prima
+    registrazione, Stato, origine, stagione) sta nel riquadro "Dettagli" della
+    scheda, resa da ``_mostra_dettagli_mercato``. Nessun dato del Registro e'
+    toccato: e' solo lettura presentata diversamente.
     """
     st.markdown(f"<div class='top-mix-model top-mix-mercato'><b>🌟 Com'è andata: le scelte secondo le quote</b>"
                 f" — {len(righe)} righe</div>",
@@ -4254,14 +4758,45 @@ def _mostra_registro_mercato(righe, altezza=420):
     if righe.empty:
         st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
         return
-    # Punto 5b: il bilancio in parole sopra la tabella (stessi numeri di
-    # sempre, letti dalle colonne del Registro — vedi _sintesi_registro_mercato).
-    bil_riga1, bil_riga2 = _sintesi_registro_mercato(righe)
+    # Il bilancio in parole sopra la tabella (stessi numeri di sempre, letti
+    # dalle colonne del Registro — vedi _sintesi_registro_mercato).
+    bil_riga1, _bil_riga2 = _sintesi_registro_mercato(righe)
     if bil_riga1 is not None:
         st.markdown(f"**{bil_riga1}**")
-        st.caption(bil_riga2)
-    st.dataframe(_tabella_registro_mercato_in_parole(righe), width="stretch",
-                 height=altezza, hide_index=True)
+    concluse = righe[righe["esito"].isin(["✅", "❌"])]
+    in_attesa = righe[~righe["esito"].isin(["✅", "❌"])]
+    if not concluse.empty:
+        st.dataframe(_tabella_registro_mercato_in_parole(concluse), width="stretch",
+                     height=altezza, hide_index=True)
+    else:
+        st.info("Nessuna giocata conclusa con i filtri attivi.")
+    if not in_attesa.empty:
+        st.markdown("##### ⏳ In attesa di risultato")
+        st.caption(f"{len(in_attesa)} giocate ancora da giocare: l'esito arriva da solo, "
+                   "quando la partita e' finita da almeno tre ore.")
+        st.dataframe(_tabella_registro_mercato_in_parole(in_attesa), width="stretch",
+                     height=min(altezza, 260), hide_index=True)
+
+
+def _mostra_dettagli_mercato(righe, altezza=420):
+    """La tabella tecnica della famiglia Mercato (dentro il riquadro Dettagli).
+
+    La colonna "Stato" dice se il valore mostrato e' anche una scelta oggi in
+    tabella: dopo il rinfresco delle righe in attesa una riga puo' leggere 0,52
+    senza essere mai stata cancellata dal Registro, e senza quel contrassegno
+    sarebbe impossibile capire perche' non compare nel Top Mix. "flag non
+    dichiarato" non e' un'etichetta di comodo: sono le righe scritte prima che il
+    campo esistesse, per le quali NON si sa cosa il mercato dicesse nei turni
+    successivi.
+    """
+    if righe is None or righe.empty:
+        return
+    # Il conto in euro della seconda riga del riepilogo: e' un conto, non una
+    # descrizione di com'e' andata, quindi sta qui (dentro i Dettagli) e non in
+    # apertura di scheda. Stessi numeri di ``_sintesi_registro_mercato``.
+    _riga1, riga2 = _sintesi_registro_mercato(righe)
+    if riga2:
+        st.caption(riga2)
     # Prepara le colonne per il modello e l'accordo
     df = righe.copy()
     if "prob_modello" in df.columns:
@@ -4284,42 +4819,43 @@ def _mostra_registro_mercato(righe, altezza=420):
     df["Δ dalla prima"] = [valore for valore, _stato in delta_e_stato_prima]
     df["Prima registrazione"] = [stato for _valore, stato in delta_e_stato_prima]
 
-    with st.expander("🔎 Dettagli", expanded=False):
-        st.caption(f"Vista tecnica completa della famiglia mercato "
-                   f"(topmix_mercato_v3): scelte del mercato con de-vig proporzionale, "
-                   f"soglia di ammissione {SOGLIA_TOPMIX_MERCATO:.2f}. Colonne: P modello Drago, "
-                   "Δ dalla prima, Prima registrazione, Stato, origine, stagione.")
-        colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
-        tabella = df[colonne].sort_values(by="data", ascending=False, na_position="last")
-        # Streamlit conserva il DataFrame sottostante (quindi ordinamento e copia
-        # restano normali) ma applica il colore al testo della freccia.
-        tabella_stile = tabella.style.apply(
-            lambda colonna: [_stile_delta_dalla_prima(v) for v in colonna],
-            axis=0, subset=["Δ dalla prima"])
-        st.dataframe(
-            tabella_stile,
-            width="stretch",
-            height=altezza,
-            column_config={
-                "data": st.column_config.DatetimeColumn(None, format="DD/MM/YYYY HH:mm"),
-                "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
-                "Δ dalla prima": st.column_config.TextColumn(
-                    "Δ dalla prima",
-                    help="Probabilita' di mercato dell'ultima registrazione meno la prima, "
-                         "in punti percentuali. Freccia verde da +2,0 pp, rossa da -2,0 pp; "
-                         "per una variazione inferiore a 2 pp in valore assoluto non c'e' freccia."),
-                "Prima registrazione": st.column_config.TextColumn(
-                    "Prima registrazione",
-                    help="'ricostruita' significa che il Registro non conserva una prima "
-                         "probabilita' scritta: il delta resta vuoto, non vale zero."),
-                "prob_modello_col": st.column_config.TextColumn("P modello Drago %"),
-                "accordo_col": st.column_config.TextColumn("D'accordo"),
-                "stato_col": st.column_config.TextColumn("Stato"),
-            },
-        )
+    st.caption(f"Vista tecnica completa della famiglia mercato "
+               f"(topmix_mercato_v3): scelte del mercato con de-vig proporzionale, "
+               f"soglia di ammissione {SOGLIA_TOPMIX_MERCATO:.2f}. Colonne: P modello Drago, "
+               "Δ dalla prima, Prima registrazione, Stato, origine, stagione.")
+    colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
+    tabella = df[colonne].sort_values(by="data", ascending=False, na_position="last")
+    # Streamlit conserva il DataFrame sottostante (quindi ordinamento e copia
+    # restano normali) ma applica il colore al testo della freccia.
+    tabella_stile = tabella.style.apply(
+        lambda colonna: [_stile_delta_dalla_prima(v) for v in colonna],
+        axis=0, subset=["Δ dalla prima"])
+    st.dataframe(
+        tabella_stile,
+        width="stretch",
+        height=altezza,
+        column_config={
+            "data": st.column_config.DatetimeColumn(None, format="DD/MM/YYYY HH:mm"),
+            "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
+            "Δ dalla prima": st.column_config.TextColumn(
+                "Δ dalla prima",
+                help="Probabilita' di mercato dell'ultima registrazione meno la prima, "
+                     "in punti percentuali. Freccia verde da +2,0 pp, rossa da -2,0 pp; "
+                     "per una variazione inferiore a 2 pp in valore assoluto non c'e' freccia."),
+            "Prima registrazione": st.column_config.TextColumn(
+                "Prima registrazione",
+                help="'ricostruita' significa che il Registro non conserva una prima "
+                     "probabilita' scritta: il delta resta vuoto, non vale zero."),
+            "prob_modello_col": st.column_config.TextColumn("P modello Drago %"),
+            "accordo_col": st.column_config.TextColumn("D'accordo"),
+            "stato_col": st.column_config.TextColumn("Stato"),
+        },
+    )
 
 
-with tab2:
+
+
+with tab_giocate:
     st.caption("Una tabella sola, costruita sulle **quote dei bookmaker**: la scelta (1/X/2) e' "
                "quella con la probabilita' piu' alta, e compare se supera il **55%**. Accanto, "
                "la probabilita' del nostro modello sullo stesso esito e il segnale **d'accordo** "
@@ -4327,203 +4863,73 @@ with tab2:
                "Le quote vengono aggiornate ogni giorno: l'app non chiama nessun servizio esterno. "
                "Le scelte 1X2 dei due modelli interni non sono piu' in tabella: continuano a "
                "essere annotate dietro le quinte, per il controllo dei risultati.")
-    # --- Pulsante "Calcola Top Mix": calcola, salva nel registro e persisti ---
-    # Il risultato va in session_state cosi' un rerun (es. selezione di una riga
-    # nel multiselect della multipla) non azzera la sezione. La scrittura nel
-    # Registro avviene SOLO qui, alla pressione esplicita del pulsante.
-    if st.button("🚀 Calcola Top Mix", type="primary"):
-        (top_mercato, top_current, top_legacy, missing, ombra,
-         senza_quote, letture) = fetch_and_calc_top_mix()
-        # fetch_and_calc_top_mix e' cached (ttl=1800) e il suo `now` e' congelato:
-        # si rifiltra contro l'orologio reale PRIMA di mostrare e di salvare, cosi'
-        # nessuna partita gia' iniziata puo' entrare nel registro (problema
-        # `cache_30min` in audit/results/topmix_registry_tracking.json).
-        top_mercato, scartate_mkt = righe_non_iniziate(top_mercato)
-        top_current, scartate_cur = righe_non_iniziate(top_current)
-        top_legacy, scartate_leg = righe_non_iniziate(top_legacy)
-        # Stesso filtro sul registro ombra: nessuna partita gia' iniziata entra.
-        ombra, _scartate_ombra = righe_non_iniziate(ombra)
-        senza_quote, _scartate_sq = righe_non_iniziate(senza_quote)
-        # Le letture seguono la stessa regola delle righe in tabella: dopo il
-        # fischio d'inizio la quota non e' piu' una previsione, e una riga in
-        # attesa non deve essere aggiornata con il prezzo della partita in corso.
-        letture, _scartate_letture = righe_non_iniziate(letture)
-        # --- SOLO PRE-PARTITA (regola delle quote): una quota vale SOLO se
-        # l'acquisizione precede il kickoff e il kickoff non e' passato adesso.
-        # `righe_non_iniziate` sopra guarda l'`utcDate` del calendario, che
-        # puo' essere stale (commence passato, utcDate futuro): qui si guarda
-        # il `commence_time` della fonte quote (con fallback utcDate), sia
-        # contro `quote_live_istante` (istante del file) sia contro l'ora reale
-        # del click. Solo il ramo mercato: le righe del modello non leggono
-        # quote. Applicato PRIMA di session_state, della scrittura e del
-        # rinfresco -> nessuna riga nuova e nessuna "ultima registrazione"
-        # toccata per partite non piu' pre-partita; la "prima registrazione"
-        # non arriva neppure da qui (l'upsert la preserva comunque).
-        top_mercato, scartate_pre = righe_solo_pre_partita(top_mercato)
-        letture, scartate_pre_letture = righe_solo_pre_partita(letture)
-        if scartate_pre or scartate_pre_letture:
-            logging.info("Quote non pre-partita scartate: %d righe, %d letture "
-                         "(kickoff <= istante delle quote o kickoff gia' passato).",
-                         scartate_pre, scartate_pre_letture)
+    # --- La scheda si GUARDA, non si preme ---
+    # Tutto quello che segue nasce dal file delle quote (``live_odds.json``,
+    # scritto dal workflow) e non attende il giro del modello: riga
+    # dell'aggiornamento quote, "Per raddoppiare", "Le più probabili", "Le
+    # scelte più sicure secondo le quote", "Prova la tua giocata" e "Dettagli"
+    # sono gia' in pagina al primo disegno. Il confronto con il modello parte da
+    # solo in coda alla scheda, in SOLA LETTURA (stessa cache di prima); finche'
+    # non finisce la sua colonna dice "in calcolo", e se non riesce dice "non
+    # disponibile" lasciando in piedi tutto il resto.
+    # NESSUNA scrittura avviene qui o a ogni rerun: registro di mercato,
+    # registro ombra e proposte della settimana si scrivono SOLO col pulsante
+    # «📝 Registra le giocate della giornata».
+    stato_quote = carica_indice_quote_live()
+    _avviso_stato_quote(stato_quote, "Giocate")
+    _mostra_non_abbinati_fonte(stato_quote, "Giocate")
 
-        # --- Persisti in session_state: sopravvive ai rerun ---
-        st.session_state["topmix_mercato"] = top_mercato
-        st.session_state["topmix_current"] = top_current
-        st.session_state["topmix_legacy"] = top_legacy
-        st.session_state["topmix_missing"] = missing
-        st.session_state["topmix_ombra"] = ombra
-        st.session_state["topmix_senza_quote"] = senza_quote
-        st.session_state["topmix_scartate_inizio"] = (scartate_mkt + scartate_cur + scartate_leg
-                                                      + scartate_pre)
+    payload_quote = market_odds.carica_quote_live()
+    adesso = market_odds._adesso_utc()
+    res_lista = (lg.calcola_lista_giocate(payload_quote, adesso_utc=adesso)
+                 if payload_quote else {"giocate": []})
+    in_periodo = _mostra_intestazione_giocate(payload_quote, adesso, res_lista)
 
-        # --- Scrittura Registro: UN SOLO save_predictions per click ---
-        # Prima di questa rifinitura c'era un `save_prediction_entry` dentro il
-        # ciclo, uno per riga: ognuno rileggeva il Registro da disco, faceva il
-        # proprio backup e il proprio PUT remoto. Con ~40 scelte sopra soglia
-        # erano ~40 riscritture dello stesso file (e ~40 backup), e il rinfresco
-        # delle righe in attesa ne avrebbe aggiunta una 41esima; oltre al costo,
-        # ogni scrittura parziale era uno snapshot in cui le righe scritte prima
-        # erano gia' allineate e quelle dopo no. Ora il registro vive in UNA
-        # lista: `load_predictions` una volta, un upsert in blocco per le righe
-        # ammesse, il rinfresco per le righe gia' registrate, e UNA scrittura
-        # (nessuna, se non e' cambiato niente) come fa gia' `salva_registro_ombra`.
-        # Un'eccezione nella costruzione di una riga ferma tutto il click: prima
-        # lasciava a meta' un registro parzialmente scritto, qui non si scrive
-        # proprio nulla (nessuna riga a meta').
-        ora = datetime.now(ITALY_TZ).strftime("%d/%m/%Y %H:%M")
-        sha = snapshot_fingerprint(DATABASE_DIR)      # una volta sola per il blocco
-        nuove = []
-        for p in top_mercato:
-            if not p.get('match_id'):
-                continue
-            args_reg, kwargs_reg = argomenti_registro_top_mix_mercato(p)
-            nuove.append(build_prediction_entry(*args_reg, **kwargs_reg,
-                                                 snapshot_sha=sha, salvato_il=ora))
-        preds = load_predictions()
-        preds, azioni_upsert = upsert_prediction_entries(preds, nuove)
-        # Righe di mercato GIA' nel registro la cui partita e' ancora in attesa:
-        # vengono riallineate alla lettura del turno anche se la probabilita' e'
-        # ricaduta sotto soglia (era il buco chiuso da questa rifinitura).
-        preds, azioni_refresh = aggiorna_righe_mercato_in_attesa(preds, letture, salvato_il=ora)
-        n_rinf = azioni_refresh.get("aggiornata", 0)
-        n_sotto = azioni_refresh.get("sotto_soglia", 0)
-        if (azioni_upsert.get("aggiunta") or azioni_upsert.get("aggiornata")
-                or azioni_upsert.get("senza_chiave") or n_rinf):
-            esito_save = save_predictions(preds)
-        else:
-            # Ne' le righe ammesse ne' quelle in attesa sono cambiate: il file non
-            # si tocca, e nessun backup nuovo. E' il percorso del rinfresco, non
-            # un "doppio click innocuo": le righe ammesse vengono riscritte anche
-            # a dati invariati (timestamp nuovo) e quindi una scrittura c'e'. 
-            esito_save = {"locale": None, "remoto": "nessuna_scrittura"}
-        # Il toast NON e' piu' incondizionato: "salvati!" era scritto anche
-        # quando la scrittura remota (PUT su JSONBin, HSET su Upstash) era
-        # fallita dentro un `except: pass`.
-        n_nuove = azioni_upsert.get("aggiunta", 0)
-        n_agg = azioni_upsert.get("aggiornata", 0)
-        n_gia = (azioni_upsert.get("gia_graduata", 0)
-                 + azioni_upsert.get("gia_presente_altra_versione", 0)
-                 + azioni_refresh.get("gia_graduata", 0))
-        n_senza_id = azioni_upsert.get("senza_chiave", 0)
-        n_attesa = azioni_refresh.get("senza_lettura", 0)
-        n_allineate = azioni_refresh.get("gia_allineata", 0)
-        if not nuove:
-            # Nessuna scelta da scrivere: si dice comunque se il rinfresco ha
-            # lavorato, perche' e' l'altra meta' del click e non deve sembrare
-            # "non e' successo niente" quando una riga e' stata aggiornata.
-            if n_rinf:
-                st.info(f"Registro: nessuna scelta ammessa in tabella; {n_rinf} righe in "
-                        f"attesa riallineate ({n_sotto} ora sotto soglia).")
-            else:
-                st.info("Nessuna previsione da salvare: nessuna riga del Top Mix ha un "
-                        "match_id valido e nessuna riga in attesa aveva una lettura nuova.")
-        else:
-            dettaglio = f"{n_nuove} nuove, {n_agg} aggiornate, {n_gia} gia' giudicate (non toccate)"
-            if n_rinf or n_allineate or n_attesa or n_sotto:
-                dettaglio += f"; rinfresco righe in attesa: {n_rinf} riallineate"
-                if n_sotto:
-                    dettaglio += f" ({n_sotto} ora SOTTO soglia, aggiornate lo stesso)"
-                if n_allineate:
-                    dettaglio += f", {n_allineate} gia' allineate"
-                if n_attesa:
-                    dettaglio += f", {n_attesa} senza quote in questo turno (non toccate)"
-            if n_senza_id:
-                dettaglio += f", {n_senza_id} senza match_id"
-            if esito_save.get("remoto") == "nessuna_scrittura":
-                st.info(f"Registro gia' allineato: nessuna scrittura, nessun backup nuovo. "
-                        f"{dettaglio}.")
-            elif esito_save.get("remoto") == "errore" or esito_save.get("locale") is False:
-                st.warning(f"⚠️ Registro NON del tutto salvato: {dettaglio}. "
-                           f"Locale: {'ok' if esito_save.get('locale') else 'FALLITO'}; "
-                           f"remoto: {esito_save.get('remoto')} "
-                           f"({esito_save.get('remoto_dettaglio', 'n/d')})")
-            else:
-                st.success(f"✅ Top Mix nel registro: {dettaglio}.")
+    # Le scelte del mercato: stesse funzioni del selettore, nate dalle sole quote.
+    righe_quote, info_quote = righe_mercato_dalle_quote(payload_quote, adesso)
 
-        # --- Registro OMBRA: Totali (due righe per candidata) + 1X2 di Drago e
-        # Legacy, che non sono piu' il Top Mix visibile. Non vengono mostrate.
-        # Se la scrittura fallisce si dice SOLO che non e' avvenuta (mai il contenuto).
-        esito_ombra = salva_registro_ombra(
-            ombra, righe_modello={MODEL_VARIANT_CURRENT: top_current,
-                                  MODEL_VARIANT_LEGACY: top_legacy})
-        if esito_ombra.get("remoto") not in ("ok", "disattivato", "nessuna_riga", "nessuna_scrittura"):
-            st.warning(f"⚠️ Note di controllo non scritte: "
-                       f"{esito_ombra.get('remoto_dettaglio', esito_ombra.get('remoto'))}")
-        # Proposte della settimana di gioco (una riga per ciascun numero di
-        # partite disponibile: 1, 2, 3, 4). Punto 9: la proposta registrata e'
-        # quella del PERIODO DI DEFAULT ("Questa giornata (fino a lunedì)") e
-        # la scrittura avviene solo fra venerdì 00:00 e lunedì 23:59: il
-        # controllo della finestra e' dentro salva_tutte_proposte_k_registro_ombra.
-        try:
-            payload_q = market_odds.carica_quote_live()
-            if payload_q:
-                ora_utc = market_odds._adesso_utc()
-                res_lg = lg.calcola_lista_giocate(payload_q, adesso_utc=ora_utc)
-                giocate_periodo = lg.giocate_nel_periodo(res_lg.get("giocate", []),
-                                                         ora_utc, "giornata")
-                prop_lg = lg.cerca_proposta_multipla(giocate_periodo)
-                best_by_k_lg = prop_lg.get("per_k", {})
-                if any(best_by_k_lg.values()):
-                    lg.salva_tutte_proposte_k_registro_ombra(best_by_k_lg,
-                                                             istante_utc=ora_utc,
-                                                             snapshot_sha=sha)
-        except Exception as _e_lg:
-            logging.warning(f"Note di controllo (proposte della settimana) non scritte: {_e_lg}")
+    # Il confronto col modello si limita a dichiarare il suo stato: il calcolo
+    # vero parte in coda alla scheda, quando il resto e' gia' disegnato.
+    stato_confronto = avvia_confronto_modello()
+    mappa_accordo = accordo_modello_per_partita(st.session_state.get(CONFRONTO_RIGHE_CHIAVE))
 
-    # --- Visualizzazione risultati da session_state (sopravvive ai rerun) ---
-    # Tabella e calcolatore restano visibili finché l'utente non ricarica la
-    # pagina o non preme di nuovo "Calcola Top Mix". La scrittura nel Registro
-    # NON avviene qui: e' stata fatta nel blocco "if st.button" sopra.
-    if "topmix_mercato" in st.session_state:
-        top_mercato = st.session_state["topmix_mercato"]
-        missing = st.session_state.get("topmix_missing", [])
-        senza_quote = st.session_state.get("topmix_senza_quote", [])
-        scartate_inizio = st.session_state.get("topmix_scartate_inizio", 0)
+    if in_periodo:
+        _mostra_riquadro_raddoppio(in_periodo, righe_quote, adesso)
+    elif payload_quote:
+        with st.container(border=True):
+            st.markdown("**🎯 Per raddoppiare**")
+            st.info("In questa giornata non ci sono ancora partite da mostrare: "
+                    "cambia «Periodo» per vedere le combinazioni possibili.")
 
-        if scartate_inizio:
-            st.info(f"⏱️ {scartate_inizio} righe scartate perche' la partita e' gia' iniziata (cache di 30 minuti).")
-        if missing:
-            st.warning(f"⚠️ Mancanti: {', '.join(missing)}")
+    # --- Il pulsante che scrive (e solo lui) ---
+    _mostra_pulsante_registrazione()
 
-        if senza_quote:
-            st.warning(
-                f"⚠️ {len(senza_quote)} partite SENZA quote di mercato: escluse dal Top Mix "
-                f"(nessuna probabilita' inventata). "
-                + "; ".join(f"{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})"
-                            for r in senza_quote))
+    if in_periodo:
+        _mostra_piu_probabili(in_periodo, adesso)
+    _mostra_tabella_top_mix_mercato(righe_quote, stato_quote, adesso,
+                                    stato_confronto=stato_confronto,
+                                    mappa_accordo=mappa_accordo)
+    calcolatore_multipla(righe_quote, adesso, gambe_pre=in_periodo)
+    _mostra_dettagli_giocate(res_lista, in_periodo, righe_quote, stato_quote, adesso)
+    if info_quote.get("senza_quote"):
+        # Quante partite la fonte quote non copre: un'informazione, non un
+        # errore, e sta nei Dettagli perche' parla della fonte, non delle giocate.
+        logging.info("Giocate: %d partite senza quote valide nella fonte",
+                     len(info_quote["senza_quote"]))
 
-        stato_quote = carica_indice_quote_live()
-        _avviso_stato_quote(stato_quote, "Top Mix")
-        _mostra_non_abbinati_fonte(stato_quote, "Top Mix")
-        # Ordine (punti 1-5a): prima i riquadri in parole, poi la tabella in
-        # parole del mercato (stesso «Periodo»), poi il riquadro chiuso
-        # «Dettagli» e infine «Prova la tua giocata».
-        _mostra_sezione_lista_giocate(top_mercato, stato_quote)
-        _mostra_tabella_top_mix_mercato(top_mercato, stato_quote)
-        _mostra_dettagli_lista_giocate(top_mercato, stato_quote)
-        calcolatore_multipla(top_mercato)
+    # --- Coda: il confronto col modello ---
+    # Parte DOPO tutto il resto, cosi' la scheda e' gia' leggibile mentre gira.
+    # Se lo stato cambia si ridisegna una volta sola (poi resta "pronto" e qui
+    # non si passa piu'): nessun ciclo di rerun.
+    if concludi_confronto_modello():
+        st.rerun()
 
-with tab3:
+# --- STRUMENTI AVANZATI (Elo e Backtest) ---
+# I due contenuti sono INVARIATI: sono gli stessi corpi che stavano nelle schede
+# ELO RATING e BACKTEST, solo spostati in due funzioni per poterli mettere uno
+# sotto l'altro dentro la quarta scheda, che esiste solo quando l'interruttore
+# «Strumenti avanzati» della barra laterale e' acceso.
+def _mostra_elo_rating(camp_sel):
     st.subheader(f"⚡ Elo - {camp_sel}")
     elo_df = get_elo_leaderboard(camp_sel)
     if not elo_df.empty:
@@ -4536,7 +4942,7 @@ with tab3:
             sp = predict_elo_probs(sh, sa, camp_sel, season=get_current_season_start_year())
             st.markdown(f"<div style='background:#30363d; height:24px; display:flex; overflow:hidden; margin-top:10px; border-radius:8px;'><div style='width:{sp['1']*100}%; background:#28a745; text-align:center; color:white; font-size:12px; font-weight:700; line-height:24px;'>1: {sp['1']:.0%}</div><div style='width:{sp['X']*100}%; background:#ffc107; text-align:center; color:black; font-size:12px; font-weight:700; line-height:24px;'>X: {sp['X']:.0%}</div><div style='width:{sp['2']*100}%; background:#dc3545; text-align:center; color:white; font-size:12px; font-weight:700; line-height:24px;'>2: {sp['2']:.0%}</div></div>", unsafe_allow_html=True)
 
-with tab4:
+def _mostra_backtest_storico(camp_sel):
     st.subheader("📊 Backtest Storico (Walk-Forward)")
     st.caption("Simula Poisson ed Elo sulle partite già giocate usando SOLO i dati precedenti "
                "(le ~300 più recenti, riaddestrate ogni 5 giornate). Dixon-Coles è escluso per velocità.")
@@ -4591,7 +4997,17 @@ with tab4:
                 st.dataframe(df_show, width="stretch", hide_index=True)
 
 
-# --- TAB 5 REGISTRO ---
+# La quarta scheda esiste solo con l'interruttore acceso: quando e' spento le
+# schede sono tre e qui non viene renderizzato niente (Streamlit esegue il
+# codice di un tab solo se il tab esiste).
+if strumenti_avanzati:
+    with tab_strumenti:
+        _mostra_elo_rating(camp_sel)
+        st.divider()
+        _mostra_backtest_storico(camp_sel)
+
+
+# --- SCHEDA COM'E' ANDATA (ex TAB 5 REGISTRO) ---
 def _mostra_affidabilita(record_cal, etichetta=None):
     """Blocco Brier/gap del Registro su un insieme di record (una variante o tutti)."""
     cal_stat = compute_calibration_stats(record_cal)
@@ -4629,15 +5045,119 @@ def _mostra_affidabilita(record_cal, etichetta=None):
         st.caption("⚠️ " + avvertenza)
 
 
-with tab5:
-    st.subheader("📒 Registro Predizioni & Tracking")
-    if st.button("🔄 Aggiorna Risultati", type="primary"):
-        if API_KEY_DATA:
-            with st.spinner("Controllando..."): agg, tot = aggiorna_risultati_reali(API_KEY_DATA)
-            st.success(f"✅ Aggiornate {agg} partite!" if agg > 0 else f"ℹ️ Nessun nuovo risultato ({tot} in attesa).")
-        else: st.error("API Key mancante!")
-        
+# --- Scheda COM'E' ANDATA: aggiornamento automatico dei risultati ---
+# Tre ore dal fischio d'inizio: prima il risultato puo' non essere ancora stato
+# refertato dalla fonte, e un giro a vuoto costerebbe una chiamata per riga.
+ORE_MINIME_CONTROLLO_RISULTATI = 3.0
+RISULTATI_CONTROLLATI_CHIAVE = "risultati_controllati_in_sessione"
+
+
+def _kickoff_riga_registro(riga):
+    """Calcio d'inizio di una riga del Registro, come datetime aware (None se n/d).
+
+    ``kickoff_utc`` e' l'ISO della fonte; in sua assenza si legge ``data``
+    (stringa italiana, ora italiana). Un valore illeggibile torna ``None``: la
+    riga semplicemente non fa scattare il controllo, non viene giudicata.
+    """
+    dt = lg.parse_commence_time((riga or {}).get("kickoff_utc"))
+    if dt is not None:
+        return dt
+    try:
+        return datetime.strptime(str(riga.get("data")), "%d/%m/%Y %H:%M").replace(tzinfo=ITALY_TZ)
+    except Exception:
+        return None
+
+
+def righe_in_attesa_scadute(righe, adesso=None, ore=ORE_MINIME_CONTROLLO_RISULTATI):
+    """Le righe in attesa il cui calcio d'inizio e' passato da piu' di ``ore`` ore."""
+    now = adesso if adesso is not None else datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    limite = ore * 3600.0
+    out = []
+    for r in righe or []:
+        if not isinstance(r, dict) or r.get("esito") in ("✅", "❌"):
+            continue
+        kickoff = _kickoff_riga_registro(r)
+        if kickoff is None:
+            continue
+        if (now - kickoff).total_seconds() > limite:
+            out.append(r)
+    return out
+
+
+def aggiorna_risultati_automatico(preds):
+    """Il controllo dei risultati all'apertura della scheda: UNA volta per sessione.
+
+    Parte solo se (a) la chiave della fonte c'e' e (b) esiste almeno una riga in
+    attesa con il calcio d'inizio passato da piu' di tre ore: senza righe
+    scadute non si fa nessun giro e il controllo resta disponibile per un rerun
+    successivo. Senza chiave non compare nessun errore in vista (la nota sta nei
+    Dettagli). Ritorna ``None`` se ha aggiornato, altrimenti il motivo per cui
+    non e' partito.
+    """
+    if st.session_state.get(RISULTATI_CONTROLLATI_CHIAVE):
+        return "gia_fatto"
+    if not API_KEY_DATA:
+        return "senza_chiave"
+    if not righe_in_attesa_scadute(preds):
+        return "nessuna_scaduta"
+    st.session_state[RISULTATI_CONTROLLATI_CHIAVE] = True
+    with st.spinner("Controllo dei risultati…"):
+        agg, tot = aggiorna_risultati_reali(API_KEY_DATA)
+    return {"aggiornate": agg, "in_attesa": tot}
+
+
+def proposte_settimanali_registrate():
+    """``(K, J, errore)`` della famiglia delle proposte settimanali.
+
+    K = proposte registrate, J = quelle riuscite. Si legge il registro ombra in
+    sola lettura; se non e' leggibile torna ``(None, None, motivo)`` e la riga
+    in vista non compare (nessun numero inventato, nessun errore in pagina).
+    """
+    try:
+        from registry_store import load_ombra_rows
+        righe, _fonte = load_ombra_rows(strict=True)
+    except Exception as e:
+        return None, None, f"{type(e).__name__}: {e}"[:200]
+    prop = [r for r in (righe or [])
+            if isinstance(r, dict)
+            and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA]
+    return len(prop), sum(1 for r in prop if r.get("esito") == "✅"), None
+
+
+def _mostra_testa_andata(df_mercato):
+    """Il riepilogo in parole in testa alla scheda Com'è andata.
+
+    Solo la famiglia Mercato: "Finora N giocate concluse, M riuscite (X su 100).
+    Le quote si aspettavano Y su 100." e, sotto, la riga sulle proposte
+    settimanali (solo se ce n'e' almeno una).
+    """
+    frase = None
+    if df_mercato is not None and not df_mercato.empty:
+        frase, _netto = _sintesi_registro_mercato(df_mercato)
+    if frase:
+        st.markdown(f"### {frase}")
+    else:
+        st.info("Nessuna giocata conclusa finora: il riepilogo arriva con il primo risultato.")
+    k, j, errore = proposte_settimanali_registrate()
+    if k:
+        st.caption(f"Le proposte settimanali registrate: {k}, riuscite {j}")
+    if errore:
+        logging.warning("Proposte settimanali non leggibili: %s", errore)
+with tab_andata:
+    st.subheader("📒 Com'è andata")
     preds = righe_visibili(load_predictions())
+    # --- Controllo dei risultati AUTOMATICO (una volta per sessione) ---
+    # Niente pulsante da premere per vedere i risultati: se ci sono righe in
+    # attesa con il calcio d'inizio passato da piu' di tre ore e la chiave della
+    # fonte c'e', il controllo parte da solo all'apertura della scheda. Senza
+    # righe scadute non parte; senza chiave non compare nessun errore in vista
+    # (la nota sta nei Dettagli). Il pulsante resta, nei Dettagli, per chi vuole
+    # ricontrollare subito.
+    _esito_auto = aggiorna_risultati_automatico(preds)
+    if isinstance(_esito_auto, dict) and _esito_auto.get("aggiornate"):
+        preds = righe_visibili(load_predictions())
     if not preds: st.warning("Nessuna predizione.")
     else:
         df_preds = pd.DataFrame(preds)
@@ -4745,213 +5265,220 @@ with tab5:
         all_records = df_display.to_dict("records")
         schede_vecchie = [r for r in legacy_records if not is_current_model(r)]
 
-        # NESSUN totale unico: una intestazione per famiglia, ciascuna con il
-        # proprio totale, win rate e Brier (``_metriche_famiglia_registro``).
-        #
-        # LAYOUT del tab, punto 5 della commessa "rifiniture": in apertura si
-        # vedono SOLO la famiglia Mercato e il registro ombra. Il modello storico
-        # non riceve piu' righe dal 09/10/2026 (le nuove scelte di Drago e Legacy
-        # finiscono nel registro ombra), quindi le sue statistiche e le sue DUE
-        # tabelle stanno in un ``st.expander`` CHIUSO per default: restano
-        # consultabili riga per riga, ma non occupano la pagina e - con un filtro
-        # "In Attesa" attivo - non lasciano in vista due intestazioni di motore con
-        # la scritta "nessuna riga", che era rumore puro.
-        # Punto 5b: il titolo della famiglia NON nomina versioni interne,
-        # soglie o trattamenti tecnici — in vista restano solo parole capite
-        # da chi non segue il progetto (i numeri delle metriche sono gli
-        # stessi e non cambiano).
-        if _metriche_famiglia_registro(
-                all_records, FAMIGLIA_SELETTORE_MERCATO,
-                f"Le scelte secondo le quote — dal {CONFINE_FAMIGLIA_MERCATO}",
-                "Le giocate che vengono dalle quote dei bookmaker: in vista c'e' "
-                "quello che e' successo dopo, non il nome delle formule."):
-            # Hit rate, Brier e gap letti alle DUE registrazioni (la prima e' la
-            # misura principale, l'ultima il dato di supporto). Ha senso solo qui:
-            # il modello storico ha UNA sola lettura perche' la sua riga non viene
-            # piu' aggiornata, quindi "prima o ultima?" non e' una domanda.
-            _mostra_statistiche_registrazione(all_records)
-
-        # --- TABELLA DEL REGISTRO: famiglia MERCATO (una sola, visibile) ---
+        # --- IN VISTA: il riepilogo in parole e le due tabelle della famiglia
+        # Mercato (giocate concluse e giocate ancora da giocare, separate).
         df_mercato = df_display[maschera_mercato]
+        _mostra_testa_andata(df_mercato)
         if not df_mercato.empty:
             _mostra_registro_mercato(df_mercato)
         else:
             st.info("Nessuna riga della famiglia mercato con i filtri attivi.")
 
-        # La SCHEDA del record (con quale versione di pipeline la riga e' stata
-        # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
-        # non compare piu' come colonna: si dice a parole, una volta. Le tre
-        # etichette qui sotto descrivono le righe dell'ARCHIVIO del modello
-        # storico, cioe' il riquadro chiuso che segue: li' il titolo del riquadro
-        # dice il MOTORE, non la scheda.
-        st.caption(
-            "**Come sono state scritte le righe** (non e' il motore: quello titola "
-            "le due tabelle dell'archivio del modello storico, nel riquadro chiuso "
-            "qui sotto) · "
-            f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
-            f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
-            f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
-            f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
-        )
-
-        st.divider()
-
-        # --- ARCHIVIO DEL MODELLO STORICO: riquadro CHIUSO per default ---
-        # Dentro ci sta tutto quello che riguarda i due motori: intestazione della
-        # famiglia, i due blocchi, l'affidabilita' e le DUE tabelle. Fuori resta
-        # solo la tabella di controllo delle varianti non riconosciute, perche
-        # nascondere in un riquadro chiuso un'anomalia dei dati vorrebbe dire non
-        # accorgersene mai (e infatti non e' mai una tabella vuota: esiste solo se
-        # ha righe).
-        with st.expander(f"Modello storico (archivio fino al {CONFINE_FAMIGLIA_MERCATO})"):
-            if _metriche_famiglia_registro(
-                    all_records, FAMIGLIA_SELETTORE_MODELLO,
-                    f"Modello storico (fino al {CONFINE_FAMIGLIA_MERCATO})",
-                    "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
-                    "di mercato. Da quella data le nuove scelte del modello vanno nel "
-                    "registro ombra: questa famiglia non cresce piu', ed e' il perche' "
-                    "stia in un archivio chiuso e non in apertura di pagina."):
-                # Blocchi per motore, DENTRO la famiglia del modello, con le STESSE
-                # righe delle due tabelle piu' sotto (la stessa maschera, gia'
-                # tagliata sulla famiglia): nessun numero del riquadro puo' parlare
-                # di righe che il riquadro non mostra.
-                _mostra_blocco_modello(
-                    attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
-                    f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
-                    "Elo post-fix PR#24, soglia 0,55 sui 1X2 (0,60 senza Elo). Totali fuori dal Top Mix.")
-                _mostra_blocco_modello(
-                    legacy_records, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]} (Elo pre-fix PR#24)",
-                    f"Righe della tabella 🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}: "
-                    "Elo pre-fix con boost xG retroattivo, stesse soglie.")
-                # Il dettaglio delle schede NON e' un modello: e' la sotto-fetta del
-                # blocco legacy scritta prima del versionamento dei record.
-                if schede_vecchie:
-                    st.caption(
-                        f"📜 Di cui **{len(schede_vecchie)}** con la **scheda vecchia** (record scritto "
-                        "prima del versionamento, senza `model_version`): sono nella tabella Legacy e "
-                        "contano qui, ma restano fuori dalle metriche del modello attuale.")
-                if any(r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD) for r in attuale_records):
-                    st.caption(
-                        f"ℹ️ {sum(1 for r in attuale_records if r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD))} "
-                        "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
-                        "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
-                    )
-                # Affidabilita' (Brier) per motore DENTRO la famiglia modello. Le
-                # parti sono gia' tagliate sulla famiglia dalle maschere, quindi
-                # ``parti_variante`` qui e' esattamente quello che prima si
-                # riformava con ``parti_variante_modello``: un filtro in meno,
-                # gli stessi numeri.
-                if len(parti_variante) > 1:
-                    for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
-                        _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
+        # --- UN SOLO RIQUADRO CHIUSO: metriche per famiglia, affidabilita' per
+        # registrazione, tabella tecnica del mercato, archivio del modello
+        # storico, registro ombra e statistiche dell'ombra, e ogni messaggio
+        # diagnostico che la scheda mostrava. Chiuso di default: in apertura la
+        # scheda dice solo com'e' andata.
+        with st.expander("🔎 Dettagli", expanded=False):
+            # Il controllo dei risultati e' automatico (una volta per sessione):
+            # qui resta il pulsante per ricontrollare subito, e la nota quando
+            # la chiave della fonte manca (nessun errore in vista).
+            if st.button("Controlla di nuovo i risultati", key="btn_ricontrolla_risultati"):
+                if API_KEY_DATA:
+                    with st.spinner("Controllo dei risultati…"):
+                        agg, tot = aggiorna_risultati_reali(API_KEY_DATA)
+                    st.success(f"✅ Aggiornate {agg} partite!" if agg > 0
+                               else f"ℹ️ Nessun nuovo risultato ({tot} in attesa).")
                 else:
-                    _mostra_affidabilita(attuale_records + legacy_records + resto_records)
+                    st.info("Chiave della fonte risultati non configurata: il controllo "
+                            "automatico non parte e le righe restano in attesa.")
+            if not API_KEY_DATA:
+                st.caption("Nota: senza la chiave della fonte risultati il controllo "
+                           "automatico non parte. Le giocate restano in attesa finché la "
+                           "chiave non viene configurata nei Secrets.")
+            if _metriche_famiglia_registro(
+                    all_records, FAMIGLIA_SELETTORE_MERCATO,
+                    f"Le scelte secondo le quote — dal {CONFINE_FAMIGLIA_MERCATO}",
+                    "Le giocate che vengono dalle quote dei bookmaker: in vista c'e' "
+                    "quello che e' successo dopo, non il nome delle formule."):
+                _mostra_statistiche_registrazione(all_records)
+            _mostra_dettagli_mercato(df_mercato)
+            st.divider()
 
-                # Le DUE tabelle del Registro storico, una per motore
-                _mostra_registro_modello(
-                    df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
-                    "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
-                    "top-mix-current")
-                _mostra_registro_modello(
-                    df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
-                    "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
-                    "top-mix-legacy")
+            # La SCHEDA del record (con quale versione di pipeline la riga e' stata
+            # scritta) e' un altro discorso rispetto al motore che l'ha calcolata, e
+            # non compare piu' come colonna: si dice a parole, una volta. Le tre
+            # etichette qui sotto descrivono le righe dell'ARCHIVIO del modello
+            # storico, cioe' il riquadro chiuso che segue: li' il titolo del riquadro
+            # dice il MOTORE, non la scheda.
+            st.caption(
+                "**Come sono state scritte le righe** (non e' il motore: quello titola "
+                "le due tabelle dell'archivio del modello storico, nel riquadro chiuso "
+                "qui sotto) · "
+                f"{MODEL_LABEL_CURRENT} = scritta dal versionamento attuale "
+                f"(`{MODEL_VERSION_CURRENT}`, dal 04/09/2026) · "
+                f"{MODEL_LABEL_PRE_FIX} = scritta prima del fix di regolarizzazione · "
+                f"{MODEL_LABEL_LEGACY} = riga antecedente al versionamento."
+            )
 
-        # Una riga con una variante fuori dalle due non sparisce dal Registro:
-        # finisce in una terza tabella di controllo, cosi' il totale mostrato
-        # resta verificabile a occhio. Sta FUORI dall'archivio (vedi sopra) e non
-        # e' mai una tabella vuota.
-        resto = df_display[maschera_resto]
-        if len(resto):
-            st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
-                       f"mostrate a parte, non nascoste.")
-            st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)
+            st.divider()
+
+            # --- ARCHIVIO DEL MODELLO STORICO: riquadro CHIUSO per default ---
+            # Dentro ci sta tutto quello che riguarda i due motori: intestazione della
+            # famiglia, i due blocchi, l'affidabilita' e le DUE tabelle. Fuori resta
+            # solo la tabella di controllo delle varianti non riconosciute, perche
+            # nascondere in un riquadro chiuso un'anomalia dei dati vorrebbe dire non
+            # accorgersene mai (e infatti non e' mai una tabella vuota: esiste solo se
+            # ha righe).
+            with st.expander(f"Modello storico (archivio fino al {CONFINE_FAMIGLIA_MERCATO})"):
+                if _metriche_famiglia_registro(
+                        all_records, FAMIGLIA_SELETTORE_MODELLO,
+                        f"Modello storico (fino al {CONFINE_FAMIGLIA_MERCATO})",
+                        "Scelte 1X2 dei due motori (Drago/Legacy) scritte prima del Top Mix "
+                        "di mercato. Da quella data le nuove scelte del modello vanno nel "
+                        "registro ombra: questa famiglia non cresce piu', ed e' il perche' "
+                        "stia in un archivio chiuso e non in apertura di pagina."):
+                    # Blocchi per motore, DENTRO la famiglia del modello, con le STESSE
+                    # righe delle due tabelle piu' sotto (la stessa maschera, gia'
+                    # tagliata sulla famiglia): nessun numero del riquadro puo' parlare
+                    # di righe che il riquadro non mostra.
+                    _mostra_blocco_modello(
+                        attuale_records, f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+                        f"Righe della tabella 🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}: "
+                        "Elo post-fix PR#24, soglia 0,55 sui 1X2 (0,60 senza Elo). Totali fuori dal Top Mix.")
+                    _mostra_blocco_modello(
+                        legacy_records, f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]} (Elo pre-fix PR#24)",
+                        f"Righe della tabella 🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}: "
+                        "Elo pre-fix con boost xG retroattivo, stesse soglie.")
+                    # Il dettaglio delle schede NON e' un modello: e' la sotto-fetta del
+                    # blocco legacy scritta prima del versionamento dei record.
+                    if schede_vecchie:
+                        st.caption(
+                            f"📜 Di cui **{len(schede_vecchie)}** con la **scheda vecchia** (record scritto "
+                            "prima del versionamento, senza `model_version`): sono nella tabella Legacy e "
+                            "contano qui, ma restano fuori dalle metriche del modello attuale.")
+                    if any(r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD) for r in attuale_records):
+                        st.caption(
+                            f"ℹ️ {sum(1 for r in attuale_records if r.get(EXCLUDED_FROM_CURRENT_STATS_FIELD))} "
+                            "righe della tabella Attuale portano il flag di esclusione dalle metriche del modello "
+                            "attuale: contate qui perche' sono nella tabella (l'aggregato di audit le esclude)."
+                        )
+                    # Affidabilita' (Brier) per motore DENTRO la famiglia modello. Le
+                    # parti sono gia' tagliate sulla famiglia dalle maschere, quindi
+                    # ``parti_variante`` qui e' esattamente quello che prima si
+                    # riformava con ``parti_variante_modello``: un filtro in meno,
+                    # gli stessi numeri.
+                    if len(parti_variante) > 1:
+                        for v in sorted(parti_variante, key=lambda v: v != MODEL_VARIANT_CURRENT):
+                            _mostra_affidabilita(parti_variante[v], etichetta=NOMI_MODELLI.get(v, MODEL_VARIANT_LABELS.get(v, v)))
+                    else:
+                        _mostra_affidabilita(attuale_records + legacy_records + resto_records)
+
+                    # Le DUE tabelle del Registro storico, una per motore
+                    _mostra_registro_modello(
+                        df_display[maschera_attuale], f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}",
+                        "Elo attuale (models/elo_engine.py, post-fix PR#24) · soglia 0,55 sui 1X2 (0,60 senza Elo)",
+                        "top-mix-current")
+                    _mostra_registro_modello(
+                        df_display[maschera_legacy], f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}",
+                        "Elo pre-fix PR#24 (models/elo_engine_legacy.py, boost xG retroattivo) · stesse soglie",
+                        "top-mix-legacy")
+
+            # Una riga con una variante fuori dalle due non sparisce dal Registro:
+            # finisce in una terza tabella di controllo, cosi' il totale mostrato
+            # resta verificabile a occhio. Sta FUORI dall'archivio (vedi sopra) e non
+            # e' mai una tabella vuota.
+            resto = df_display[maschera_resto]
+            if len(resto):
+                st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
+                           f"mostrate a parte, non nascoste.")
+                st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)
 
 
-        # --- REGISTRO OMBRA: statistiche read-only ---
-        # "Aggiorna Risultati" giudica anche le righe ombra (aggiorna_esiti_ombra,
-        # stesse regole e stesse risposte HTTP). Qui mostriamo il loro stato,
-        # i Brier per selettore e il confronto con il mercato sulle stesse partite.
-        try:
-            from registry_store import load_ombra_rows
-            ombra_righe, ombra_fonte = load_ombra_rows(strict=True)
-            if ombra_righe:
-                st.divider()
-                st.markdown("###### 👻 Registro ombra (sola lettura)")
-                st.caption(
-                    f"Righe ombra: **{len(ombra_righe)}** (fonte: {ombra_fonte}). "
-                    "Drago e Legacy dal 09/10/2026 + Totali. "
-                    "'Aggiorna Risultati' le giudica con le stesse regole del Registro visibile.")
+            # --- REGISTRO OMBRA: statistiche read-only ---
+            # "Aggiorna Risultati" giudica anche le righe ombra (aggiorna_esiti_ombra,
+            # stesse regole e stesse risposte HTTP). Qui mostriamo il loro stato,
+            # i Brier per selettore e il confronto con il mercato sulle stesse partite.
+            try:
+                from registry_store import load_ombra_rows
+                ombra_righe, ombra_fonte = load_ombra_rows(strict=True)
+                if ombra_righe:
+                    st.divider()
+                    st.markdown("###### 👻 Registro ombra (sola lettura)")
+                    st.caption(
+                        f"Righe ombra: **{len(ombra_righe)}** (fonte: {ombra_fonte}). "
+                        "Drago e Legacy dal 09/10/2026 + Totali. "
+                        "'Aggiorna Risultati' le giudica con le stesse regole del Registro visibile.")
 
-                # Conteggio per stato
-                ombra_decise = [r for r in ombra_righe
-                                if r.get("esito") in ("✅", "❌")]
-                ombra_pending = [r for r in ombra_righe
-                                 if r.get("esito") in (None, "⏳")]
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Totale ombra", len(ombra_righe))
-                c2.metric("Giudicate", len(ombra_decise))
-                c3.metric("In attesa", len(ombra_pending))
+                    # Conteggio per stato
+                    ombra_decise = [r for r in ombra_righe
+                                    if r.get("esito") in ("✅", "❌")]
+                    ombra_pending = [r for r in ombra_righe
+                                     if r.get("esito") in (None, "⏳")]
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Totale ombra", len(ombra_righe))
+                    c2.metric("Giudicate", len(ombra_decise))
+                    c3.metric("In attesa", len(ombra_pending))
 
-                # Statistiche per selettore (Drago / Legacy)
-                for _variante, _etichetta in (
-                    (MODEL_VARIANT_CURRENT, "Drago (ombra)"),
-                    (MODEL_VARIANT_LEGACY, "Legacy (ombra)"),
-                ):
-                    righe_v = [r for r in ombra_righe
-                               if r.get("model_variant") == _variante
-                               and r.get("selector_version") == SELECTOR_VERSION_OMBRA_1X2]
-                    if not righe_v:
-                        continue
-                    _stat_v = stats_all(righe_v)
-                    _cal_v = compute_calibration_stats(righe_v)
-                    st.markdown(f"**{_etichetta}** — {_stat_v['total']} righe "
-                                f"({_stat_v['decided']} giudicate)")
-                    if _cal_v["decise"]:
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("Hit rate", f"{_stat_v['win_rate']:.1f}%")
-                        c2.metric("Brier", f"{_cal_v['brier']:.4f}"
-                                  if _cal_v["brier"] is not None else "n/d")
-                        c3.metric("Gap", f"{_cal_v['gap']:+.1f} pp"
-                                  if _cal_v["gap"] is not None else "n/d")
+                    # Statistiche per selettore (Drago / Legacy)
+                    for _variante, _etichetta in (
+                        (MODEL_VARIANT_CURRENT, "Drago (ombra)"),
+                        (MODEL_VARIANT_LEGACY, "Legacy (ombra)"),
+                    ):
+                        righe_v = [r for r in ombra_righe
+                                   if r.get("model_variant") == _variante
+                                   and r.get("selector_version") == SELECTOR_VERSION_OMBRA_1X2]
+                        if not righe_v:
+                            continue
+                        _stat_v = stats_all(righe_v)
+                        _cal_v = compute_calibration_stats(righe_v)
+                        st.markdown(f"**{_etichetta}** — {_stat_v['total']} righe "
+                                    f"({_stat_v['decided']} giudicate)")
+                        if _cal_v["decise"]:
+                            c1, c2, c3 = st.columns(3)
+                            c1.metric("Hit rate", f"{_stat_v['win_rate']:.1f}%")
+                            c2.metric("Brier", f"{_cal_v['brier']:.4f}"
+                                      if _cal_v["brier"] is not None else "n/d")
+                            c3.metric("Gap", f"{_cal_v['gap']:+.1f} pp"
+                                      if _cal_v["gap"] is not None else "n/d")
 
-                # Confronto ombra vs mercato sulle stesse partite
-                mercato_per_match = {}
-                for r in all_records:
-                    mid = r.get("match_id")
-                    if mid and famiglia_selettore(r) == FAMIGLIA_SELETTORE_MERCATO:
-                        mercato_per_match[mid] = r
+                    # Confronto ombra vs mercato sulle stesse partite
+                    mercato_per_match = {}
+                    for r in all_records:
+                        mid = r.get("match_id")
+                        if mid and famiglia_selettore(r) == FAMIGLIA_SELETTORE_MERCATO:
+                            mercato_per_match[mid] = r
 
-                confronto = []
-                for r in ombra_decise:
-                    mid = r.get("match_id")
-                    if mid and mid in mercato_per_match:
-                        mkt = mercato_per_match[mid]
-                        if mkt.get("esito") in ("✅", "❌"):
-                            confronto.append({
-                                "match_id": mid,
-                                "ombra_hit": r.get("esito") == "✅",
-                                "mercato_hit": mkt.get("esito") == "✅",
-                                "ombra_prob": r.get("prob_sicuro"),
-                                "mercato_prob": mkt.get("prob_sicuro"),
-                            })
+                    confronto = []
+                    for r in ombra_decise:
+                        mid = r.get("match_id")
+                        if mid and mid in mercato_per_match:
+                            mkt = mercato_per_match[mid]
+                            if mkt.get("esito") in ("✅", "❌"):
+                                confronto.append({
+                                    "match_id": mid,
+                                    "ombra_hit": r.get("esito") == "✅",
+                                    "mercato_hit": mkt.get("esito") == "✅",
+                                    "ombra_prob": r.get("prob_sicuro"),
+                                    "mercato_prob": mkt.get("prob_sicuro"),
+                                })
 
-                if confronto:
-                    st.markdown("**Confronto ombra 1X2 vs mercato (stesse partite giudicate)**")
-                    n_inter = len(confronto)
-                    hit_ombra = sum(1 for c in confronto if c["ombra_hit"])
-                    hit_mercato = sum(1 for c in confronto if c["mercato_hit"])
-                    brier_ombra = (sum((c["ombra_prob"] / 100.0 - (1 if c["ombra_hit"] else 0)) ** 2
-                                       for c in confronto) / n_inter) if n_inter else None
-                    brier_mercato = (sum((c["mercato_prob"] / 100.0 - (1 if c["mercato_hit"] else 0)) ** 2
-                                         for c in confronto) / n_inter) if n_inter else None
-                    c1, c2, c3, c4, c5 = st.columns(5)
-                    c1.metric("Partite in comune", n_inter)
-                    c2.metric("Hit ombra", f"{hit_ombra / n_inter * 100:.1f}%")
-                    c3.metric("Hit mercato", f"{hit_mercato / n_inter * 100:.1f}%")
-                    c4.metric("Brier ombra", f"{brier_ombra:.4f}" if brier_ombra is not None else "n/d")
-                    c5.metric("Brier mercato", f"{brier_mercato:.4f}" if brier_mercato is not None else "n/d")
-            else:
-                st.caption("👻 Registro ombra vuoto (nessuna riga trovata).")
-        except Exception as e:
-            st.warning(f"⚠️ Registro ombra non leggibile: {e}")
+                    if confronto:
+                        st.markdown("**Confronto ombra 1X2 vs mercato (stesse partite giudicate)**")
+                        n_inter = len(confronto)
+                        hit_ombra = sum(1 for c in confronto if c["ombra_hit"])
+                        hit_mercato = sum(1 for c in confronto if c["mercato_hit"])
+                        brier_ombra = (sum((c["ombra_prob"] / 100.0 - (1 if c["ombra_hit"] else 0)) ** 2
+                                           for c in confronto) / n_inter) if n_inter else None
+                        brier_mercato = (sum((c["mercato_prob"] / 100.0 - (1 if c["mercato_hit"] else 0)) ** 2
+                                             for c in confronto) / n_inter) if n_inter else None
+                        c1, c2, c3, c4, c5 = st.columns(5)
+                        c1.metric("Partite in comune", n_inter)
+                        c2.metric("Hit ombra", f"{hit_ombra / n_inter * 100:.1f}%")
+                        c3.metric("Hit mercato", f"{hit_mercato / n_inter * 100:.1f}%")
+                        c4.metric("Brier ombra", f"{brier_ombra:.4f}" if brier_ombra is not None else "n/d")
+                        c5.metric("Brier mercato", f"{brier_mercato:.4f}" if brier_mercato is not None else "n/d")
+                else:
+                    st.caption("👻 Registro ombra vuoto (nessuna riga trovata).")
+            except Exception as e:
+                st.warning(f"⚠️ Registro ombra non leggibile: {e}")

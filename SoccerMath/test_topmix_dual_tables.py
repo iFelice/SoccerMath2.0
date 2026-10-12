@@ -283,19 +283,27 @@ class TestGuardieTab2(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.src = open(APP_PATH, encoding="utf-8").read()
-        i = cls.src.index("with tab2:")
-        j = cls.src.index("with tab3:")
+        # Le scritture del Registro e il cablaggio del Top Mix vivono nella
+        # funzione chiamata dal pulsante «Registra le giocate della
+        # giornata», non piu' nel corpo modulo della scheda.
+        i = cls.src.index("def registra_giocate_della_giornata(")
+        j = cls.src.index("\n\ndef ", i + 10)
         cls.tab2 = cls.src[i:j]
+        # La parte in VISTA della scheda (tabelle e avvisi) vive nel blocco
+        # ``with tab_giocate:``: due fette, perche' due sono i contratti.
+        k = cls.src.index("with tab_giocate:")
+        cls.scheda = cls.src[k:cls.src.index("\n# --- STRUMENTI AVANZATI", k)]
 
     def test_una_sola_tabella_quella_di_mercato(self):
         """Commessa 'quote live', punto 4: NESSUNA tabella visibile dei modelli."""
-        self.assertIn("_mostra_tabella_top_mix_mercato(top_mercato, stato_quote)", self.tab2)
-        self.assertIn("calcolatore_multipla(top_mercato)", self.tab2)
+        self.assertIn("_mostra_tabella_top_mix_mercato(righe_quote, stato_quote, adesso",
+                      self.scheda)
+        self.assertIn("calcolatore_multipla(righe_quote, adesso", self.scheda)
         # la vecchia tabella dei modelli non esiste piu' (ne' la chiamata, ne' i
         # titoli etichettati per motore)
-        self.assertNotIn("_mostra_tabella_top_mix(", self.tab2)
-        self.assertNotIn('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"', self.tab2)
-        self.assertNotIn('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"', self.tab2)
+        self.assertNotIn("_mostra_tabella_top_mix(", self.scheda)
+        self.assertNotIn('f"🟢 {NOMI_MODELLI[MODEL_VARIANT_CURRENT]}"', self.scheda)
+        self.assertNotIn('f"🟠 {NOMI_MODELLI[MODEL_VARIANT_LEGACY]}"', self.scheda)
 
     def test_il_registro_visibile_prende_solo_le_scelte_di_mercato(self):
         self.assertIn("args_reg, kwargs_reg = argomenti_registro_top_mix_mercato(p)", self.tab2)
@@ -327,15 +335,15 @@ class TestGuardieTab2(unittest.TestCase):
     def test_partite_senza_quote_e_file_assente_sono_segnalate(self):
         """Punto 3: niente quote -> esclusione SEGNALATA, mai silenziosa."""
         self.assertIn("if senza_quote:", self.tab2)
-        self.assertIn("partite SENZA quote di mercato", self.tab2)
+        self.assertIn("partite senza quote di mercato", self.tab2)
         self.assertIn("{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})", self.tab2)
         # Lo stato del file ha un messaggio per ogni caso (assente / non
         # leggibile / senza_leghe / ok): il testo sta in
         # _DETTAGLIO_STATO_QUOTE, qui si verifica che il tab2 lo usi e che
         # mostri anche i nomi della fonte non riconosciuti (avviso separato).
-        self.assertIn('_avviso_stato_quote(stato_quote, "Top Mix")', self.tab2)
-        self.assertIn('_mostra_non_abbinati_fonte(stato_quote, "Top Mix")', self.tab2)
-        self.assertNotIn("Quote dal vivo ASSENTI", self.tab2,
+        self.assertIn('_avviso_stato_quote(stato_quote, "Giocate")', self.scheda)
+        self.assertIn('_mostra_non_abbinati_fonte(stato_quote, "Giocate")', self.scheda)
+        self.assertNotIn("Quote dal vivo ASSENTI", self.scheda,
                          "il testo unico 'non c'e\'' e' sostituito dai messaggi per stato")
         stati_guasti = (mo.STATO_ASSENTE, mo.STATO_NON_LEGGIBILE, mo.STATO_SENZA_LEGHE)
         self.assertEqual(3, len({app._DETTAGLIO_STATO_QUOTE[s] for s in stati_guasti}),

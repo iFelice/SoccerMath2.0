@@ -230,16 +230,22 @@ class TestUiColumnContract(unittest.TestCase):
         la pipeline dove il dataframe viene costruito (quella funzione) e
         verifica che il tab5 la chiami per ENTRAMBI i motori.
         """
-        registro_start = _APP_SOURCE.find('st.subheader("📒 Registro Predizioni & Tracking")')
-        self.assertGreater(registro_start, 0, "sezione Registro non trovata in app.py")
+        # La sezione si chiama «Com'è andata» da quando la navigazione e' a
+        # tre schede; il blocco e' il corpo del ``with tab_andata:``.
+        registro_start = _APP_SOURCE.find("with tab_andata:")
+        self.assertGreater(registro_start, 0, "scheda Com'è andata non trovata in app.py")
         # Il tab Registro e' l'ultimo del file: si legge fino in fondo, non una
         # finestra a caratteri fissi (era 6000 e il blocco e' cresciuto: la
         # guardia falliva anche senza regressioni).
         block = _APP_SOURCE[registro_start:]
         self.assertIn("build_registry_datetime_column", block,
                       "il Registro non usa la conversione datetime condivisa")
+        # L'archivio del modello storico sta nel riquadro chiuso «Dettagli»
+        # della scheda: le due tabelle (una per motore) restano due.
         self.assertEqual(2, block.count("_mostra_registro_modello("),
-                         "il tab5 deve disegnare DUE tabelle, una per motore")
+                         "l'archivio deve disegnare DUE tabelle, una per motore")
+        self.assertIn('st.expander("🔎 Dettagli", expanded=False)', block,
+                      "l'archivio deve stare nel riquadro chiuso «Dettagli»")
         tree = ast.parse(_APP_SOURCE)
         fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
                   and n.name == "_mostra_registro_modello")

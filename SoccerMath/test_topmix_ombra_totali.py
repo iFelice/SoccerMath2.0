@@ -644,12 +644,24 @@ class TestGuardieInterfaccia(unittest.TestCase):
                         return node
         self.fail(f"blocco {nome} non trovato")
 
+    def _funzione(self, nome):
+        """Il nodo di una funzione di modulo.
+
+        La scheda delle giocate e' divisa in due: la parte in vista nel blocco
+        ``with tab_giocate:`` e le scritture nella funzione chiamata dal
+        pulsante. ``ombra`` oggi esiste solo dentro quest'ultima.
+        """
+        for node in ast.walk(self.tree):
+            if isinstance(node, ast.FunctionDef) and node.name == nome:
+                return node
+        self.fail(f"funzione {nome} non trovata")
+
     def test_tab_registro_legge_solo_le_righe_visibili(self):
         self.assertIn("preds = righe_visibili(load_predictions())", self.src)
 
     def test_l_ombra_non_arriva_mai_alle_tabelle_ne_a_st(self):
-        """Nel tab2 la variabile ``ombra`` puo' solo essere assegnata, filtrata o passata al salvataggio."""
-        tab2 = self._tab("tab2")
+        """Dove ``ombra`` esiste puo' solo essere assegnata, filtrata o salvata."""
+        tab2 = self._funzione("registra_giocate_della_giornata")
         usi_ok = {"righe_non_iniziate", "salva_registro_ombra"}
         for node in ast.walk(tab2):
             if isinstance(node, ast.Call):
@@ -663,7 +675,7 @@ class TestGuardieInterfaccia(unittest.TestCase):
                     self.assertFalse(passa_ombra, "`ombra` passata a st.*")
 
     def test_tab2_chiama_il_salvataggio_ombra_dopo_le_tabelle(self):
-        tab2 = self._tab("tab2")
+        tab2 = self._funzione("registra_giocate_della_giornata")
         chiamate = [n for n in ast.walk(tab2) if isinstance(n, ast.Call)
                     and isinstance(n.func, ast.Name) and n.func.id == "salva_registro_ombra"]
         self.assertEqual(1, len(chiamate))

@@ -131,17 +131,20 @@ def _testo_blocco(el, dentro_expander):
     return parti
 
 
-def _radice_tab(at, indice_tab=1):
+def _radice_tab(at, indice_tab=0):
     """Il blocco-radice della scheda: iterando una Tab, AppTest produce una
     lista PIATTA (se stessa + tutti i discendenti); il vero grafo e' nei
     attributi .children di OGNI elemento. Il primo elemento e' il contenitore
-    della scheda, i suoi .children sono i figli diretti."""
+    della scheda, i suoi .children sono i figli diretti.
+
+    Indice 0 = «🎯 Giocate» (prima scheda, si apre da sola), 1 = «🏟️ Partite»,
+    2 = «📒 Com'è andata»."""
     tab = (getattr(at, "tabs", None) or getattr(at, "tab"))[indice_tab]
     piatta = list(tab)
     return piatta[0] if piatta else tab
 
 
-def _testi_della_tab(at, indice_tab=1):
+def _testi_della_tab(at, indice_tab=0):
     """Ritorna (testi_fuori_expander, testi_dentro_expander) della tab data."""
     parti = _testo_blocco(_radice_tab(at, indice_tab), dentro_expander=False)
     fuori = [t for d, t in parti if not d]
@@ -375,15 +378,11 @@ class TestPresentazioneTopMix(unittest.TestCase):
         st.cache_data.clear()
         cls.at = AppTest.from_file(APP_PATH, default_timeout=300)
         cls.at.run(timeout=600)
-        # La sezione TOP MIX si popola solo dopo il click di calcolo (e' il
-        # disegno dell'app, non una scelta di questo test): un solo click, con
-        # rete finta e orologio fermo, poi tutte le asserzioni leggono il
-        # risultato senza ricalcolare.
-        if not cls.at.exception:
-            bottoni = [b for b in cls.at.button if "Calcola Top Mix" in (b.label or "")]
-            if bottoni:
-                bottoni[0].click()
-                cls.at.run(timeout=900)
+        # La scheda «🎯 Giocate» si popola DA SOLA all'apertura (legge solo il
+        # file delle quote): nessun click per vedere «Per raddoppiare», la
+        # tabella e i Dettagli. Il click di «Registra le giocate della
+        # giornata» serve solo al test 08 (le proposte settimanali): con rete
+        # finta e storage in memoria.
 
     @classmethod
     def tearDownClass(cls):
@@ -394,7 +393,8 @@ class TestPresentazioneTopMix(unittest.TestCase):
     # -- utilita' ----------------------------------------------------------
 
     def _tab(self):
-        return (getattr(self.at, "tabs", None) or getattr(self.at, "tab"))[1]
+        # Prima scheda = «🎯 Giocate».
+        return (getattr(self.at, "tabs", None) or getattr(self.at, "tab"))[0]
 
     def test_01_la_pagina_si_apre_senza_eccezioni(self):
         self.assertFalse(self.at.exception, f"Eccezioni: {[e.value for e in self.at.exception][:1]}")
@@ -519,7 +519,7 @@ class TestPresentazioneTopMix(unittest.TestCase):
         """Tab5, famiglia mercato: titolo «Com'è andata: le scelte secondo le
         quote», bilancio in parole sopra la tabella, e nessuna parola vietata
         nel testo visibile (il tecnico resta nel suo «Dettagli» chiuso)."""
-        fuori_tab5, _ = _testi_della_tab(self.at, 4)
+        fuori_tab5, dentro_tab5 = _testi_della_tab(self.at, 2)
         i0 = next((i for i, t in enumerate(fuori_tab5)
                    if "Com'è andata: le scelte secondo le quote" in t), None)
         self.assertIsNotNone(i0, "il titolo del punto 5b non c'e': "
@@ -528,11 +528,17 @@ class TestPresentazioneTopMix(unittest.TestCase):
                    if "Registro ombra" in fuori_tab5[i]), len(fuori_tab5))
         sezione = fuori_tab5[i0:i1]
         testo = " \n".join(sezione)
-        # Bilancio del fixture: 2 righe concluse (1 ✅ da quota prima 1,61 e
-        # 1 ❌): netto = 0,61 - 1,00 = -0,39 a giocata -> -19,50 € ogni 100.
+        # Riepilogo del fixture: 2 righe concluse (1 ✅ e 1 ❌) -> 50 su 100;
+        # le quote, alla PRIMA registrazione sulle stesse righe, davano
+        # (62,5 + 58,0)/2 = 60,25 -> "60 su 100".
         self.assertIn("Finora 2 giocate concluse, 1 riuscite (50 su 100)", testo)
-        self.assertIn("Su 100 giocate da 1 €", testo)
-        self.assertIn("19,50 € in meno", testo)
+        self.assertIn("Le quote si aspettavano 60 su 100.", testo)
+        # Il conto in euro e' un conto, non una descrizione: sta nei Dettagli.
+        testo_dettagli = " \n".join(dentro_tab5)
+        self.assertIn("Su 100 giocate da 1 €", testo_dettagli)
+        self.assertIn("19,50 € in meno", testo_dettagli)
+        self.assertNotIn("Su 100 giocate da 1 €", testo,
+                         "il conto in euro sta nei Dettagli, non in apertura")
         # Le colonne visibili sono quelle del punto 5b, in parole.
         for atteso in ("Quando", "Campionato", "Partita", "Giocata",
                        "Riesce circa", "Il nostro modello è d'accordo",
@@ -547,6 +553,13 @@ class TestPresentazioneTopMix(unittest.TestCase):
         # Il nome di versione non compare nemmeno nell'intestazione di famiglia.
         self.assertFalse(any("topmix_mercato" in t.lower() for t in fuori_tab5),
                          "il nome della versione non deve comparire in vista")
+        # Punto 6 esteso alla scheda Com'è andata: FUORI dal «Dettagli» chiuso
+        # nessuna parola vietata.
+        basso_tutto = " \n".join(fuori_tab5).lower()
+        for parola in PAROLE_VIETATE:
+            with self.subTest(parola=parola):
+                self.assertIsNone(re.search(parola, basso_tutto, re.IGNORECASE),
+                                  f"parola vietata fuori dai Dettagli di Com'è andata: {parola!r}")
 
     # ------------------------------------------------------------------
     # Punto 3 (rifinitura): «Prova la tua giocata»

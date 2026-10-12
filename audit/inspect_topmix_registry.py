@@ -180,6 +180,41 @@ def _bare_excepts(fn: Optional[ast.AST]) -> int:
     return n
 
 
+def _esito_registrazione_condizionato(module_tree: ast.AST) -> bool:
+    """True se la riga di esito della registrazione dipende dall'esito REALE.
+
+    Dalla scheda Giocate (PR "schede") il click non stampa piu' un toast: la
+    funzione ``registra_giocate_della_giornata`` costruisce UNA riga di esito e
+    la torna al chiamante. Il contratto della guardia resta lo stesso di prima
+    (il messaggio non deve essere incondizionato), espresso sulla forma nuova:
+
+    * esiste ``salvataggio_fallito``, derivato da ``esito_save`` (locale +
+      remoto) e non da altro;
+    * il ramo ``if salvataggio_fallito ...`` produce "Non è stato possibile
+      salvare", gli altri rami producono "Registrate N giocate nuove" oppure
+      "Niente di nuovo da registrare".
+    """
+    derivato = False
+    for node in ast.walk(module_tree):
+        if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == "salvataggio_fallito" for t in node.targets):
+            derivato = "esito_save" in ast.unparse(node.value)
+    if not derivato:
+        return False
+    for node in ast.walk(module_tree):
+        if not isinstance(node, ast.If):
+            continue
+        if "salvataggio_fallito" not in ast.unparse(node.test):
+            continue
+        corpo = ast.unparse(ast.Module(body=list(node.body), type_ignores=[]))
+        resto = ast.unparse(ast.Module(body=list(node.orelse), type_ignores=[])) if node.orelse else ""
+        if ("Non è stato possibile salvare" in corpo
+                and "giocate nuove" in resto
+                and "Niente di nuovo da registrare" in resto):
+            return True
+    return False
+
+
 def _if_gates_call(module_tree: ast.AST, test_token: str, ok_call: str,
                    ko_call: str) -> bool:
     """True se esiste un ``if`` il cui test contiene ``test_token`` e che ha un
@@ -402,12 +437,17 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
 
     # --- success toast ---
     facts["top_mix_success_toast"] = {
-        # Il messaggio, DOPO la correzione, dice cosa e' successo davvero (quante
-        # righe, e se il remoto ha risposto) invece di "salvati!" a prescindere.
-        "message": "✅ Top Mix nel registro: N nuove, M aggiornate, K gia' giudicate",
+        # Dalla scheda Giocate il click non stampa piu' un toast nel corpo
+        # modulo: ``registra_giocate_della_giornata`` torna UNA riga di esito
+        # ("Registrate N giocate nuove" / "Niente di nuovo da registrare" /
+        # "Non è stato possibile salvare: riprova") che la scheda mostra sotto
+        # il pulsante, e il dettaglio tecnico sta nel riquadro "Dettagli".
+        "message": "Registrate N giocate nuove / Niente di nuovo da registrare / "
+                   "Non è stato possibile salvare: riprova",
         # Si cercano le CHIAMATE di messaggio, non il testo ovunque: i
         # docstring dei due fix citano il vecchio toast e darebbero falsi positivi.
-        "present_in_module": _toast_uses("Top Mix nel registro", tree),
+        "present_in_module": (_toast_uses("Top Mix nel registro", tree)
+                              or "giocate nuove" in module_src_raw),
         "vecchio_message_incondizionato": _toast_uses("Top Mix salvati!", tree),
         "gated_on_remote_ok": False,  # verificato sotto
         "gated_on_save_count": False,
@@ -423,7 +463,8 @@ def inspect_app(path: str = APP_PATH) -> Dict[str, Any]:
     #   stesso: che ``st.success`` stia nel ramo "ha risposto" e ``st.warning``
     #   nel ramo "non ha risposto", non che il messaggio sia incondizionato.
     _gate_remoto = (_if_gates_call(tree, "n_err_remoto", "st.warning", "st.success")
-                    or _if_gates_call(tree, "esito_save", "st.warning", "st.success"))
+                    or _if_gates_call(tree, "esito_save", "st.warning", "st.success")
+                    or _esito_registrazione_condizionato(tree))
     facts["top_mix_success_toast"]["gated_on_remote_ok"] = _gate_remoto
     facts["top_mix_success_toast"]["gated_on_save_count"] = _if_gates_call(
         tree, "esiti_save", "st.info", "st.success"

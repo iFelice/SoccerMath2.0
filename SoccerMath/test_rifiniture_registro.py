@@ -661,7 +661,9 @@ class TestRifinitureNelCodiceDellApp(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
-        cls.tab2 = cls.src[cls.src.index("with tab2:"):cls.src.index("with tab3:")]
+        i = cls.src.index("def registra_giocate_della_giornata(")
+        j = cls.src.index("\n\ndef ", i + 10)
+        cls.tab2 = cls.src[i:j]
         cls.calc = cls.src[cls.src.index("def calcolatore_multipla("):
                            cls.src.index("# Nomi dei due modelli")]
 
@@ -771,7 +773,7 @@ class TestLayoutArchivioModelloStorico(unittest.TestCase):
     def setUpClass(cls):
         cls.src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
         cls.albero = ast.parse(cls.src)
-        cls.tab5 = cls.src[cls.src.index("with tab5:"):]
+        cls.tab5 = cls.src[cls.src.index("with tab_andata:"):]
 
     # ------------------------------------------------------------------ aiuti
     def _riquadro(self):
@@ -833,18 +835,33 @@ class TestLayoutArchivioModelloStorico(unittest.TestCase):
         self.assertIn("FAMIGLIA_SELETTORE_MODELLO", ast.get_source_segment(self.src, riq))
 
     def test_fuori_dal_riquadro_restano_mercato_e_ombra(self):
+        """L'archivio dei motori non contiene ne' il Mercato ne' l'ombra.
+
+        Dalla scheda Com'è andata tutto il tecnico sta in UN riquadro "Dettagli"
+        chiuso, e l'archivio del modello storico e' un riquadro dentro quello:
+        cio' che conta qui e' che l'archivio non si mangi le altre sezioni.
+        La tabella in parole del Mercato resta FUORI da entrambi (e' cio' che si
+        vede aprendo la scheda); le statistiche per registrazione e il registro
+        ombra stanno nei Dettagli, fuori dall'archivio dei motori.
+        """
         riq = self._riquadro()
         self.assertIsNotNone(riq)
-        corpo = ast.get_source_segment(self.src, riq)
-        fuori = self.tab5_fuori_riquadro()
+        dettagli = self._riquadro_dettagli()
+        self.assertIsNotNone(dettagli, "la scheda ha un solo riquadro «Dettagli» chiuso")
         for nome in ("_mostra_registro_mercato", "_mostra_statistiche_registrazione",
                      "load_ombra_rows"):
             self.assertEqual(0, self._conteggio(riq, nome),
-                             f"{nome} non deve finire nel riquadro chiuso")
-            self.assertIn(nome + "(", fuori, f"{nome} deve restare in apertura")
-        self.assertIn("FAMIGLIA_SELETTORE_MERCATO", fuori.split("st.expander", 1)[0],
+                             f"{nome} non deve finire nell'archivio del modello storico")
+        # La tabella in parole del Mercato e' l'unica delle tre in apertura.
+        self.assertIn("_mostra_registro_mercato(", self.tab5_fuori_dettagli())
+        self.assertNotIn("_mostra_statistiche_registrazione(", self.tab5_fuori_dettagli())
+        self.assertNotIn("load_ombra_rows(", self.tab5_fuori_dettagli())
+        self.assertIn("_mostra_statistiche_registrazione(",
+                      ast.get_source_segment(self.src, dettagli))
+        self.assertIn("load_ombra_rows(", ast.get_source_segment(self.src, dettagli))
+        self.assertIn("FAMIGLIA_SELETTORE_MERCATO", self.tab5_fuori_dettagli(),
                       "la famiglia mercato si renderizza PRIMA del riquadro: e' cio' che "
-                      "si vede aprendo il tab")
+                      "si vede aprendo la scheda")
 
     def test_le_tabelle_dei_motori_incrociano_la_famiglia(self):
         """Le due tabelle sono l'archivio: variante E famiglia di selettore.
@@ -871,6 +888,32 @@ class TestLayoutArchivioModelloStorico(unittest.TestCase):
     def tab5_fuori_riquadro(self):
         """Il tab5 SENZA il corpo del riquadro: cio' che si vede in apertura."""
         corpo = ast.get_source_segment(self.src, self._riquadro())
+        return self.tab5.replace(corpo, "", 1)
+
+    def _riquadro_dettagli(self):
+        """L'unico riquadro «Dettagli» della scheda Com'è andata.
+
+        Cercato DENTRO il blocco ``with tab_andata:``, non in tutto il file: la
+        scheda Giocate ha un riquadro con la stessa etichetta.
+        """
+        radice = None
+        for nodo in ast.walk(self.albero):
+            if isinstance(nodo, ast.With) and nodo.items:
+                nome = nodo.items[0].context_expr
+                if isinstance(nome, ast.Name) and nome.id == "tab_andata":
+                    radice = nodo
+        self.assertIsNotNone(radice, "blocco `with tab_andata:` non trovato")
+        for nodo in ast.walk(radice):
+            if isinstance(nodo, ast.With) and nodo.items:
+                testo = ast.get_source_segment(self.src, nodo.items[0].context_expr) or ""
+                if "Dettagli" in testo:
+                    return nodo
+        return None
+
+    def tab5_fuori_dettagli(self):
+        """La scheda Com'è andata SENZA il corpo del riquadro «Dettagli»."""
+        dettagli = self._riquadro_dettagli()
+        corpo = ast.get_source_segment(self.src, dettagli)
         return self.tab5.replace(corpo, "", 1)
 
     def test_il_loop_misto_non_c_e_piu_e_la_didascalia_descrive_il_layout(self):

@@ -1,4 +1,5 @@
-"""AppTest sul VERO ``app.py``: click "Calcola Top Mix", multipla, Registro.
+"""AppTest sul VERO ``app.py``: click "Registra le giocate della giornata",
+multipla, Registro.
 
 Perche' questo file esiste (punto 4 delle rifiniture dopo la PR #53): la verifica
 precedente del flusso tab2 era un test strutturale sul ``session_state`` e
@@ -244,7 +245,7 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
 
         # La cache di @st.cache_data e' process-global e condivisa fra gli
         # AppTest di file diversi: svuotarla prima del primo run, altrimenti
-        # il click di "Calcola Top Mix" rilegge dati calcolati da un altro
+        # il click di "Registra le giocate" rilegge dati calcolati da un altro
         # fixture (es. lo snapshot da 90 eventi di
         # test_apptest_topmix_presentazione).
         import streamlit as st
@@ -287,14 +288,20 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         import prediction_registry as pr
 
         self.assertEqual([], self.scritture, "aprire la pagina non scrive il Registro")
-        self.assertEqual([], self.chiamate, "aprire la pagina non chiama la rete")
+        # L'apertura della scheda «Giocate» NON scrive e NON mette in coda
+        # nessuna PUT/POST. Le GET del confronto col modello partono da sole
+        # all'apertura (e' la commessa: la colonna si riempie da sé): quelle
+        # restano ammesse, le scritture no.
+        self.assertEqual([], [c for c in self.chiamate if c[0] != "GET"],
+                         "aprire la pagina non scrive da nessuna parte")
 
-        # --- 1) premere "Calcola Top Mix" ---------------------------------
-        bottoni = [b for b in self.at.button if "Calcola Top Mix" in b.label]
-        self.assertEqual(1, len(bottoni), "un solo pulsante del Top Mix in pagina")
+        # --- 1) premere "Registra le giocate della giornata" ---------------
+        bottoni = [b for b in self.at.button
+                   if "Registra le giocate della giornata" in (b.label or "")]
+        self.assertEqual(1, len(bottoni), "un solo pulsante di registrazione in pagina")
         bottoni[0].click()
         self.at.run()
-        self.eccezioni("click su Calcola Top Mix")
+        self.eccezioni("click su Registra le giocate della giornata")
 
         top = self.at.session_state["topmix_mercato"]
         self.assertEqual({111, 113}, {int(r["match_id"]) for r in top},
@@ -399,7 +406,10 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         self.eccezioni("due gambe scelte")
         self.assertEqual([], self.scritture,
                          "un rerun di UI non scrive il Registro: la scrittura vive nel click")
-        self.assertEqual([], self.chiamate, "un rerun non rifà le chiamate HTTP")
+        # Un rerun di UI non riscrive: le GET del confronto col modello sono
+        # in cache (@st.cache_data ttl=1800) e non partono di nuovo.
+        self.assertEqual([], [c for c in self.chiamate if c[0] != "GET"],
+                         "un rerun non scrive da nessuna parte")
         df = [e for e in self.at if type(e).__name__ in ("Dataframe", "ArrowDataFrame")]
         self.assertGreaterEqual(len(df), 2, "tabelle Top Mix e liste visibili")
         metriche = {m.label: m.value for m in self.at.metric}
@@ -434,7 +444,8 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         # riga sola per partita, e la prima registrazione ancora intatta.
         self.scritture.clear()
         self.chiamate.clear()
-        [b for b in self.at.button if "Calcola Top Mix" in b.label][0].click()
+        [b for b in self.at.button
+         if "Registra le giocate della giornata" in (b.label or "")][0].click()
         self.at.run()
         self.eccezioni("secondo click")
         self.assertLessEqual(len(self.scritture), 1,
