@@ -75,14 +75,18 @@ def _raccogli_da_df(df_el):
     if val is None:
         return parti
     # val e' un oggetto Arrow/DataFrame serializzato: in testing e' un
-    # pandas.DataFrame (o uno Styler): proviamo a normalizzare.
+    # pandas.DataFrame (o uno Styler): proviamo a normalizzare. Le colonne
+    # numeriche con celle vuote (``None``/NaN: da «Modello %» non pronto)
+    # vanno svuotate PRIMA di ``astype(str)``, altrimenti resta un float
+    # ``nan`` e il join delle celle esplode a metà tabella.
     try:
         import pandas as _pd
         if hasattr(val, "data"):
             val = val.data
         if isinstance(val, _pd.DataFrame):
             parti.append(" ".join(_testo_semplice(c) for c in val.columns))
-            for _r in val.astype(str).itertuples(index=False, name=None):
+            sicuro = val.where(val.notna(), other="")
+            for _r in sicuro.astype(str).itertuples(index=False, name=None):
                 parti.append(" ".join(_r))
             return parti
     except Exception:
@@ -154,10 +158,15 @@ def _testi_della_tab(at, indice_tab=0):
 
 # ---------------------------------------------------------------------------
 # Parole vietate (punto 6): fuori dai riquadri chiusi non devono comparire.
+# «d'accordo» e' entrata in lista con la correzione alla PR #66: il segnale
+# resta solo nei Dettagli (tabella tecnica) e la caption della sezione
+# «Le scelte più sicure secondo le quote» dice solo quante partite sono in
+# tabella e, se il giro del modello non e' pronto, lo stato di «Modello %».
 # ---------------------------------------------------------------------------
 
 PAROLE_VIETATE = [
     "de-vig", "devig",
+    "d'accordo",
     r"\bEV\b", "valore atteso",
     "quota equa",
     "margine", "margini",

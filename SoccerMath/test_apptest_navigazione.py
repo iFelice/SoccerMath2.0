@@ -19,8 +19,9 @@ Cosa verifica, in parole povere:
   preme «📝 Registra le giocate della giornata»;
 * quel pulsante scrive, e un secondo clic sullo stesso turno di quote non
   aggiunge righe doppie;
-* se il confronto col modello non riesce, «Modello %» lo dice («n/d») e
-  «Per raddoppiare» resta dov'e';
+* se il confronto col modello non riesce, la caption lo dice una volta
+  («Modello %: non disponibile»), le celle restano vuote e «Per raddoppiare»
+  resta dov'e';
 * la scheda «📒 Com'è andata» apre con il riepilogo in parole, i cui numeri
   tornano con quelli contati a mano sulle stesse righe, e il controllo dei
   risultati parte DA SOLO una volta per sessione (e non parte se nessuna
@@ -319,14 +320,17 @@ class TestSchedeLettura(_BaseAppTest):
 
     def test_04_colonna_modello_percento_presente(self):
         """La vista mostra «Modello %» (probabilità del modello per lo stesso
-        esito); la colonna del segnale «d'accordo» esce dalla vista (il campo
-        resta nei dati, nel Registro e nei Dettagli)."""
+        esito); il segnale «d'accordo» esce da TUTTA la parte in vista —
+        colonna e conteggi nella caption — e resta solo nei Dettagli (campo
+        nei dati, tabella tecnica)."""
         fuori, dentro = _testi_della_tab(self.at, 0)
         testo = " \n".join(fuori)
         self.assertIn("Modello %", testo)
         self.assertIn("Quote %", testo)
-        self.assertNotIn("Il nostro modello è d'accordo", testo,
-                         "la colonna del segnale d'accordo non sta piu' in vista")
+        self.assertNotIn("d'accordo", testo.lower(),
+                         "«d'accordo» (colonna o conteggio) non sta piu' in vista")
+        self.assertIn("partite in tabella", testo,
+                      "la caption dice quante partite sono in tabella")
         self.assertIn("d'accordo", " \n".join(dentro).lower(),
                       "il campo resta nei Dettagli (tabella tecnica)")
 
@@ -468,17 +472,22 @@ class TestScrittureSoloSuClick(_BaseAppTest):
                              "una scrittura per clic, anche il secondo")
 
     def test_05_se_il_modello_non_risponde_il_resto_resta_in_piedi(self):
-        """Fonte del calendario giu': «Modello %» dice «n/d», la didascalia
-        «non disponibile», e «Per raddoppiare» resta dove e'."""
+        """Giro del modello NON disponibile: le celle di «Modello %» restano
+        vuote (numeri, non parole) e la caption lo dice UNA volta («Modello %:
+        non disponibile»); «Per raddoppiare» resta dove e'. Lo stato lo
+        scriviamo direttamente in session (AppTest esegue lo script in un
+        namespace separato: la funzione del giro non e' intercettabile dal
+        ``import app`` dei test; la transizione in_calcolo -> fallito e'
+        coperta dalla classe del giro e dalla caption, testata a parte)."""
         import requests
         self.chiamate_registro.clear()
         self._st.cache_data.clear()
-        # Stato del confronto azzerato: AppTest non espone ``pop`` sul
-        # session_state, quindi si scrivono valori vuoti (l'app li tratta come
-        # "mai partito").
-        self.at.session_state["confronto_modello_stato"] = None
+        # Stato del confronto FALLITO + nessun dato del giro: le tabelle in
+        # vista devono restare in piedi, con le celle di «Modello %» vuote.
+        self.at.session_state["confronto_modello_stato"] = "non_disponibile"
         self.at.session_state["confronto_modello_righe"] = []
-        self.at.session_state["confronto_modello_errore"] = None
+        self.at.session_state["confronto_modello_errore"] = "RuntimeError: giro giu'"
+        self.at.session_state["confronto_modello_1x2"] = []
 
         def get_giu(url, **kw):
             self.get_http.append(url)
@@ -486,15 +495,17 @@ class TestScrittureSoloSuClick(_BaseAppTest):
 
         with mock.patch.object(requests, "get", get_giu):
             self.at.run(timeout=900)
-        self.eccezioni(self.at, "confronto col modello non riuscito")
+        self.eccezioni(self.at, "confronto col modello non disponibile")
         fuori, _ = _testi_della_tab(self.at, 0)
         testo = " \n".join(fuori)
         self.assertIn("Per raddoppiare", testo,
                       "il confronto col modello non e' un prerequisito")
-        self.assertIn("n/d", testo,
-                      "la colonna «Modello %» dice che il numero non c'e', non lo inventa")
-        self.assertIn("senza confronto", testo,
-                      "la didascalia dichiara le righe senza il giro del modello")
+        self.assertIn("Modello %: non disponibile", testo,
+                      "la caption dice una volta che il giro del modello non c'e'")
+        self.assertNotIn("n/d", testo,
+                         "le celle restano vuote: nessuno stato scritto nella colonna")
+        self.assertNotIn("d'accordo", testo.lower(),
+                         "nemmeno con il modello giu' compare il segnale in vista")
         self.assertEqual([], self._scritture(self.chiamate_registro),
                          "un confronto fallito non scrive nulla")
 

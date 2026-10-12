@@ -3336,37 +3336,23 @@ def percento_decimale(valore):
     return round(v, 1)
 
 
-def percento_italiano(valore):
-    """Percento con UNA cifra decimale e la virgola italiana: 0.675 -> "67,5%".
-
-    Per la colonna "Modello %" delle tabelle della scheda Giocate, che non puo'
-    restare numerica (porta anche gli stati "in calcolo" e "n/d"): la resa
-    segue l'esempio della commessa ("67,5%"). Le colonne senza stati ("Quote %"
-    e le due percentuali della tabella Mercato di Com'è andata) restano numeri.
-    """
-    v = percento_decimale(valore)
-    if v is None:
-        return None
-    return f"{v:.1f}".replace(".", ",") + "%"
-
-
 def tabella_top_mix_mercato_visibile(righe, adesso=None, stato_confronto=None,
                                      mappa_modello_1x2=None):
     """La tabella del Top Mix in vista della scheda Giocate (segnali asciutti).
 
     Stessi numeri di ``tabella_top_mix_mercato`` (probabilita', quote, scelte:
     nulla viene ricalcolato), presentati senza gergo: la giocata e' la SOLA
-    sigla (1, X, 2 — qui il selettore di mercato non propone doppie chance),
-    "Quote %" resta un numero con una cifra decimale (l'ordinamento al clic
-    e' numerico) e "Modello %" si mostra con la virgola italiana ("67,5%")
-    perche' porta anche gli stati "in calcolo"/"n/d". Le partite lontane
+    sigla (1, X, 2 — qui il selettore di mercato non propone doppie chance) e
+    "Quote %" e "Modello %" sono DUE colonne numeriche con una cifra decimale
+    (l'ordinamento al clic e' numerico per entrambe). Le partite lontane
     (calcio d'inizio fra piu' di 3 giorni) portano il marcatore delle quote
     provvisorie (punto 8).
 
     La colonna "Modello %" non dipende dalle righe: arriva dal confronto
-    (``testo_modello_percento`` su ``fetch_and_calc_top_mix``, sola lettura),
-    quindi mentre il calcolo gira dice "in calcolo" e se non riesce "n/d"
-    senza che la tabella sparisca.
+    (``numero_modello_percento`` su ``fetch_and_calc_top_mix``, sola lettura);
+    mentre il calcolo gira o se non riesce la cella resta VUOTA (``None``):
+    lo stato lo dice una volta sola la caption sotto il titolo della
+    sezione, non la cella.
 
     Ordinamento predefinito: "Quote %" decrescente (commessa PR presentazione
     sigle e percentuali); il clic sull'intestazione lo cambia, il DataFrame
@@ -3391,7 +3377,7 @@ def tabella_top_mix_mercato_visibile(righe, adesso=None, stato_confronto=None,
             "Partita": f"{p.get('home')} vs {p.get('away')}" + lg.suffisso_provvisoria(quanto, adesso),
             "Giocata": str(p.get("esito") or "").strip(),
             "Quote %": percento_decimale(prob_quota),
-            "Modello %": testo_modello_percento(p, stato_confronto, mappa_modello_1x2),
+            "Modello %": numero_modello_percento(p, stato_confronto, mappa_modello_1x2),
         })
     df = pd.DataFrame(rows, columns=colonne)
     if not df.empty:
@@ -3402,8 +3388,29 @@ def tabella_top_mix_mercato_visibile(righe, adesso=None, stato_confronto=None,
     return df
 
 
+def caption_scelte_secondo_le_quote(n_righe, stato_confronto, nascoste=0):
+    """La caption sotto il titolo «Le scelte più sicure secondo le quote».
+
+    «<N> partite in tabella», lo stato di «Modello %» quando il giro del
+    modello non e' pronto (detto UNA volta sola: le celle della colonna
+    restano numeri, vuote finche' il giro non c'e') e, se pertinente, la
+    frase sulle partite dopo lunedì. Nessun conteggio del segnale
+    "d'accordo" in vista: e' un dettaglio del riquadro chiuso.
+    """
+    parti = [f"{n_righe} partite in tabella"]
+    if stato_confronto != "pronto":
+        parti.append("Modello %: in calcolo"
+                     if stato_confronto in (None, "in_calcolo")
+                     else "Modello %: non disponibile")
+    frase = " · ".join(parti) + "."
+    if nascoste > 0:
+        frase += (f" Altre {nascoste} dopo lunedì: "
+                  f"passa a «{lg.ETICHETTA_PERIODO_TUTTE}».")
+    return frase
+
+
 def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
-                                    stato_confronto=None, mappa_accordo=None,
+                                    stato_confronto=None,
                                     mappa_modello_1x2=None):
     """La tabella del Top Mix (mercato) in vista, nella scheda Giocate.
 
@@ -3415,10 +3422,10 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
     esplicitamente, invece di mostrare una tabella vuota che sembrerebbe
     "nessuna partita probabile".
 
-    ``stato_confronto``/``mappa_accordo`` alimentano il conteggio del
-    confronto nella didascalia; ``mappa_modello_1x2`` alimenta la colonna
+    ``stato_confronto`` alimenta lo stato di «Modello %» nella caption (una
+    volta sola, non nelle celle); ``mappa_modello_1x2`` alimenta la colonna
     "Modello %": la tabella non aspetta il giro del modello, quindi mentre
-    quello gira la colonna dice "in calcolo" e le righe restano tutte li'.
+    quello gira le celle restano vuote e le righe tutte li'.
     """
     st.markdown("##### 🌟 Le scelte più sicure secondo le quote")
     st.caption("Le probabilità vengono dalle quote dei bookmaker, che in media "
@@ -3472,22 +3479,8 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
                 f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
         return
     nascoste = len(righe) - len(in_periodo)
-    testi = [testo_accordo_modello(p, stato_confronto, mappa_accordo) for p in in_periodo]
-    if stato_confronto == "pronto":
-        n_accordo = sum(1 for t in testi if t == "sì")
-        n_senza = sum(1 for t in testi if t == "no")
-        n_nd = sum(1 for t in testi if t == CONFRONTO_NON_DISPONIBILE)
-        dettaglio_accordo = f"{n_accordo} con il modello d'accordo · {n_senza} senza"
-        if n_nd:
-            dettaglio_accordo += f" · {n_nd} senza confronto"
-    elif stato_confronto in (None, "in_calcolo"):
-        dettaglio_accordo = "confronto con il nostro modello in calcolo"
-    else:
-        dettaglio_accordo = "confronto con il nostro modello non disponibile"
-    st.caption(f"{len(in_periodo)} partite in tabella (nessun limite di righe) · "
-               f"{dettaglio_accordo}."
-               + (f" Altre {nascoste} dopo lunedì: passa a «{lg.ETICHETTA_PERIODO_TUTTE}»."
-                  if nascoste > 0 else ""))
+    st.caption(caption_scelte_secondo_le_quote(len(in_periodo), stato_confronto,
+                                               nascoste=nascoste))
     st.dataframe(tabella_top_mix_mercato_visibile(in_periodo, adesso=adesso,
                                                   stato_confronto=stato_confronto,
                                                   mappa_modello_1x2=mappa_modello_1x2),
@@ -3499,11 +3492,13 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
                          "Quote %",
                          format="%.1f%%",
                          help="Probabilità dell'esito secondo le quote dei bookmaker."),
-                     "Modello %": st.column_config.TextColumn(
+                     "Modello %": st.column_config.NumberColumn(
                          "Modello %",
+                         format="%.1f%%",
                          help="Probabilità dello stesso esito secondo il nostro modello "
-                              "(Drago): «in calcolo» finché il giro non è pronto, «n/d» "
-                              "se non disponibile per questa partita."),
+                              "(Drago); per le doppie chance è la somma delle due "
+                              "probabilità 1X2. Vuota finché il giro del modello non è "
+                              "pronto: lo stato sta nella caption sopra."),
                  })
 
 
@@ -3640,12 +3635,6 @@ def testo_accordo_modello(riga, stato, mappa_accordo):
     return "sì" if dato.get("accordo") else "no"
 
 
-# Stati della colonna "Modello %" in vista: stesso ritmo del confronto (la
-# tabella non aspetta il giro del modello), parole asciutte della commessa.
-MODELLO_IN_CALCOLO = CONFRONTO_IN_CALCOLO        # "in calcolo"
-MODELLO_ND = "n/d"
-
-
 def prob_modello_1x2_per_partita(letture):
     """``{(casa, trasferta) canonici: {"1": p1, "X": pX, "2": p2}}`` del Drago.
 
@@ -3699,25 +3688,26 @@ def prob_modello_esito(esito, terna):
     return round(sum(float(v) for v in valori), 1)
 
 
-def testo_modello_percento(riga, stato, mappa_1x2):
-    """Valore della colonna "Modello %" per UNA riga in vista: numero o stato.
+def numero_modello_percento(riga, stato, mappa_1x2):
+    """Numero della colonna "Modello %" per UNA riga in vista (o ``None``).
 
-    * calcolo non ancora terminato -> "in calcolo";
-    * calcolo fallito, partita non coperta dal giro del modello, oppure
-      modello senza numero per quella partita -> "n/d";
+    * calcolo non ancora terminato, fallito, partita non coperta dal giro
+      del modello, oppure modello senza numero per quella partita ->
+      ``None``: la cella resta VUOTA (nessuno stato scritto nella cella,
+      nessuno zero inventato) — lo stato lo dice una volta sola la caption
+      della sezione;
     * calcolo pronto -> percento del modello per lo STESSO esito della riga
-      (doppie chance: somma delle due probabilita' 1X2), una cifra decimale
-      con la virgola italiana ("67,5%").
+      (doppie chance: somma delle due probabilita' 1X2), numero con una
+      cifra decimale: la colonna resta numerica e l'ordinamento al clic e'
+      numerico.
     """
     if stato != "pronto":
-        return MODELLO_IN_CALCOLO if stato in (None, "in_calcolo") else MODELLO_ND
+        return None
     terna = (mappa_1x2 or {}).get(_chiave_partita_canonica(riga.get("home"), riga.get("away")))
     if terna is None:
-        return MODELLO_ND
+        return None
     valore = prob_modello_esito(riga.get("esito") or riga.get("giocata"), terna)
-    if valore is None:
-        return MODELLO_ND
-    return percento_italiano(valore)
+    return None if valore is None else round(valore, 1)
 
 
 def avvia_confronto_modello():
@@ -4094,8 +4084,9 @@ def righe_piu_probabili_visibili(migliori, adesso=None, stato_confronto=None,
     "Quote %" e' la probabilita' della giocata secondo le quote e "Modello %"
     quella del modello Drago per lo STESSO esito — per le doppie chance la
     somma delle due probabilita' 1X2, letta dal giro del modello (sola
-    lettura): "in calcolo" finche' il giro non e' pronto, "n/d" se non
-    disponibile. Ordinamento predefinito: "Quote %" decrescente.
+    lettura). ENTRAMBE restano colonne numeriche con una cifra decimale;
+    quando il giro non e' pronto o non copre la partita la cella e' vuota.
+    Ordinamento predefinito: "Quote %" decrescente.
     """
     colonne = ["Quando", "Partita", "Giocata", "Quote %", "Modello %", "Paga circa"]
     rows = []
@@ -4105,7 +4096,7 @@ def righe_piu_probabili_visibili(migliori, adesso=None, stato_confronto=None,
             "Partita": g.get("partita", "") + lg.suffisso_provvisoria(g, adesso),
             "Giocata": str(g.get("giocata") or "").strip(),
             "Quote %": percento_decimale(g.get("probabilita")),
-            "Modello %": testo_modello_percento(g, stato_confronto, mappa_modello_1x2),
+            "Modello %": numero_modello_percento(g, stato_confronto, mappa_modello_1x2),
             "Paga circa": lg.paga_circa(g.get("quota_b365_stimata")),
         })
     df = pd.DataFrame(rows, columns=colonne)
@@ -4151,11 +4142,13 @@ def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
                          "Quote %",
                          format="%.1f%%",
                          help="Probabilità della giocata secondo le quote dei bookmaker."),
-                     "Modello %": st.column_config.TextColumn(
+                     "Modello %": st.column_config.NumberColumn(
                          "Modello %",
+                         format="%.1f%%",
                          help="Probabilità dello stesso esito secondo il nostro modello "
                               "(Drago); per le doppie chance è la somma delle due "
-                              "probabilità 1X2."),
+                              "probabilità 1X2. Vuota finché il giro del modello non è "
+                              "pronto."),
                  })
     if len(migliori) > n_mostrate:
         if st.button(f"Mostra altre (ne restano {len(migliori) - n_mostrate})",
@@ -5196,9 +5189,9 @@ with tab_giocate:
     # Il confronto col modello si limita a dichiarare il suo stato: il calcolo
     # vero parte in coda alla scheda, quando il resto e' gia' disegnato.
     stato_confronto = avvia_confronto_modello()
-    mappa_accordo = accordo_modello_per_partita(st.session_state.get(CONFRONTO_RIGHE_CHIAVE))
     # Terna 1X2 del modello per partita (sola lettura, stesso giro del
-    # confronto): alimenta la colonna "Modello %" delle tabelle in vista.
+    # confronto): alimenta la colonna numerica "Modello %" delle tabelle in
+    # vista. Il conteggio del segnale "d'accordo" sta SOLO nei Dettagli.
     mappa_modello_1x2 = prob_modello_1x2_per_partita(
         st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE))
 
@@ -5218,7 +5211,6 @@ with tab_giocate:
                               mappa_modello_1x2=mappa_modello_1x2)
     _mostra_tabella_top_mix_mercato(righe_quote, stato_quote, adesso,
                                     stato_confronto=stato_confronto,
-                                    mappa_accordo=mappa_accordo,
                                     mappa_modello_1x2=mappa_modello_1x2)
     calcolatore_multipla(righe_quote, adesso, gambe_pre=in_periodo)
     _mostra_dettagli_giocate(res_lista, in_periodo, righe_quote, stato_quote, adesso)

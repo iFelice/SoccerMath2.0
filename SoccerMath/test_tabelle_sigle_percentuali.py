@@ -3,12 +3,14 @@ Giocate e della tabella Mercato di Com'è andata
 
 * la giocata e' la SOLA sigla (1, X, 2, 1X, X2, 12): niente «Vince <squadra>»,
   «<squadra> non perde», «Non finisce in pareggio», niente sigla fra parentesi;
-* al posto di «Riesce circa» ci sono DUE colonne percentuali con una cifra
-  decimale: «Quote %» (probabilita' dalle quote, come prima) e «Modello %»
-  (probabilita' del modello Drago per lo STESSO esito; per le doppie chance e'
-  la SOMMA delle due probabilita' 1X2 del modello, sullo stesso snapshot del
-  giro ``fetch_and_calc_top_mix``: «in calcolo» finche' il giro non e' pronto,
-  «n/d» se fallisce o non copre la partita);
+* al posto di «Riesce circa» ci sono DUE colonne percentuali NUMERICHE con
+  una cifra decimale: «Quote %» (probabilita' dalle quote, come prima) e
+  «Modello %» (probabilita' del modello Drago per lo STESSO esito; per le
+  doppie chance e' la SOMMA delle due probabilita' 1X2 del modello, sullo
+  stesso snapshot del giro ``fetch_and_calc_top_mix``). Finche' il giro non
+  e' pronto o non copre la partita la cella e' VUOTA (``None``): lo stato
+  («Modello %: in calcolo» / «Modello %: non disponibile») lo dice UNA volta
+  sola la caption della sezione, non la cella;
 * la colonna «Il nostro modello è d'accordo» esce dalla vista: il campo resta
   nei dati, nel Registro e nei Dettagli (nessuna logica cambia);
 * l'ordine predefinito e' «Quote %» DECRESCENTE e la colonna «Quote %» resta
@@ -103,28 +105,88 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
                          "l'ordine predefinito e' «Quote %» decrescente")
         self.assertEqual([71.0, 64.9, 58.0], valori, "una cifra decimale")
 
-    def test_modello_percento_stati_in_calcolo_e_nd(self):
+    def test_modello_percento_non_pronto_cella_vuota(self):
+        """Niente stato scritto nella cella: vuota, e la caption lo dice."""
         righe = [_riga_mercato(esito="1")]
-        # giro del modello non ancora finito -> "in calcolo"
+        # giro del modello non ancora finito -> cella vuota
         for stato in (None, "in_calcolo"):
             df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto=stato)
-            self.assertEqual(["in calcolo"], df["Modello %"].tolist())
-        # giro fallito -> "n/d"
+            self.assertEqual([None], df["Modello %"].tolist())
+            self.assertTrue(pd.isna(df["Modello %"]).all())
+        # giro fallito -> cella vuota
         df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="non_disponibile")
-        self.assertEqual(["n/d"], df["Modello %"].tolist())
-        # giro pronto ma partita non coperta -> "n/d" (nessun numero inventato)
+        self.assertEqual([None], df["Modello %"].tolist())
+        # giro pronto ma partita non coperta -> cella vuota (niente inventato)
         df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="pronto",
                                                   mappa_modello_1x2={})
-        self.assertEqual(["n/d"], df["Modello %"].tolist())
+        self.assertEqual([None], df["Modello %"].tolist())
 
     def test_modello_percento_pronto_il_numero_del_selettore(self):
         righe = [_riga_mercato(prob=0.675, esito="1", prob_modello_val=63.0)]
         mappa = app.prob_modello_1x2_per_partita(_terna_snapshot())
         df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="pronto",
                                                   mappa_modello_1x2=mappa)
-        self.assertEqual(["41,2%"], df["Modello %"].tolist(),
-                         "l'esito 1 della riga legge la STESSA terna dello snapshot, "
-                         "con la virgola italiana")
+        self.assertEqual([41.2], df["Modello %"].tolist(),
+                         "l'esito 1 della riga legge la STESSA terna dello snapshot")
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
+                        "«Modello %» resta numerica con il modello pronto")
+
+
+    def test_modello_percento_numerica_ordinamento(self):
+        """Con il modello pronto «Modello %» e' numerica e l'ordinamento per
+        «Modello %» e' numerico: 85,4 sopra 9,5 (l'ordinamento al clic segue
+        il dtype della colonna)."""
+        letture = [
+            {"home": "Inter", "away": "Roma", "per_esito": {
+                "1": {"prob_modello": 85.4}, "X": {"prob_modello": 9.5},
+                "2": {"prob_modello": 5.1}}},
+            {"home": "Milan", "away": "Lazio", "per_esito": {
+                "1": {"prob_modello": 9.5}, "X": {"prob_modello": 25.0},
+                "2": {"prob_modello": 65.5}}},
+        ]
+        mappa = app.prob_modello_1x2_per_partita(letture)
+        righe = [_riga_mercato(prob=0.60, esito="1", home="Inter", away="Roma"),
+                 _riga_mercato(prob=0.56, esito="1", home="Milan", away="Lazio")]
+        df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="pronto",
+                                                  mappa_modello_1x2=mappa)
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
+                        "«Modello %» resta numerica (NumberColumn, una cifra decimale)")
+        self.assertEqual([85.4, 9.5],
+                         df.sort_values("Modello %", ascending=False)["Modello %"].tolist(),
+                         "l'ordinamento per «Modello %» e' numerico: 85,4 sopra 9,5")
+        # l'ordine predefinito resta «Quote %» decrescente
+        self.assertEqual([60.0, 56.0], df["Quote %"].tolist())
+
+
+class TestCaptionScelteSecondoLeQuote(unittest.TestCase):
+    """La caption della sezione: N partite + stato del modello UNA volta
+    sola + (se serve) la frase sulle partite dopo lunedì. Nessun conteggio
+    del segnale "d'accordo" in vista."""
+
+    def test_caption_pronto_solo_le_partite(self):
+        self.assertEqual("18 partite in tabella.",
+                         app.caption_scelte_secondo_le_quote(18, "pronto"))
+
+    def test_caption_in_calcolo(self):
+        for stato in (None, "in_calcolo"):
+            self.assertEqual("18 partite in tabella · Modello %: in calcolo.",
+                             app.caption_scelte_secondo_le_quote(18, stato), stato)
+
+    def test_caption_non_disponibile(self):
+        self.assertEqual("18 partite in tabella · Modello %: non disponibile.",
+                         app.caption_scelte_secondo_le_quote(18, "non_disponibile"))
+
+    def test_caption_partite_dopo_lunedi(self):
+        frase = app.caption_scelte_secondo_le_quote(11, "pronto", nascoste=7)
+        self.assertTrue(frase.startswith("11 partite in tabella."))
+        self.assertIn("Altre 7 dopo lunedì", frase)
+        self.assertIn(lg.ETICHETTA_PERIODO_TUTTE, frase)
+
+    def test_nessun_conteggio_accordo_in_caption(self):
+        for stato in (None, "in_calcolo", "non_disponibile", "pronto"):
+            frase = app.caption_scelte_secondo_le_quote(9, stato, nascoste=2)
+            self.assertNotIn("d'accordo", frase)
+            self.assertNotIn("senza confronto", frase)
 
 
 class TestModelloDoppiaChanceSomma(unittest.TestCase):
@@ -160,8 +222,8 @@ class TestModelloDoppiaChanceSomma(unittest.TestCase):
         self.assertEqual((41.2, 27.5, 31.3), (terna["1"], terna["X"], terna["2"]))
         self.assertEqual(41.2 + 27.5, app.prob_modello_esito("1X", terna))
         riga = _riga_mercato(esito="1X", prob=0.687)
-        self.assertEqual("68,7%", app.testo_modello_percento(riga, "pronto", mappa),
-                         "in colonna la somma si mostra con la virgola italiana")
+        self.assertEqual(68.7, app.numero_modello_percento(riga, "pronto", mappa),
+                         "la somma delle due probabilita' 1X2, come numero")
 
 
 class TestLePiuProbabili(unittest.TestCase):
@@ -190,18 +252,18 @@ class TestLePiuProbabili(unittest.TestCase):
                          "ordine «Quote %» decrescente, una cifra decimale")
         # la doppia chance 1X di Inter-Roma somma le due probabilita' 1X2
         # della STESSA terna snapshot: 41,2 + 27,5; Milan-Lazio non e' nel
-        # giro del modello -> "n/d"
-        self.assertEqual(["n/d", "68,7%"], df["Modello %"].tolist())
+        # giro del modello -> cella vuota (NaN nella colonna numerica)
+        self.assertTrue(pd.isna(df["Modello %"].iloc[0]))
+        self.assertEqual(68.7, df["Modello %"].iloc[1])
 
-    def test_modello_in_calcolo_e_nd(self):
+    def test_modello_non_pronto_cella_vuota(self):
         g = self._giocata()
-        df = app.righe_piu_probabili_visibili(g, stato_confronto=None)
-        self.assertEqual(["in calcolo"] * 2, df["Modello %"].tolist())
-        df = app.righe_piu_probabili_visibili(g, stato_confronto="non_disponibile")
-        self.assertEqual(["n/d"] * 2, df["Modello %"].tolist())
+        for stato in (None, "in_calcolo", "non_disponibile"):
+            df = app.righe_piu_probabili_visibili(g, stato_confronto=stato)
+            self.assertEqual([None] * 2, df["Modello %"].tolist())
         df = app.righe_piu_probabili_visibili(g, stato_confronto="pronto",
                                               mappa_modello_1x2={})
-        self.assertEqual(["n/d"] * 2, df["Modello %"].tolist())
+        self.assertEqual([None] * 2, df["Modello %"].tolist())
 
 
 class TestPerRaddoppiare(unittest.TestCase):
