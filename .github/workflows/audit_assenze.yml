@@ -1,0 +1,315 @@
+name: Sonda assenze (solo audit, fonti autorizzate)
+
+# Nessun trigger automatico. I job non interrogano fonti escluse dai termini.
+# Gli input di autorizzazione ufficiali sono fail-closed: default "no".
+
+on:
+  workflow_dispatch:
+    inputs:
+      report_window:
+        description: "Finestra del turno da verificare (es. 16–19/10/2026)"
+        required: true
+        type: string
+      authorize_serie_a:
+        description: "Confermo permesso scritto Lega Serie A per fetch, estrazione e snapshot JSON"
+        required: true
+        type: choice
+        options: ["no", "yes"]
+        default: "no"
+      serie_a_pdf_url:
+        description: "URL HTTPS diretto del PDF corrente del Giudice Sportivo (dominio Lega Serie A)"
+        required: false
+        type: string
+      serie_a_history_urls:
+        description: "Serie A: URL PDF precedenti, uno per riga, per calcolare i diffidati da inizio stagione (max 20)"
+        required: false
+        type: string
+      serie_a_history_complete:
+        description: "Confermo di aver incluso tutti i comunicati/parti ufficiali dalla 1ª giornata"
+        required: true
+        type: choice
+        options: ["no", "yes"]
+        default: "no"
+      authorize_rfef:
+        description: "Confermo permesso scritto RFEF per fetch, estrazione e snapshot JSON"
+        required: true
+        type: choice
+        options: ["no", "yes"]
+        default: "no"
+      rfef_pdf_url:
+        description: "URL HTTPS diretto del PDF ufficiale RFEF della giornata appena conclusa"
+        required: false
+        type: string
+      authorize_lfp:
+        description: "Confermo permesso scritto LFP per fetch, estrazione e snapshot JSON"
+        required: true
+        type: choice
+        options: ["no", "yes"]
+        default: "no"
+      lfp_article_url:
+        description: "URL HTTPS diretto dell'articolo ufficiale LFP con le decisioni disciplinari"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: audit-assenze-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  serie_a:
+    name: Serie A — Giudice Sportivo
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Poppler per i PDF (solo se autorizzato e URL presente)
+        if: ${{ inputs.authorize_serie_a == 'yes' && inputs.serie_a_pdf_url != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+      - name: Leggi il PDF corrente o registra non letta
+        env:
+          AUTH: ${{ inputs.authorize_serie_a }}
+          SOURCE_URL: ${{ inputs.serie_a_pdf_url }}
+          HISTORY_URLS: ${{ inputs.serie_a_history_urls }}
+          HISTORY_COMPLETE: ${{ inputs.serie_a_history_complete }}
+          REPORT_WINDOW: ${{ inputs.report_window }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/assenze-source"
+          python -m audit.assenze.cli \
+            --source serie_a \
+            --authorized "$AUTH" \
+            --url "$SOURCE_URL" \
+            --history-urls-text "$HISTORY_URLS" \
+            --history-complete "$HISTORY_COMPLETE" \
+            --report-window "$REPORT_WINDOW" \
+            --output "$RUNNER_TEMP/assenze-source/serie_a.json"
+      - name: Snapshot del job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assenze-serie-a-${{ github.run_id }}
+          path: ${{ runner.temp }}/assenze-source/serie_a.json
+          if-no-files-found: warn
+          retention-days: 3
+
+  laliga:
+    name: La Liga — RFEF
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Poppler per i PDF (solo se autorizzato e URL presente)
+        if: ${{ inputs.authorize_rfef == 'yes' && inputs.rfef_pdf_url != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+      - name: Leggi il PDF RFEF o registra non letta
+        env:
+          AUTH: ${{ inputs.authorize_rfef }}
+          SOURCE_URL: ${{ inputs.rfef_pdf_url }}
+          REPORT_WINDOW: ${{ inputs.report_window }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/assenze-source"
+          python -m audit.assenze.cli \
+            --source laliga \
+            --authorized "$AUTH" \
+            --url "$SOURCE_URL" \
+            --report-window "$REPORT_WINDOW" \
+            --output "$RUNNER_TEMP/assenze-source/laliga.json"
+      - name: Snapshot del job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assenze-laliga-${{ github.run_id }}
+          path: ${{ runner.temp }}/assenze-source/laliga.json
+          if-no-files-found: warn
+          retention-days: 3
+
+  ligue1:
+    name: Ligue 1 — LFP
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Leggi l'articolo ufficiale o registra non letta
+        env:
+          AUTH: ${{ inputs.authorize_lfp }}
+          SOURCE_URL: ${{ inputs.lfp_article_url }}
+          REPORT_WINDOW: ${{ inputs.report_window }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/assenze-source"
+          python -m audit.assenze.cli \
+            --source ligue1 \
+            --authorized "$AUTH" \
+            --url "$SOURCE_URL" \
+            --report-window "$REPORT_WINDOW" \
+            --output "$RUNNER_TEMP/assenze-source/ligue1.json"
+      - name: Snapshot del job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assenze-ligue1-${{ github.run_id }}
+          path: ${{ runner.temp }}/assenze-source/ligue1.json
+          if-no-files-found: warn
+          retention-days: 3
+
+  rotowire:
+    name: RotoWire — esclusa dai termini, nessun fetch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Registra esclusione (nessuna rete)
+        env:
+          REPORT_WINDOW: ${{ inputs.report_window }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/assenze-source"
+          python -m audit.assenze.cli --source rotowire --report-window "$REPORT_WINDOW" --output "$RUNNER_TEMP/assenze-source/rotowire.json"
+      - name: Snapshot del job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assenze-rotowire-${{ github.run_id }}
+          path: ${{ runner.temp }}/assenze-source/rotowire.json
+          if-no-files-found: warn
+          retention-days: 3
+
+  premier_injuries:
+    name: Premier Injuries — esclusa dall'archiviazione in rete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Registra esclusione (nessuna rete)
+        env:
+          REPORT_WINDOW: ${{ inputs.report_window }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/assenze-source"
+          python -m audit.assenze.cli --source premier_injuries --report-window "$REPORT_WINDOW" --output "$RUNNER_TEMP/assenze-source/premier_injuries.json"
+      - name: Snapshot del job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assenze-premier-injuries-${{ github.run_id }}
+          path: ${{ runner.temp }}/assenze-source/premier_injuries.json
+          if-no-files-found: warn
+          retention-days: 3
+
+  fantacalcio:
+    name: Fantacalcio.it — esclusa senza autorizzazione scritta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Registra esclusione (nessuna rete)
+        env:
+          REPORT_WINDOW: ${{ inputs.report_window }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/assenze-source"
+          python -m audit.assenze.cli --source fantacalcio --report-window "$REPORT_WINDOW" --output "$RUNNER_TEMP/assenze-source/fantacalcio.json"
+      - name: Snapshot del job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assenze-fantacalcio-${{ github.run_id }}
+          path: ${{ runner.temp }}/assenze-source/fantacalcio.json
+          if-no-files-found: warn
+          retention-days: 3
+
+  report:
+    name: Referto e snapshot timestampati
+    if: ${{ always() }}
+    needs: [serie_a, laliga, ligue1, rotowire, premier_injuries, fantacalcio]
+    permissions:
+      contents: write
+      actions: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Scarica gli snapshot dei job indipendenti
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: assenze-*-${{ github.run_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/assenze-source
+      - name: Genera diagnostica completa e referto
+        env:
+          REPORT_WINDOW: ${{ inputs.report_window }}
+          RUN_STARTED_AT: ${{ github.run_started_at }}
+          RUN_ID: ${{ github.run_id }}
+          JOB_STATES: '{"serie_a":"${{ needs.serie_a.result }}","laliga":"${{ needs.laliga.result }}","ligue1":"${{ needs.ligue1.result }}","rotowire":"${{ needs.rotowire.result }}","premier_injuries":"${{ needs.premier_injuries.result }}","fantacalcio":"${{ needs.fantacalcio.result }}"}'
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u -d "$RUN_STARTED_AT" +%Y-%m-%d_%H%M)
+          DEST="audit/data/assenze/$STAMP"
+          if [ -e "$DEST" ]; then
+            echo "::error::snapshot già esistente per $STAMP UTC; nessun dato sovrascritto, rilancia dopo il cambio minuto."
+            exit 1
+          fi
+          python -m audit.assenze.report \
+            --snapshot-dir "$RUNNER_TEMP/assenze-source" \
+            --stamp "$STAMP" \
+            --report-window "$REPORT_WINDOW" \
+            --run-id "$RUN_ID" \
+            --job-states "$JOB_STATES"
+          cat audit/results/sonda_assenze.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit del referto e snapshot sul branch dispatchato
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_STARTED_AT: ${{ github.run_started_at }}
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u -d "$RUN_STARTED_AT" +%Y-%m-%d_%H%M)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "audit/data/assenze/$STAMP" audit/results/sonda_assenze.md
+          if git diff --cached --quiet; then
+            echo "Nessuna variazione da committare."
+            exit 0
+          fi
+          git commit -m "Audit assenze $STAMP UTC (run $RUN_ID)"
+          git push origin "HEAD:$REF"
