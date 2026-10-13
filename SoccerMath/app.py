@@ -5140,16 +5140,22 @@ def _sintesi_registro_mercato(righe) -> tuple:
             senza_prima_prob += 1
         else:
             prime.append(float(p))
-    if prime:
-        y_cento = int(round(100.0 * (sum(prime) / len(prime))))
-        coda_y = (f" ({senza_prima_prob} senza probabilità leggibile alla prima "
-                  f"registrazione, fuori dalla media)" if senza_prima_prob else "")
-        riga1 = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento} su 100). "
-                 f"Le quote si aspettavano {y_cento} su 100.{coda_y}")
-    else:
-        riga1 = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento} su 100). "
-                 "Nessuna probabilità leggibile alla prima registrazione: il "
-                 "confronto con le quote non si può fare.")
+       modello = []
+    for r in concluse_records:
+        try:
+            v = float(r.get(PROB_MODELLO_PRIMA_FIELD))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(v) and v > 0:
+            modello.append(v if v > 1.0 else v * 100.0)
+    testo_quote = (f"Quote: {int(round(100.0 * sum(prime) / len(prime)))}%"
+                   if prime else "Quote: n/d")
+    testo_modello = (f"Modello: {int(round(sum(modello) / len(modello)))}%"
+                     if modello else "Modello: n/d")
+    coda_y = (f" ({senza_prima_prob} senza probabilità leggibile alla prima "
+              f"registrazione, fuori dalla media)" if senza_prima_prob else "")
+    riga1 = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento}%). "
+             f"{testo_quote}. {testo_modello}.{coda_y}")
     netto = 0.0
     nd = 0
     for e, q in concluse:
