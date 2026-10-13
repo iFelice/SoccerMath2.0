@@ -1,0 +1,1183 @@
+{
+  "versione": "allenatori_snapshot_v1",
+  "quando": "2026-10-13T17:23:03Z",
+  "stagione": null,
+  "modalita": "rete",
+  "leghe": [
+    "Serie A",
+    "Premier League",
+    "La Liga",
+    "Bundesliga",
+    "Ligue 1"
+  ],
+  "chiamate": 101,
+  "riprovate": 0,
+  "attese": 41,
+  "attese_429": 0,
+  "attese_header": 10,
+  "max_per_minuto": 10,
+  "durata_minima_teorica": "9 min 6 s",
+  "durata_reale": "10 min 1 s",
+  "leghe_mancanti": [],
+  "copertura": {
+    "per_lega": {
+      "Serie A": {
+        "squadre": 20,
+        "con_allenatore": 20,
+        "senza": []
+      },
+      "Premier League": {
+        "squadre": 20,
+        "con_allenatore": 20,
+        "senza": []
+      },
+      "La Liga": {
+        "squadre": 20,
+        "con_allenatore": 20,
+        "senza": []
+      },
+      "Bundesliga": {
+        "squadre": 18,
+        "con_allenatore": 18,
+        "senza": []
+      },
+      "Ligue 1": {
+        "squadre": 18,
+        "con_allenatore": 17,
+        "senza": [
+          "Stade Brestois 29"
+        ]
+      }
+    },
+    "squadre": 96,
+    "con_allenatore": 95,
+    "frazione": 0.9895833333333334,
+    "percentuale": 0.9895833333333334,
+    "soglia": 0.95,
+    "senza_allenatore": [
+      "Ligue 1: Stade Brestois 29"
+    ]
+  },
+  "copertura_valutata": true,
+  "squadre": 96,
+  "con_allenatore": 95,
+  "copertura_per_lega": {
+    "Serie A": {
+      "squadre": 20,
+      "con_allenatore": 20,
+      "senza": []
+    },
+    "Premier League": {
+      "squadre": 20,
+      "con_allenatore": 20,
+      "senza": []
+    },
+    "La Liga": {
+      "squadre": 20,
+      "con_allenatore": 20,
+      "senza": []
+    },
+    "Bundesliga": {
+      "squadre": 18,
+      "con_allenatore": 18,
+      "senza": []
+    },
+    "Ligue 1": {
+      "squadre": 18,
+      "con_allenatore": 17,
+      "senza": [
+        "Stade Brestois 29"
+      ]
+    }
+  },
+  "senza_allenatore": [
+    "Ligue 1: Stade Brestois 29"
+  ],
+  "forme_date": {},
+  "esito": {
+    "valutabile": true,
+    "copertura_ok": true,
+    "casi_ok": false,
+    "affidabile": false,
+    "motivi": [
+      "5 casi su 6 non aggiornati"
+    ]
+  },
+  "casi": [
+    {
+      "lega": "Serie A",
+      "squadra": "Fiorentina",
+      "allenatore_uscente": "Fabio Grosso",
+      "allenatore_atteso": "Paolo Vanoli",
+      "data_cambio": "2026-09-06",
+      "fonte": "https://sport.sky.it/calcio/serie-a/serie-a-2026-2027-allenatori-esonerati",
+      "nota": "Grosso esonerato dopo la 3ª giornata (0 punti, ultimo posto); Vanoli subentrato.",
+      "rilevato_il": "2026-10-13T17:23:03Z",
+      "eta_giorni": 37,
+      "allenatore_api": "Fabio Grosso",
+      "esito": "non aggiornato",
+      "dettaglio": "l'API riporta ancora l'uscente (Fabio Grosso); atteso: Paolo Vanoli"
+    },
+    {
+      "lega": "Serie A",
+      "squadra": "Bologna",
+      "allenatore_uscente": "Domenico Tedesco",
+      "allenatore_atteso": "Raffaele Palladino",
+      "data_cambio": "2026-09-27",
+      "fonte": "https://sport.sky.it/calcio/serie-a/serie-a-2026-2027-allenatori-esonerati",
+      "nota": "Palladino ha firmato fino al 30 giugno 2029 (fonte: Sky Sport, 27/09/2026).",
+      "rilevato_il": "2026-10-13T17:23:03Z",
+      "eta_giorni": 16,
+      "allenatore_api": "Domenico Tedesco",
+      "esito": "non aggiornato",
+      "dettaglio": "l'API riporta ancora l'uscente (Domenico Tedesco); atteso: Raffaele Palladino"
+    },
+    {
+      "lega": "Serie A",
+      "squadra": "Parma",
+      "allenatore_uscente": "Carlos Cuesta",
+      "allenatore_atteso": "Alberto Gilardino",
+      "data_cambio": "2026-09-27",
+      "fonte": "https://www.corrieredellosport.it/news/calcio/serie-a/parma/2026/09/29-151546958/parma_gilardino_il_nuovo_allenatore_ora_ufficiale",
+      "nota": "Cuesta fuori il 27/09/2026, Gilardino ufficializzato il 29/09/2026 (contratto fino al 30/06/2027 con opzione).",
+      "rilevato_il": "2026-10-13T17:23:03Z",
+      "eta_giorni": 16,
+      "allenatore_api": "Carlos Cuesta",
+      "esito": "non aggiornato",
+      "dettaglio": "l'API riporta ancora l'uscente (Carlos Cuesta); atteso: Alberto Gilardino"
+    },
+    {
+      "lega": "Bundesliga",
+      "squadra": "Borussia Mönchengladbach",
+      "allenatore_uscente": "Eugen Polanski",
+      "allenatore_atteso": "Alexander Blessin",
+      "data_cambio": "2026-09-22",
+      "fonte": "https://www.bundesliga.com/de/bundesliga/news/alexander-blessin-gladbach-trainer-fix-nachfolger-eugen-polanski-39297",
+      "nota": "Polanski si e' dimesso il 13/09/2026 dopo lo 0-5 di Friburgo; Blessin annunciato il 22/09/2026 (contratto fino al 2028).",
+      "rilevato_il": "2026-10-13T17:23:03Z",
+      "eta_giorni": 21,
+      "allenatore_api": "Eugen Polański",
+      "esito": "non aggiornato",
+      "dettaglio": "l'API riporta ancora l'uscente (Eugen Polanski); atteso: Alexander Blessin"
+    },
+    {
+      "lega": "Ligue 1",
+      "squadra": "Lens",
+      "allenatore_uscente": "Dino Toppmöller",
+      "allenatore_atteso": "Yannick Cahuzac",
+      "data_cambio": "2026-09-15",
+      "fonte": "https://www.franceinfo.fr/sports/foot/rc-lens/ligue-1-yannick-cahuzac-restera-l-entraineur-de-lens-au-dela-du-match-a-monaco_8197349.html",
+      "nota": "Toppmöller sollevato il 15/09/2026; Cahuzac promosso primo allenatore (annuncio 17/09/2026, nessun interim a termine).",
+      "rilevato_il": "2026-10-13T17:23:03Z",
+      "eta_giorni": 28,
+      "allenatore_api": "Yannick Cahuzac",
+      "esito": "aggiornato",
+      "dettaglio": "l'API riporta l'entrante (Yannick Cahuzac)"
+    },
+    {
+      "lega": "La Liga",
+      "squadra": "Osasuna",
+      "allenatore_uscente": "Luis Miguel Ramis",
+      "allenatore_atteso": "Jagoba Arrasate",
+      "data_cambio": "2026-10-12",
+      "fonte": "https://www.infobae.com/america/agencias/2026/10/12/el-osasuna-espanol-destituye-a-su-entrenador-luis-miguel-ramis-y-jagoba-arrasate-vuelve/",
+      "nota": "Ramis sollevato il 12/10/2026 dopo 8 giornate; Arrasate torna a Pamplona (fonte EFE/Infobae).",
+      "rilevato_il": "2026-10-13T17:23:03Z",
+      "eta_giorni": 1,
+      "allenatore_api": "Luis Ramis",
+      "esito": "non aggiornato",
+      "dettaglio": "l'API riporta ancora l'uscente (Luis Miguel Ramis); atteso: Jagoba Arrasate"
+    }
+  ],
+  "leghe_fallite": [],
+  "min_casi_pubblici": 3,
+  "casi_versione": "casi_allenatori_2026_27_v1",
+  "casi_raccolti_il": "2026-10-13",
+  "casi_esclusi": [
+    {
+      "lega": "La Liga",
+      "squadra": "Valencia",
+      "motivo": "Carlos Corberan esonerato il 13/09/2026 (fonte: https://www.rtve.es/deportes/20260913/valencia-destiutcion-carlos-corberan-entrenador-ceo-cupula-directiva-futbol/17223177.shtml), ma le fonti consultate danno un tecnico ad interim (Oscar Sanchez, Mestalla) senza un sostituto definitivo certo: senza l'entrante il confronto con le API non direbbe nulla, quindi il caso NON e' conteggiato.",
+      "data_cambio": "2026-09-13"
+    },
+    {
+      "lega": "Premier League",
+      "squadra": null,
+      "motivo": "nessun esonero in Premier League 2026/27 al 09/10/2026 (fonti: https://www.footballtransfers.com/en/transfer-news/uk-premier-league/2021/10/what-managers-have-been-sacked-this-season del 06/10/2026 e la pagina BBC \"Manager ins and outs - 2026-27\", in cui non compare nessun cambio di panchina di Premier fino al 10/10/2026): per la Premier non c'e' un caso da verificare, e' il risultato stesso.",
+      "data_cambio": null
+    }
+  ],
+  "squadre_per_lega": {
+    "Serie A": [
+      {
+        "id": 98,
+        "nome": "AC Milan",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Ruben Amorim",
+        "allenatore_id": 107164,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 99,
+        "nome": "ACF Fiorentina",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Fabio Grosso",
+        "allenatore_id": 40155,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 100,
+        "nome": "AS Roma",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Gian Piero Gasperini",
+        "allenatore_id": 10989,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 102,
+        "nome": "Atalanta BC",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Maurizio Sarri",
+        "allenatore_id": 10983,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 103,
+        "nome": "Bologna FC 1909",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Domenico Tedesco",
+        "allenatore_id": 10239,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 104,
+        "nome": "Cagliari Calcio",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Fabio Pisacane",
+        "allenatore_id": 1898,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 107,
+        "nome": "Genoa CFC",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Daniele De Rossi",
+        "allenatore_id": 1810,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 108,
+        "nome": "FC Internazionale Milano",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Cristian Chivu",
+        "allenatore_id": 194383,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 109,
+        "nome": "Juventus FC",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Luciano Spalletti",
+        "allenatore_id": 10997,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 110,
+        "nome": "SS Lazio",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Gennaro Gattuso",
+        "allenatore_id": 11088,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 112,
+        "nome": "Parma Calcio 1913",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Carlos Cuesta",
+        "allenatore_id": 179726,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 113,
+        "nome": "SSC Napoli",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Massimiliano Allegri",
+        "allenatore_id": 10975,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 115,
+        "nome": "Udinese Calcio",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Kosta Runjaić",
+        "allenatore_id": 105451,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 454,
+        "nome": "Venezia FC",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Giovanni Stroppa",
+        "allenatore_id": 41224,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 470,
+        "nome": "Frosinone Calcio",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Massimiliano Alvini",
+        "allenatore_id": 40482,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 471,
+        "nome": "US Sassuolo Calcio",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Alberto Aquilani",
+        "allenatore_id": 194459,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 586,
+        "nome": "Torino FC",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Ignazio Abate",
+        "allenatore_id": 1736,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 5890,
+        "nome": "US Lecce",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Eusebio Di Francesco",
+        "allenatore_id": 9345,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 5911,
+        "nome": "AC Monza",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Ivan Juric",
+        "allenatore_id": 11034,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 7397,
+        "nome": "Como 1907",
+        "rilevato_il": "2026-10-13T17:23:03Z",
+        "allenatore": "Fàbregas",
+        "allenatore_id": 7811,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      }
+    ],
+    "Premier League": [
+      {
+        "id": 57,
+        "nome": "Arsenal FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Mikel Arteta",
+        "allenatore_id": 179744,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 58,
+        "nome": "Aston Villa FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Unai Emery",
+        "allenatore_id": 11616,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 61,
+        "nome": "Chelsea FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Xabi Alonso",
+        "allenatore_id": 180279,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 62,
+        "nome": "Everton FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "David Moyes",
+        "allenatore_id": 11734,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 63,
+        "nome": "Fulham FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Arbeloa",
+        "allenatore_id": 155925,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 64,
+        "nome": "Liverpool FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Andoni Iraola",
+        "allenatore_id": 206352,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 65,
+        "nome": "Manchester City FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Enzo Maresca",
+        "allenatore_id": 172279,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 66,
+        "nome": "Manchester United FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Michael Carrick",
+        "allenatore_id": 7903,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 67,
+        "nome": "Newcastle United FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Matthias Jaissle",
+        "allenatore_id": 160894,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 71,
+        "nome": "Sunderland AFC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Regis Le Bris",
+        "allenatore_id": 185195,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 73,
+        "nome": "Tottenham Hotspur FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Roberto De Zerbi",
+        "allenatore_id": 11109,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 322,
+        "nome": "Hull City AFC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Sergej Jakirović",
+        "allenatore_id": 75139,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 341,
+        "nome": "Leeds United FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Daniel Farke",
+        "allenatore_id": 11323,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 349,
+        "nome": "Ipswich Town FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Gary O'Neil",
+        "allenatore_id": 4402,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 351,
+        "nome": "Nottingham Forest FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Oliver Glasner",
+        "allenatore_id": 10727,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 354,
+        "nome": "Crystal Palace FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Pierre Sage",
+        "allenatore_id": 244768,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 397,
+        "nome": "Brighton & Hove Albion FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Fabian Hürzeler",
+        "allenatore_id": 65145,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 402,
+        "nome": "Brentford FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Keith Andrews",
+        "allenatore_id": 193328,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 1044,
+        "nome": "AFC Bournemouth",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Marco Rose",
+        "allenatore_id": 15111,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 1076,
+        "nome": "Coventry City FC",
+        "rilevato_il": "2026-10-13T17:25:04Z",
+        "allenatore": "Frank Lampard",
+        "allenatore_id": 25598,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      }
+    ],
+    "La Liga": [
+      {
+        "id": 77,
+        "nome": "Athletic Club",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Edin Terzić",
+        "allenatore_id": 111241,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 78,
+        "nome": "Club Atlético de Madrid",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Diego Simeone",
+        "allenatore_id": 132,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 79,
+        "nome": "CA Osasuna",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Luis Ramis",
+        "allenatore_id": 166994,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 80,
+        "nome": "RCD Espanyol de Barcelona",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Manolo González",
+        "allenatore_id": 83316,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 81,
+        "nome": "FC Barcelona",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Hansi Flick",
+        "allenatore_id": 133997,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 82,
+        "nome": "Getafe CF",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Pepe Bordalás",
+        "allenatore_id": 3155,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 84,
+        "nome": "Málaga CF",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Juan Funes",
+        "allenatore_id": 289473,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 86,
+        "nome": "Real Madrid CF",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "José Mourinho",
+        "allenatore_id": 11613,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 87,
+        "nome": "Rayo Vallecano de Madrid",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Beñat San José",
+        "allenatore_id": 23833,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 88,
+        "nome": "Levante UD",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Luís Castro",
+        "allenatore_id": 128034,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 90,
+        "nome": "Real Betis Balompié",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Manuel Pellegrini",
+        "allenatore_id": 11630,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 92,
+        "nome": "Real Sociedad de Fútbol",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Pellegrino Matarazzo",
+        "allenatore_id": 10232,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 94,
+        "nome": "Villarreal CF",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Inigo Perez",
+        "allenatore_id": 190808,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 95,
+        "nome": "Valencia CF",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Carlos Corberán",
+        "allenatore_id": 149937,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 263,
+        "nome": "Deportivo Alavés",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Quique Sanchez Flores",
+        "allenatore_id": 175709,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 285,
+        "nome": "Elche CF",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Martin Anselmi",
+        "allenatore_id": 179333,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 558,
+        "nome": "RC Celta de Vigo",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Claudio",
+        "allenatore_id": 249529,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 559,
+        "nome": "Sevilla FC",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Luís García",
+        "allenatore_id": 21520,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 560,
+        "nome": "RC Deportivo La Coruña",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "Antonio Hidalgo",
+        "allenatore_id": 81773,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 5335,
+        "nome": "Real Racing Club de Santander",
+        "rilevato_il": "2026-10-13T17:27:05Z",
+        "allenatore": "José Alberto López",
+        "allenatore_id": 99694,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      }
+    ],
+    "Bundesliga": [
+      {
+        "id": 1,
+        "nome": "1. FC Köln",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "René Wagner",
+        "allenatore_id": 179879,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 2,
+        "nome": "TSG 1899 Hoffenheim",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Christian Ilzer",
+        "allenatore_id": 60281,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 3,
+        "nome": "Bayer 04 Leverkusen",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Carles Martínez",
+        "allenatore_id": 210420,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 4,
+        "nome": "Borussia Dortmund",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Niko Kovać",
+        "allenatore_id": 8823,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 5,
+        "nome": "FC Bayern München",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Vincent Kompany",
+        "allenatore_id": 3644,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 6,
+        "nome": "FC Schalke 04",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Miron Muslic",
+        "allenatore_id": 99753,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 7,
+        "nome": "Hamburger SV",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Merlin Polzin",
+        "allenatore_id": 179991,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 10,
+        "nome": "VfB Stuttgart",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Sebastian Hoeneß",
+        "allenatore_id": 122191,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 12,
+        "nome": "SV Werder Bremen",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Daniel Thioune",
+        "allenatore_id": 10569,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 15,
+        "nome": "1. FSV Mainz 05",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Urs Fischer",
+        "allenatore_id": 77324,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 16,
+        "nome": "FC Augsburg",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Manuel Baum",
+        "allenatore_id": 10242,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 17,
+        "nome": "SC Freiburg",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Julian Schuster",
+        "allenatore_id": 9482,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 18,
+        "nome": "Borussia Mönchengladbach",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Eugen Polański",
+        "allenatore_id": 192935,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 19,
+        "nome": "Eintracht Frankfurt",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Adi Hütter",
+        "allenatore_id": 16283,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 28,
+        "nome": "1. FC Union Berlin",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Mauro Lustrinelli",
+        "allenatore_id": 196389,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 29,
+        "nome": "SC Paderborn 07",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Ralf Kettemann",
+        "allenatore_id": 279702,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 719,
+        "nome": "SV 07 Elversberg",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Vincent Wagner",
+        "allenatore_id": 212119,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 721,
+        "nome": "RB Leipzig",
+        "rilevato_il": "2026-10-13T17:29:06Z",
+        "allenatore": "Martín Demichelis",
+        "allenatore_id": 193157,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      }
+    ],
+    "Ligue 1": [
+      {
+        "id": 511,
+        "nome": "Toulouse FC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Jens Berthel Askou",
+        "allenatore_id": 205504,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 512,
+        "nome": "Stade Brestois 29",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": null,
+        "allenatore_id": null,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 516,
+        "nome": "Olympique de Marseille",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Bruno Génésio",
+        "allenatore_id": 45101,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 519,
+        "nome": "AJ Auxerre",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "William Still",
+        "allenatore_id": 189276,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 521,
+        "nome": "Lille OSC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Davide Ancelotti",
+        "allenatore_id": 178633,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 522,
+        "nome": "OGC Nice",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Olivier Pantaloni",
+        "allenatore_id": 57280,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 523,
+        "nome": "Olympique Lyonnais",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Paulo Fonseca",
+        "allenatore_id": 16490,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 524,
+        "nome": "Paris Saint-Germain FC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Luis Enrique",
+        "allenatore_id": 15874,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 525,
+        "nome": "FC Lorient",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Alexandre Dujeux",
+        "allenatore_id": 192435,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 529,
+        "nome": "Stade Rennais FC 1901",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Franck Haise",
+        "allenatore_id": 142508,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 531,
+        "nome": "ES Troyes AC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Stéphane Dumont",
+        "allenatore_id": 102416,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 532,
+        "nome": "Angers SCO",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Stéphane Gilli",
+        "allenatore_id": 211772,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 533,
+        "nome": "Le Havre AC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Didier Digard",
+        "allenatore_id": 33769,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 535,
+        "nome": "Le Mans FC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Patrick Videira",
+        "allenatore_id": 157933,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 546,
+        "nome": "Racing Club de Lens",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Yannick Cahuzac",
+        "allenatore_id": 8304,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 548,
+        "nome": "AS Monaco FC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Filipe Luis",
+        "allenatore_id": 117,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 576,
+        "nome": "RC Strasbourg Alsace",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Hugo Oliveira",
+        "allenatore_id": 180388,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      },
+      {
+        "id": 1045,
+        "nome": "Paris FC",
+        "rilevato_il": "2026-10-13T17:31:05Z",
+        "allenatore": "Liam Rosenior",
+        "allenatore_id": 8262,
+        "contratto_dal": null,
+        "contratto_fino": null,
+        "forme_date": []
+      }
+    ]
+  },
+  "scritto_il": "2026-10-13T17:23:03Z"
+}
