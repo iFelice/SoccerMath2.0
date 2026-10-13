@@ -35,9 +35,27 @@ REGOLE DI LETTURA (dichiarate nel referto, testate una per una)
   "N su M partite";
 * le distanze in classifica sono punti del riferimento MENO punti della
   squadra: positive = da recuperare, negative = di vantaggio;
+* ``SOGLIA_TITOLO = 6``: "In corsa per il titolo" si scrive **solo** per una
+  squadra nelle PRIME 3 posizioni ed entro 6 punti dal primo posto. Chi e'
+  entro 6 punti ma fuori dalle prime 3 non e' in corsa per il titolo e ricade
+  sulla regola successiva (Europa o zona tranquilla): con 30 punti del primo e
+  24 di una squadra 8ª, la distanza non e' un distacco da titolo;
+* "Al comando della classifica" e' della PRIMA in classifica (posizione 1), non
+  di chi ha 0 punti di distacco: una seconda a pari punti e' "appaiata al
+  primo posto", non al comando;
 * la zona retrocessione e' l'insieme delle ULTIME 3 posizioni; in Bundesliga e
   Ligue 1 (18 squadre) la terzultima e' la posizione di spareggio e viene
-  scritta come tale (``LEGHE_CON_SPAREGGIO``);
+  scritta come tale (``LEGHE_CON_SPAREGGIO``), mentre le ULTIME DUE (penultima
+  e ultima) sono in retrocessione diretta: per loro la frase e' "In zona
+  retrocessione diretta: N punti dalla salvezza", dove la salvezza e' la prima
+  posizione fuori dalla retrocessione diretta (la terzultima nei campionati a
+  18 con spareggio, la 17ª nelle leghe a 20 squadre); l'avviso "(terzultima =
+  spareggio)" si scrive **solo** per la squadra che occupa davvero quella
+  posizione, mai per le altre;
+* le probabilita' della scheda sono NUMERI da incolonnare, con la sigla
+  dell'esito e le stesse voci delle tabelle della scheda Giocate:
+  ``1 · Quote % 17,4 · Modello % 18,3`` (nessuna parentesi, nessun simbolo
+  ``%``: la percentuale sta nell'intestazione della voce);
 * la forza dell'avversario e' a tre fasce ("forte", "media", "debole") sui
   TERZILI dell'Elo del campionato al momento della partita, letto PRIMA della
   partita (walk-forward: il rating di una partita futura non entra nella fascia
@@ -70,6 +88,7 @@ GIORNATE_MINIME_CLASSIFICA = 5   # sotto 5 giornate giocate: frase "appena inizi
 MIN_PARTITE_BLOCCO = 3           # sotto 3 partite: blocco "dati insufficienti"
 MIN_PARTITE_PERCENTUALE = 5      # sotto 5 partite: mai una percentuale
 SOGLIA_TITOLO = 6                # punti dal primo posto entro cui si e' "in corsa"
+POSIZIONI_TITOLO = 3             # ... e solo dentro le prime 3 posizioni
 SOGLIA_EUROPA = 6                # punti dal sesto posto entro cui si e' "in corsa"
 SOGLIA_SALVEZZA = 6              # punti sopra la zona entro cui la lotta e' aperta
 ZONA_RETROCESSIONE = 3           # ultime N posizioni = zona retrocessione
@@ -80,11 +99,10 @@ FASCE_ELO = ("forte", "media", "debole")
 
 FRASE_APPENA_INIZIATO = "Campionato appena iniziato: classifica ancora poco indicativa."
 
-#: Nota dichiarata sui campionati a spareggio: la terzultima NON retrocede
-#: direttamente. Si scrive SEMPRE che si parla della zona retrocessione in
-#: Bundesliga e Ligue 1 (18 squadre), perche' li' la prima posizione della
-#: zona e' lo spareggio e non la retrocessione.
-NOTA_SPAREGGIO = " (terzultima = spareggio)"
+#: Etichetta dichiarata della posizione di spareggio: si scrive SOLO per la
+#: squadra che occupa davvero quella posizione (terzultima di Bundesliga e
+#: Ligue 1, 18 squadre), mai per le altre squadre della zona.
+ETICHETTA_TERZULTIMA = "terzultima = spareggio"
 FRASE_QUOTE_ASSENTI = "Quote non ancora disponibili"
 
 
@@ -119,8 +137,19 @@ def percento_in_parole(valore: Any) -> str:
     return f"{n:.1f}".replace(".", ",") + "%"
 
 
-def percento_numero_in_parole(numero: Any) -> str:
-    """Percentuale GIA' in 0-100 (es. il "Modello %" del giro del modello)."""
+def numero_percentuale(valore: Any) -> str:
+    """Il NUMERO della colonna «Quote %»: 17.4 -> "17,4" (nessun simbolo).
+
+    E' lo stesso numero che la scheda Giocate mostra sotto l'intestazione
+    «Quote %»: una cifra decimale, virgola italiana, nessun ``%`` (il simbolo
+    sta nella voce, non nel numero).
+    """
+    n = percento_una_cifra(valore)
+    return "n/d" if n is None else f"{n:.1f}".replace(".", ",")
+
+
+def numero_percentuale_modello(numero: Any) -> str:
+    """Come :func:`numero_percentuale`, per il «Modello %» (numero GIA' 0-100)."""
     if numero is None or isinstance(numero, bool):
         return "n/d"
     try:
@@ -129,7 +158,7 @@ def percento_numero_in_parole(numero: Any) -> str:
         return "n/d"
     if not math.isfinite(v):
         return "n/d"
-    return f"{v:.1f}".replace(".", ",") + "%"
+    return f"{v:.1f}".replace(".", ",")
 
 
 def media_una_cifra(valore: Any) -> str:
@@ -344,15 +373,24 @@ def posta_in_palio(cl: Sequence[Dict[str, Any]], camp_key: str, squadra: str,
                    n_squadre: int) -> Optional[Dict[str, Any]]:
     """Distanze in punti e posta in palio di una squadra.
 
-    Le distanze sono PUNTI DEL RIFERIMENTO MENO PUNTI DELLA SQUADRA: positive =
-    da recuperare, negative = di vantaggio.
+    Le distanze ``dal_*`` sono PUNTI DEL RIFERIMENTO MENO PUNTI DELLA SQUADRA:
+    positive = da recuperare, negative = di vantaggio. ``dalla_zona`` e'
+    l'opposto per costruzione (punti della squadra meno punti della prima
+    posizione della zona: positiva = sopra la zona).
 
     * ``dal_primo``        0 per la prima in classifica;
     * ``dal_quarto``/``dal_sesto``  quarto e sesto posto;
     * ``dalla_zona``       punti SOPRA la prima posizione della zona
                            retrocessione (negativa = dentro la zona);
+    * ``dalla_salvezza``   punti che mancano per uscire dalla retrocessione
+                           DIRETTA: riferimento = prima posizione fuori dalla
+                           zona diretta (la terzultima nei campionati a 18 con
+                           spareggio, la 17ª nelle leghe a 20 squadre);
+    * ``pos_salvezza``     la posizione di quel riferimento;
     * ``in_zona``          True se la squadra e' nelle ultime 3 posizioni;
-    * ``spareggio``        True se e' la terzultima in un campionato a 18.
+    * ``spareggio``        True se e' la terzultima in un campionato a 18;
+    * ``ultime_due``       True se e' la penultima o l'ultima: quelle due
+                           retrocedono direttamente in ogni campionato.
     """
     riga = riga_classifica(cl, squadra)
     if riga is None or n_squadre is None:
@@ -362,7 +400,14 @@ def posta_in_palio(cl: Sequence[Dict[str, Any]], camp_key: str, squadra: str,
     # Prima posizione di retrocessione DIRETTA: la successiva alla prima della
     # zona. Nei campionati a spareggio (Bundesliga, Ligue 1) la terzultima e'
     # lo spareggio, quindi la retrocessione diretta comincia dalla penultima.
-    diretta = next((r for r in cl if r["pos"] == pos_zona + 1), None)
+    spareggio = e_zona_spareggio(camp_key, riga["pos"], n_squadre)
+    prima_diretta = pos_zona + 1 if (camp_key in LEGHE_CON_SPAREGGIO
+                                     and int(n_squadre) == 18) else pos_zona
+    diretta = next((r for r in cl if r["pos"] == prima_diretta), None)
+    # La "salvezza": la prima posizione fuori dalla retrocessione diretta, cioe'
+    # la posizione appena sopra la prima che retrocede direttamente.
+    pos_salvezza = prima_diretta - 1
+    salvezza = next((r for r in cl if r["pos"] == pos_salvezza), None)
     primo = next((r for r in cl if r["pos"] == 1), None)
     quarto = next((r for r in cl if r["pos"] == 4), None)
     sesto = next((r for r in cl if r["pos"] == 6), None)
@@ -377,8 +422,13 @@ def posta_in_palio(cl: Sequence[Dict[str, Any]], camp_key: str, squadra: str,
         "dalla_zona": (riga["punti"] - zona["punti"]) if zona else None,
         "dalla_retrocessione_diretta": ((riga["punti"] - diretta["punti"])
                                         if diretta else None),
+        "dalla_salvezza": ((salvezza["punti"] - riga["punti"])
+                           if salvezza else None),
+        "pos_zona": pos_zona,
+        "pos_salvezza": pos_salvezza,
         "in_zona": bool(riga["pos"] >= pos_zona),
-        "spareggio": e_zona_spareggio(camp_key, riga["pos"], n_squadre),
+        "ultime_due": bool(riga["pos"] >= int(n_squadre) - 1),
+        "spareggio": spareggio,
         "n_squadre": int(n_squadre),
     }
 
@@ -410,30 +460,44 @@ def frase_obiettivi(p: Optional[Dict[str, Any]], giornate_giocate: int,
 
     1. meno di ``GIORNATE_MINIME_CLASSIFICA`` giornate giocate ->
        "Campionato appena iniziato: classifica ancora poco indicativa";
-    2. a 0 punti dal primo posto -> "Al comando della classifica";
-       entro ``SOGLIA_TITOLO`` -> "In corsa per il titolo: N punti dal primo posto";
-    3. nelle ultime 3 posizioni -> dentro la zona ("... dentro la zona
-       retrocessione"), oppure la frase dello spareggio se e' la terzultima di
-       un campionato a 18 squadre ("Spareggio: terzultima, ...");
-    4. entro ``SOGLIA_SALVEZZA`` punti sopra la zona -> "Lotta per non
+    2. prima in classifica (posizione 1) -> "Al comando della classifica";
+    3. dentro le prime ``POSIZIONI_TITOLO`` (3) posizioni e entro
+       ``SOGLIA_TITOLO`` (6) punti dal primo -> "In corsa per il titolo: N punti
+       dal primo posto". Fuori dalle prime 3 la frase del titolo NON si scrive
+       nemmeno se i punti dal primo sono pochi: si ricade sulle regole
+       successive (Europa o zona tranquilla);
+    4. nelle ultime 3 posizioni:
+       - terzultima di un campionato a 18 squadre con spareggio ->
+         "Spareggio: terzultima, ..." (la distanza che conta e' quella dalla
+         retrocessione diretta, cioe' dalla penultima);
+       - penultima o ultima (``ultime_due``) -> "In zona retrocessione diretta:
+         N punti dalla salvezza" (salvezza = prima posizione fuori dalla
+         retrocessione diretta);
+       - altrimenti -> "Lotta per non retrocedere: N punti dentro la zona
+         retrocessione";
+    5. entro ``SOGLIA_SALVEZZA`` punti sopra la zona -> "Lotta per non
        retrocedere: N punti sopra la zona" (a 0 punti: "appaiata alla zona");
-    5. sesto posto raggiunto o superato -> "In zona Europa: ...";
+    6. sesto posto raggiunto o superato -> "In zona Europa: ...";
        entro ``SOGLIA_EUROPA`` punti dal sesto -> "In corsa per l'Europa: N
        punti dal sesto posto";
-    6. altrimenti -> "Zona tranquilla: N punti dal sesto posto, M sopra la zona
+    7. altrimenti -> "Zona tranquilla: N punti dal sesto posto, M sopra la zona
        retrocessione".
     """
     if p is None:
         return "Classifica non disponibile: dati di questa stagione insufficienti."
     if giornate_giocate < GIORNATE_MINIME_CLASSIFICA:
         return FRASE_APPENA_INIZIATO
+    pos = int(p.get("pos") or 0)
+    n_squadre = int(p.get("n_squadre") or 0)
     d_primo, d_sesto, dalla_zona = p.get("dal_primo"), p.get("dal_sesto"), p.get("dalla_zona")
-    if d_primo is not None and d_primo <= 0:
+    if pos == 1:
+        # Al comando e' la PRIMA in classifica: chi ha 0 punti di distacco dal
+        # primo ma non e' primo e' "appaiata", non al comando.
         return "Al comando della classifica."
-    if d_primo is not None and d_primo <= SOGLIA_TITOLO:
+    if pos <= POSIZIONI_TITOLO and d_primo is not None and d_primo <= SOGLIA_TITOLO:
+        if d_primo <= 0:
+            return "In corsa per il titolo: appaiata al primo posto."
         return f"In corsa per il titolo: {_punti(d_primo)} dal primo posto."
-    nota = (NOTA_SPAREGGIO if camp_key in LEGHE_CON_SPAREGGIO
-            and int(p.get("n_squadre") or 0) == 18 else "")
     if p.get("in_zona"):
         if p.get("spareggio"):
             # Terzultima di un campionato a spareggio: la distanza che conta e'
@@ -447,14 +511,23 @@ def frase_obiettivi(p: Optional[Dict[str, Any]], giornate_giocate: int,
             if diretta == 0:
                 return "Spareggio: terzultima, appaiata alla retrocessione diretta."
             return f"Spareggio: terzultima, {_punti(-diretta)} dentro la retrocessione diretta."
-        return ("Lotta per non retrocedere: " + _punti(abs(dalla_zona or 0))
-                + " dentro la zona retrocessione" + nota + ".")
+        if p.get("ultime_due") or (n_squadre and pos >= n_squadre - 1):
+            sal = p.get("dalla_salvezza")
+            if sal is None:
+                return "In zona retrocessione diretta: distanza dalla salvezza non disponibile."
+            if sal > 0:
+                return f"In zona retrocessione diretta: {_punti(sal)} dalla salvezza."
+            return "In zona retrocessione diretta: appaiata alla prima posizione salva."
+        if dalla_zona is None or dalla_zona == 0:
+            # Prima posizione della zona (la 18ª di 20): e' la zona, non e'
+            # dentro la zona, e non e' una delle ultime due.
+            return "Lotta per non retrocedere: appaiata alla zona retrocessione."
+        return ("Lotta per non retrocedere: " + _punti(abs(dalla_zona))
+                + " dentro la zona retrocessione.")
     if dalla_zona is not None and dalla_zona <= SOGLIA_SALVEZZA:
         if dalla_zona <= 0:
-            return ("Lotta per non retrocedere: appaiata alla zona retrocessione"
-                    + nota + ".")
-        return (f"Lotta per non retrocedere: {_punti(dalla_zona)} sopra la zona"
-                + nota + ".")
+            return "Lotta per non retrocedere: appaiata alla zona retrocessione."
+        return f"Lotta per non retrocedere: {_punti(dalla_zona)} sopra la zona."
     if d_sesto is not None and d_sesto <= 0:
         if d_sesto == 0:
             return "In zona Europa: al sesto posto."
@@ -462,7 +535,7 @@ def frase_obiettivi(p: Optional[Dict[str, Any]], giornate_giocate: int,
     if d_sesto is not None and d_sesto <= SOGLIA_EUROPA:
         return f"In corsa per l'Europa: {_punti(d_sesto)} dal sesto posto."
     return (f"Zona tranquilla: {_punti(d_sesto)} dal sesto posto, "
-            f"{_punti(dalla_zona)} sopra la zona retrocessione" + nota + "."
+            f"{_punti(dalla_zona)} sopra la zona retrocessione."
             if d_sesto is not None and dalla_zona is not None
             else "Classifica non disponibile: dati di questa stagione insufficienti.")
 
@@ -1024,17 +1097,18 @@ def blocchi_scheda(scheda: Dict[str, Any]) -> List[Tuple[str, List[str]]]:
     fuori: List[Tuple[str, List[str]]] = []
     casa, trasferta = scheda["casa"]["nome"], scheda["trasferta"]["nome"]
 
-    # (a) probabilita'
+    # (a) probabilita': la sigla dell'esito e i NUMERI delle due colonne, come
+    # nelle tabelle della scheda Giocate ("1 · Quote % 17,4 · Modello % 18,3"):
+    # nessuna parentesi, nessun simbolo % (sta nell'intestazione della voce).
     prob = scheda["probabilita"]
     righe = []
     if prob.get("disponibile"):
         for esito in ("1", "X", "2"):
-            etichetta = etichette_probabilita(esito, casa, trasferta)
-            valore = percento_in_parole(prob["quote"].get(esito))
+            valore = numero_percentuale(prob["quote"].get(esito))
             modello = prob["modello"].get(esito)
-            modello_txt = (percento_numero_in_parole(modello)
+            modello_txt = (numero_percentuale_modello(modello)
                            if modello is not None else "non disponibile")
-            righe.append(f"{etichetta}: Quote % {valore} · Modello % {modello_txt}")
+            righe.append(f"{esito} · Quote % {valore} · Modello % {modello_txt}")
     else:
         righe.append(FRASE_QUOTE_ASSENTI)
     fuori.append(("Probabilità (dalle quote dei bookmaker)", righe))
@@ -1051,7 +1125,9 @@ def blocchi_scheda(scheda: Dict[str, Any]) -> List[Tuple[str, List[str]]]:
         if (scheda["classifica"] or {}).get("n_squadre"):
             rimaste = giornate_rimaste(scheda["classifica"]["n_squadre"], dati["giocate"])
             pezzi.append(f"{rimaste} giornate rimaste")
-        if dati.get("dal_primo") is not None:
+        # La prima in classifica non ha una distanza da se stessa: quello che
+        # conta lo dice la frase ("Al comando della classifica").
+        if dati.get("dal_primo") is not None and int(dati.get("pos") or 0) != 1:
             pezzi.append(_distanza_in_parole(dati["dal_primo"], "primo posto"))
         if dati.get("dal_quarto") is not None:
             pezzi.append(_distanza_in_parole(dati["dal_quarto"], "quarto posto"))
@@ -1065,8 +1141,24 @@ def blocchi_scheda(scheda: Dict[str, Any]) -> List[Tuple[str, List[str]]]:
                 pezzi.append("appaiata alla zona retrocessione")
             else:
                 pezzi.append(f"{_punti(abs(z))} dentro la zona retrocessione")
+        if dati.get("ultime_due"):
+            # Penultima e ultima: la distanza che conta e' quella dalla prima
+            # posizione salva (fuori dalla retrocessione diretta). Nei
+            # campionati a 18 con spareggio la posizione salva e' la terzultima,
+            # cioe' la prima della zona: la distanza sarebbe la stessa e non si
+            # ripete.
+            sal = dati.get("dalla_salvezza")
+            if sal is not None and dati.get("pos_salvezza") != dati.get("pos_zona"):
+                if sal > 0:
+                    pezzi.append(f"{_punti(sal)} dalla salvezza "
+                                 f"(la {dati['pos_salvezza']}ª in classifica)")
+                elif sal == 0:
+                    pezzi.append("appaiata alla prima posizione salva")
         if dati.get("spareggio"):
-            pezzi.append("terzultima = spareggio")
+            # La nota dello spareggio e' della SOLA terzultima (posizione 16 di
+            # 18 in Bundesliga e Ligue 1): le altre squadre della zona non la
+            # portano.
+            pezzi.append(ETICHETTA_TERZULTIMA)
             d = dati.get("dalla_retrocessione_diretta")
             if d is not None:
                 if d > 0:
@@ -1119,12 +1211,6 @@ def blocchi_scheda(scheda: Dict[str, Any]) -> List[Tuple[str, List[str]]]:
     if scheda.get("note_dati"):
         fuori.append(("Dati mancanti", list(scheda["note_dati"])))
     return fuori
-
-
-def etichette_probabilita(esito: str, casa: str, trasferta: str) -> str:
-    """L'esito 1/X/2 con la sigla: "1 (Vince Inter)", "X (Pareggio)", ..."""
-    parole = lg.giocata_in_parole(esito, casa, trasferta)
-    return f"{esito} ({parole})"
 
 
 def testo_scheda(scheda: Dict[str, Any]) -> str:

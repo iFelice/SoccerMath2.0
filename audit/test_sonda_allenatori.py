@@ -13,9 +13,15 @@ verificano, in parole povere:
   allenatore") e capisce che "Blessin" e "Alexander Blessin" sono la stessa
   persona;
 * copertura e formato delle date sono conteggi, non stime;
-* il giro completo in modalita' ``--fixture`` scrive il file del giorno (una
-  voce per squadra con l'istante della lettura) e il referto, che mette la
-  REGOLA prima dei numeri e dichiara l'esito;
+* il giro completo in modalita' ``--fixture`` scrive l'istantanea (una voce per
+  squadra con l'istante della lettura) e il referto, che mette la REGOLA prima
+  dei numeri e dichiara l'esito;
+* **nessun dato finto passa per uno snapshot reale**: i file di un run
+  ``--fixture`` portano il prefisso ``fixture_`` e, senza cartelle esplicite,
+  stanno in ``audit/output/`` (cartella non versionata): un run ``--fixture``
+  non crea NESSUN file in ``audit/data/allenatori/``;
+* un run di RETE in cui tutte le chiamate falliscono esce con errore (2) e non
+  scrive ne' lo snapshot con la data ne' il referto;
 * la chiave non finisce MAI nei file: lo script rifiuta di scrivere un file che
   la contenga, e il nome della variabile non compare nel referto.
 
@@ -31,6 +37,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -310,7 +317,8 @@ class TestGiroCompletoConFixture(unittest.TestCase):
                           "--casi", str(CASI), "--stagione", ""])
         cls.file = next((cls.tmp / "data").glob("*.json"))
         cls.snapshot = json.loads(cls.file.read_text(encoding="utf-8"))
-        cls.referto = (cls.tmp / "results" / "sonda_allenatori.md").read_text(encoding="utf-8")
+        cls.referto = (cls.tmp / "results" / "fixture_sonda_allenatori.md").read_text(
+            encoding="utf-8")
 
     @classmethod
     def tearDownClass(cls):
@@ -320,6 +328,17 @@ class TestGiroCompletoConFixture(unittest.TestCase):
         self.assertEqual(0, self.rc)
         self.assertEqual(0, self.snapshot["chiamate"], "con la fixture nessuna chiamata")
         self.assertEqual("fixture", self.snapshot["modalita"])
+
+    def test_i_file_della_fixture_portano_il_prefisso(self):
+        """Un run con risposte finte non usa MAI il nome dello snapshot reale."""
+        self.assertTrue(self.file.name.startswith(sa.PREFISSO_FIXTURE),
+                        f"file senza prefisso fixture_: {self.file.name}")
+        for percorso in (self.tmp / "data").glob("*.json"):
+            with self.subTest(file=percorso.name):
+                self.assertTrue(percorso.name.startswith(sa.PREFISSO_FIXTURE))
+        self.assertFalse((self.tmp / "data" / f"{sa.PREFISSO_FIXTURE[:-1]}.json").exists())
+        self.assertIn(sa.PREFISSO_FIXTURE, self.referto,
+                      "il referto di prova deve dire che i file sono fixture_")
 
     def test_una_voce_per_squadra_con_istante_della_lettura(self):
         for lega, voci in self.snapshot["squadre_per_lega"].items():
@@ -355,6 +374,8 @@ class TestGiroCompletoConFixture(unittest.TestCase):
         self.assertIn("aggiornato", self.referto)
         self.assertIn("Run di PROVA", self.referto,
                       "un run con risposte finte deve dichiararlo in testa")
+        self.assertIn("audit/output/", self.referto,
+                      "il referto di prova deve dichiarare dove scrive")
 
     def test_nessuna_chiave_nel_file_e_nel_referto(self):
         for testo in (self.file.read_text(encoding="utf-8"), self.referto):
@@ -375,6 +396,117 @@ class TestGiroCompletoConFixture(unittest.TestCase):
         self.assertEqual("def", sa.leggi_chiave({"API_KEY_DATA": " def "}))
         self.assertEqual("abc", sa.leggi_chiave({"FOOTBALL_DATA_API_KEY": "abc",
                                                  "API_KEY_DATA": "def"}))
+
+
+class TestLaFixtureNonScriveNelloSnapshotReale(unittest.TestCase):
+    """Il run `--fixture` non tocca MAI `audit/data/allenatori/`.
+
+    E' la prova chiesta: senza `--out-dir` (e senza `--results-dir`) un giro con
+    risposte finte deve finire in `audit/output/`, la cartella NON versionata,
+    con il prefisso `fixture_`: nella cartella degli snapshot reali non deve
+    comparire nessun file nuovo, e in particolare nessun `<giorno>.json`.
+    """
+
+    CARTELLA = REPO_ROOT / "audit" / "data" / "allenatori"
+    OUTPUT = REPO_ROOT / "audit" / "output" / "sonda_allenatori"
+
+    def test_un_run_fixture_non_crea_file_nello_snapshot_del_giorno(self):
+        prima = sorted(f.name for f in self.CARTELLA.iterdir())
+        oggi = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        creati = []
+        try:
+            rc = sa.main(["--fixture", str(FIXTURE), "--leagues", "Serie A",
+                          "--casi", str(CASI), "--stagione", ""])
+            self.assertEqual(0, rc)
+            dopo = sorted(f.name for f in self.CARTELLA.iterdir())
+            self.assertEqual(prima, dopo,
+                             "la modalita' fixture ha scritto nella cartella degli "
+                             "snapshot reali")
+            self.assertFalse((self.CARTELLA / f"{oggi}.json").exists(),
+                             "nessuno snapshot con la data puo' venire da una fixture")
+            prova = sorted(self.OUTPUT.glob(f"{sa.PREFISSO_FIXTURE}*"))
+            creati = list(prova)
+            self.assertTrue(prova, "la fixture deve scrivere in audit/output/")
+            for percorso in prova:
+                with self.subTest(file=percorso.name):
+                    self.assertTrue(percorso.name.startswith(sa.PREFISSO_FIXTURE))
+                    self.assertFalse(percorso.name.endswith(f"{oggi}.json")
+                                     and not percorso.name.startswith(sa.PREFISSO_FIXTURE))
+            self.assertTrue((self.OUTPUT / f"fixture_sonda_allenatori.md").exists())
+        finally:
+            for percorso in creati:
+                percorso.unlink(missing_ok=True)
+
+
+class TestRefertoNonEseguito(unittest.TestCase):
+    """Il referto «sonda non eseguita»: regola, casi con fonte, «da misurare»."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="sonda_all_non_"))
+        cls.rc = sa.main(["--referto-non-eseguito", "--casi", str(CASI),
+                          "--results-dir", str(cls.tmp)])
+        cls.referto = (cls.tmp / "sonda_allenatori.md").read_text(encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_testa_regola_prima_dei_numeri_e_nessun_esito(self):
+        self.assertEqual(0, self.rc)
+        self.assertIn("Sonda non eseguita: nessuna chiamata reale a "
+                      "football-data.org", self.referto[:400])
+        self.assertIn("Regola dichiarata", self.referto)
+        # La regola viene PRIMA della tabella dei casi.
+        self.assertLess(self.referto.index("Regola dichiarata"),
+                        self.referto.index("| da misurare |"))
+        # Nessun numero di questo referto e' un risultato.
+        for vietato in ("NON AFFIDABILE", "Copertura (squadre", "Esito di questo run",
+                        "non aggiornato", "non e' affidabile: motivi"):
+            with self.subTest(vietato=vietato):
+                self.assertNotIn(vietato, self.referto)
+
+    def test_colonna_da_misurare_e_fonti(self):
+        dati = json.loads(CASI.read_text(encoding="utf-8"))
+        for caso in dati["casi"]:
+            with self.subTest(squadra=caso["squadra"]):
+                self.assertIn(caso["squadra"], self.referto)
+                self.assertIn(caso["fonte"], self.referto)
+        self.assertEqual(len(dati["casi"]), self.referto.count("| da misurare |"))
+        self.assertIn("audit/data/allenatori/<giorno>.json", self.referto)
+
+    def test_non_scrive_snapshot_del_giorno(self):
+        self.assertEqual([], list(self.tmp.glob("*.json")))
+        oggi = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        self.assertFalse((REPO_ROOT / "audit" / "data" / "allenatori"
+                          / f"{oggi}.json").exists())
+
+
+class TestReteSenzaChiamateRiuscite(unittest.TestCase):
+    """Run di rete con tutte le chiamate fallite: errore, e NESSUN file.
+
+    E' la regola dello snapshot con la data: si scrive solo se almeno una lega
+    e' arrivata in fondo. Un file con la data scritto da un run fallito
+    sembrerebbe una misura, e non lo e'.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="sonda_all_fail_"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_nessun_file_e_codice_di_errore(self):
+        with mock.patch.object(sa, "leggi_chiave", return_value="chiave-finta"), \
+             mock.patch.object(sa, "scarica_lega",
+                               side_effect=RuntimeError("rete giu'")):
+            rc = sa.main(["--out-dir", str(self.tmp / "data"),
+                          "--results-dir", str(self.tmp / "results"),
+                          "--casi", str(CASI), "--keep-going"])
+        self.assertEqual(2, rc, "senza chiamate riuscite la sonda deve uscire con 2")
+        self.assertEqual([], list((self.tmp / "data").glob("*.json")))
+        self.assertFalse((self.tmp / "results").exists(),
+                         "nessun referto: non c'e' nessuna misura da scrivere")
 
 
 class TestSoloLeTreChiamateAttese(unittest.TestCase):

@@ -196,7 +196,14 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         self.assertIn("Modello %", testo)
         # In vista, in chiaro: le percentuali delle quote e i punti delle due
         # squadre. Nessun punteggio o indice inventato dalla scheda.
-        self.assertRegex(testo, r"Quote % \d+,\d%")
+        self.assertRegex(testo, r"Quote % \d+,\d")
+        # La riga delle probabilita' e' quella delle tabelle di «Giocate»: la
+        # sigla dell'esito e i due NUMERI, senza parentesi e senza il simbolo %.
+        for esito in ("1", "X", "2"):
+            with self.subTest(esito=esito):
+                self.assertRegex(testo, rf"(?m)^{esito} · Quote % \d+,\d · Modello % ")
+        self.assertIsNone(re.search(r"\d+,\d\s*%", testo),
+                          "nella scheda la percentuale resta un numero, senza simbolo")
         self.assertRegex(testo, r"\d+° posto")
         for parola in PAROLE_VIETATE:
             with self.subTest(parola=parola):

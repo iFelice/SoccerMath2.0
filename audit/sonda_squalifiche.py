@@ -303,13 +303,13 @@ def testo_referto(misure: dict, coperture: dict, casi: list, esito: dict,
         righe.append("**Cosa manca.** I file `player_match_<lega>.json` non sono "
                      "versionati: li produce il workflow `ppda_player_verify.yml`, che "
                      "gira in sola lettura (`permissions: contents: read`) e li pubblica "
-                     "come **artifact**. In questo ambiente l'artifact non e' "
-                     "scaricabile: il download termina con un errore TLS/EOF sul blob "
-                     "di archiviazione di GitHub (`*.blob.core.windows.net`), che non e' "
-                     "raggiungibile dalla sandbox. Senza quei file non si possono "
-                     "misurare le tre cose chieste: ultima partita per lega, partite "
-                     "2026/27 coperte contro i `*_Live.csv`, e squalifiche del prossimo "
-                     "turno.")
+                     "come **artifact** (`ppda-player-verify-<run_id>`, dentro la "
+                     "cartella `database/`). In questo giro l'archivio non c'e': nessun "
+                     "`player_match_*.json` in nessuno dei percorsi cercati. Senza quei "
+                     "file non si possono misurare le tre cose chieste: ultima partita "
+                     "per lega, partite 2026/27 coperte contro i `*_Live.csv`, e le "
+                     "squalifiche del prossimo turno. Non e' un limite della sonda: e' "
+                     "l'archivio che va scaricato dove la sonda lo cerca.")
         righe.append("")
         if fatti:
             art = fatti.get("artifact") or {}
@@ -329,14 +329,22 @@ def testo_referto(misure: dict, coperture: dict, casi: list, esito: dict,
             righe.append("")
             righe.append("**Quanto costa aggiornarlo.**")
             righe.append("")
-            righe.append(f"* un run manuale di `{fatti.get('workflow')}` "
-                         f"(`workflow_dispatch`, nessun cron): la misura nota e' "
-                         f"**{fatti.get('durata')}**, con 1 richiesta HTTP per partita e "
-                         f"una finestra mobile di 5 stagioni per lega;")
-            righe.append("* oppure **zero run**: scaricare l'artifact già pronto dal "
-                         "browser (GitHub → Actions → run → artifact) e scompattarlo in "
-                         "`audit/output/ppda-player-verify-<run>/database/`;")
-            righe.append("* poi la misura e' immediata e offline: `python "
+            righe.append("* **zero run**: lanciare a mano il workflow "
+                         "`audit_squalifiche.yml` (`workflow_dispatch`, sola lettura "
+                         "sull'archivio) — prende l'artifact dell'ultimo run del "
+                         "workflow Understat, lo scarica in `audit/output/` (cartella "
+                         "non versionata) ed esegue questa sonda, che riscrive il "
+                         "referto con i numeri;")
+            righe.append("* la scadenza da rispettare e' quella dell'artifact "
+                         "(sotto): se e' già scaduto va prima rilanciato "
+                         f"`{fatti.get('workflow')}` (`workflow_dispatch`, nessun cron; "
+                         f"durata misurata **{fatti.get('durata')}**, 1 richiesta HTTP "
+                         f"per partita e una finestra mobile di 5 stagioni per lega) e "
+                         f"poi di nuovo `audit_squalifiche.yml`;")
+            righe.append("* in alternativa, **a mano e senza workflow**: scaricare "
+                         "l'artifact dal browser (GitHub → Actions → run → artifact) e "
+                         "scompattarlo in `audit/output/ppda-player-verify-<run>/database/`;")
+            righe.append("* in ogni caso la misura e' immediata e offline: `python "
                          "audit/sonda_squalifiche.py` → il referto si riempie da solo "
                          "con ultima partita per lega, copertura contro i `*_Live.csv` e "
                          "casi pubblici.")
@@ -362,10 +370,50 @@ def testo_referto(misure: dict, coperture: dict, casi: list, esito: dict,
                      "la regola sia soddisfatta: se ne manca una, le squalifiche non "
                      "entrano nella scheda.")
         righe.append("")
+    # Come si misura adesso e entro quando: e' la parte operativa, quella che
+    # serve a chi deve decidere se e quando lanciare i workflow.
+    righe.append("## Come si misura adesso (workflow `audit_squalifiche.yml`)")
+    righe.append("")
+    righe.append("La misura **non** si fa dall'ambiente di sviluppo (qui l'artifact "
+                 "non e' scaricabile: il download finisce su "
+                 "`*.blob.core.windows.net`, host non raggiungibile). Si fa su "
+                 "GitHub Actions, con il workflow manuale **`audit_squalifiche.yml`** "
+                 "(`workflow_dispatch`, sola lettura sull'archivio; lo lancia Felice):")
+    righe.append("")
+    righe.append("1. prende l'ultimo run **riuscito** di `ppda_player_verify.yml` (o "
+                 "quello indicato nell'input `run_id`);")
+    righe.append("2. elenca i suoi artifact e sceglie il piu' recente **non scaduto**;")
+    righe.append("3. lo scarica in `audit/output/ppda-player-verify-<run_id>/` "
+                 "(cartella non versionata) ed esegue `audit/sonda_squalifiche.py` "
+                 "sulla cartella `database/`;")
+    righe.append("4. committa **il solo referto** `audit/results/sonda_squalifiche.md` "
+                 "(un ultimo passo verifica che l'archivio non sia entrato nel "
+                 "repository).")
+    righe.append("")
+    if fatti:
+        art = fatti.get("artifact") or {}
+        righe.append(f"**Scadenza da rispettare.** L'ultimo archivio noto e' "
+                     f"l'artifact **{art.get('nome')}** del run "
+                     f"**{fatti.get('run_id')}**, creato il {art.get('creato_il')} e "
+                     f"**scade il {art.get('scade_il')}** (retention 14 giorni del "
+                     f"workflow Understat): `audit_squalifiche.yml` va lanciato **entro "
+                     f"quella data**, altrimenti l'artifact non e' piu' scaricabile e "
+                     f"serve un nuovo run.")
+        righe.append("")
+        righe.append(f"**Se l'artifact e' scaduto**, l'ordine e': (1) rilanciare "
+                     f"`{fatti.get('workflow')}` (`workflow_dispatch`, durata misurata "
+                     f"**{fatti.get('durata')}**: 1 richiesta HTTP per partita su "
+                     f"~7.000 partite); (2) lanciare `audit_squalifiche.yml`, che "
+                     f"scrive il referto con i numeri nuovi. Se la sonda non trova "
+                     f"l'archivio il workflow **fallisce e non committa**: il referto "
+                     f"non viene mai riscritto con un esito inventato.")
+        righe.append("")
     righe.append("## Cosa NON fa questa sonda")
     righe.append("")
-    righe.append("* non aggiorna l'archivio e non lancia nessun workflow (il run e' "
-                 "manuale e lo lancia Felice);")
+    righe.append("* non aggiorna l'archivio di una riga: lo legge soltanto; a "
+                 "scaricarlo e' l'artifact del workflow Understat, a misurarlo e' "
+                 "questa sonda (in CI: `audit_squalifiche.yml`, lanciato a mano);")
+    righe.append("* non lancia nessun workflow da sola e non fa rete;")
     righe.append("* non riscrive le regole delle ammonizioni: quelle vivono in "
                  f"`{MOTORE}` (PR #33);")
     righe.append("* non tocca l'app: la scheda partita non mostra squalifiche.")

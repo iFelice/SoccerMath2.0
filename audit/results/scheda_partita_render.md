@@ -5,34 +5,39 @@ la variabile d'ambiente `SCHEDA_RENDER_OUT` punta a questo percorso: il testo
 sotto e' **il markdown reso dal riquadro aperto in AppTest**, copiato cosi'
 com'e' (`_testo_riquadro`), non ricomposto a mano. Le due partite sono del
 prossimo turno sulla fixture pinnata (`snapshot_reale()`, 90 eventi, orologio
-congelato a venerdi' 2026-10-16 18:00 ora italiana):
+congelato a venerdi' 2026-10-16 18:00 ora italiana): le **quote** vengono da
+quello snapshot pinnato, la **classifica** dai `*_Live.csv` del repository al
+momento del run (quei file li riscrive il workflow `update_database`, quindi non
+sono pinnati: i numeri di classifica sono quelli del giorno del run).
 
-* **vertice**: Bologna - Inter (Serie A) — 14ª in classifica contro la prima;
-* **bassa classifica**: Le Havre - Auxerre (Ligue 1) — 18ª contro 16ª.
+* **vertice**: Bologna - Inter (Serie A) — la 14ª (5 punti) contro la prima (16 punti);
+* **bassa classifica**: Le Havre - Auxerre (Ligue 1) — l'ultima (2 punti) contro la terzultima (6 punti): la prima con la frase della retrocessione diretta, la seconda con quella dello spareggio.
 
 Comando che l'ha prodotto (l'unica cosa che scrive il file e' il test):
 
 ```
 cd SoccerMath && SCHEDA_RENDER_OUT=../audit/results/scheda_partita_render.md \
   python -m pytest test_apptest_scheda_partita.py -q
-# 4 passed, 68 subtests passed
+# 4 passed, 71 subtests passed in 149.80s (0:02:29)
 ```
 
 Sotto, il testo reso. In vista non compaiono parole vietate (punto 6 della
-PR #64): lo stesso test lo verifica con `PAROLE_VIETATE` su questo testo.
+PR #64): lo stesso test lo verifica con `PAROLE_VIETATE` su questo testo. Le
+probabilita' sono le stesse voci delle tabelle di «Giocate» («Quote %» e
+«Modello %»), con la sigla dell'esito e i numeri senza simbolo.
 
 ## vertice: Bologna - Inter (Serie A)
 
 ```
 ### Bologna - Inter
 ##### Probabilità (dalle quote dei bookmaker)
-1 (Vince Bologna): Quote % 17,4% · Modello % 18,3%
-X (Pareggio): Quote % 24,3% · Modello % 17,5%
-2 (Vince Inter): Quote % 58,4% · Modello % 64,2%
+1 · Quote % 17,4 · Modello % 18,3
+X · Quote % 24,3 · Modello % 17,5
+2 · Quote % 58,4 · Modello % 64,2
 ##### Classifica e obiettivi
 Bologna: 14° posto, 5 punti, 6 partite giocate, 32 giornate rimaste, a 11 punti dal primo posto, a 8 punti dal quarto posto, a 6 punti dal sesto posto, 1 punto sopra la zona retrocessione.
 Bologna: Lotta per non retrocedere: 1 punto sopra la zona.
-Inter: 1° posto, 16 punti, 6 partite giocate, 32 giornate rimaste, appaiata al primo posto, 3 punti sopra il quarto posto, 5 punti sopra il sesto posto, 12 punti sopra la zona retrocessione.
+Inter: 1° posto, 16 punti, 6 partite giocate, 32 giornate rimaste, 3 punti sopra il quarto posto, 5 punti sopra il sesto posto, 12 punti sopra la zona retrocessione.
 Inter: Al comando della classifica.
 ##### Forma: ultime 5 partite di campionato
 Bologna — Ultime 5: 1 vinta, 2 pari, 2 perse; 1 delle vittorie contro squadre deboli.
@@ -71,12 +76,12 @@ Le due squadre non si sono ancora affrontate in questa stagione.
 ```
 ### Le Havre - Auxerre
 ##### Probabilità (dalle quote dei bookmaker)
-1 (Vince Le Havre): Quote % 38,3% · Modello % 39,0%
-X (Pareggio): Quote % 28,4% · Modello % 26,7%
-2 (Vince Auxerre): Quote % 33,3% · Modello % 34,4%
+1 · Quote % 38,3 · Modello % 39,0
+X · Quote % 28,4 · Modello % 26,7
+2 · Quote % 33,3 · Modello % 34,4
 ##### Classifica e obiettivi
 Le Havre: 18° posto, 2 punti, 6 partite giocate, 28 giornate rimaste, a 12 punti dal primo posto, a 9 punti dal quarto posto, a 9 punti dal sesto posto, 4 punti dentro la zona retrocessione.
-Le Havre: Lotta per non retrocedere: 4 punti dentro la zona retrocessione (terzultima = spareggio).
+Le Havre: In zona retrocessione diretta: 4 punti dalla salvezza.
 Auxerre: 16° posto, 6 punti, 6 partite giocate, 28 giornate rimaste, a 8 punti dal primo posto, a 5 punti dal quarto posto, a 5 punti dal sesto posto, appaiata alla zona retrocessione, terzultima = spareggio, 2 punti sopra la retrocessione diretta.
 Auxerre: Spareggio: terzultima, 2 punti sopra la retrocessione diretta.
 ##### Forma: ultime 5 partite di campionato

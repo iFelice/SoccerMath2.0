@@ -9,6 +9,19 @@ name: Sonda allenatori (football-data.org, manuale)
 # e' >= 95% e tutti i casi di esonero 2026/27 verificati su fonti pubbliche
 # risultano aggiornati nelle API.
 #
+# QUANDO SI SCRIVE IL FILE CON LA DATA. Solo da un run di RETE con almeno una
+# chiamata riuscita:
+#   * la sonda, senza chiave, esce con 3 e non scrive niente;
+#   * la sonda, se tutte le leghe falliscono, esce con 2 e non scrive niente
+#     (ne' snapshot, ne' referto);
+#   * i run di prova `--fixture` scrivono in audit/output/ (cartella non
+#     versionata) con il prefisso `fixture_`: non possono produrre un
+#     audit/data/allenatori/<giorno>.json;
+#   * lo step «Lo snapshot con la data viene solo da un run di rete riuscito»
+#     ricontrolla il file appena scritto (modalita', chiamate, squadre con
+#     allenatore) e, se non torna, FALLISCE PRIMA del commit: nessun file con la
+#     data e nessun referto vengono committati da un run andato storto.
+#
 # Trigger: SOLO workflow_dispatch (nessun cron, nessun push, nessuna PR): il run
 # lo lancia Felice a mano. La sonda non tocca l'applicazione.
 #
@@ -90,9 +103,69 @@ jobs:
             echo "::error::chiave assente nell'ambiente"
             exit 1
           fi
+          # 2 = nessuna chiamata riuscita: la sonda non ha scritto nulla e la
+          # regola resta non verificata. Non si committa niente.
+          if [ "$rc" = "2" ]; then
+            echo "::error::nessuna chiamata riuscita: nessuno snapshot, nessun referto, nessun commit"
+            exit 1
+          fi
           if [ "$rc" != "0" ]; then
             echo "::warning::sonda con errori su almeno una lega: il referto li elenca"
           fi
+
+      # Il file con la data e' la prova che le API hanno risposto. Qui si
+      # ricontrolla PRIMA del commit: modalita' rete, almeno una chiamata
+      # riuscita, nessun file di prova (`fixture_`) nella cartella versionata.
+      - name: Lo snapshot con la data viene solo da un run di rete riuscito
+        run: |
+          python - <<'PY'
+          import glob, json, os, sys
+          from datetime import datetime, timedelta, timezone
+
+          adesso = datetime.now(timezone.utc)
+          limite = adesso - timedelta(hours=8)   # questo run (dura ~11 minuti)
+          problemi = []
+          trovati = 0
+
+          for percorso in sorted(glob.glob("audit/data/allenatori/*.json")):
+              nome = os.path.basename(percorso)
+              if nome.startswith("fixture_"):
+                  problemi.append(f"{nome}: un file di prova nella cartella degli snapshot")
+                  continue
+              if nome.startswith("casi_"):
+                  continue
+              with open(percorso, encoding="utf-8") as fh:
+                  dati = json.load(fh)
+              scritto = str(dati.get("scritto_il") or "")
+              try:
+                  quando = datetime.strptime(scritto, "%Y-%m-%dT%H:%M:%SZ").replace(
+                      tzinfo=timezone.utc)
+              except ValueError:
+                  continue
+              if quando < limite:
+                  continue
+              trovati += 1
+              modalita = dati.get("modalita")
+              chiamate = int(dati.get("chiamate") or 0)
+              coperti = int(dati.get("con_allenatore") or 0)
+              squadre = int(dati.get("squadre") or 0)
+              print(f"{nome}: scritto_il={scritto} modalita={modalita} "
+                    f"squadre={squadre} con_allenatore={coperti} chiamate={chiamate}")
+              if modalita != "rete":
+                  problemi.append(f"{nome}: modalita' {modalita!r}, non «rete»")
+              if chiamate < 1 or coperti < 1 or squadre < 1:
+                  problemi.append(f"{nome}: nessuna chiamata riuscita "
+                                  f"(chiamate={chiamate}, con_allenatore={coperti})")
+
+          if trovati == 0:
+              problemi.append("questo run non ha scritto nessuno snapshot: "
+                              "niente da committare")
+          if problemi:
+              for problema in problemi:
+                  print(f"::error::{problema}")
+              sys.exit(1)
+          print("OK: lo snapshot con la data viene da un run di rete con chiamate riuscite.")
+          PY
 
       # La chiave si cerca per VALORE (da variabile d'ambiente: mai stampata) e
       # si controlla che nei file non finisca un'intestazione con un token. Il
@@ -132,6 +205,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add audit/data/allenatori audit/results/sonda_allenatori.md
+          # Nessun file di prova nella storia: se un `fixture_` fosse finito
+          # nella cartella versionata, il run si ferma qui.
+          if git diff --cached --name-only | grep -q "fixture_"; then
+            echo "::error::un file di prova (fixture_) e' finito fra i file da committare"
+            git diff --cached --name-only
+            exit 1
+          fi
           if git diff --cached --quiet; then
             echo "nessuna modifica da committare"
             exit 0

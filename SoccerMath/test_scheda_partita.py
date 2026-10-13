@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import csv
 import os
+import re
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -270,20 +271,55 @@ class TestFrasiObiettivi(unittest.TestCase):
         self.assertEqual(self._frase(1, 30, {}), "Al comando della classifica.")
 
     def test_in_corsa_per_il_titolo(self):
-        self.assertEqual(self._frase(5, 24, {1: 30}),
+        # Il titolo e' SOLO delle prime 3 posizioni (POSIZIONI_TITOLO = 3).
+        self.assertEqual(self._frase(2, 24, {1: 30}),
                          "In corsa per il titolo: 6 punti dal primo posto.")
+        self.assertEqual(self._frase(3, 26, {1: 30}),
+                         "In corsa per il titolo: 4 punti dal primo posto.")
+        # Una seconda a pari punti col primo e' appaiata, non "al comando".
+        self.assertEqual(self._frase(2, 30, {1: 30}),
+                         "In corsa per il titolo: appaiata al primo posto.")
+
+    def test_la_soglia_del_titolo_vale_solo_dentro_le_prime_tre(self):
+        # 8ª a 6 punti dal primo: NON e' "in corsa per il titolo" (il distacco
+        # e' da zona Europa), e la frase ricade sulla regola successiva.
+        frase = self._frase(8, 24, {1: 30})
+        self.assertNotIn("titolo", frase)
+        self.assertEqual(frase, "In zona Europa: 1 punto sopra il sesto posto.")
 
     def test_fuori_dalla_soglia_del_titolo(self):
         frase = self._frase(9, 18, {1: 30, 6: 24})
         self.assertNotIn("titolo", frase)
         self.assertEqual(frase, "In corsa per l'Europa: 6 punti dal sesto posto.")
+        # 4ª a 6 punti dal primo: fuori dalle prime 3, ricade sull'Europa.
+        quarta = self._frase(4, 24, {1: 30, 6: 20})
+        self.assertNotIn("titolo", quarta)
+        self.assertEqual(quarta, "In zona Europa: 4 punti sopra il sesto posto.")
 
-    def test_dentro_la_zona_retrocessione(self):
-        # 20 squadre: zona dalla 18a; la 19a con 12 punti sta 6 sotto la 18a.
-        self.assertEqual(self._frase(19, 12, {18: 18}),
-                         "Lotta per non retrocedere: 6 punti dentro la zona retrocessione.")
-        self.assertEqual(self._frase(20, 4, {18: 12}),
-                         "Lotta per non retrocedere: 8 punti dentro la zona retrocessione.")
+    def test_ultime_due_retrocessione_diretta(self):
+        # 20 squadre (Serie A, Premier, La Liga): zona dalla 18a, ma la frase
+        # della retrocessione diretta e' delle ULTIME DUE, con la distanza
+        # dalla SALVEZZA (la 17a, prima posizione fuori dalla zona diretta).
+        self.assertEqual(self._frase(19, 12, {17: 15, 18: 12}),
+                         "In zona retrocessione diretta: 3 punti dalla salvezza.")
+        self.assertEqual(self._frase(20, 4, {17: 12, 18: 12}),
+                         "In zona retrocessione diretta: 8 punti dalla salvezza.")
+
+    def test_prima_posizione_della_zona_appaiata(self):
+        # La 18a di 20 e' la PRIMA della zona: non e' "ultima due", quindi
+        # resta la frase della lotta per non retrocedere (appaiata alla zona).
+        self.assertEqual(self._frase(18, 12, {17: 15}),
+                         "Lotta per non retrocedere: appaiata alla zona retrocessione.")
+
+    def test_dentro_la_zona_se_la_classifica_non_e_allineata(self):
+        # Ramo di sicurezza: se la prima posizione della zona non e' quella
+        # della squadra (classifica corta o incompleta), si dice di quanto e'
+        # dentro la zona invece di inventare una appaiatura.
+        p = {"pos": 18, "punti": 10, "giocate": 10, "in_zona": True,
+             "spareggio": False, "ultime_due": False, "dalla_zona": -3,
+             "dal_primo": 20, "dal_sesto": 13, "n_squadre": 20}
+        self.assertEqual(sp.frase_obiettivi(p, 10, "Serie A"),
+                         "Lotta per non retrocedere: 3 punti dentro la zona retrocessione.")
 
     def test_spareggio_bundesliga_e_ligue_1(self):
         # Terzultima (16a di 18) con 14 punti, penultima a 12: la distanza che
@@ -296,21 +332,27 @@ class TestFrasiObiettivi(unittest.TestCase):
         self.assertEqual(appaiata,
                          "Spareggio: terzultima, appaiata alla retrocessione diretta.")
 
-    def test_zona_retrocessione_nei_campionati_a_spareggio(self):
-        # 15a di 18 (sopra la zona): la frase dice che la terzultima e' spareggio.
+    def test_la_nota_spareggio_e_solo_della_terzultima(self):
+        # La nota "(terzultima = spareggio)" NON e' un avviso di zona: e' della
+        # sola squadra che occupa quella posizione. La 15a di 18 sta 4 punti
+        # sopra la zona e la sua frase non parla di spareggio.
         frase = self._frase(15, 16, {16: 12, 17: 9, 18: 6}, n_squadre=18,
                             camp="Bundesliga", giornate=10)
-        self.assertEqual(frase,
-                         "Lotta per non retrocedere: 4 punti sopra la zona "
-                         "(terzultima = spareggio).")
-        # 17a di 18 (dentro la zona, non terzultima): stesso avviso.
-        dentro = self._frase(17, 8, {16: 12, 18: 6}, n_squadre=18,
-                             camp="Ligue 1", giornate=10)
-        self.assertEqual(dentro,
-                         "Lotta per non retrocedere: 4 punti dentro la zona "
-                         "retrocessione (terzultima = spareggio).")
-        # In Serie A (20 squadre) la nota non compare.
+        self.assertEqual(frase, "Lotta per non retrocedere: 4 punti sopra la zona.")
+        self.assertNotIn("spareggio", frase)
+        # In Serie A (20 squadre) la parola non compare mai.
         self.assertNotIn("spareggio", self._frase(17, 10, {18: 9}))
+        # La 17a di 18 (penultima) e' in retrocessione DIRETTA, non spareggio.
+        penultima = self._frase(17, 8, {16: 12, 18: 6}, n_squadre=18,
+                                camp="Ligue 1", giornate=10)
+        self.assertEqual(penultima,
+                         "In zona retrocessione diretta: 4 punti dalla salvezza.")
+        self.assertNotIn("spareggio", penultima)
+        # Ultima di 18: stessa frase, distanza dalla terzultima (la salvezza).
+        ultima = self._frase(18, 6, {16: 12, 17: 8}, n_squadre=18,
+                             camp="Ligue 1", giornate=10)
+        self.assertEqual(ultima,
+                         "In zona retrocessione diretta: 6 punti dalla salvezza.")
 
     def test_lotta_per_non_retrocedere_sopra_la_zona(self):
         self.assertEqual(self._frase(17, 10, {18: 9}),
@@ -336,6 +378,117 @@ class TestFrasiObiettivi(unittest.TestCase):
     def test_classifica_non_disponibile(self):
         self.assertEqual(sp.frase_obiettivi(None, 10, CAMP),
                          "Classifica non disponibile: dati di questa stagione insufficienti.")
+
+
+class TestLeHavreEAuxerreSulloSnapshotFissato(unittest.TestCase):
+    """Le Havre e Auxerre di Ligue 1, con la classifica dello SNAPSHOT fissato.
+
+    La classifica non viene dai ``*_Live.csv`` correnti (che il workflow
+    ``update_database`` riscrive a ogni giornata, e un test con valori attesi
+    fissi su quei file balla): viene dal blob del commit ``SNAP_CSV_COMMIT``,
+    lo stesso stato citato nel referto della scheda partita — Le Havre ultima
+    (18ª) e Auxerre terzultima (16ª), quindi la prima con la frase della
+    retrocessione diretta e la seconda con quella dello spareggio.
+
+    Cosa verifica: le due frasi, il fatto che la nota dello spareggio NON esca
+    dalla terzultima (la penultima Troyes e l'ultima Le Havre non ce l'hanno) e
+    che le distanze mostrate siano quelle del conteggio indipendente.
+    """
+
+    CAMP = "Ligue 1"
+    STAGIONE = 2026
+    PERCORSO = "SoccerMath/database/Ligue1_Live.csv"
+
+    @classmethod
+    def setUpClass(cls):
+        raw = snap_test.blob_del_commit(cls.PERCORSO)
+        if raw is None:
+            raise unittest.SkipTest("CSV dello snapshot fissato non raggiungibile "
+                                    "(clone shallow?)")
+        import tempfile
+        cls.tmp = tempfile.mkdtemp(prefix="scheda_ligue1_")
+        cls.file = os.path.join(cls.tmp, "Ligue1_Live.csv")
+        with open(cls.file, "w", encoding="utf-8") as fh:
+            fh.write(raw)
+        cls.risultati = sp.carica_risultati_stagione(cls.CAMP, stagione=cls.STAGIONE,
+                                                     percorso=cls.file)
+        if cls.risultati.empty:
+            raise unittest.SkipTest("snapshot fissato senza partite giocate")
+        cls.classifica = sp.classifica(cls.risultati)
+        cls.n_squadre = sp.numero_squadre(cls.CAMP, cls.STAGIONE, cls.risultati)
+        if not cls.n_squadre:
+            raise unittest.SkipTest("numero di squadre non determinabile")
+
+    @classmethod
+    def tearDownClass(cls):
+        import shutil
+        shutil.rmtree(getattr(cls, "tmp", ""), ignore_errors=True)
+
+    def _posta(self, squadra: str) -> dict:
+        dati = sp.posta_in_palio(self.classifica, self.CAMP, squadra, self.n_squadre)
+        self.assertIsNotNone(dati, f"{squadra} non e' nella classifica dello snapshot")
+        return dati
+
+    def _frase(self, squadra: str) -> str:
+        dati = self._posta(squadra)
+        return sp.frase_obiettivi(dati, dati["giocate"], self.CAMP)
+
+    def test_le_havre_e_ultima_e_retrocede_direttamente(self):
+        dati = self._posta("Le Havre")
+        self.assertEqual(self.n_squadre, dati["pos"], "Le Havre e' ultima")
+        self.assertTrue(dati["ultime_due"])
+        self.assertFalse(dati["spareggio"])
+        # La salvezza e' la terzultima (16ª di 18): 6 - 2 = 4 punti.
+        self.assertEqual(16, dati["pos_salvezza"])
+        self.assertEqual(4, dati["dalla_salvezza"])
+        self.assertEqual(self._frase("Le Havre"),
+                         "In zona retrocessione diretta: 4 punti dalla salvezza.")
+        self.assertNotIn("spareggio", self._frase("Le Havre"))
+
+    def test_auxerre_e_terzultima_e_gioca_lo_spareggio(self):
+        dati = self._posta("Auxerre")
+        self.assertEqual(self.n_squadre - 2, dati["pos"], "Auxerre e' terzultima")
+        self.assertTrue(dati["spareggio"])
+        self.assertFalse(dati["ultime_due"])
+        frase = self._frase("Auxerre")
+        self.assertEqual(frase, "Spareggio: terzultima, 2 punti sopra "
+                                "la retrocessione diretta.")
+        self.assertIn("retrocessione diretta", frase)
+
+    def test_la_nota_spareggio_non_esce_dalla_terzultima(self):
+        # La penultima (Troyes) prende la frase della retrocessione diretta:
+        # la nota dello spareggio non e' un avviso di zona.
+        penultima = self._posta("Troyes")
+        self.assertEqual(self.n_squadre - 1, penultima["pos"])
+        self.assertTrue(penultima["ultime_due"])
+        self.assertFalse(penultima["spareggio"])
+        self.assertNotIn("spareggio", self._frase("Troyes"))
+        # Nessuna delle altre squadre di mezzo porta la nota.
+        for riga in self.classifica:
+            if riga["squadra"] in ("Auxerre",):
+                continue
+            with self.subTest(squadra=riga["squadra"]):
+                dati = sp.posta_in_palio(self.classifica, self.CAMP,
+                                         riga["squadra"], self.n_squadre)
+                self.assertNotIn("spareggio",
+                                 sp.frase_obiettivi(dati, dati["giocate"], self.CAMP))
+
+    def test_le_distanze_sono_quelle_del_conteggio_indipendente(self):
+        """Punti e posizione di Le Havre e Auxerre rifatti a mano nel test."""
+        tabelle = classifica_contata_a_mano(self.file, self.STAGIONE)
+        ordinate = sorted(tabelle.items(),
+                          key=lambda kv: (-kv[1]["punti"], -(kv[1]["gf"] - kv[1]["gs"]),
+                                          -kv[1]["gf"], kv[0]))
+        for squadra, pos_attesa in (("Le Havre", self.n_squadre), ("Auxerre", 16)):
+            with self.subTest(squadra=squadra):
+                pos = next(i for i, (nome, _) in enumerate(ordinate, start=1)
+                           if nome == squadra)
+                self.assertEqual(pos_attesa, pos)
+                dati = self._posta(squadra)
+                self.assertEqual(tabelle[squadra]["punti"], dati["punti"])
+                self.assertEqual(tabelle[squadra]["giocate"], dati["giocate"])
+                self.assertEqual(sp.giornate_totali(self.n_squadre) - dati["giocate"],
+                                 dati["giornate_rimaste"])
 
 
 class TestFasceEloENonLeakage(unittest.TestCase):
@@ -682,7 +835,16 @@ class TestSchedaCompleta(unittest.TestCase):
         self.assertTrue(scheda["probabilita"]["modello_disponibile"])
         self.assertEqual(scheda["probabilita"]["modello"]["2"], 58.0)
         righe = dict(sp.blocchi_scheda(scheda))["Probabilità (dalle quote dei bookmaker)"]
-        self.assertTrue(any("Modello % 58,0%" in r for r in righe), righe)
+        # Come nelle tabelle di «Giocate»: la sigla e i due NUMERI, senza
+        # parentesi e senza il simbolo % (sta nelle voci «Quote %»/«Modello %»).
+        self.assertTrue(any(r.startswith("2 · Quote % ") and " · Modello % 58,0" in r
+                            for r in righe), righe)
+        for r, sigla in zip(righe, ("1", "X", "2")):
+            with self.subTest(riga=r):
+                self.assertTrue(r.startswith(sigla + " · Quote % "), r)
+                self.assertNotIn("(", r)
+                self.assertIsNone(re.search(r"\d\s?%", r),
+                                  f"la percentuale resta un numero, senza simbolo: {r!r}")
 
     def test_precedenti_stagionali_se_gia_giocata(self):
         riga = self.risultati.iloc[0]

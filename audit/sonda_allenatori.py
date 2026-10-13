@@ -31,19 +31,37 @@ CHIAVE E LIMITI
   file finiscono in ``audit/data/allenatori/`` (snapshot) e
   ``audit/results/`` (referto).
 
+QUALE FILE DOVE (importante)
+* un run di **rete** scrive ``audit/data/allenatori/<giorno>.json`` **solo se
+  almeno una lega e' arrivata in fondo** (almeno una chiamata riuscita): se
+  tutte le chiamate falliscono lo script esce con errore e NON scrive nulla
+  (ne' snapshot ne' referto), cosi' non resta in giro un file con la data che
+  sembra un risultato;
+* un run ``--fixture`` (risposte finte, prove e test) scrive SEMPRE con il
+  prefisso ``fixture_`` (``fixture_<giorno>.json``, ``fixture_sonda_allenatori.md``)
+  e, senza ``--out-dir``/``--results-dir`` espliciti, dentro ``audit/output/``
+  (cartella NON versionata): una risposta finta non puo' mai finire in
+  ``audit/data/allenatori/<giorno>.json`` e passare per uno snapshot reale;
+* ``--referto-non-eseguito`` scrive il referto nello stato "sonda non
+  eseguita" (regola dichiarata, casi pubblici con la fonte, colonna
+  "Allenatore nelle API" = "da misurare"): serve a tenere il referto della PR
+  senza inventare numeri, e non fa nessuna chiamata.
+
 Uso::
 
     python audit/sonda_allenatori.py [--stagione 2026] [--leagues ...]
                                      [--out-dir DIR] [--results-dir DIR]
                                      [--casi FILE] [--max-calls-per-minute 10]
                                      [--fixture FILE] [--keep-going]
+                                     [--referto-non-eseguito]
 
 ``--fixture`` gira SENZA RETE su risposte finte (test e prove): il referto lo
-dichiara in testa ("RUN DI PROVA").
+dichiara in testa ("RUN DI PROVA") e i file portano il prefisso ``fixture_``.
 
 Code di uscita: 0 = sonda riuscita su tutte le leghe chieste; 1 = almeno una
-lega fallita (con ``--keep-going`` le altre vengono comunque salvate); 3 =
-chiave assente (e nessuna fixture).
+lega fallita (con ``--keep-going`` le altre vengono comunque salvate); 2 =
+nessuna chiamata riuscita (niente file scritti); 3 = chiave assente (e nessuna
+fixture).
 """
 
 from __future__ import annotations
@@ -70,6 +88,15 @@ STATUS_INTERROMPI = {401, 403, 429}  # chiave non valida / limite di quota
 DEFAULT_OUT_DIR = os.path.join(REPO_ROOT, "audit", "data", "allenatori")
 DEFAULT_RESULTS_DIR = os.path.join(REPO_ROOT, "audit", "results")
 DEFAULT_CASI = os.path.join(DEFAULT_OUT_DIR, "casi_pubblici_2026_27.json")
+
+#: Dove scrive un run ``--fixture`` senza ``--out-dir``: cartella NON versionata
+#: (``audit/output/`` e' in ``.gitignore``), cosi' una risposta finta non puo'
+#: finire nell'albero dei file versionati.
+DEFAULT_OUT_DIR_FIXTURE = os.path.join(REPO_ROOT, "audit", "output", "sonda_allenatori")
+#: Prefisso OBBLIGATORIO dei file di un run ``--fixture``: ``fixture_<giorno>.json``
+#: e ``fixture_sonda_allenatori.md``. Il nome senza prefisso resta del solo run
+#: di rete.
+PREFISSO_FIXTURE = "fixture_"
 
 #: Le 5 leghe del progetto: nome di vista -> codice competizione football-data.
 LEGHE = {
@@ -373,8 +400,12 @@ def giudizio(cop: dict, casi: list) -> dict:
 # ---------------------------------------------------------------------------
 # Scrittura (snapshot + referto)
 # ---------------------------------------------------------------------------
-def percorso_del_giorno(out_dir: str, giorno: str, suffisso: str = "") -> str:
-    return os.path.join(out_dir, f"{giorno}{suffisso}.json")
+def percorso_del_giorno(out_dir: str, giorno: str, suffisso: str = "",
+                        prefisso: str = "") -> str:
+    """``<out_dir>/<prefisso><giorno><suffisso>.json`` (prefisso ``fixture_``
+    per i run con risposte finte: il nome senza prefisso e' del solo run di
+    rete)."""
+    return os.path.join(out_dir, f"{prefisso}{giorno}{suffisso}.json")
 
 
 def scrivi_json(percorso: str, dati, chiavi_da_escludere=()) -> str:
@@ -396,14 +427,16 @@ def scrivi_json(percorso: str, dati, chiavi_da_escludere=()) -> str:
 
 
 def scrivi_snapshot(out_dir: str, giorno: str, dati: dict, quando: str,
-                    chiavi_da_escludere=()) -> str:
+                    chiavi_da_escludere=(), prefisso: str = "") -> str:
     """Salva lo snapshot del giorno senza MAI sovrascrivere un file esistente.
 
-    Il primo nome e' ``<giorno>.json``; se esiste si passa a ``<giorno>_02.json``
-    e cosi' via: un secondo run nello stesso giorno non cancella il primo.
+    Il primo nome e' ``<prefisso><giorno>.json``; se esiste si passa a
+    ``<prefisso><giorno>_02.json`` e cosi' via: un secondo run nello stesso
+    giorno non cancella il primo. Con ``prefisso="fixture_"`` il file non puo'
+    confondersi con lo snapshot di un run di rete.
     """
-    candidati = [percorso_del_giorno(out_dir, giorno)]
-    candidati += [percorso_del_giorno(out_dir, giorno, f"_{i:02d}")
+    candidati = [percorso_del_giorno(out_dir, giorno, prefisso=prefisso)]
+    candidati += [percorso_del_giorno(out_dir, giorno, f"_{i:02d}", prefisso)
                   for i in range(2, 100)]
     for percorso in candidati:
         if not os.path.exists(percorso):
@@ -421,7 +454,12 @@ def testo_referto(misure: dict, casi: list, esito: dict, note: list) -> str:
     if misure.get("modalita") == "fixture":
         righe.append("**Run di PROVA con risposte FINTA (`--fixture`)**: quello che "
                      "segue mostra che il giro funziona, NON lo stato delle API. "
-                     "Il run vero lo esegue il workflow manuale `audit_allenatori.yml`.")
+                     "I file di questo run portano il prefisso `fixture_` e (senza "
+                     "cartelle esplicite) stanno in `audit/output/`, la cartella NON "
+                     "versionata: nessuno di questi numeri e' uno snapshot con la "
+                     "data, e nessun file `audit/data/allenatori/<giorno>.json` "
+                     "viene scritto. Il run vero lo esegue il workflow manuale "
+                     "`audit_allenatori.yml`.")
         righe.append("")
     righe.append(f"Run: **{misure['quando']}** · stagione dal run: "
                  f"**{misure['stagione'] or 'predefinita'}** · chiamate fatte: "
@@ -532,6 +570,110 @@ def testo_referto(misure: dict, casi: list, esito: dict, note: list) -> str:
     return "\n".join(righe) + "\n"
 
 
+def testo_referto_non_eseguito(quando: str, percorso_casi: str) -> str:
+    """Il referto quando la sonda NON e' mai stata eseguita.
+
+    Niente numeri: la REGOLA dichiarata prima di tutto, i casi pubblici 2026/27
+    con la fonte e la colonna «Allenatore nelle API» con «da misurare», cosa si
+    deve lanciare per misurare. Nessun esito, nessuna copertura, nessuna riga
+    «non aggiornato»: quei dati esistono solo dopo un run reale.
+    """
+    casi = carica_casi(percorso_casi)
+    descrizione = descrizione_casi(percorso_casi)
+    righe = []
+    righe.append("# Sonda allenatori (football-data.org v4, sola lettura)")
+    righe.append("")
+    righe.append("**Sonda non eseguita: nessuna chiamata reale a football-data.org.** "
+                 "Questo referto dichiara la regola e i casi pubblici raccolti con la "
+                 "fonte; la colonna «Allenatore nelle API» e' «da misurare» perche' "
+                 "nessuno l'ha ancora letta. Nessun numero qui e' un risultato.")
+    righe.append("")
+    righe.append(f"Referto generato il **{quando}** in modalita' «non eseguita» "
+                 f"(`--referto-non-eseguito`): nessuna chiave API usata, nessuna "
+                 f"cartella di snapshot creata, nessun file "
+                 f"`audit/data/allenatori/<giorno>.json` scritto.")
+    righe.append("")
+    righe.append("## Regola dichiarata (prima dei numeri)")
+    righe.append("")
+    righe.append("L'allenatore entra nella scheda partita **solo se**:")
+    righe.append("")
+    righe.append(f"1. la copertura delle squadre con allenatore e' almeno "
+                 f"**{SOGLIA_COPERTURA:.0%}** (misurata su tutte e cinque le leghe);")
+    righe.append("2. **tutti** i casi di cambio allenatore verificati su fonti "
+                 "pubbliche risultano gia' aggiornati nelle API (nessun caso fuori "
+                 "posto).")
+    righe.append("")
+    righe.append("Finche' non gira un run reale la regola **non e' soddisfatta**: la "
+                 "scheda partita non mostra l'allenatore e lo dichiara, rimandando "
+                 "alle fonti alternative (sito del club, comunicati ufficiali). Un "
+                 "run `--fixture` (risposte finte) non cambia questa riga: i suoi "
+                 "file portano il prefisso `fixture_` e non valgono come misura.")
+    righe.append("")
+    righe.append("## Casi pubblici 2026/27 (fonte per caso; stato da misurare)")
+    righe.append("")
+    if descrizione.get("versione") or descrizione.get("raccolti_il"):
+        righe.append(f"I casi vengono da `audit/data/allenatori/"
+                     f"casi_pubblici_2026_27.json` (versione "
+                     f"{descrizione.get('versione') or 'n/d'}, "
+                     f"{descrizione.get('raccolti_il') or 'data n/d'}).")
+        righe.append("")
+    for escluso in descrizione.get("esclusi") or []:
+        nome = escluso.get("squadra") or escluso.get("lega") or "caso"
+        righe.append(f"* **{nome}** non e' un caso: {escluso.get('motivo')}")
+    if descrizione.get("esclusi"):
+        righe.append("")
+    if not casi:
+        righe.append("_Nessun caso pubblico disponibile._")
+    else:
+        righe.append("| Lega | Squadra | Uscente | Entrante | Data | Allenatore "
+                     "nelle API | Fonte |")
+        righe.append("|---|---|---|---|---|---|---|")
+        for c in casi:
+            righe.append(f"| {c.get('lega')} | {c.get('squadra')} | "
+                         f"{c.get('allenatore_uscente') or '—'} | "
+                         f"{c.get('allenatore_entrante') or c.get('allenatore_atteso') or '—'} | "
+                         f"{c.get('data') or c.get('data_cambio') or '—'} | "
+                         f"da misurare | "
+                         f"[fonte]({c.get('fonte')}) |")
+        righe.append("")
+        righe.append(f"Casi pubblici raccolti: **{len(casi)}** (la regola chiede "
+                     f"almeno {MIN_CASI_PUBBLICI} casi e che TUTTI risultino "
+                     f"aggiornati nel run reale).")
+    righe.append("")
+    righe.append("## Cosa manca per misurare")
+    righe.append("")
+    righe.append("**Il workflow manuale `audit_allenatori.yml`** (`workflow_dispatch`: "
+                 "lo lancia Felice, non questo referto). Fa, in quest'ordine:")
+    righe.append("")
+    righe.append("1. i test offline della sonda (nessuna rete, nessuna chiave);")
+    righe.append("2. ~5 chiamate per l'elenco squadre delle 5 leghe + 1 chiamata per "
+                 "squadra (`GET /v4/competitions/{codice}/teams`, poi "
+                 "`GET /v4/teams/{id}`): ~100 squadre, ~11 minuti a 10 chiamate al "
+                 "minuto, il limite del piano gratuito;")
+    righe.append("3. scrive `audit/data/allenatori/<giorno>.json` **solo** se almeno "
+                 "una lega e' arrivata in fondo (almeno una chiamata riuscita) e "
+                 "riscrive **questo** referto con copertura, forme delle date e "
+                 "l'esito dei casi; se tutte le chiamate falliscono il workflow si "
+                 "ferma con errore e non committa nulla;")
+    righe.append("4. committa snapshot e referto con il token del bot.")
+    righe.append("")
+    righe.append("Dopo quel run questo referto conterra' i numeri veri: la copertura "
+                 "per lega, la forma delle date di contratto cosi' come arrivano, "
+                 "l'allenatore che le API riportano per ogni caso pubblico e l'esito "
+                 "della regola. Solo allora si sapra' se l'allenatore puo' entrare "
+                 "nella scheda partita.")
+    righe.append("")
+    righe.append("## Cosa NON fa questa sonda")
+    righe.append("")
+    righe.append("* non modifica l'app ne' `SoccerMath/`: la scheda partita non mostra "
+                 "l'allenatore;")
+    righe.append("* non stampa la chiave API (header `X-Auth-Token`, mai nell'URL) e "
+                 "rifiuta di scrivere un file che la contenga;")
+    righe.append("* non scrive snapshot senza chiamate riuscite: nessun file con la "
+                 "data viene creato in modalita' «non eseguita».")
+    return "\n".join(righe) + "\n"
+
+
 # ---------------------------------------------------------------------------
 # Giro completo
 # ---------------------------------------------------------------------------
@@ -611,18 +753,38 @@ def main(argv=None) -> int:
                              "predefinita delle API")
     parser.add_argument("--leagues", nargs="*", default=None,
                         help="nomi delle leghe (default: tutte e cinque)")
-    parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
-    parser.add_argument("--results-dir", default=DEFAULT_RESULTS_DIR)
+    parser.add_argument("--out-dir", default=None,
+                        help="dove salvare lo snapshot (default: "
+                             "audit/data/allenatori per un run di rete, "
+                             "audit/output/sonda_allenatori con --fixture)")
+    parser.add_argument("--results-dir", default=None,
+                        help="dove scrivere il referto (stessa regola di --out-dir)")
     parser.add_argument("--casi", default=DEFAULT_CASI)
     parser.add_argument("--max-calls-per-minute", type=int, default=MAX_CHIAMATE_AL_MINUTO)
     parser.add_argument("--fixture", default=None,
-                        help="risposte finte in JSON: gira senza rete (prove e test)")
+                        help="risposte finte in JSON: gira senza rete (prove e test); "
+                             "i file scritti portano il prefisso fixture_")
     parser.add_argument("--keep-going", action="store_true",
                         help="se una lega fallisce, continua con le altre")
+    parser.add_argument("--referto-non-eseguito", action="store_true",
+                        help="scrive il referto nello stato «sonda non eseguita» "
+                             "(regola, casi con fonte, colonna «da misurare»): "
+                             "nessuna chiamata, nessuno snapshot")
     args = parser.parse_args(argv)
 
     quando = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     giorno = quando[:10]
+
+    if args.referto_non_eseguito:
+        results_dir = args.results_dir or DEFAULT_RESULTS_DIR
+        referto = os.path.join(results_dir, "sonda_allenatori.md")
+        os.makedirs(results_dir, exist_ok=True)
+        with open(referto, "w", encoding="utf-8") as fh:
+            fh.write(testo_referto_non_eseguito(quando, args.casi))
+        print("MODALITA=non eseguita CHIAMATE=0")
+        print(f"REFERTO={referto}")
+        return 0
+
     leghe = args.leagues or list(LEGHE)
     sconosciute = [l for l in leghe if l not in LEGHE]
     if sconosciute:
@@ -661,6 +823,18 @@ def main(argv=None) -> int:
         print(f"{lega}: {len(voci)} squadre, "
               f"{sum(1 for v in voci if v.get('allenatore'))} con allenatore")
 
+    # Un run di RETE senza nemmeno una lega arrivata in fondo non e' una misura:
+    # niente snapshot con la data e niente referto (altrimenti resterebbe in
+    # giro un file che sembra un risultato). Un run --fixture invece e' una
+    # prova: si scrive, ma solo con il prefisso fixture_.
+    leghe_riuscite = [l for l in leghe if squadre_per_lega.get(l)]
+    if modalita == "rete" and not leghe_riuscite:
+        print("ERRORE: nessuna chiamata riuscita: nessuno snapshot e nessun "
+              "referto scritti (la regola resta non verificata).")
+        for n in note:
+            print(f"  - {n}")
+        return 2
+
     cop = copertura(squadre_per_lega)
     casi = carica_casi(args.casi)
     casi_confrontati = confronta_casi(casi, squadre_per_lega, quando)
@@ -692,15 +866,22 @@ def main(argv=None) -> int:
         "casi_esclusi": descrizione_casi(args.casi).get("esclusi"),
     }
 
+    # Percorsi: con --fixture SEMPRE il prefisso fixture_ e, senza cartelle
+    # esplicite, la cartella non versionata audit/output/.
+    prefisso = PREFISSO_FIXTURE if modalita == "fixture" else ""
+    out_dir = args.out_dir or (DEFAULT_OUT_DIR_FIXTURE if modalita == "fixture"
+                               else DEFAULT_OUT_DIR)
+    results_dir = args.results_dir or (DEFAULT_OUT_DIR_FIXTURE if modalita == "fixture"
+                                      else DEFAULT_RESULTS_DIR)
     percorso_snapshot = scrivi_snapshot(
-        args.out_dir, giorno,
+        out_dir, giorno,
         # nel file: le stesse misure del referto, ma con la copertura COMPLETA
         # (per lega e con l'elenco di chi non ha allenatore), non solo la frazione
         {**misure, "versione": "allenatori_snapshot_v1",
          "squadre_per_lega": squadre_per_lega, "copertura": cop},
-        quando, chiavi_da_escludere=(chiave,))
-    referto = os.path.join(args.results_dir, "sonda_allenatori.md")
-    os.makedirs(args.results_dir, exist_ok=True)
+        quando, chiavi_da_escludere=(chiave,), prefisso=prefisso)
+    referto = os.path.join(results_dir, f"{prefisso}sonda_allenatori.md")
+    os.makedirs(results_dir, exist_ok=True)
     with open(referto, "w", encoding="utf-8") as fh:
         fh.write(testo_referto(misure, casi_confrontati, esito, note))
 
