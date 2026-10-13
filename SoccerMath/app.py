@@ -5149,7 +5149,7 @@ def _sintesi_registro_mercato(righe) -> tuple:
         if math.isfinite(v) and v > 0:
             modello.append(v if v > 1.0 else v * 100.0)
     testo_quote = (f"Quote: {int(round(100.0 * sum(prime) / len(prime)))}%"
-                   if prime else "Quote: n/d")
+        if prime else "Quote: n/d")
     testo_modello = (f"Modello: {int(round(sum(modello) / len(modello)))}%"
                      if modello else "Modello: n/d")
     coda_y = (f" ({senza_prima_prob} senza probabilità leggibile alla prima "
