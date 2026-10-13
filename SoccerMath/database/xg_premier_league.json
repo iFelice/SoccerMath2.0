@@ -1,102 +1,102 @@
 {
   "Arsenal": {
-    "xG_avg": 1.883,
-    "xGA_avg": 1.091,
-    "matches": 5
+    "xG_avg": 1.956,
+    "xGA_avg": 1.109,
+    "matches": 6
   },
   "Aston Villa": {
-    "xG_avg": 0.998,
-    "xGA_avg": 2.171,
-    "matches": 5
+    "xG_avg": 1.138,
+    "xGA_avg": 2.023,
+    "matches": 6
   },
   "Bournemouth": {
-    "xG_avg": 1.62,
-    "xGA_avg": 1.399,
-    "matches": 5
+    "xG_avg": 1.629,
+    "xGA_avg": 1.395,
+    "matches": 6
   },
   "Brentford": {
-    "xG_avg": 2.103,
-    "xGA_avg": 1.499,
-    "matches": 5
+    "xG_avg": 1.966,
+    "xGA_avg": 1.556,
+    "matches": 6
   },
   "Brighton": {
-    "xG_avg": 2.579,
-    "xGA_avg": 1.725,
-    "matches": 5
+    "xG_avg": 2.422,
+    "xGA_avg": 1.583,
+    "matches": 6
   },
   "Chelsea": {
-    "xG_avg": 1.788,
-    "xGA_avg": 2.059,
-    "matches": 5
+    "xG_avg": 1.719,
+    "xGA_avg": 1.995,
+    "matches": 6
   },
   "Coventry City": {
-    "xG_avg": 0.995,
-    "xGA_avg": 1.718,
-    "matches": 5
+    "xG_avg": 1.107,
+    "xGA_avg": 1.801,
+    "matches": 6
   },
   "Crystal Palace": {
-    "xG_avg": 1.517,
-    "xGA_avg": 2.004,
-    "matches": 5
+    "xG_avg": 1.639,
+    "xGA_avg": 2.297,
+    "matches": 6
   },
   "Everton": {
-    "xG_avg": 1.671,
-    "xGA_avg": 1.44,
-    "matches": 5
+    "xG_avg": 1.858,
+    "xGA_avg": 1.455,
+    "matches": 6
   },
   "Fulham": {
-    "xG_avg": 1.593,
-    "xGA_avg": 2.086,
-    "matches": 5
+    "xG_avg": 1.624,
+    "xGA_avg": 1.948,
+    "matches": 6
   },
   "Hull City": {
-    "xG_avg": 1.146,
-    "xGA_avg": 1.437,
-    "matches": 5
+    "xG_avg": 1.211,
+    "xGA_avg": 1.664,
+    "matches": 6
   },
   "Ipswich": {
-    "xG_avg": 1.425,
-    "xGA_avg": 2.062,
-    "matches": 5
+    "xG_avg": 1.397,
+    "xGA_avg": 2.014,
+    "matches": 6
   },
   "Leeds": {
-    "xG_avg": 1.445,
-    "xGA_avg": 1.283,
-    "matches": 5
+    "xG_avg": 1.404,
+    "xGA_avg": 1.456,
+    "matches": 6
   },
   "Liverpool": {
-    "xG_avg": 1.649,
-    "xGA_avg": 1.388,
-    "matches": 5
+    "xG_avg": 1.501,
+    "xGA_avg": 1.421,
+    "matches": 6
   },
   "Man City": {
-    "xG_avg": 2.208,
-    "xGA_avg": 1.435,
-    "matches": 5
+    "xG_avg": 2.105,
+    "xGA_avg": 1.323,
+    "matches": 6
   },
   "Man United": {
-    "xG_avg": 2.117,
-    "xGA_avg": 1.443,
-    "matches": 5
+    "xG_avg": 1.909,
+    "xGA_avg": 1.542,
+    "matches": 6
   },
   "Newcastle": {
-    "xG_avg": 1.109,
-    "xGA_avg": 1.868,
-    "matches": 5
+    "xG_avg": 1.294,
+    "xGA_avg": 1.834,
+    "matches": 6
   },
   "Nott'm Forest": {
-    "xG_avg": 1.696,
-    "xGA_avg": 1.002,
-    "matches": 5
+    "xG_avg": 2.041,
+    "xGA_avg": 1.21,
+    "matches": 6
   },
   "Sunderland": {
-    "xG_avg": 2.014,
-    "xGA_avg": 1.77,
-    "matches": 5
+    "xG_avg": 1.824,
+    "xGA_avg": 1.749,
+    "matches": 6
   },
   "Tottenham": {
-    "xG_avg": 1.164,
-    "xGA_avg": 1.839,
-    "matches": 5
+    "xG_avg": 1.309,
+    "xGA_avg": 1.677,
+    "matches": 6
   }
 }

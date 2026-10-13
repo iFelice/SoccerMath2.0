@@ -1,92 +1,92 @@
 {
   "Augsburg": {
-    "xG_avg": 2.142,
-    "xGA_avg": 2.134,
-    "matches": 4
+    "xG_avg": 2.105,
+    "xGA_avg": 2.623,
+    "matches": 5
   },
   "Bayern": {
-    "xG_avg": 3.331,
-    "xGA_avg": 0.75,
-    "matches": 4
+    "xG_avg": 3.581,
+    "xGA_avg": 0.992,
+    "matches": 5
   },
   "Dortmund": {
-    "xG_avg": 2.149,
-    "xGA_avg": 1.062,
-    "matches": 4
+    "xG_avg": 2.242,
+    "xGA_avg": 1.02,
+    "matches": 5
   },
   "Ein Frankfurt": {
-    "xG_avg": 2.218,
-    "xGA_avg": 2.226,
-    "matches": 4
+    "xG_avg": 2.167,
+    "xGA_avg": 2.728,
+    "matches": 5
   },
   "Elversberg": {
-    "xG_avg": 1.564,
-    "xGA_avg": 2.458,
-    "matches": 4
+    "xG_avg": 1.307,
+    "xGA_avg": 2.214,
+    "matches": 5
   },
   "Freiburg": {
-    "xG_avg": 2.159,
-    "xGA_avg": 1.008,
-    "matches": 4
+    "xG_avg": 2.052,
+    "xGA_avg": 0.882,
+    "matches": 5
   },
   "Hamburg": {
-    "xG_avg": 0.987,
-    "xGA_avg": 2.305,
-    "matches": 4
+    "xG_avg": 1.092,
+    "xGA_avg": 2.03,
+    "matches": 5
   },
   "Hoffenheim": {
-    "xG_avg": 2.18,
-    "xGA_avg": 2.087,
-    "matches": 4
+    "xG_avg": 1.93,
+    "xGA_avg": 1.972,
+    "matches": 5
   },
   "Koln": {
-    "xG_avg": 2.236,
-    "xGA_avg": 2.176,
-    "matches": 4
+    "xG_avg": 2.097,
+    "xGA_avg": 1.948,
+    "matches": 5
   },
   "Leipzig": {
-    "xG_avg": 2.186,
-    "xGA_avg": 1.285,
-    "matches": 4
+    "xG_avg": 2.696,
+    "xGA_avg": 1.421,
+    "matches": 5
   },
   "Leverkusen": {
-    "xG_avg": 2.61,
-    "xGA_avg": 0.856,
-    "matches": 4
+    "xG_avg": 2.547,
+    "xGA_avg": 1.119,
+    "matches": 5
   },
   "M'gladbach": {
-    "xG_avg": 1.87,
-    "xGA_avg": 3.104,
-    "matches": 4
+    "xG_avg": 1.703,
+    "xGA_avg": 2.791,
+    "matches": 5
   },
   "Mainz": {
-    "xG_avg": 2.635,
-    "xGA_avg": 1.549,
-    "matches": 4
+    "xG_avg": 2.543,
+    "xGA_avg": 1.698,
+    "matches": 5
   },
   "SC Paderborn": {
-    "xG_avg": 0.769,
-    "xGA_avg": 1.885,
-    "matches": 4
+    "xG_avg": 1.034,
+    "xGA_avg": 2.025,
+    "matches": 5
   },
   "Schalke 04": {
-    "xG_avg": 1.644,
-    "xGA_avg": 2.576,
-    "matches": 4
+    "xG_avg": 1.39,
+    "xGA_avg": 2.385,
+    "matches": 5
   },
   "Stuttgart": {
-    "xG_avg": 2.027,
-    "xGA_avg": 3.002,
-    "matches": 4
+    "xG_avg": 2.139,
+    "xGA_avg": 2.82,
+    "matches": 5
   },
   "Union Berlin": {
-    "xG_avg": 1.231,
-    "xGA_avg": 3.215,
-    "matches": 4
+    "xG_avg": 1.232,
+    "xGA_avg": 2.628,
+    "matches": 5
   },
   "Werder Bremen": {
-    "xG_avg": 1.321,
-    "xGA_avg": 1.581,
-    "matches": 4
+    "xG_avg": 1.227,
+    "xGA_avg": 1.788,
+    "matches": 5
   }
 }

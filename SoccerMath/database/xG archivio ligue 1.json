@@ -15677,10 +15677,10 @@
     "date": "2026-08-23 18:45:00",
     "home_team": "Paris Saint Germain",
     "away_team": "Rennes",
-    "home_goals": 0,
-    "away_goals": 0,
-    "home_xg": 0.63016,
-    "away_xg": 0.910543,
+    "home_goals": 2,
+    "away_goals": 2,
+    "home_xg": 1.13234,
+    "away_xg": 1.94729,
     "is_result": true
   },
   {
@@ -16121,11 +16121,11 @@
     "date": "2026-10-09 18:45:00",
     "home_team": "Lens",
     "away_team": "Lyon",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 1,
+    "home_xg": 1.40616,
+    "away_xg": 1.031,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16133,11 +16133,11 @@
     "date": "2026-10-10 18:45:00",
     "home_team": "Brest",
     "away_team": "Angers",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 5,
+    "away_goals": 1,
+    "home_xg": 4.04399,
+    "away_xg": 1.18531,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16145,11 +16145,11 @@
     "date": "2026-10-10 15:15:00",
     "home_team": "Lille",
     "away_team": "Le Havre",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 0,
+    "home_xg": 1.32049,
+    "away_xg": 0.844651,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16157,11 +16157,11 @@
     "date": "2026-10-10 18:45:00",
     "home_team": "Lorient",
     "away_team": "Paris FC",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 0,
+    "home_xg": 0.486426,
+    "away_xg": 0.901653,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16169,11 +16169,11 @@
     "date": "2026-10-10 18:45:00",
     "home_team": "Monaco",
     "away_team": "Toulouse",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 2,
+    "home_xg": 1.2338,
+    "away_xg": 1.4073,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16181,11 +16181,11 @@
     "date": "2026-10-10 18:45:00",
     "home_team": "Paris Saint Germain",
     "away_team": "Le Mans",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 3,
+    "away_goals": 1,
+    "home_xg": 4.22625,
+    "away_xg": 2.22766,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16193,11 +16193,11 @@
     "date": "2026-10-11 13:00:00",
     "home_team": "Nice",
     "away_team": "Strasbourg",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 1,
+    "home_xg": 1.54619,
+    "away_xg": 0.438924,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16205,11 +16205,11 @@
     "date": "2026-10-11 15:15:00",
     "home_team": "Rennes",
     "away_team": "Auxerre",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 4,
+    "away_goals": 1,
+    "home_xg": 1.99675,
+    "away_xg": 1.20652,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -16217,11 +16217,11 @@
     "date": "2026-10-11 18:45:00",
     "home_team": "Troyes",
     "away_team": "Marseille",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 2,
+    "home_xg": 1.25108,
+    "away_xg": 1.27073,
+    "is_result": true
   },
   {
     "season": 2026,
