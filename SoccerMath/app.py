@@ -3213,14 +3213,20 @@ TITOLO_SCHEDA_PARTITE = "🏟️ Partite"
 TITOLO_SCHEDA_ANDATA = "📒 Com'è andata"
 TITOLO_SCHEDA_STRUMENTI = "🔧 Strumenti avanzati"
 
-_etichette_schede = [TITOLO_SCHEDA_GIOCATE, TITOLO_SCHEDA_PARTITE, TITOLO_SCHEDA_ANDATA]
+TITOLO_SCHEDA_PRONOSTICI = "⚽ Pronostici"
+TITOLO_SCHEDA_PAREGGI = "🟰 Pareggi"
+TITOLO_SCHEDA_MULTIPLA = "🎯 Multiple"
+TITOLO_SCHEDA_REGISTRO = "📒 Registro"
+TITOLO_SCHEDA_STRUMENTI = "🔧 Strumenti avanzati"
+
+_etichette_schede = [TITOLO_SCHEDA_PRONOSTICI, TITOLO_SCHEDA_PAREGGI, TITOLO_SCHEDA_MULTIPLA, TITOLO_SCHEDA_REGISTRO]
 if strumenti_avanzati:
     _etichette_schede.append(TITOLO_SCHEDA_STRUMENTI)
 _schede = st.tabs(_etichette_schede)
-tab_giocate, tab_partite, tab_andata = _schede[0], _schede[1], _schede[2]
-tab_strumenti = _schede[3] if len(_schede) > 3 else None
+tab_pronostici, tab_pareggi, tab_multipla, tab_registro = _schede[0], _schede[1], _schede[2], _schede[3]
+tab_strumenti = _schede[4] if len(_schede) > 4 else None
 
-with tab_partite:
+with tab_pronostici:
     if 'live_data' in st.session_state and st.session_state.live_data and g_sel is not None and engine:
         team_stats, avg_h, avg_a, _ = engine
         matches = [m for m in st.session_state.live_data if int(m.get('matchday', 0)) == int(g_sel)]
@@ -3228,50 +3234,94 @@ with tab_partite:
         st.caption("Le partite della giornata con la data e l'ora italiane e le "
                    "probabilità 1, X, 2 in parole, quando le quote ci sono. "
                    "«Scheda» apre la scheda della partita.")
-        # --- L'ELENCO IN PAROLE (la scheda si apre da qui) -------------------
-        # Le partite sono quelle del calendario (football-data, come oggi); le
-        # probabilita' arrivano dal file delle quote, abbinate per nome
-        # canonico e per lega. Nessun numero e' ricalcolato qui.
-        _adesso_partite = market_odds._adesso_utc()
-        _payload_partite = market_odds.carica_quote_live()
-        righe_giornata = sp.righe_partite_giornata(
-            [{"lega": camp_sel,
-              "casa": (m.get("homeTeam") or {}).get("name"),
-              "trasferta": (m.get("awayTeam") or {}).get("name"),
-              "utcDate": m.get("utcDate")} for m in matches],
-            _payload_partite, _adesso_partite)
-        if not righe_giornata:
-            st.info("Nessuna partita in questa giornata.")
-        for i, r in enumerate(righe_giornata):
-            c_nomi, c_prob, c_btn = st.columns([2.0, 3.2, 0.8])
-            with c_nomi:
-                st.markdown(f"**{r['casa_nome']} - {r['trasferta_nome']}**")
-                st.caption(f"🕒 {r['quando']}")
-            with c_prob:
-                st.markdown(r["in_parole"])
-            with c_btn:
-                if st.button("Scheda", key=f"partite_scheda_{i}",
-                             help=f"{r['casa_nome']} - {r['trasferta_nome']}"):
-                    apri_scheda_partita(camp_sel, r["casa"], r["trasferta"], r["utcDate"])
-        # --- «DETTAGLI»: l'analisi del modello di oggi, INVARIATA, in fondo ---
-        # Tutto quello che questa scheda mostrava prima (il pulsante «Analisi
-        # Rapida» e le card per partita con 1X2, U/O 2.5, GG/NG e il pulsante
-        # «🔍» che apre il dettaglio) sta qui dentro, chiuso di default: le
-        # stesse funzioni, gli stessi numeri, nessuna riga tolta.
-        st.divider()
-        with st.expander("🔎 Dettagli", expanded=False):
-            col_title, col_btn = st.columns([4, 1])
-            with col_title:
-                st.caption("L'analisi del modello: Analisi Rapida e dettaglio per partita.")
-            with col_btn:
-                if st.button("⚡ Analisi Rapida"):
-                    with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, st.session_state.get("classifica", {}), g_sel)
-                    st.success(f"✅ {n} righe salvate ({len(matches)} partite x 2 motori: attuale e legacy)!")
-            for idx, match in enumerate(matches):
-                h_api, a_api, m_poisson, m, sconosciuti, senza_stats = dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)
-                dt = format_date_italy(match['utcDate'])
-                if m is None:
-                    # Caso (a): la card NON usa statistiche di default. L'avviso
+        # --- Scheda ⚽ Pronostici ---
+# In testa: il pulsante "📝 Calcola i pronostici della giornata" e sotto la riga
+# "Ultima registrazione: …" (già esistente).
+# Prima del clic: solo il pulsante, la riga dell'ultima registrazione e una frase:
+# "Premi il pulsante per calcolare i pronostici della giornata."
+# Al clic: esegue il calcolo (fetch_and_calc_top_mix, stessa cache) e le scritture
+# che oggi fa "Registra le giocate della giornata", con le stesse funzioni e le stesse regole
+# (prima registrazione mai sovrascritta, partite già iniziate escluse, proposta multipla
+# settimanale solo da venerdì a lunedì). Poi mostra la tabella delle scelte del mercato
+# di topmix_mercato_v3 della giornata, ordinata per Quote % decrescente, con le colonne:
+# Quando (giorno abbreviato, data, ora italiana) · Partita ("Casa - Trasferta") · Pronostico
+# (sigla: 1, X, 2, 1X, X2, 12) · Quote % · Modello % · Quota (bet365 stimata).
+# Quote %, Modello % e Quota numeriche (NumberColumn, una cifra decimale; due per Quota),
+# ordinabili al clic.
+# Dove il modello non c'è, la cella è vuota: mai "None", "nan" o "n/d" nella cella.
+# Nessuna scritta dentro la colonna Partita. Le partite che iniziano fra più di 3 giorni
+# hanno "⏳" nella colonna Quando; una sola riga sotto la tabella spiega il simbolo
+# ("⏳ quote ancora provvisorie"), e solo se c'è almeno una.
+# Periodo: di default la giornata (fino al lunedì, regola attuale). Un solo interruttore
+# "Mostra anche i prossimi giorni" sopra le tabelle sostituisce i due pulsanti radio.
+# Clic su una riga = si apre la scheda partita (st.dataframe con on_select="rerun",
+# selection_mode="single-row"; st.dialog esistente). Il contenuto della scheda resta quello
+# attuale in questa PR. Vanno tolte le file di pulsanti "Scheda" sotto le tabelle e le righe
+# "Scheda partita: …".
+# Esito della scrittura in una riga sola ("Registrate N giocate nuove" / "Niente di nuovo da registrare"
+# / "Non è stato possibile salvare: riprova"); i dettagli tecnici nei Dettagli.
+# Il pulsante "Registra le giocate della giornata" separato viene rimosso: è sostituito da questo.
+
+# Titolo e pulsante iniziale
+st.markdown("##### 📝 Calcola i pronostici della giornata")
+cliccato = st.button("📝 Calcola i pronostici della giornata", type="primary", key="btn_calc_pronostici")
+st.caption("Ultima registrazione: " + ultima_registrazione_mercato(righe_visibili(load_predictions())))
+
+if cliccato:
+    # Esegui il calcolo e le scritture
+    esito = registra_giocate_della_giornata()
+    st.session_state["esito_registrazione"] = esito
+    st.rerun()
+
+# Messaggio prima del clic
+if not st.session_state.get("topmix_mercato"):
+    st.info("Premi il pulsante per calcolare i pronostici della giornata.")
+
+# Tabella delle scelte (mostrata dopo il clic)
+if st.session_state.get("topmix_mercato"):
+    top_mercato = st.session_state["topmix_mercato"]
+    # Ordina per Quote % decrescente
+    top_ordinato = sorted(top_mercato, key=lambda x: x.get("prob", 0), reverse=True)
+    # Colonne comuni: Quando, Partita, Pronostico, Quote %, Modello %, Quota
+    colonne_tabella = [
+        "Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"
+    ]
+    rows = []
+    for r in top_ordinato:
+        # Quando: giorno abbreviato + data + ora italiana, o ⏳ se > 3 giorni
+        quando_dt = datetime.fromisoformat(r.get("utcDate", "").replace("Z", "+00:00"))
+        quando_italy = quando_dt.astimezone(ITALY_TZ)
+        giorni_fino = (quando_dt - datetime.now(timezone.utc)).days
+        if giorni_fino > 3:
+            quando_str = "⏳"
+        else:
+            quando_str = f"{quando_italy.strftime('%a %d/%m | %H:%M')}"
+        
+        # Partita: "Casa - Trasferta" senza testo aggiuntivo
+        partita_str = f"{r.get('home', '?')} - {r.get('away', '?')}"
+        
+        # Pronostico: sigla
+        pronostico_str = r.get("mercato_standard", "")
+        
+        # Quote %, Modello % (numeriche)
+        quote_pct = f"{r.get('prob_val', 0):.1f}%"
+        modello_pct = f"{r.get('prob_modello_val', None):.1f}%" if r.get("prob_modello_val") is not None else ""
+        quota_str = f"{r.get('quota', 0):.2f}" if r.get("quota") is not None else ""
+        
+        rows.append({
+            "Quando": quando_str,
+            "Partita": partita_str,
+            "Pronostico": pronostico_str,
+            "Quote %": quote_pct,
+            "Modello %": modello_pct,
+            "Quota": quota_str,
+        })
+    
+    if rows:
+        df = pd.DataFrame(rows, columns=colonne_tabella)
+        st.dataframe(df, width="stretch", height=420, hide_index=True)
+    else:
+        st.info("Nessuna partita abbastanza sicura in questo turno secondo le quote (sopra il 55%)")
                     # esplicito in scheda (qui) e il WARNING nel log (nome grezzo e
                     # pulito, in _stato_squadre_match) dicono perche'.
                     dettaglio = ", ".join(f"'{grezzo}' (pulito: '{pulito}')"
