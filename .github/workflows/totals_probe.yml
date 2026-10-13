@@ -18,6 +18,8 @@ name: Sonda totals (The Odds API, manuale)
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "45 8 16 10 *"
 
 permissions:
   contents: write
