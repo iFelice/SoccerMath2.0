@@ -31,8 +31,10 @@ name: Sonda allenatori (football-data.org, manuale)
 # file che contenga la chiave e uno step finale lo verifica sui file salvati.
 #
 # Limite di chiamate: 10 al minuto (piano gratuito di football-data.org), con
-# finestra mobile dentro lo script: ~5 chiamate per le 5 leghe + 1 per squadra
-# (~100 squadre) = ~11 minuti in tutto.
+# finestra mobile dentro lo script (max 10 chiamate in qualunque finestra di 60 s,
+# elenco squadre incluso). Durata minima = (chiamate - 10) x 6 s: il run del
+# 13/10 (72 chiamate) = 6 min 12 s teorici; con ~100 chiamate ~9-10 min, piu'
+# l'attesa per eventuali 429 (max 3 ritentativi per chiamata).
 
 on:
   workflow_dispatch:
@@ -143,7 +145,7 @@ jobs:
           from datetime import datetime, timedelta, timezone
 
           adesso = datetime.now(timezone.utc)
-          limite = adesso - timedelta(hours=8)   # questo run (dura ~11 minuti)
+          limite = adesso - timedelta(hours=8)   # questo run (dura circa 10 minuti)
           problemi = []
           trovati = 0
 
@@ -237,6 +239,142 @@ jobs:
             exit 0
           fi
           git commit -m "audit: sonda allenatori football-data.org (manuale)"
+          for i in 1 2 3; do
+            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
+              echo "push ok"
+              exit 0
+            fi
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            sleep 5
+          done
+          echo "::error::push fallito dopo 3 tentativi"
+          exit 1
+
+  # Secondo job (indipendente dal primo): stessa domanda — l'allenatore delle 5
+  # leghe e' aggiornato? — ma da Wikipedia (en.wikipedia.org, API MediaWiki),
+  # NESSUNA chiave. Referto separato: audit/results/sonda_allenatori_wikipedia.md;
+  # snapshot in audit/data/allenatori_wikipedia/ (cartella diversa da quella
+  # football, cosi' i due job non si leggono i file a vicenda).
+  wikipedia:
+    name: Sonda allenatori Wikipedia (5 leghe, sola lettura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: "Dipendenze (requests, beautifulsoup4 e lxml per leggere la tabella, pytest per il test offline)"
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 lxml pytest
+          VERSIONI=$(python - <<'PY'
+          import platform
+          from importlib.metadata import version
+          print(f"python {platform.python_version()}, requests {version('requests')}, "
+                f"beautifulsoup4 {version('beautifulsoup4')}, lxml {version('lxml')}, "
+                f"pytest {version('pytest')}")
+          PY
+          )
+          echo "$VERSIONI"
+          echo "::notice::ambiente sonda Wikipedia -> $VERSIONI | runner ${ImageOS:-n/d} ${ImageVersion:-n/d}"
+
+      - name: Test offline della sonda Wikipedia (nessuna rete, nessuna chiave)
+        run: python -m pytest audit/test_sonda_allenatori_wikipedia.py -q
+
+      - name: Sonda Wikipedia (5 leghe, API MediaWiki, User-Agent dichiarato)
+        run: |
+          set +e
+          python audit/sonda_allenatori_wikipedia.py 2>&1 | tee /tmp/sonda_wikipedia.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$rc"
+          # 2 = nessuna lega letta: niente snapshot, niente referto, niente commit
+          if [ "$rc" = "2" ]; then
+            echo "::error::nessuna lega letta da Wikipedia: nessuno snapshot, nessun referto, nessun commit"
+            exit 1
+          fi
+          if [ "$rc" != "0" ]; then
+            echo "::error::sonda Wikipedia terminata con errore (exit $rc)"
+            exit 1
+          fi
+
+      # Lo snapshot viene solo da un run di rete con almeno una lega letta, e
+      # nessun file di prova (fixture_) nella cartella versionata.
+      - name: Lo snapshot Wikipedia viene da un run di rete con almeno una lega letta
+        run: |
+          python - <<'PY'
+          import glob, json, os, sys
+          problemi = []
+          trovati = 0
+          for percorso in sorted(glob.glob("audit/data/allenatori_wikipedia/*.json")):
+              nome = os.path.basename(percorso)
+              if nome.startswith("fixture_"):
+                  problemi.append(f"{nome}: un file di prova nella cartella degli snapshot")
+                  continue
+              with open(percorso, encoding="utf-8") as fh:
+                  dati = json.load(fh)
+              if dati.get("modalita") != "rete":
+                  problemi.append(f"{nome}: modalita' {dati.get('modalita')!r}, non «rete»")
+                  continue
+              letture = dati.get("leghe") or {}
+              lette = [l for l, v in letture.items() if v.get("letta")]
+              print(f"{nome}: quando={dati.get('quando')} lette={len(lette)}/5 chiamate={dati.get('chiamate')}")
+              if not lette:
+                  problemi.append(f"{nome}: nessuna lega letta")
+              trovati += 1
+          if trovati == 0:
+              problemi.append("questo run non ha scritto nessuno snapshot Wikipedia")
+          if problemi:
+              for p in problemi:
+                  print(f"::error::{p}")
+              sys.exit(1)
+          print("OK: snapshot Wikipedia da un run di rete con almeno una lega letta.")
+          PY
+
+      - name: Nessuna chiave o intestazione di autenticazione nei file salvati
+        run: |
+          if grep -rEq 'X-Auth-Token|FOOTBALL_DATA_API_KEY|apiKey' audit/data/allenatori_wikipedia audit/results/sonda_allenatori_wikipedia.md; then
+            echo "::error::un riferimento a una chiave/intestazione di autenticazione e' finito nei file salvati"
+            exit 1
+          fi
+          echo "OK: nessuna chiave nei file."
+
+      - name: Riepilogo nel job
+        run: |
+          head -n 60 audit/results/sonda_allenatori_wikipedia.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Referto e snapshot Wikipedia come artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonda-allenatori-wikipedia-${{ github.run_id }}
+          path: |
+            audit/data/allenatori_wikipedia/
+            audit/results/sonda_allenatori_wikipedia.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Commit dello snapshot e del referto Wikipedia
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add audit/data/allenatori_wikipedia audit/results/sonda_allenatori_wikipedia.md
+          if git diff --cached --name-only | grep -q "fixture_"; then
+            echo "::error::un file di prova (fixture_) e' finito fra i file da committare"
+            git diff --cached --name-only
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "nessuna modifica da committare"
+            exit 0
+          fi
+          git commit -m "audit: sonda allenatori Wikipedia (manuale)"
           for i in 1 2 3; do
             if git push origin HEAD:"${GITHUB_REF_NAME}"; then
               echo "push ok"
