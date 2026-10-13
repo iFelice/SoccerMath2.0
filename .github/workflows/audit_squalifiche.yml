@@ -1,0 +1,233 @@
+name: Sonda squalifiche (archivio player_match, manuale)
+
+# La sonda 4 della commessa: l'archivio ``player_match_<lega>.json`` e' aggiornato
+# alla stagione 2026/27? Le squalifiche possono entrare nella scheda partita?
+#
+# I file dell'archivio NON sono versionati: li produce il workflow
+# ``ppda_player_verify.yml`` (acquisizione Understat, sola lettura) e li pubblica
+# come artifact ``ppda-player-verify-<run_id>``, che dentro ha la cartella
+# ``database/`` con i ``player_match_*.json``. Questo workflow (sola lettura
+# sull'archivio, SCRITTURA del solo referto):
+#
+#   1. prende l'ULTIMO run riuscito di ``ppda_player_verify.yml`` (o quello che
+#      arriva dall'input ``run_id``), via ``gh api``;
+#   2. elenca gli artifact di quel run e prende il piu' recente NON scaduto, via
+#      ``gh api`` (gli artifact durano 14 giorni: la retention del workflow
+#      Understat);
+#   3. lo scarica con ``gh run download`` (stesso token del run, ``actions:
+#      read``: nessun segreto in piu') in
+#      ``audit/output/ppda-player-verify-<run_id>/`` — cartella NON versionata
+#      (``audit/output/`` e' in ``.gitignore``);
+#   4. esegue ``audit/sonda_squalifiche.py --player-match-dir
+#      audit/output/ppda-player-verify-<run_id>/database``: la sonda misura
+#      ultima partita per lega, copertura delle partite gia' giocate
+#      (``*_Live.csv``) e casi pubblici, e scrive il referto
+#      ``audit/results/sonda_squalifiche.md``;
+#   5. committa IL SOLO REFERTO. Se la sonda non trova l'archivio (exit 3) il run
+#      FALLISCE senza committare: il referto non viene riscritto con un esito
+#      inventato.
+#
+# REGOLA DICHIARATA (prima dei numeri, come le altre sonde): le squalifiche
+# entrano nella scheda partita **solo se** l'archivio copre TUTTE le partite gia'
+# giocate della stagione in corso (zero mancanti rispetto ai ``*_Live.csv``) e
+# **tutti** i casi verificati su fonti pubbliche concordano con l'archivio.
+#
+# SCADENZA DELL'ARCHIVIO. Misurato il 2026-10-13: ultimo run riuscito
+# 37917985080 (2026-10-09, 44m22s), artifact ``ppda-player-verify-37917985080``
+# creato il 2026-10-09T11:14:27Z e **scade il 2026-10-23T11:14:24Z**. Prima di
+# quella data va lanciato QUESTO workflow; dopo, se l'artifact e' scaduto,
+# bisogna prima rilanciare ``ppda_player_verify.yml`` (**workflow_dispatch**,
+# ~44 minuti: 1 richiesta HTTP per partita su ~7.000 partite) e poi di nuovo
+# questo. Il referto dichiara data e scadenza dell'ultimo artifact misurato.
+#
+# Trigger: SOLO workflow_dispatch (nessun cron, nessun push, nessuna PR): il run
+# lo lancia Felice a mano.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run di ppda_player_verify.yml da cui prendere l'artifact (vuoto = ultimo riuscito)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: audit-squalifiche
+  cancel-in-progress: false
+
+jobs:
+  sonda:
+    name: Sonda squalifiche (archivio Understat, sola lettura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      RUN_SORGENTE: ${{ github.event.inputs.run_id }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Alla sonda serve pandas (il resto della catena di import e' standard
+      # library): nessun client HTTP, perche' la sonda non fa rete.
+      - name: "Dipendenze (pandas: la sonda non usa la rete)"
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas
+
+      - name: Prova offline della sonda (nessuna rete, nessun archivio)
+        run: |
+          python -m py_compile audit/sonda_squalifiche.py audit/sonda_allenatori.py
+          python audit/sonda_squalifiche.py --help > /dev/null
+          echo "sonda_squalifiche: import e CLI ok"
+
+      # 1. Il run di partenza: quello scelto a mano, oppure l'ultimo riuscito
+      #    del workflow Understat. `gh run list` legge lo stesso repository.
+      - name: Trova il run di ppda_player_verify.yml (sorgente dell'archivio)
+        id: sorgente
+        run: |
+          set -euo pipefail
+          if [ -n "$RUN_SORGENTE" ]; then
+            RUN_ID="$RUN_SORGENTE"
+            echo "run scelto a mano: $RUN_ID"
+          else
+            RUN_ID=$(gh run list --workflow=ppda_player_verify.yml --status=success \
+                                 --limit 1 --json databaseId --jq '.[0].databaseId')
+            if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+              echo "::error::nessun run riuscito di ppda_player_verify.yml: lancia quel workflow (workflow_dispatch, ~44 minuti) e poi riprova."
+              exit 1
+            fi
+            echo "ultimo run riuscito di ppda_player_verify.yml: $RUN_ID"
+          fi
+          STATO=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.conclusion')
+          echo "esito del run sorgente: $STATO"
+          if [ "$STATO" != "success" ]; then
+            echo "::warning::il run sorgente $RUN_ID non e' «success» ($STATO): l'archivio puo' essere incompleto e la copertura lo dira'."
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      # 2. L'artifact piu' recente e NON scaduto di quel run. Se e' scaduto non
+      #    c'e' nulla da scaricare: si dice cosa fare, senza inventare misure.
+      - name: Trova l'artifact dell'archivio (non scaduto)
+        id: artifact
+        run: |
+          set -euo pipefail
+          RUN_ID="${{ steps.sorgente.outputs.run_id }}"
+          gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | [.id, .name, .expired, .created_at, .size_in_bytes] | @tsv' \
+            > /tmp/artifacts.tsv
+          cat /tmp/artifacts.tsv || true
+          ARTIFACT=$(awk -F'\t' '$3 == "false" {print $2}' /tmp/artifacts.tsv | head -n 1)
+          if [ -z "$ARTIFACT" ]; then
+            echo "::error::il run $RUN_ID non ha artifact non scaduti: l'archivio player_match e' scaduto (retention 14 giorni). Rilancia prima ppda_player_verify.yml (workflow_dispatch, ~44 minuti) e poi questo workflow."
+            exit 1
+          fi
+          echo "artifact scelto: $ARTIFACT"
+          echo "artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
+
+      # 3. Download nella cartella NON versionata. Dentro l'artifact c'e'
+      #    `database/` con i player_match_*.json: la sonda cerca li'.
+      - name: Scarica l'archivio in audit/output/ (non versionata)
+        run: |
+          set -euo pipefail
+          RUN_ID="${{ steps.sorgente.outputs.run_id }}"
+          ARTIFACT="${{ steps.artifact.outputs.artifact }}"
+          DEST="audit/output/ppda-player-verify-$RUN_ID"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          gh run download "$RUN_ID" --name "$ARTIFACT" --dir "$DEST"
+          echo "scaricato in $DEST"
+          find "$DEST" -maxdepth 2 -name 'player_match_*.json' | sort
+          if [ -z "$(find "$DEST" -name 'player_match_*.json' -print -quit)" ]; then
+            echo "::error::l'artifact $ARTIFACT non contiene nessun player_match_*.json"
+            exit 1
+          fi
+
+      # 4. La misura: la sonda scrive il referto dentro il repository e la
+      #    misura machine-readable fuori (nessun file di dati committato).
+      - name: Esegui la sonda (misura copertura e casi pubblici)
+        id: sonda
+        run: |
+          set +e
+          RUN_ID="${{ steps.sorgente.outputs.run_id }}"
+          python audit/sonda_squalifiche.py \
+            --player-match-dir "audit/output/ppda-player-verify-$RUN_ID/database" \
+            --out-dir "$RUNNER_TEMP/sonda-squalifiche" \
+            --results-dir audit/results 2>&1 | tee /tmp/sonda_squalifiche.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$rc"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" = "3" ]; then
+            echo "::error::archivio non trovato: nessun referto scritto, nessun commit"
+            exit 1
+          fi
+          if [ "$rc" != "0" ]; then
+            echo "::error::la sonda e' uscita con errore ($rc)"
+            exit 1
+          fi
+
+      - name: Referto nel summary del run
+        run: head -n 60 audit/results/sonda_squalifiche.md >> "$GITHUB_STEP_SUMMARY"
+
+      # 5. Prova che l'archivio scaricato NON e' entrato nel repository: si
+      #    committa il solo referto.
+      - name: Nessun file dell'archivio nel repository
+        run: |
+          if [ -n "$(git status --porcelain -- SoccerMath)" ]; then
+            echo "::error::lo scaricamento ha toccato SoccerMath/"
+            git status --porcelain -- SoccerMath
+            exit 1
+          fi
+          MODIFICATI=$(git status --porcelain -- audit | grep -v 'audit/results/sonda_squalifiche.md' || true)
+          if [ -n "$MODIFICATI" ]; then
+            echo "::error::oltre al referto sono cambiati altri file in audit/"
+            echo "$MODIFICATI"
+            exit 1
+          fi
+          if git ls-files --error-unmatch audit/output > /dev/null 2>&1; then
+            echo "::error::audit/output e' tracciato: l'archivio non deve entrare nel repository"
+            exit 1
+          fi
+          echo "OK: l'archivio resta in audit/output/ (non versionata)."
+
+      - name: Referto come artifact del run
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonda-squalifiche-${{ github.run_id }}
+          path: audit/results/sonda_squalifiche.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      # Commit con retry: stesso schema degli altri workflow manuali.
+      - name: Commit del referto
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add audit/results/sonda_squalifiche.md
+          if git diff --cached --quiet; then
+            echo "nessuna modifica da committare"
+            exit 0
+          fi
+          git commit -m "audit: sonda squalifiche (archivio player_match, run sorgente ${{ steps.sorgente.outputs.run_id }})"
+          for i in 1 2 3; do
+            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
+              echo "push ok"
+              exit 0
+            fi
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            sleep 5
+          done
+          echo "::error::push fallito dopo 3 tentativi"
+          exit 1
