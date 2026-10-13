@@ -115,8 +115,24 @@ MIN_CASI_PUBBLICI = 3               # sotto questa soglia la verifica non dice n
 
 
 # ---------------------------------------------------------------------------
-# Chiave e rete (solo questi due punti toccano l'esterno)
+# Chiave e rete (solo questi punti toccano l'esterno)
 # ---------------------------------------------------------------------------
+#: Tentativi DOPO il primo, per una stessa chiamata, quando la risposta e' 429.
+#: Totale massimo per chiamata: 1 + 3 = 4 richieste (dichiarato nel referto).
+MAX_NUOVI_TENTATIVI_429 = 3
+#: Attesa su 429 se l'header X-RequestCounter-Reset non c'e' o non e' valido.
+ATTESA_429_DEFAULT = 60.0
+
+
+class Limite429(RuntimeError):
+    """HTTP 429 da football-data.org: si puo' riprovare, con l'attesa dell'header."""
+
+    def __init__(self, headers: dict):
+        super().__init__("HTTP 429 da football-data.org (limite di richieste al "
+                         "minuto raggiunto)")
+        self.headers = headers
+
+
 def leggi_chiave(env=None) -> str:
     """La chiave dall'ambiente, senza mai stamparla.
 
@@ -135,26 +151,68 @@ def leggi_chiave(env=None) -> str:
         return ""
 
 
-def http_get(url: str, chiave: str, parametri=None, session=None, timeout=20) -> dict:
-    """GET con la chiave nell'header. Nessun URL con la chiave, nessun log suo."""
+def headers_minuscoli(risposta) -> dict:
+    """Gli header della risposta con i nomi in minuscolo (confronto senza maiuscole)."""
+    grezzi = getattr(risposta, "headers", None) or {}
+    try:
+        return {str(k).lower(): v for k, v in dict(grezzi).items()}
+    except Exception:
+        return {}
+
+
+def secondi_da_header(valore, default: float = ATTESA_429_DEFAULT) -> float:
+    """Un header di attesa in secondi (``X-RequestCounter-Reset``), o il default."""
+    try:
+        secondi = float(str(valore).strip())
+    except (TypeError, ValueError):
+        return default
+    return secondi if secondi > 0 else default
+
+
+def http_get_risposta(url: str, chiave: str, parametri=None, session=None,
+                      timeout=20):
+    """Una richiesta GET. Ritorna ``(payload, header)``.
+
+    Con 429 solleva ``Limite429`` (la chiamata si puo' ripetere); con 401/403
+    solleva ``RuntimeError`` senza tentativi (chiave non valida). Nessun URL con
+    la chiave, nessun log suo.
+    """
     import requests
 
     sessione = session or requests
     risposta = sessione.get(url, headers={"X-Auth-Token": chiave},
                             params=parametri or {}, timeout=timeout)
-    if risposta.status_code in STATUS_INTERROMPI:
+    intestazioni = headers_minuscoli(risposta)
+    if risposta.status_code == 429:
+        raise Limite429(intestazioni)
+    if risposta.status_code in (401, 403):
         raise RuntimeError(f"HTTP {risposta.status_code} da football-data.org: "
-                           "chiave non valida o quota esaurita (nessun dettaglio "
-                           "stampato per non esporre la chiave)")
+                           "chiave non valida (nessun dettaglio stampato per non "
+                           "esporre la chiave)")
     risposta.raise_for_status()
-    return risposta.json()
+    return risposta.json(), intestazioni
+
+
+def http_get(url: str, chiave: str, parametri=None, session=None, timeout=20) -> dict:
+    """GET senza ripetizioni (compatibilita'): ritorna solo il payload."""
+    try:
+        payload, _ = http_get_risposta(url, chiave, parametri, session, timeout)
+    except Limite429 as errore:
+        raise RuntimeError(f"{errore} (chiave non valida o quota esaurita; "
+                           "nessun dettaglio stampato per non esporre la chiave)")
+    return payload
 
 
 class FinestraChiamate:
-    """Finestra mobile: al massimo ``max_chiamate`` chiamate ogni ``secondi``.
+    """Al massimo ``max_chiamate`` richieste in OGNI finestra di ``secondi``.
 
-    ``orologio`` e ``dormi`` sono iniettabili: i test verificano l'attesa senza
-    aspettare davvero.
+    La finestra e' chiusa: una richiesta a distanza esattamente di 60 s dalla
+    precedente conta ancora nella stessa finestra. Cosi' in qualunque intervallo
+    di 60 s ci sono al massimo ``max_chiamate`` richieste (non 11).
+
+    Tutte le richieste passano di qui, anche l'elenco squadre e i tentativi
+    ripetuti dopo un 429. ``orologio`` e ``dormi`` sono iniettabili: i test
+    verificano l'attesa senza aspettare davvero.
     """
 
     def __init__(self, max_chiamate: int = MAX_CHIAMATE_AL_MINUTO,
@@ -165,21 +223,86 @@ class FinestraChiamate:
         self._orologio = orologio
         self._dormi = dormi
         self._istanti: list = []
-        self.attese = 0
-        self.chiamate = 0
+        self.attese = 0          # quante volte si e' aspettato per far posto nella finestra
+        self.attese_429 = 0      # quante volte si e' aspettato dopo un 429
+        self.attese_header = 0   # quante volte perche' X-Requests-Available-Minute era 0
+        self.chiamate = 0        # richieste effettive (anche quelle ripetute dopo un 429)
+        self.riprovate = 0       # richieste ripetute dopo un 429
 
     def attendi(self) -> float:
         """Blocca finche' c'e' posto nella finestra; ritorna i secondi attesi."""
+        attesa = 0.0
         while True:
             adesso = self._orologio()
-            self._istanti = [t for t in self._istanti if adesso - t < self.secondi]
+            self._istanti = [t for t in self._istanti if adesso - t <= self.secondi]
             if len(self._istanti) < self.max_chiamate:
                 self._istanti.append(adesso)
                 self.chiamate += 1
-                return 0.0
+                return attesa
             pausa = self.secondi - (adesso - self._istanti[0]) + 0.01
             self.attese += 1
+            attesa += max(pausa, 0.0)
             self._dormi(max(pausa, 0.0))
+
+    def riposa(self, secondi: float, motivo: str = "429") -> None:
+        """Attesa imposta dal server (429 o header di quota esaurita)."""
+        if motivo == "429":
+            self.attese_429 += 1
+        else:
+            self.attese_header += 1
+        self._dormi(max(float(secondi), 0.0))
+
+
+def durata_minima_secondi(chiamate: int, max_per_minuto: int, secondi: float = 60.0) -> float:
+    """Durata MINIMA, in secondi, per fare ``chiamate`` richieste col tetto dato.
+
+    Le prime ``max_per_minuto`` partono subito; ogni altra deve aspettare che si
+    liberi un posto nella finestra: (n - L) intervalli da ``secondi / L``.
+    Esempio: 100 chiamate a 10 al minuto -> 90 * 6 s = 540 s = 9 minuti.
+    Non include le attese dei 429 (quelle si sommano e si contano a parte).
+    """
+    limite = max(1, int(max_per_minuto))
+    n = max(0, int(chiamate))
+    if n <= limite:
+        return 0.0
+    return (n - limite) * float(secondi) / limite
+
+
+def chiama(url: str, chiave: str, finestra: FinestraChiamate, parametri=None,
+           session=None, max_nuovi_tentativi: int = MAX_NUOVI_TENTATIVI_429):
+    """Una chiamata REALE, col limite di finestra e i nuovi tentativi su 429.
+
+    Ogni tentativo passa dalla finestra (conta come richiesta). Su 429: attesa
+    del tempo di ``X-RequestCounter-Reset`` (o 60 s), poi un nuovo tentativo; al
+    massimo ``max_nuovi_tentativi`` per chiamata. Dopo l'ultimo 429 la chiamata
+    fallisce con RuntimeError. Se ``X-Requests-Available-Minute`` e' 0 in una
+    risposta riuscita, si aspetta il reset PRIMA della richiesta successiva.
+    """
+    tentativi_ripetuti = 0
+    while True:
+        finestra.attendi()
+        try:
+            payload, intestazioni = http_get_risposta(url, chiave, parametri,
+                                                      session=session)
+        except Limite429 as errore:
+            if tentativi_ripetuti >= max_nuovi_tentativi:
+                raise RuntimeError(f"HTTP 429 da football-data.org dopo "
+                                   f"{tentativi_ripetuti} nuovi tentativi: "
+                                   "chiamata saltata (limite di richieste al minuto)")
+            tentativi_ripetuti += 1
+            finestra.riprovate += 1
+            finestra.riposa(secondi_da_header(
+                errore.headers.get("x-requestcounter-reset")), motivo="429")
+            continue
+        disponibili = intestazioni.get("x-requests-available-minute")
+        if disponibili is not None:
+            try:
+                if int(str(disponibili).strip()) <= 0:
+                    finestra.riposa(secondi_da_header(
+                        intestazioni.get("x-requestcounter-reset")), motivo="header")
+            except ValueError:
+                pass
+        return payload
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +427,19 @@ def stessa_squadra(nome_api, nome_caso) -> bool:
     return all(p in lungo for p in corto)
 
 
+def giorni_tra(data_iniziale, quando) -> "int | None":
+    """Giorni interi fra una data ``AAAA-MM-GG`` e l'istante del run (UTC).
+
+    None se una delle due non si legge: nessun giorno inventato.
+    """
+    try:
+        inizio = datetime.strptime(str(data_iniziale or "")[:10], "%Y-%m-%d").date()
+        fine = datetime.strptime(str(quando or "")[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    return (fine - inizio).days
+
+
 def confronta_casi(casi: list, squadre_per_lega: dict, when: str) -> list:
     """Per ogni caso pubblico: che allenatore riporta l'API?
 
@@ -322,6 +458,9 @@ def confronta_casi(casi: list, squadre_per_lega: dict, when: str) -> list:
                 break
         riga = dict(caso)
         riga["rilevato_il"] = when
+        # Eta' del caso: giorni fra la data del cambio e il run. Un «non
+        # aggiornato» dopo 1 giorno e uno dopo 30 non dicono la stessa cosa.
+        riga["eta_giorni"] = giorni_tra(caso.get("data_cambio") or caso.get("data"), when)
         if voca is None:
             riga.update({"esito": ESITO_SQUADRA_ASSENTE, "allenatore_api": None})
         elif not voca.get("allenatore"):
@@ -373,27 +512,68 @@ def forme_date(squadre_per_lega: dict) -> dict:
     return dict(sorted(conteggio.items()))
 
 
+ESITI_VALUTABILI = (ESITO_AGGIORNATO, ESITO_NON_AGGIORNATO, ESITO_SENZA_ALLENATORE)
+
+
+def casi_valutabili(casi: list) -> list:
+    """I casi che il confronto ha davvero potuto giudicare.
+
+    «squadra non nel run» NON conta: non e' ne' aggiornato ne' non aggiornato
+    (la squadra non e' nelle leghe lette: non si sa niente di lei). Un caso «api
+    senza allenatore» invece conta come non aggiornato: l'API non riporta
+    l'entrante.
+    """
+    return [c for c in (casi or []) if c.get("esito") in ESITI_VALUTABILI]
+
+
 def tutte_aggiornate(casi: list) -> bool:
-    """True solo se ci sono casi E nessuno e' ``non aggiornato``/``senza nome``."""
-    if not casi:
+    """True solo se ci sono casi valutabili E tutti sono ``aggiornato``."""
+    valutabili = casi_valutabili(casi)
+    if not valutabili:
         return False
-    return all(c.get("esito") == ESITO_AGGIORNATO for c in casi)
+    return all(c.get("esito") == ESITO_AGGIORNATO for c in valutabili)
+
+
+def leghe_mancanti(cop: dict) -> list:
+    """Le leghe delle 5 del progetto NON lette per intero (ordine di LEGHE).
+
+    Una lega e' «letta» solo se la sua risposta e' arrivata in fondo: squadre
+    presenti nel conteggio di copertura. Lega fallita = mancante.
+    """
+    per_lega = (cop or {}).get("per_lega") or {}
+    return [l for l in LEGHE if not (per_lega.get(l) or {}).get("squadre")]
 
 
 def giudizio(cop: dict, casi: list) -> dict:
-    """Applica la regola dichiarata e spiega la decisione."""
+    """Applica la regola dichiarata e spiega la decisione.
+
+    1. Se NON tutte e 5 le leghe sono state lette per intero, la regola NON si
+       valuta: ``valutabile`` False, motivo «non valutabile: leghe mancanti
+       <elenco>», e nessuna percentuale confrontata con la soglia.
+    2. Altrimenti: copertura >= 95% E tutti i casi valutabili «aggiornato»
+       (almeno ``MIN_CASI_PUBBLICI`` valutabili). Le «squadra non nel run» non
+       contano in nessuno dei due sensi.
+    """
+    mancanti = leghe_mancanti(cop)
+    if mancanti:
+        return {"valutabile": False, "copertura_ok": None, "casi_ok": None,
+                "affidabile": False,
+                "motivi": ["non valutabile: leghe mancanti " + ", ".join(mancanti)]}
     copertura_ok = cop["frazione"] >= SOGLIA_COPERTURA
-    casi_ok = tutte_aggiornate(casi)
+    valutabili = casi_valutabili(casi)
+    casi_ok = tutte_aggiornate(casi) and len(valutabili) >= MIN_CASI_PUBBLICI
     motivi = []
     if not copertura_ok:
         motivi.append(f"copertura {cop['frazione']:.1%} < {SOGLIA_COPERTURA:.0%}")
-    if not casi_ok:
-        mancanti = [c for c in casi if c.get("esito") != ESITO_AGGIORNATO]
-        if not casi:
-            motivi.append("nessun caso verificabile")
-        else:
-            motivi.append(f"{len(mancanti)} casi su {len(casi)} non aggiornati")
-    return {"copertura_ok": copertura_ok, "casi_ok": casi_ok,
+    if not valutabili:
+        motivi.append("nessun caso verificabile")
+    elif len(valutabili) < MIN_CASI_PUBBLICI:
+        motivi.append(f"casi valutabili {len(valutabili)} (servono almeno "
+                      f"{MIN_CASI_PUBBLICI})")
+    mancati = [c for c in valutabili if c.get("esito") != ESITO_AGGIORNATO]
+    if mancati:
+        motivi.append(f"{len(mancati)} casi su {len(valutabili)} non aggiornati")
+    return {"valutabile": True, "copertura_ok": copertura_ok, "casi_ok": casi_ok,
             "affidabile": bool(copertura_ok and casi_ok), "motivi": motivi}
 
 
@@ -469,29 +649,46 @@ def testo_referto(misure: dict, casi: list, esito: dict, note: list) -> str:
     righe.append("")
     righe.append("L'allenatore entra nella scheda partita **solo se**:")
     righe.append("")
+    righe.append("0. **tutte e 5 le leghe** sono state lette per intero (ogni "
+                 "squadra della lega ha la sua risposta). Se una lega manca, la "
+                 "regola NON si valuta: nessuna percentuale viene confrontata con "
+                 "la soglia;")
     righe.append(f"1. la copertura delle squadre con allenatore e' almeno "
-                 f"**{SOGLIA_COPERTURA:.0%}**"
-                 + (f" ({misure['copertura']:.1%} in questo run);"
-                    if misure.get("copertura") is not None else ";"));
+                 f"**{SOGLIA_COPERTURA:.0%}**;")
     righe.append("2. **tutti** i casi di cambio allenatore verificati su fonti "
                  "pubbliche risultano aggiornati nelle API (nessun caso «non "
-                 "aggiornato», nessun caso «da verificare»).")
+                 "aggiornato», nessun caso «da verificare»). Un caso «squadra non "
+                 "nel run» NON conta né come aggiornato né come non aggiornato; "
+                 "servono almeno "
+                 f"{misure.get('min_casi_pubblici') or MIN_CASI_PUBBLICI} casi "
+                 "valutabili.")
     righe.append("")
-    righe.append("Esito di questo run: **" + ("AFFIDABILE" if esito["affidabile"]
-                 else "NON AFFIDABILE") + "**"
-                 + ("" if esito["affidabile"] else
-                    " — motivi: " + "; ".join(esito["motivi"]))
-                 + ". Se non e' affidabile la scheda NON mostra l'allenatore e lo "
-                   "dichiara, rimandando alle fonti alternative (sito del club, "
-                   "comunicati ufficiali).")
+    if not esito.get("valutabile"):
+        righe.append("Esito di questo run: **NON VALUTABILE** — "
+                     + "; ".join(esito["motivi"]) + ". La scheda NON mostra "
+                     "l'allenatore e lo dichiara, rimandando alle fonti alternative "
+                     "(sito del club, comunicati ufficiali).")
+    else:
+        righe.append("Esito di questo run: **" + ("AFFIDABILE" if esito["affidabile"]
+                     else "NON AFFIDABILE") + "**"
+                     + ("" if esito["affidabile"] else
+                        " — motivi: " + "; ".join(esito["motivi"]))
+                     + ". Se non e' affidabile la scheda NON mostra l'allenatore e lo "
+                       "dichiara, rimandando alle fonti alternative (sito del club, "
+                       "comunicati ufficiali).")
     righe.append("")
     righe.append("## Copertura (squadre con un allenatore nella risposta)")
     righe.append("")
-    righe.append("| Lega | Squadre | Con allenatore | Senza |")
-    righe.append("|---|---|---|---|")
-    for lega, numeri in (misure.get("copertura_per_lega") or {}).items():
-        righe.append(f"| {lega} | {numeri['squadre']} | {numeri['con_allenatore']} | "
-                     f"{len(numeri['senza'])} |")
+    righe.append("| Lega | Squadre | Con allenatore | Senza | Letta per intero |")
+    righe.append("|---|---|---|---|---|")
+    letture = misure.get("copertura_per_lega") or {}
+    for lega in LEGHE:
+        numeri = letture.get(lega)
+        if numeri is None:
+            righe.append(f"| {lega} | — | — | — | **no** |")
+        else:
+            righe.append(f"| {lega} | {numeri['squadre']} | {numeri['con_allenatore']} | "
+                         f"{len(numeri['senza'])} | sì |")
     righe.append(f"| **totale** | **{misure.get('squadre', 0)}** | "
                  f"**{misure.get('con_allenatore', 0)}** | "
                  f"**{len(misure.get('senza_allenatore') or [])}** |")
@@ -525,21 +722,26 @@ def testo_referto(misure: dict, casi: list, esito: dict, note: list) -> str:
         righe.append(f"* **{nome}** non e' un caso: {escluso.get('motivo')}")
     if misure.get("casi_esclusi"):
         righe.append("")
-    righe.append(f"Casi verificabili in questo run: **{len(casi)}** "
-                 f"(servono almeno {misure.get('min_casi_pubblici') or 3} casi e che "
-                 f"TUTTI risultino aggiornati).")
+    valutabili_n = len(casi_valutabili(casi))
+    righe.append(f"Casi nel file: **{len(casi)}**; valutabili in questo run: "
+                 f"**{valutabili_n}** (servono almeno "
+                 f"{misure.get('min_casi_pubblici') or MIN_CASI_PUBBLICI} casi "
+                 f"valutabili e che TUTTI risultino aggiornati). L'età è in giorni "
+                 f"fra la data del cambio e il giorno del run.")
     righe.append("")
     if not casi:
         righe.append("_Nessun caso pubblico disponibile._")
     else:
-        righe.append("| Lega | Squadra | Uscente | Entrante | Data | Allenatore "
-                     "nelle API | Esito | Fonte |")
-        righe.append("|---|---|---|---|---|---|---|---|")
+        righe.append("| Lega | Squadra | Uscente | Entrante | Data | Età (giorni) | "
+                     "Allenatore nelle API | Esito | Fonte |")
+        righe.append("|---|---|---|---|---|---|---|---|---|")
         for c in casi:
+            eta = c.get("eta_giorni")
             righe.append(f"| {c.get('lega')} | {c.get('squadra')} | "
                          f"{c.get('allenatore_uscente') or '—'} | "
                          f"{c.get('allenatore_entrante') or c.get('allenatore_atteso') or '—'} | "
                          f"{c.get('data') or c.get('data_cambio') or '—'} | "
+                         f"{eta if eta is not None else '—'} | "
                          f"{c.get('allenatore_api') or '—'} | **{c.get('esito')}** | "
                          f"[fonte]({c.get('fonte')}) |")
         righe.append("")
@@ -553,14 +755,24 @@ def testo_referto(misure: dict, casi: list, esito: dict, note: list) -> str:
                  "`GET /v4/teams/{id}` (una per squadra): e' da quest'ultima che "
                  "arrivano `coach.name`, `coach.contract.start` e "
                  "`coach.contract.until`;")
-    righe.append(f"* chiave nell'header `X-Auth-Token`, **mai** nell'URL, mai "
-                 f"stampata; massimo **{misure.get('max_per_minuto')} chiamate al "
-                 f"minuto** (limite del piano gratuito), con finestra mobile;")
+    righe.append("* chiave nell'header `X-Auth-Token`, **mai** nell'URL, mai stampata;")
     righe.append("* sola lettura: nessuna scrittura in `SoccerMath/`, nessuna "
                  "modifica all'app, nessuna chiamata fatta dall'app;")
-    if misure.get("attese"):
-        righe.append(f"* questo run ha aspettato la finestra {misure['attese']} volte "
-                     f"(durata prevista: {misure.get('durata_prevista')});")
+    righe.append(f"* limite: al massimo **{misure.get('max_per_minuto')} richieste in "
+                 f"qualunque finestra di 60 secondi**, contando anche l'elenco "
+                 f"squadre; header `X-Requests-Available-Minute` e "
+                 f"`X-RequestCounter-Reset` letti quando presenti;")
+    righe.append(f"* su 429: attesa del tempo dell'header `X-RequestCounter-Reset` "
+                 f"(o 60 s) e un nuovo tentativo, **al massimo "
+                 f"{MAX_NUOVI_TENTATIVI_429} per chiamata**;")
+    righe.append(f"* richieste fatte: **{misure.get('chiamate')}** (di cui ripetute dopo "
+                 f"un 429: {misure.get('riprovate', 0)}); attese per il limite: "
+                 f"{misure.get('attese', 0)}; attese dopo un 429: "
+                 f"{misure.get('attese_429', 0)}; attese per header di quota: "
+                 f"{misure.get('attese_header', 0)};")
+    righe.append(f"* durata minima teorica di queste richieste senza 429: "
+                 f"**{misure.get('durata_minima_teorica')}**; durata reale del run: "
+                 f"**{misure.get('durata_reale')}**;")
     if note:
         righe.append("")
         righe.append("## Note del run")
@@ -682,14 +894,13 @@ def scarica_lega(codice: str, stagione, chiave: str, finestra: FinestraChiamate,
     """Elenco squadre + una chiamata per squadra. Ritorna le voci salvate."""
     quando = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     parametri = {"season": stagione} if stagione else None
-    finestra.attendi()
-    elenco = http_get(f"{API_BASE}/competitions/{codice}/teams", chiave,
-                      parametri, session=session)
+    # l'elenco squadre conta come le altre chiamate (stessa finestra, stessi 429)
+    elenco = chiama(f"{API_BASE}/competitions/{codice}/teams", chiave, finestra,
+                    parametri, session=session)
     voci = []
     for squadra in allenatore_da_teams(elenco, quando):
-        finestra.attendi()
-        payload = http_get(f"{API_BASE}/teams/{squadra['id']}", chiave,
-                           session=session)
+        payload = chiama(f"{API_BASE}/teams/{squadra['id']}", chiave, finestra,
+                         session=session)
         voci.append({**squadra, **allenatore_da_squadra(payload, quando)})
     return voci
 
@@ -740,6 +951,77 @@ def descrizione_casi(percorso: str) -> dict:
             "esclusi": dati.get("esclusi") or []}
 
 
+def rigenera_da_snapshot(percorso_snapshot: str, percorso_casi: str,
+                         results_dir: str) -> int:
+    """Ricalcola il referto con la regola di QUESTA versione, dallo snapshot.
+
+    Nessuna chiamata di rete, nessuna chiave: si legge lo snapshot gia' salvato
+    dal run (squadre per lega, leghe fallite, chiamate) e si riapplica il
+    confronto e il giudizio. Lo snapshot NON viene toccato. Serve a correggere il
+    referto di un run fatto con la versione precedente della sonda, che non
+    riprovava i 429 e giudicava anche con leghe mancanti.
+    """
+    with open(percorso_snapshot, "r", encoding="utf-8") as fh:
+        dati = json.load(fh)
+    if dati.get("modalita") != "rete":
+        print("ERRORE: si rigenera solo da uno snapshot di rete (non da una fixture)")
+        return 1
+    quando = dati.get("quando")
+    squadre_per_lega = dati.get("squadre_per_lega") or {}
+    cop = copertura(squadre_per_lega)
+    casi = carica_casi(percorso_casi)
+    descrizione = descrizione_casi(percorso_casi)
+    confrontati = confronta_casi(casi, squadre_per_lega, quando)
+    esito = giudizio(cop, confrontati)
+    note = [
+        f"Referto RIGENERATO dallo snapshot del run {quando} (nessuna chiamata nuova, "
+        "nessuna chiave). Quel run e' stato fatto con la sonda v1, che non riprovava "
+        "i 429 e giudicava anche con leghe mancanti: i numeri di chiamate e attese "
+        "sono quelli del run; l'esito e' quello di questa versione.",
+    ]
+    for lega in dati.get("leghe_fallite") or []:
+        note.append(f"{lega}: fallita nel run con «RuntimeError: HTTP 429 da "
+                    "football-data.org» (il run v1 non riprovava: nessun tentativo "
+                    "successivo).")
+    misure = {
+        **dati,
+        "leghe": list(LEGHE),
+        "riprovate": 0,
+        "attese_429": 0,
+        "attese_header": 0,
+        "durata_minima_teorica": formato_durata(durata_minima_secondi(
+            dati.get("chiamate") or 0, dati.get("max_per_minuto") or MAX_CHIAMATE_AL_MINUTO)),
+        "durata_reale": "n/d (run v1: durata non registrata)",
+        "copertura": cop["frazione"],
+        "copertura_valutata": not leghe_mancanti(cop),
+        "squadre": cop["squadre"],
+        "con_allenatore": cop["con_allenatore"],
+        "copertura_per_lega": cop["per_lega"],
+        "senza_allenatore": cop["senza_allenatore"],
+        "esito": esito,
+        "casi": confrontati,
+        "leghe_mancanti": leghe_mancanti(cop),
+        "min_casi_pubblici": MIN_CASI_PUBBLICI,
+        "casi_versione": descrizione.get("versione"),
+        "casi_raccolti_il": descrizione.get("raccolti_il"),
+        "casi_esclusi": descrizione.get("esclusi"),
+    }
+    os.makedirs(results_dir, exist_ok=True)
+    referto = os.path.join(results_dir, "sonda_allenatori.md")
+    with open(referto, "w", encoding="utf-8") as fh:
+        fh.write(testo_referto(misure, confrontati, esito, note))
+    print(f"RIGENERATO da {percorso_snapshot} (nessuna chiamata)")
+    print(f"VALUTABILE={esito['valutabile']} LEGHE_MANCANTI={misure['leghe_mancanti']}")
+    print(f"REFERTO={referto}")
+    return 0
+
+
+def formato_durata(secondi: float) -> str:
+    """Durata leggibile: ``9 min 0 s`` (dichiarata, non stimata)."""
+    totale = int(round(float(secondi)))
+    return f"{totale // 60} min {totale % 60} s"
+
+
 def stagione_da_testo(valore):
     """``--stagione``: intero, oppure ``None`` se vuoto (input del workflow)."""
     testo = str(valore or "").strip()
@@ -766,14 +1048,23 @@ def main(argv=None) -> int:
                              "i file scritti portano il prefisso fixture_")
     parser.add_argument("--keep-going", action="store_true",
                         help="se una lega fallisce, continua con le altre")
+    parser.add_argument("--rigenera-da", default=None,
+                        help="ricalcola il referto con la regola di questa versione "
+                             "dallo snapshot indicato: nessuna chiamata, lo snapshot "
+                             "non viene toccato")
     parser.add_argument("--referto-non-eseguito", action="store_true",
                         help="scrive il referto nello stato «sonda non eseguita» "
                              "(regola, casi con fonte, colonna «da misurare»): "
                              "nessuna chiamata, nessuno snapshot")
     args = parser.parse_args(argv)
 
+    if args.rigenera_da:
+        return rigenera_da_snapshot(args.rigenera_da, args.casi,
+                                    args.results_dir or DEFAULT_RESULTS_DIR)
+
     quando = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     giorno = quando[:10]
+    inizio_run = time.monotonic()
 
     if args.referto_non_eseguito:
         results_dir = args.results_dir or DEFAULT_RESULTS_DIR
@@ -840,6 +1131,7 @@ def main(argv=None) -> int:
     casi_confrontati = confronta_casi(casi, squadre_per_lega, quando)
     esito = giudizio(cop, casi_confrontati)
 
+    durata_reale = time.monotonic() - inizio_run
     misure = {
         "versione": "sonda_allenatori_v1",
         "quando": quando,
@@ -847,11 +1139,17 @@ def main(argv=None) -> int:
         "modalita": modalita,
         "leghe": leghe,
         "chiamate": finestra.chiamate,
+        "riprovate": finestra.riprovate,
         "attese": finestra.attese,
+        "attese_429": finestra.attese_429,
+        "attese_header": finestra.attese_header,
         "max_per_minuto": args.max_calls_per_minute,
-        "durata_prevista": (f"circa {max(len(finestra._istanti), 1) / args.max_calls_per_minute:.1f} minuti "
-                            f"a {args.max_calls_per_minute} chiamate/minuto"),
+        "durata_minima_teorica": formato_durata(durata_minima_secondi(
+            finestra.chiamate, args.max_calls_per_minute)),
+        "durata_reale": formato_durata(durata_reale) if modalita == "rete" else "n/d (fixture)",
+        "leghe_mancanti": leghe_mancanti(cop),
         "copertura": cop["frazione"],
+        "copertura_valutata": bool(not leghe_mancanti(cop)),
         "squadre": cop["squadre"],
         "con_allenatore": cop["con_allenatore"],
         "copertura_per_lega": cop["per_lega"],
@@ -886,9 +1184,12 @@ def main(argv=None) -> int:
         fh.write(testo_referto(misure, casi_confrontati, esito, note))
 
     print(f"SQUADRE={cop['squadre']} CON_ALLENATORE={cop['con_allenatore']} "
-          f"COPERTURA={cop['frazione']:.1%} CHIAMATE={misure['chiamate']}")
-    print(f"CASI={len(casi_confrontati)} NON_AGGIORNATI="
-          f"{sum(1 for c in casi_confrontati if c.get('esito') != ESITO_AGGIORNATO)}")
+          f"CHIAMATE={misure['chiamate']}")
+    print(f"VALUTABILE={esito['valutabile']} LEGHE_MANCANTI={misure['leghe_mancanti']}")
+    print(f"CASI={len(casi_confrontati)} VALUTABILI={len(casi_valutabili(casi_confrontati))} "
+          f"NON_AGGIORNATI={sum(1 for c in casi_valutabili(casi_confrontati) if c.get('esito') != ESITO_AGGIORNATO)}")
+    print(f"RIPROVATE={finestra.riprovate} ATTESE_429={finestra.attese_429} "
+          f"ATTESE_LIMITE={finestra.attese}")
     print(f"FILE={percorso_snapshot}")
     print(f"REFERTO={referto}")
     return 1 if falliti else 0

@@ -30,9 +30,8 @@ fonte e data, su almeno 3 leghe (sennò la verifica delle API non direbbe nulla)
 """
 from __future__ import annotations
 
+import copy
 import json
-import os
-import re
 import shutil
 import sys
 import tempfile
@@ -51,6 +50,60 @@ import sonda_allenatori as sa  # noqa: E402
 
 FIXTURE = HERE / "fixtures" / "allenatori_fixture.json"
 CASI = HERE / "data" / "allenatori" / "casi_pubblici_2026_27.json"
+
+
+def _cinque_leghe(allenatore="Uno", senza_per_lega=0):
+    """Tutte e 5 le leghe lette: 4 squadre ciascuna, con allenatore salvo N."""
+    quadro = {}
+    for lega in sa.LEGHE:
+        voci = [{"nome": f"{lega} {i}", "allenatore": allenatore} for i in range(4)]
+        for voce in voci[:senza_per_lega]:
+            voce["allenatore"] = None
+        quadro[lega] = voci
+    return quadro
+
+
+class _Risposta:
+    """Risposta finta: stato, header e payload."""
+
+    def __init__(self, status=200, payload=None, headers=None):
+        self.status_code = status
+        self._payload = payload or {}
+        self.headers = headers or {}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise AssertionError(f"raise_for_status con {self.status_code}")
+
+    def json(self):
+        return self._payload
+
+
+class _SessioneScript:
+    """Risponde con una lista di risposte in ordine; registra gli istanti."""
+
+    def __init__(self, risposte, orologio):
+        self.risposte = list(risposte)
+        self.orologio = orologio
+        self.istanti = []
+
+    def get(self, url, headers=None, params=None, timeout=None):
+        self.istanti.append(self.orologio[0])
+        if not self.risposte:
+            return _Risposta(200, {"teams": [], "coach": None})
+        return self.risposte.pop(0)
+
+
+def _finestra_con_orologio():
+    orologio = [0.0]
+    attese = []
+
+    def dormi(secondi):
+        attese.append(secondi)
+        orologio[0] += secondi
+
+    finestra = sa.FinestraChiamate(10, orologio=lambda: orologio[0], dormi=dormi)
+    return finestra, orologio, attese
 
 
 class TestFinestraChiamate(unittest.TestCase):
@@ -97,6 +150,203 @@ class TestFinestraChiamate(unittest.TestCase):
         finestra = sa.FinestraChiamate(0)
         self.assertEqual(1, finestra.max_chiamate,
                          "con 0 la finestra non si libererebbe mai")
+
+
+class TestLimiteEDurata(unittest.TestCase):
+    """Orologio finto: il tetto di 10 richieste in 60 s e la durata prevista."""
+
+    @staticmethod
+    def _istanti_ammessi(n):
+        orologio = [0.0]
+        istanti = []
+
+        def dormi(secondi):
+            orologio[0] += secondi
+
+        finestra = sa.FinestraChiamate(10, orologio=lambda: orologio[0], dormi=dormi)
+        for _ in range(n):
+            finestra.attendi()
+            istanti.append(orologio[0])
+        return istanti, orologio[0]
+
+    def test_cento_chiamate_richiedono_almeno_nove_minuti(self):
+        istanti, fine = self._istanti_ammessi(100)
+        self.assertGreaterEqual(fine, 540.0, "100 chiamate a 10/min: almeno 9 minuti")
+        self.assertGreaterEqual(istanti[-1], 540.0)
+
+    def test_mai_piu_di_dieci_in_una_finestra_di_60_secondi(self):
+        istanti, _ = self._istanti_ammessi(100)
+        for t in istanti:
+            dentro = [u for u in istanti if t - 60.0 <= u <= t]
+            self.assertLessEqual(len(dentro), 10,
+                                 f"in [{t-60}, {t}] ci sono {len(dentro)} richieste")
+
+    def test_durata_minima_formula(self):
+        self.assertEqual(540.0, sa.durata_minima_secondi(100, 10))
+        self.assertEqual(372.0, sa.durata_minima_secondi(72, 10))   # 62 * 6 s
+        self.assertEqual(0.0, sa.durata_minima_secondi(10, 10))
+        self.assertEqual(0.0, sa.durata_minima_secondi(0, 10))
+        self.assertEqual("9 min 0 s", sa.formato_durata(540))
+
+    def test_lista_squadre_conta_nella_finestra(self):
+        """L'elenco (1 chiamata) piu' 12 squadre = 13 richieste: l'undicesima aspetta."""
+        orologio = [0.0]
+        attese = []
+
+        def dormi(secondi):
+            attese.append(secondi)
+            orologio[0] += secondi
+
+        finestra = sa.FinestraChiamate(10, orologio=lambda: orologio[0], dormi=dormi)
+        elenco = {"teams": [{"id": i, "name": f"S{i}"} for i in range(12)]}
+        sessione = _SessioneScript(
+            [_Risposta(200, elenco)] +
+            [_Risposta(200, {"coach": {"name": "Uno"}}) for _ in range(12)],
+            orologio)
+        voci = sa.scarica_lega("SA", None, "chiave-finta", finestra, session=sessione)
+        self.assertEqual(12, len(voci))
+        self.assertEqual(13, finestra.chiamate)
+        self.assertGreaterEqual(len(attese), 1, "la tredicesima richiesta deve aspettare")
+
+    def test_un_429_produce_attesa_dall_header_e_nuovo_tentativo(self):
+        finestra, orologio, attese = _finestra_con_orologio()
+        sessione = _SessioneScript([
+            _Risposta(429, headers={"X-RequestCounter-Reset": "7"}),
+            _Risposta(200, {"coach": {"name": "Tizio"}}),
+        ], orologio)
+        payload = sa.chiama("https://x/teams/1", "chiave", finestra, session=sessione)
+        self.assertEqual({"coach": {"name": "Tizio"}}, payload)
+        self.assertEqual(2, finestra.chiamate, "il 429 conta come richiesta")
+        self.assertEqual(1, finestra.riprovate)
+        self.assertEqual(1, finestra.attese_429)
+        self.assertIn(7.0, attese, "attesa del tempo indicato dall'header")
+
+    def test_429_senza_header_attende_sessanta_secondi(self):
+        finestra, orologio, attese = _finestra_con_orologio()
+        sessione = _SessioneScript([_Risposta(429), _Risposta(200, {"ok": 1})], orologio)
+        sa.chiama("https://x/teams/1", "chiave", finestra, session=sessione)
+        self.assertIn(60.0, attese)
+
+    def test_al_piu_tre_nuovi_tentativi_per_chiamata(self):
+        finestra, orologio, _ = _finestra_con_orologio()
+        sessione = _SessioneScript([_Risposta(429) for _ in range(10)], orologio)
+        with self.assertRaises(RuntimeError) as contesto:
+            sa.chiama("https://x/teams/1", "chiave", finestra, session=sessione)
+        self.assertIn("dopo 3 nuovi tentativi", str(contesto.exception))
+        self.assertEqual(4, finestra.chiamate, "1 richiesta + 3 nuovi tentativi")
+        self.assertEqual(3, finestra.riprovate)
+
+    def test_il_429_ripetuto_resta_nel_limite_di_finestra(self):
+        """Anche i tentativi ripetuti dopo un 429 non superano 10 in 60 s."""
+        orologio = [0.0]
+        istanti = []
+
+        class Sessione:
+            def get(self, url, headers=None, params=None, timeout=None):
+                istanti.append(orologio[0])
+                if len(istanti) % 3 == 0:
+                    return _Risposta(429, headers={"X-RequestCounter-Reset": "1"})
+                return _Risposta(200, {"coach": None})
+
+        def dormi(secondi):
+            orologio[0] += secondi
+
+        finestra = sa.FinestraChiamate(10, orologio=lambda: orologio[0], dormi=dormi)
+        for _ in range(12):
+            sa.chiama("https://x/teams/1", "chiave", finestra, session=Sessione())
+        for t in istanti:
+            self.assertLessEqual(len([u for u in istanti if t - 60.0 <= u <= t]), 10)
+
+    def test_header_di_quota_esaurita_aspetta_il_reset(self):
+        finestra, orologio, attese = _finestra_con_orologio()
+        sessione = _SessioneScript([
+            _Risposta(200, {"coach": None},
+                      headers={"X-Requests-Available-Minute": "0",
+                               "X-RequestCounter-Reset": "30"}),
+            _Risposta(200, {"coach": None}),
+        ], orologio)
+        sa.chiama("https://x/teams/1", "chiave", finestra, session=sessione)
+        self.assertEqual(1, finestra.attese_header)
+        self.assertIn(30.0, attese)
+
+    def test_chiave_non_valida_non_si_ripete(self):
+        finestra, orologio, attese = _finestra_con_orologio()
+        sessione = _SessioneScript([_Risposta(403), _Risposta(200, {})], orologio)
+        with self.assertRaises(RuntimeError):
+            sa.chiama("https://x/teams/1", "chiave", finestra, session=sessione)
+        self.assertEqual(1, finestra.chiamate, "con 403 nessun tentativo in piu'")
+
+
+class TestEsitoNonValutabile(unittest.TestCase):
+    """La regola si valuta solo con le 5 leghe lette per intero."""
+
+    def test_come_il_13_ottobre_leghe_mancanti_nessuna_percentuale(self):
+        quadro = {"La Liga": _cinque_leghe()["La Liga"],
+                  "Ligue 1": _cinque_leghe()["Ligue 1"]}
+        esito = sa.giudizio(sa.copertura(quadro),
+                            [{"esito": "aggiornato"}] * 3)
+        self.assertFalse(esito["valutabile"])
+        self.assertFalse(esito["affidabile"])
+        self.assertEqual(
+            ["non valutabile: leghe mancanti Serie A, Premier League, Bundesliga"],
+            esito["motivi"])
+        for motivo in esito["motivi"]:
+            self.assertNotIn("%", motivo, "nessuna percentuale confrontata con la soglia")
+
+    def test_le_cinque_leghe_devono_esserci_tutte(self):
+        quadro = _cinque_leghe()
+        del quadro["Bundesliga"]
+        esito = sa.giudizio(sa.copertura(quadro), [{"esito": "aggiornato"}] * 3)
+        self.assertFalse(esito["valutabile"])
+        self.assertIn("Bundesliga", esito["motivi"][0])
+
+    def test_squadra_non_nel_run_non_conta(self):
+        """3 aggiornati + 2 «squadra non nel run»: ok. Le due non pesano."""
+        casi = [{"esito": "aggiornato"}] * 3 + [{"esito": "squadra non nel run"}] * 2
+        esito = sa.giudizio(sa.copertura(_cinque_leghe()), casi)
+        self.assertTrue(esito["valutabile"])
+        self.assertTrue(esito["casi_ok"])
+        self.assertTrue(esito["affidabile"])
+
+    def test_squadra_non_nel_run_non_fa_contare_un_non_aggiornato(self):
+        casi = [{"esito": "aggiornato"}] * 2 + [{"esito": "squadra non nel run"}] * 4
+        esito = sa.giudizio(sa.copertura(_cinque_leghe()), casi)
+        self.assertFalse(esito["affidabile"], "due casi valutabili sono meno di tre")
+        self.assertIn("casi valutabili 2 (servono almeno 3)", esito["motivi"])
+        self.assertNotIn("non aggiornati", " ".join(esito["motivi"]))
+
+    def test_un_caso_non_aggiornato_blocca_la_scheda(self):
+        casi = [{"esito": "aggiornato"}] * 3 + [{"esito": "non aggiornato"}]
+        esito = sa.giudizio(sa.copertura(_cinque_leghe()), casi)
+        self.assertFalse(esito["affidabile"])
+        self.assertIn("1 casi su 4 non aggiornati", esito["motivi"])
+
+    def test_solo_squadre_assenti_non_e_un_esito(self):
+        casi = [{"esito": "squadra non nel run"}] * 6
+        esito = sa.giudizio(sa.copertura(_cinque_leghe()), casi)
+        self.assertFalse(esito["affidabile"])
+        self.assertIn("nessun caso verificabile", esito["motivi"])
+
+
+class TestEtaDeiCasi(unittest.TestCase):
+    """Ogni caso riporta i giorni fra la data del cambio e il run."""
+
+    def test_eta_in_giorni(self):
+        casi = [{"lega": "La Liga", "squadra": "Osasuna",
+                 "allenatore_uscente": "Luis Miguel Ramis",
+                 "allenatore_atteso": "Jagoba Arrasate", "data_cambio": "2026-10-12"},
+                {"lega": "Ligue 1", "squadra": "Lens",
+                 "allenatore_uscente": "Dino Toppmöller",
+                 "allenatore_atteso": "Yannick Cahuzac", "data_cambio": "2026-09-15"}]
+        voci = {"La Liga": [{"nome": "CA Osasuna", "allenatore": "Luis Miguel Ramis"}],
+                "Ligue 1": [{"nome": "RC Lens", "allenatore": "Yannick Cahuzac"}]}
+        esiti = sa.confronta_casi(casi, voci, "2026-10-13T15:49:50Z")
+        self.assertEqual(1, esiti[0]["eta_giorni"], "1 giorno: Osasuna")
+        self.assertEqual(28, esiti[1]["eta_giorni"], "28 giorni: Lens")
+
+    def test_eta_non_inventata(self):
+        self.assertIsNone(sa.giorni_tra(None, "2026-10-13T15:49:50Z"))
+        self.assertIsNone(sa.giorni_tra("non-una-data", "2026-10-13T15:49:50Z"))
 
 
 class TestLetturaRisposte(unittest.TestCase):
@@ -231,7 +481,7 @@ class TestConfrontoCasi(unittest.TestCase):
                                 "i casi coprono almeno tre leghe")
 
     def test_senza_casi_il_giudizio_non_e_affidabile(self):
-        cop = sa.copertura({"Serie A": [{"nome": "A", "allenatore": "Uno"}]})
+        cop = sa.copertura(_cinque_leghe())
         esito = sa.giudizio(cop, [])
         self.assertFalse(esito["casi_ok"])
         self.assertFalse(esito["affidabile"])
@@ -256,15 +506,21 @@ class TestCoperturaEFormato(unittest.TestCase):
         self.assertEqual(0.0, sa.copertura([])["frazione"])
 
     def test_giudizio_applica_la_soglia(self):
-        sotto = sa.copertura({"Serie A": [{"nome": "A", "allenatore": "Uno"},
-                                          {"nome": "B", "allenatore": None}]})
-        casi_ok = [{"esito": "aggiornato"}]
-        esito = sa.giudizio(sotto, casi_ok)
+        # 19 squadre su 20 con allenatore = 95%: soglia raggiunta
+        tutte = {l: [{"nome": f"{l}{i}", "allenatore": "Uno"} for i in range(4)]
+                 for l in sa.LEGHE}
+        sopra = copy.deepcopy(tutte)
+        sopra["Serie A"][0]["allenatore"] = None           # 19/20 = 95%
+        sotto = copy.deepcopy(tutte)
+        sotto["Serie A"][0]["allenatore"] = None
+        sotto["Serie A"][1]["allenatore"] = None           # 18/20 = 90%
+        casi_ok = [{"esito": "aggiornato"}] * 3
+        esito = sa.giudizio(sa.copertura(sotto), casi_ok)
+        self.assertTrue(esito["valutabile"])
         self.assertFalse(esito["copertura_ok"])
         self.assertFalse(esito["affidabile"])
-        self.assertIn("copertura 50.0% < 95%", esito["motivi"])
-        sopra = sa.copertura({"Serie A": [{"nome": "A", "allenatore": "Uno"}]})
-        self.assertTrue(sa.giudizio(sopra, casi_ok)["affidabile"])
+        self.assertIn("copertura 90.0% < 95%", esito["motivi"])
+        self.assertTrue(sa.giudizio(sa.copertura(sopra), casi_ok)["affidabile"])
 
     def test_forme_delle_date(self):
         forme = sa.forme_date({"Serie A": [
@@ -369,7 +625,12 @@ class TestGiroCompletoConFixture(unittest.TestCase):
         self.assertLess(pos_regola, pos_copertura)
         self.assertLess(pos_regola, pos_casi)
         self.assertIn("95%", self.referto)
-        self.assertIn("NON AFFIDABILE", self.referto)
+        # il giro della fixture ha solo 2 leghe: la regola NON si valuta
+        self.assertIn("Esito di questo run: **NON VALUTABILE**", self.referto)
+        self.assertIn("non valutabile: leghe mancanti Premier League, La Liga, Ligue 1",
+                      self.referto)
+        self.assertNotIn("NON AFFIDABILE", self.referto)
+        self.assertIn("Età (giorni)", self.referto)
         self.assertIn("non aggiornato", self.referto)
         self.assertIn("aggiornato", self.referto)
         self.assertIn("Run di PROVA", self.referto,
@@ -422,8 +683,12 @@ class TestLaFixtureNonScriveNelloSnapshotReale(unittest.TestCase):
             self.assertEqual(prima, dopo,
                              "la modalita' fixture ha scritto nella cartella degli "
                              "snapshot reali")
-            self.assertFalse((self.CARTELLA / f"{oggi}.json").exists(),
-                             "nessuno snapshot con la data puo' venire da una fixture")
+            for nome in dopo:
+                if not nome.endswith(".json") or nome.startswith("casi_"):
+                    continue
+                dati = json.loads((self.CARTELLA / nome).read_text(encoding="utf-8"))
+                self.assertNotEqual("fixture", dati.get("modalita"),
+                                    f"{nome}: uno snapshot reale viene da una fixture")
             prova = sorted(self.OUTPUT.glob(f"{sa.PREFISSO_FIXTURE}*"))
             creati = list(prova)
             self.assertTrue(prova, "la fixture deve scrivere in audit/output/")
@@ -432,7 +697,7 @@ class TestLaFixtureNonScriveNelloSnapshotReale(unittest.TestCase):
                     self.assertTrue(percorso.name.startswith(sa.PREFISSO_FIXTURE))
                     self.assertFalse(percorso.name.endswith(f"{oggi}.json")
                                      and not percorso.name.startswith(sa.PREFISSO_FIXTURE))
-            self.assertTrue((self.OUTPUT / f"fixture_sonda_allenatori.md").exists())
+            self.assertTrue((self.OUTPUT / "fixture_sonda_allenatori.md").exists())
         finally:
             for percorso in creati:
                 percorso.unlink(missing_ok=True)
@@ -444,8 +709,11 @@ class TestRefertoNonEseguito(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix="sonda_all_non_"))
+        cartella = REPO_ROOT / "audit" / "data" / "allenatori"
+        cls.prima = sorted(f.name for f in cartella.iterdir())
         cls.rc = sa.main(["--referto-non-eseguito", "--casi", str(CASI),
                           "--results-dir", str(cls.tmp)])
+        cls.dopo = sorted(f.name for f in cartella.iterdir())
         cls.referto = (cls.tmp / "sonda_allenatori.md").read_text(encoding="utf-8")
 
     @classmethod
@@ -477,9 +745,9 @@ class TestRefertoNonEseguito(unittest.TestCase):
 
     def test_non_scrive_snapshot_del_giorno(self):
         self.assertEqual([], list(self.tmp.glob("*.json")))
-        oggi = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        self.assertFalse((REPO_ROOT / "audit" / "data" / "allenatori"
-                          / f"{oggi}.json").exists())
+        # nessun file nuovo nella cartella degli snapshot (il confronto e' fra
+        # l'elenco prima e dopo: lo snapshot reale del giorno puo' gia' esserci)
+        self.assertEqual(self.prima, self.dopo)
 
 
 class TestReteSenzaChiamateRiuscite(unittest.TestCase):

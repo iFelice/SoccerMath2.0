@@ -44,9 +44,9 @@ La misura **non** si fa dall'ambiente di sviluppo (qui l'artifact non e' scarica
 3. lo scarica in `audit/output/ppda-player-verify-<run_id>/` (cartella non versionata) ed esegue `audit/sonda_squalifiche.py` sulla cartella `database/`;
 4. committa **il solo referto** `audit/results/sonda_squalifiche.md` (un ultimo passo verifica che l'archivio non sia entrato nel repository).
 
-**Scadenza da rispettare.** L'ultimo archivio noto e' l'artifact **ppda-player-verify-37917985080** del run **37917985080**, creato il 2026-10-09T11:14:27Z e **scade il 2026-10-23T11:14:24Z** (retention 14 giorni del workflow Understat): `audit_squalifiche.yml` va lanciato **entro quella data**, altrimenti l'artifact non e' piu' scaricabile e serve un nuovo run.
+**Scadenza da rispettare.** L'ultimo archivio noto e' l'artifact **ppda-player-verify-38404660658** del run **38404660658**, creato il 2026-10-13T14:04:33Z e **scade il 2026-10-27T14:04:31Z** (retention 14 giorni del workflow Understat): `audit_squalifiche.yml` va lanciato **entro quella data**, altrimenti l'artifact non e' piu' scaricabile e serve un nuovo run.
 
-**Se l'artifact e' scaduto**, l'ordine e': (1) rilanciare `ppda_player_verify.yml` (`workflow_dispatch`, durata misurata **44m22s**: 1 richiesta HTTP per partita su ~7.000 partite); (2) lanciare `audit_squalifiche.yml`, che scrive il referto con i numeri nuovi. Se la sonda non trova l'archivio il workflow **fallisce e non committa**: il referto non viene mai riscritto con un esito inventato.
+**Se l'artifact e' scaduto**, l'ordine e': (1) rilanciare `ppda_player_verify.yml` (`workflow_dispatch`, durata misurata **40m24s**: 1 richiesta HTTP per partita su ~7.000 partite); (2) lanciare `audit_squalifiche.yml`, che scrive il referto con i numeri nuovi. Se la sonda non trova l'archivio il workflow **fallisce e non committa**: il referto non viene mai riscritto con un esito inventato.
 
 ## Cosa NON fa questa sonda
 

@@ -1,29 +1,51 @@
 {
-  "versione": "ultimo_run_archivio_player_match_v1",
+  "versione": "ultimo_run_archivio_player_match_v2",
   "raccolto_il": "2026-10-13",
-  "come_raccolto": "gh api repos/iFelice/SoccerMath2.0/actions/runs/37917985080 (e /jobs, /artifacts) — nessun valore stimato",
+  "come_raccolto": "gh api repos/iFelice/SoccerMath2.0/actions/runs/38404660658 e .../runs/38404660658/artifacts (e .../runs/37917985080 per lo storico) — nessun valore stimato",
+  "run_usato_dal_referto": 38404660658,
+  "motivo_del_cambio": "Il referto committato dal run 38429928269 (audit_squalifiche.yml, input run_id=38404660658) ha letto l'archivio di questo run. La versione precedente di questo file puntava al run 37917985080 e la sezione «Scadenza» del referto lo citava per errore.",
   "workflow": "ppda_player_verify.yml",
-  "run_id": 37917985080,
+  "run_id": 38404660658,
   "nome_run": "Verifica PPDA/deep/giocatore (sola lettura)",
+  "run_number": 15,
   "evento": "push",
-  "branch": "arena/ffcc5cc6-soccermath2-0",
-  "iniziato_il": "2026-10-09T10:30:09Z",
-  "finito_il": "2026-10-09T11:14:31Z",
-  "durata": "44m22s",
+  "branch": "arena/5354f787-soccermath2-0",
+  "head_sha": "350a898883f53a7858e50b6e7586e187cd6d14bc",
+  "iniziato_il": "2026-10-13T13:24:13Z",
+  "finito_il": "2026-10-13T14:04:37Z",
+  "durata": "40m24s",
   "esito": "success",
-  "resoconto_del_job": "tutti i passi `success`, compresi «Acquisizione reale (Understat, 5 leghe)» e «Pubblica referto e snapshot come artifact»",
   "artifact": {
-    "id": 11612646869,
-    "nome": "ppda-player-verify-37917985080",
-    "byte": 10030903,
-    "creato_il": "2026-10-09T11:14:27Z",
-    "scade_il": "2026-10-23T11:14:24Z"
+    "id": 11820168530,
+    "nome": "ppda-player-verify-38404660658",
+    "byte": 10099420,
+    "creato_il": "2026-10-13T14:04:33Z",
+    "scade_il": "2026-10-27T14:04:31Z"
   },
   "run_precedenti": [
-    {"run_id": 37754793747, "esito": "cancelled", "iniziato_il": "2026-10-08T09:10:20Z", "finito_il": "2026-10-08T09:49:32Z"},
-    {"run_id": 37467064447, "esito": "success", "iniziato_il": "2026-10-06T12:57:20Z", "finito_il": "2026-10-06T13:31:07Z"}
+    {
+      "run_id": 37917985080,
+      "esito": "success",
+      "artifact": "ppda-player-verify-37917985080",
+      "artifact_id": 11612646869,
+      "creato_il": "2026-10-09T11:14:27Z",
+      "scade_il": "2026-10-23T11:14:24Z",
+      "nota": "non piu' il riferimento: il referto usa 38404660658"
+    },
+    {
+      "run_id": 37754793747,
+      "esito": "cancelled",
+      "iniziato_il": "2026-10-08T09:10:20Z",
+      "finito_il": "2026-10-08T09:49:32Z"
+    },
+    {
+      "run_id": 37467064447,
+      "esito": "success",
+      "iniziato_il": "2026-10-06T12:57:20Z",
+      "finito_il": "2026-10-06T13:31:07Z"
+    }
   ],
-  "lettura_da_questa_sandbox": "artifact non scaricabile (EOF sul blob Azure) e log del run non leggibili (EOF su results-receiver.actions.githubusercontent.com)",
+  "lettura_da_questa_sandbox": "artifact non scaricabile (il blob Azure non e' raggiungibile dalla sandbox) — l'API GitHub risponde; il download va fatto dal workflow",
   "perimetro_dichiarato_dal_workflow": {
     "richieste_http": "1 per partita (Understat read_player_match_stats)",
     "finestra_stagioni": "5 (stagione corrente + 4 precedenti, season_calendar.SEASON_WINDOW)",

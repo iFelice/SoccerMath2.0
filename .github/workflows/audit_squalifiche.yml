@@ -32,13 +32,14 @@ name: Sonda squalifiche (archivio player_match, manuale)
 # giocate della stagione in corso (zero mancanti rispetto ai ``*_Live.csv``) e
 # **tutti** i casi verificati su fonti pubbliche concordano con l'archivio.
 #
-# SCADENZA DELL'ARCHIVIO. Misurato il 2026-10-13: ultimo run riuscito
-# 37917985080 (2026-10-09, 44m22s), artifact ``ppda-player-verify-37917985080``
-# creato il 2026-10-09T11:14:27Z e **scade il 2026-10-23T11:14:24Z**. Prima di
-# quella data va lanciato QUESTO workflow; dopo, se l'artifact e' scaduto,
-# bisogna prima rilanciare ``ppda_player_verify.yml`` (**workflow_dispatch**,
-# ~44 minuti: 1 richiesta HTTP per partita su ~7.000 partite) e poi di nuovo
-# questo. Il referto dichiara data e scadenza dell'ultimo artifact misurato.
+# SCADENZA DELL'ARCHIVIO. Misurato il 2026-10-13 con gh api: il run letto dal
+# referto e' 38404660658 (ppda_player_verify.yml, 2026-10-13, 40m24s), artifact
+# ``ppda-player-verify-38404660658`` (id 11820168530) creato il 2026-10-13T14:04:33Z
+# e **scade il 2026-10-27T14:04:31Z**. Prima di quella data va lanciato QUESTO
+# workflow con ``run_id=38404660658``; dopo, se l'artifact e' scaduto, bisogna
+# prima rilanciare ``ppda_player_verify.yml`` (**workflow_dispatch**, ~40 minuti:
+# 1 richiesta HTTP per partita su ~7.000 partite) e poi di nuovo questo. Il
+# referto dichiara data e scadenza dell'artifact effettivamente letto.
 #
 # Trigger: SOLO workflow_dispatch (nessun cron, nessun push, nessuna PR): il run
 # lo lancia Felice a mano.
