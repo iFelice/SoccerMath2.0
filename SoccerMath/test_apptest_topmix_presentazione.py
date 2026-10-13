@@ -75,14 +75,18 @@ def _raccogli_da_df(df_el):
     if val is None:
         return parti
     # val e' un oggetto Arrow/DataFrame serializzato: in testing e' un
-    # pandas.DataFrame (o uno Styler): proviamo a normalizzare.
+    # pandas.DataFrame (o uno Styler): proviamo a normalizzare. Le colonne
+    # numeriche con celle vuote (``None``/NaN: da «Modello %» non pronto)
+    # vanno svuotate PRIMA di ``astype(str)``, altrimenti resta un float
+    # ``nan`` e il join delle celle esplode a metà tabella.
     try:
         import pandas as _pd
         if hasattr(val, "data"):
             val = val.data
         if isinstance(val, _pd.DataFrame):
             parti.append(" ".join(_testo_semplice(c) for c in val.columns))
-            for _r in val.astype(str).itertuples(index=False, name=None):
+            sicuro = val.where(val.notna(), other="")
+            for _r in sicuro.astype(str).itertuples(index=False, name=None):
                 parti.append(" ".join(_r))
             return parti
     except Exception:
@@ -154,10 +158,15 @@ def _testi_della_tab(at, indice_tab=0):
 
 # ---------------------------------------------------------------------------
 # Parole vietate (punto 6): fuori dai riquadri chiusi non devono comparire.
+# «d'accordo» e' entrata in lista con la correzione alla PR #66: il segnale
+# resta solo nei Dettagli (tabella tecnica) e la caption della sezione
+# «Le scelte più sicure secondo le quote» dice solo quante partite sono in
+# tabella e, se il giro del modello non e' pronto, lo stato di «Modello %».
 # ---------------------------------------------------------------------------
 
 PAROLE_VIETATE = [
     "de-vig", "devig",
+    "d'accordo",
     r"\bEV\b", "valore atteso",
     "quota equa",
     "margine", "margini",
@@ -447,13 +456,21 @@ class TestPresentazioneTopMix(unittest.TestCase):
         testo = " \n".join(fuori)
         self.assertIn("Per raddoppiare", testo)
         self.assertIn("Su 100 € giocati tornano in media", testo)
-        self.assertIn("Riesce circa", testo)
+        self.assertIn("Quote %", testo)
         self.assertIn("Paga circa", testo)
         if righe:
             for r in righe:
-                self.assertIn(r["riesce"], testo)
+                # «Quote %» = probabilita' combinata, numero con una cifra
+                # decimale (la resa della cella e' str(numero)).
+                self.assertIn(f"{round(r['probabilita'] * 100.0, 1)}", testo)
                 self.assertIn(r["paga"], testo)
                 self.assertIn(f"{r['ritorno_100']} €", testo)
+            # Ogni partita del riquadro: «<casa> - <trasferta>: <sigla>», la
+            # giocata come sola sigla (niente parole, niente sigla fra parentesi).
+            for item in prop["per_k"].values():
+                for g in (item or {}).get("giocate", []):
+                    self.assertIn(f"{g['home']} - {g['away']}: {str(g['giocata']).strip()}",
+                                  testo)
         else:
             self.assertIn("Oggi nessuna giocata paga fra 2 e 3 volte la puntata.", testo)
         self.assertIn("Ogni partita aggiunta abbassa le probabilità di riuscita: "
@@ -474,8 +491,10 @@ class TestPresentazioneTopMix(unittest.TestCase):
         self.assertEqual(len(partite), len(set(partite)))
         for g in attese:
             self.assertIn(g["partita"], testo)
-            self.assertIn(lg.giocata_in_parole_con_sigla(g["giocata"], g["home"], g["away"]), testo)
-            self.assertIn(lg.riesce_circa(g["probabilita"]), testo)
+            # Giocata = sola sigla (1, X, 2, 1X, X2, 12); «Quote %» = numero
+            # con una cifra decimale al posto del testo in parole.
+            self.assertIn(str(g["giocata"]).strip(), testo)
+            self.assertIn(f"{round(g['probabilita'] * 100.0, 1)}", testo)
 
     def test_06_comandi_periodo_e_freschezza_quote(self):
         fuori, _ = _testi_della_tab(self.at)
@@ -539,11 +558,30 @@ class TestPresentazioneTopMix(unittest.TestCase):
         self.assertIn("19,50 € in meno", testo_dettagli)
         self.assertNotIn("Su 100 giocate da 1 €", testo,
                          "il conto in euro sta nei Dettagli, non in apertura")
-        # Le colonne visibili sono quelle del punto 5b, in parole.
+        # Le colonne visibili sono quelle della commessa sigle-percentuali:
+        # la giocata e' la sola sigla, «Quote %» e «Modello %» sono quelle
+        # della PRIMA registrazione, e la colonna del segnale «d'accordo»
+        # esce dalla vista (resta nei Dettagli).
         for atteso in ("Quando", "Campionato", "Partita", "Giocata",
-                       "Riesce circa", "Il nostro modello è d'accordo",
-                       "Risultato", "Esito"):
+                       "Quote %", "Modello %", "Risultato", "Esito"):
             self.assertIn(atteso, testo, f"colonna mancante: {atteso}")
+        self.assertNotIn("Il nostro modello è d'accordo", testo)
+        self.assertNotIn("Riesce circa", testo)
+        # Ogni riga resa: la sigla secca e le DUE percentuali della prima
+        # registrazione sulla STESSA riga (inter-riga il confronto e' alla pari).
+        riga_inter = next(t for t in sezione if "Inter vs Roma" in t)
+        riga_como = next(t for t in sezione if "Como vs Torino" in t)
+        # Nella tabella Mercato di Com'è andata ENTRAMBE le percentuali sono
+        # numeriche (ordinamento al clic numerico): la resa della cella e'
+        # il numero puro ("63.0"); la virgola italiana sta nelle tabelle
+        # della scheda Giocate, dove «Modello %» porta anche gli stati.
+        for riga, sigla, quote, modello in ((riga_inter, " 1 ", "62.5", "63.0"),
+                                            (riga_como, " 2 ", "58.0", "51.0")):
+            celle = f" {riga} "
+            self.assertIn(sigla, celle, f"sigla secca nella riga: {riga!r}")
+            self.assertIn(quote, celle, f"«Quote %» della prima registrazione: {riga!r}")
+            self.assertIn(modello, celle, f"«Modello %» della prima registrazione: {riga!r}")
+            self.assertNotIn("volte su 100", riga)
         # Parole vietate (punto 6) anche dentro questa tabella.
         basso = testo.lower()
         for parola in PAROLE_VIETATE:

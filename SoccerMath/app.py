@@ -3312,54 +3312,120 @@ def tabella_top_mix_mercato(righe):
         columns=COLONNE_TOP_MIX_MERCATO + ["Lega", "Inizio"])
 
 
+def percento_decimale(valore):
+    """Probabilita' -> percentuale con UNA cifra decimale come NUMERO (float).
+
+    Serve alla colonna "Quote %" (e a "Modello %" quando il modello ha un
+    numero): il valore resta numerico nel DataFrame cosi' l'ordinamento al
+    clic sull'intestazione e' numerico, non alfabetico. Accetta sia la
+    frazione 0-1 sia la percentuale gia' in 0-100 (le probabilita' di queste
+    tabelle sono sempre >= 55% oppure assenti, quindi il confine a 1.0 non e'
+    ambiguo). ``None`` se non c'e' un numero: la cella resta vuota, nessuno
+    zero inventato.
+    """
+    if valore is None or isinstance(valore, bool):
+        return None
+    try:
+        v = float(valore)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(v):
+        return None
+    if v <= 1.0:
+        v *= 100.0
+    return round(v, 1)
+
+
 def tabella_top_mix_mercato_visibile(righe, adesso=None, stato_confronto=None,
-                                     mappa_accordo=None):
-    """La tabella del Top Mix in PAROLE (parte in vista della scheda Giocate).
+                                     mappa_modello_1x2=None):
+    """La tabella del Top Mix in vista della scheda Giocate (segnali asciutti).
 
     Stessi numeri di ``tabella_top_mix_mercato`` (probabilita', quote, scelte:
-    nulla viene ricalcolato), presentati per chi non conosce gergo: la giocata
-    in parole, la probabilita' come "N volte su 100", la quota come "N volte
-    la puntata". Le partite lontane (calcio d'inizio fra piu' di 3 giorni)
-    portano il marcatore delle quote provvisorie (punto 8).
+    nulla viene ricalcolato), presentati senza gergo: la giocata e' la SOLA
+    sigla (1, X, 2 — qui il selettore di mercato non propone doppie chance) e
+    "Quote %" e "Modello %" sono DUE colonne numeriche con una cifra decimale
+    (l'ordinamento al clic e' numerico per entrambe). Le partite lontane
+    (calcio d'inizio fra piu' di 3 giorni) portano il marcatore delle quote
+    provvisorie (punto 8).
 
-    La colonna del modello non dipende dalle righe: arriva dal confronto
-    (``testo_accordo_modello``), quindi mentre il calcolo gira dice "in calcolo"
-    e se non riesce "non disponibile" senza che la tabella sparisca.
+    La colonna "Modello %" non dipende dalle righe: arriva dal confronto
+    (``numero_modello_percento`` su ``fetch_and_calc_top_mix``, sola lettura);
+    mentre il calcolo gira o se non riesce la cella resta VUOTA (``None``):
+    lo stato lo dice una volta sola la caption sotto il titolo della
+    sezione, non la cella.
+
+    Ordinamento predefinito: "Quote %" decrescente (commessa PR presentazione
+    sigle e percentuali); il clic sull'intestazione lo cambia, il DataFrame
+    sotto resta quello.
     """
-    # Punto 5a: le colonne in vista sono ESATTAMENTE queste sei. La quota
-    # ("Paga") non sta piu' qui: quanto paga una giocata si vede provandola
-    # in "Prova la tua giocata", dove le quote entrano davvero nel calcolo.
-    colonne = ["Quando", "Campionato", "Partita", "Giocata", "Riesce circa",
-               "Il nostro modello è d'accordo"]
+    # Le colonne in vista sono ESATTAMENTE queste sei. La quota ("Paga") non
+    # sta qui: quanto paga una giocata si vede provandola in "Prova la tua
+    # giocata", dove le quote entrano davvero nel calcolo. Il segnale
+    # "d'accordo" e' uscito dalla vista: resta nei dati, nel Registro e nei
+    # Dettagli.
+    colonne = ["Quando", "Campionato", "Partita", "Giocata", "Quote %",
+               "Modello %"]
     rows = []
     for p in righe or []:
         quanto = {"commence_time": p.get("kickoff_utc") or p.get("utcDate")}
+        prob_quota = p.get("prob_val")
+        if prob_quota is None:
+            prob_quota = p.get("prob")
         rows.append({
             "Quando": lg.quando_italiano(p.get("utcDate")),
             "Campionato": p.get("league") or "",
             "Partita": f"{p.get('home')} vs {p.get('away')}" + lg.suffisso_provvisoria(quanto, adesso),
-            "Giocata": lg.giocata_in_parole_con_sigla(p.get("esito"), p.get("home"), p.get("away")),
-            "Riesce circa": lg.riesce_circa(p.get("prob", (p.get("prob_val") or 0) / 100.0)),
-            "Il nostro modello è d'accordo": testo_accordo_modello(p, stato_confronto, mappa_accordo),
+            "Giocata": str(p.get("esito") or "").strip(),
+            "Quote %": percento_decimale(prob_quota),
+            "Modello %": numero_modello_percento(p, stato_confronto, mappa_modello_1x2),
         })
-    return pd.DataFrame(rows, columns=colonne)
+    df = pd.DataFrame(rows, columns=colonne)
+    if not df.empty:
+        # mergesort = stabile: a parita' di "Quote %" resta l'ordine del
+        # selettore (``classifica_top_mix``, probabilita' e rank).
+        df = df.sort_values("Quote %", ascending=False,
+                            na_position="last", kind="mergesort").reset_index(drop=True)
+    return df
+
+
+def caption_scelte_secondo_le_quote(n_righe, stato_confronto, nascoste=0):
+    """La caption sotto il titolo «Le scelte più sicure secondo le quote».
+
+    «<N> partite in tabella», lo stato di «Modello %» quando il giro del
+    modello non e' pronto (detto UNA volta sola: le celle della colonna
+    restano numeri, vuote finche' il giro non c'e') e, se pertinente, la
+    frase sulle partite dopo lunedì. Nessun conteggio del segnale
+    "d'accordo" in vista: e' un dettaglio del riquadro chiuso.
+    """
+    parti = [f"{n_righe} partite in tabella"]
+    if stato_confronto != "pronto":
+        parti.append("Modello %: in calcolo"
+                     if stato_confronto in (None, "in_calcolo")
+                     else "Modello %: non disponibile")
+    frase = " · ".join(parti) + "."
+    if nascoste > 0:
+        frase += (f" Altre {nascoste} dopo lunedì: "
+                  f"passa a «{lg.ETICHETTA_PERIODO_TUTTE}».")
+    return frase
 
 
 def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
-                                    stato_confronto=None, mappa_accordo=None):
-    """La tabella del Top Mix (mercato) in parole, nella parte in vista.
+                                    stato_confronto=None,
+                                    mappa_modello_1x2=None):
+    """La tabella del Top Mix (mercato) in vista, nella scheda Giocate.
 
     Il contenuto tecnico di un tempo (fonte e eta' delle quote riga per riga,
-    probabilita' del modello, quota numerica) NON e' sparito: e' nel riquadro
+    quota numerica, segnale "d'accordo") NON e' sparito: e' nel riquadro
     chiuso "Dettagli" piu' sotto, insieme al resto. Le persone che non
     conoscono il gergo leggono qui; chi vuole i numeri apre il riquadro.
     Quando il file delle quote manca o non copre il turno lo si dice
     esplicitamente, invece di mostrare una tabella vuota che sembrerebbe
     "nessuna partita probabile".
 
-    ``stato_confronto``/``mappa_accordo`` alimentano la colonna del modello:
-    la tabella non aspetta il giro del modello, quindi mentre quello gira la
-    colonna dice "in calcolo" e le righe restano tutte li'.
+    ``stato_confronto`` alimenta lo stato di «Modello %» nella caption (una
+    volta sola, non nelle celle); ``mappa_modello_1x2`` alimenta la colonna
+    "Modello %": la tabella non aspetta il giro del modello, quindi mentre
+    quello gira le celle restano vuote e le righe tutte li'.
     """
     st.markdown("##### 🌟 Le scelte più sicure secondo le quote")
     st.caption("Le probabilità vengono dalle quote dei bookmaker, che in media "
@@ -3413,26 +3479,27 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
                 f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
         return
     nascoste = len(righe) - len(in_periodo)
-    testi = [testo_accordo_modello(p, stato_confronto, mappa_accordo) for p in in_periodo]
-    if stato_confronto == "pronto":
-        n_accordo = sum(1 for t in testi if t == "sì")
-        n_senza = sum(1 for t in testi if t == "no")
-        n_nd = sum(1 for t in testi if t == CONFRONTO_NON_DISPONIBILE)
-        dettaglio_accordo = f"{n_accordo} con il modello d'accordo · {n_senza} senza"
-        if n_nd:
-            dettaglio_accordo += f" · {n_nd} senza confronto"
-    elif stato_confronto in (None, "in_calcolo"):
-        dettaglio_accordo = "confronto con il nostro modello in calcolo"
-    else:
-        dettaglio_accordo = "confronto con il nostro modello non disponibile"
-    st.caption(f"{len(in_periodo)} partite in tabella (nessun limite di righe) · "
-               f"{dettaglio_accordo}."
-               + (f" Altre {nascoste} dopo lunedì: passa a «{lg.ETICHETTA_PERIODO_TUTTE}»."
-                  if nascoste > 0 else ""))
+    st.caption(caption_scelte_secondo_le_quote(len(in_periodo), stato_confronto,
+                                               nascoste=nascoste))
     st.dataframe(tabella_top_mix_mercato_visibile(in_periodo, adesso=adesso,
                                                   stato_confronto=stato_confronto,
-                                                  mappa_accordo=mappa_accordo),
-                 width="stretch", height=420, hide_index=True)
+                                                  mappa_modello_1x2=mappa_modello_1x2),
+                 width="stretch", height=420, hide_index=True,
+                 column_config={
+                     # Numero, non stringa: il clic sull'intestazione ordina
+                     # per valore (decrescente/primo clic) e non alfabeticamente.
+                     "Quote %": st.column_config.NumberColumn(
+                         "Quote %",
+                         format="%.1f%%",
+                         help="Probabilità dell'esito secondo le quote dei bookmaker."),
+                     "Modello %": st.column_config.NumberColumn(
+                         "Modello %",
+                         format="%.1f%%",
+                         help="Probabilità dello stesso esito secondo il nostro modello "
+                              "(Drago); per le doppie chance è la somma delle due "
+                              "probabilità 1X2. Vuota finché il giro del modello non è "
+                              "pronto: lo stato sta nella caption sopra."),
+                 })
 
 
 import lista_giocate as lg
@@ -3547,6 +3614,9 @@ CONFRONTO_STATO_CHIAVE = "confronto_modello_stato"
 CONFRONTO_RIGHE_CHIAVE = "confronto_modello_righe"
 CONFRONTO_ERRORE_CHIAVE = "confronto_modello_errore"
 CONFRONTO_SPINNER = "Confronto con il nostro modello…"
+# Letture di mercato del giro del modello (terna 1X2 del Drago per partita):
+# alimenta la colonna "Modello %" delle tabelle in vista. Sola lettura.
+CONFRONTO_MODELLO_1X2_CHIAVE = "confronto_modello_1x2"
 
 
 def testo_accordo_modello(riga, stato, mappa_accordo):
@@ -3563,6 +3633,81 @@ def testo_accordo_modello(riga, stato, mappa_accordo):
     if dato is None:
         return CONFRONTO_NON_DISPONIBILE
     return "sì" if dato.get("accordo") else "no"
+
+
+def prob_modello_1x2_per_partita(letture):
+    """``{(casa, trasferta) canonici: {"1": p1, "X": pX, "2": p2}}`` del Drago.
+
+    Le letture sono quelle di ``fetch_and_calc_top_mix`` (SOLA lettura: la
+    stessa lista che serve al rinfresco del Registro, qui solo letta): per
+    ogni partita con una terna di quote valida portano in ``per_esito`` la
+    probabilita' del modello per OGNI esito 1/X/2 (percentuale, arrotondata
+    come nel Registro). E' la terna COMPLETA del modello sullo stesso giro di
+    calcolo delle righe in tabella: da qui nasce anche "Modello %" delle
+    doppie chance (somma delle due probabilita' 1X2). Una partita che il giro
+    non copre (nomi non riconosciuti, modello assente) non genera chiavi
+    inventate: semplicemente non c'e'.
+    """
+    mappa = {}
+    for lettura in letture or []:
+        if not isinstance(lettura, dict):
+            continue
+        chiave = _chiave_partita_canonica(lettura.get("home"), lettura.get("away"))
+        if chiave is None:
+            continue
+        terna = {}
+        for esito, dati in (lettura.get("per_esito") or {}).items():
+            pm = (dati or {}).get("prob_modello")
+            if not isinstance(pm, bool) and isinstance(pm, (int, float)) and math.isfinite(float(pm)):
+                terna[str(esito)] = float(pm)
+        if terna:
+            mappa[chiave] = terna
+    return mappa
+
+
+def prob_modello_esito(esito, terna):
+    """Percento del modello per l'esito di UNA riga; doppia chance = somma.
+
+    ``terna`` e' la mappa {1, X, 2} di ``prob_modello_1x2_per_partita`` per la
+    STESSA partita (stesso snapshot del giro del modello). Per 1/X/2 e' la
+    lettura diretta; per 1X/X2/12 e' la SOMMA delle due probabilita' 1X2 che
+    compongono la doppia chance. ``None`` quando manca uno dei numeri: nessun
+    valore ricostruito a partita coperta ma modello assente.
+    """
+    if not isinstance(terna, dict) or not terna:
+        return None
+    e = str(esito or "").strip()
+    if e in ("1", "X", "2"):
+        return terna.get(e)
+    parti = {"1X": ("1", "X"), "X2": ("X", "2"), "12": ("1", "2")}.get(e)
+    if parti is None:
+        return None
+    valori = [terna.get(s) for s in parti]
+    if any(v is None for v in valori):
+        return None
+    return round(sum(float(v) for v in valori), 1)
+
+
+def numero_modello_percento(riga, stato, mappa_1x2):
+    """Numero della colonna "Modello %" per UNA riga in vista (o ``None``).
+
+    * calcolo non ancora terminato, fallito, partita non coperta dal giro
+      del modello, oppure modello senza numero per quella partita ->
+      ``None``: la cella resta VUOTA (nessuno stato scritto nella cella,
+      nessuno zero inventato) — lo stato lo dice una volta sola la caption
+      della sezione;
+    * calcolo pronto -> percento del modello per lo STESSO esito della riga
+      (doppie chance: somma delle due probabilita' 1X2), numero con una
+      cifra decimale: la colonna resta numerica e l'ordinamento al clic e'
+      numerico.
+    """
+    if stato != "pronto":
+        return None
+    terna = (mappa_1x2 or {}).get(_chiave_partita_canonica(riga.get("home"), riga.get("away")))
+    if terna is None:
+        return None
+    valore = prob_modello_esito(riga.get("esito") or riga.get("giocata"), terna)
+    return None if valore is None else round(valore, 1)
 
 
 def avvia_confronto_modello():
@@ -3591,9 +3736,13 @@ def concludi_confronto_modello():
         return False
     try:
         with st.spinner(CONFRONTO_SPINNER):
-            top_mercato, _current, _legacy, _missing, _ombra, _senza, _letture = \
+            top_mercato, _current, _legacy, _missing, _ombra, _senza, letture = \
                 fetch_and_calc_top_mix()
         st.session_state[CONFRONTO_RIGHE_CHIAVE] = top_mercato
+        # La terna 1X2 del modello per partita (canale "letture", sola lettura):
+        # da qui nasce la colonna "Modello %" in vista, incluse le doppie
+        # chance (somma delle due probabilita' 1X2). Nessuna scrittura.
+        st.session_state[CONFRONTO_MODELLO_1X2_CHIAVE] = letture
         st.session_state[CONFRONTO_STATO_CHIAVE] = "pronto"
     except Exception as e:
         # Il confronto e' un valore aggiunto, non un prerequisito: se il giro
@@ -3852,6 +4001,47 @@ def tabella_lista_giocate(giocate):
     return pd.DataFrame(rows)
 
 
+def riga_partita_sigla(g):
+    """Riga di UNA partita di una combinazione: «<casa> - <trasferta>: <sigla>».
+
+    La giocata e' la sola sigla (1, X, 2, 1X, X2, 12): niente parole e niente
+    sigla fra parentesi (commessa presentazione). Usata dal riquadro "Per
+    raddoppiare" e dalle etichette di "Prova la tua giocata".
+    """
+    sigla = str(g.get("giocata") or g.get("esito") or "").strip()
+    return f"{g.get('home') or '?'} - {g.get('away') or '?'}: {sigla}"
+
+
+def tabella_per_raddoppiare_visibile(righe, best_by_k):
+    """DataFrame del riquadro "Per raddoppiare": una riga per numero di partite.
+
+    Gli stessi numeri di ``lg.righe_riquadro_raddoppio`` (probabilita'
+    combinata, quota totale, ritorno su 100: nessun ricalcolo), con ogni
+    partita resa come «<casa> - <trasferta>: <sigla>» e la probabilita'
+    combinata nella colonna numerica "Quote %" (niente "Modello %" qui: la
+    probabilita' di una combinazione e' quella delle quote, gia' combinata).
+    Ordinamento predefinito: "Quote %" decrescente, ordinabile al clic.
+    """
+    colonne = ["★", "Partite", "Quote %", "Paga circa",
+               "Su 100 € giocati tornano in media"]
+    rows = []
+    for r in righe or []:
+        item = (best_by_k or {}).get(r.get("k")) or {}
+        rows.append({
+            "★": "★" if r.get("migliore") else "",
+            "Partite": "\n".join(riga_partita_sigla(g)
+                                 for g in item.get("giocate", [])),
+            "Quote %": percento_decimale(r.get("probabilita")),
+            "Paga circa": r.get("paga"),
+            "Su 100 € giocati tornano in media": f"{r['ritorno_100']} €",
+        })
+    df = pd.DataFrame(rows, columns=colonne)
+    if not df.empty:
+        df = df.sort_values("Quote %", ascending=False,
+                            na_position="last", kind="mergesort").reset_index(drop=True)
+    return df
+
+
 def _mostra_riquadro_raddoppio(in_periodo, top_mercato, adesso):
     """Riquadro "Per raddoppiare" (punto 1): max 4 righe, una per numero di
     partite combinate, dai risultati GIA' calcolati di cerca_proposta_multipla
@@ -3863,20 +4053,18 @@ def _mostra_riquadro_raddoppio(in_periodo, top_mercato, adesso):
     with st.container(border=True):
         st.markdown("**🎯 Per raddoppiare**")
         st.caption("Le giocate combinate che pagano fra 2 e 3 volte la puntata, "
-                   "da 1 a 4 partite: quanto pagano e quante volte su 100 riescono.")
+                   "da 1 a 4 partite: quanto pagano e la loro probabilità (Quote %).")
         if not righe:
             st.info("Oggi nessuna giocata paga fra 2 e 3 volte la puntata.")
         else:
-            rows = []
-            for r in righe:
-                rows.append({
-                    "★": "★" if r.get("migliore") else "",
-                    "Partite": "\n".join(r["partite"]),
-                    "Riesce circa": r["riesce"],
-                    "Paga circa": r["paga"],
-                    "Su 100 € giocati tornano in media": f"{r['ritorno_100']} €",
-                })
-            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+            st.dataframe(tabella_per_raddoppiare_visibile(righe, best_by_k),
+                         hide_index=True, width="stretch",
+                         column_config={
+                             "Quote %": st.column_config.NumberColumn(
+                                 "Quote %",
+                                 format="%.1f%%",
+                                 help="Probabilità combinata della giocata, dalle quote."),
+                         })
             st.caption("★ = la giocata che riesce più spesso, non un consiglio a puntare di più.")
             cols_btn = st.columns(len(righe))
             for i, r in enumerate(righe):
@@ -3887,7 +4075,39 @@ def _mostra_riquadro_raddoppio(in_periodo, top_mercato, adesso):
                    "di solito la giocata singola è quella che riesce più spesso.")
 
 
-def _mostra_piu_probabili(in_periodo, adesso):
+def righe_piu_probabili_visibili(migliori, adesso=None, stato_confronto=None,
+                                 mappa_modello_1x2=None):
+    """DataFrame di "Le più probabili": sigla secca e due colonne percentuali.
+
+    Gli stessi numeri delle giocate di ``calcola_lista_giocate`` (nessun
+    ricalcolo): la giocata e' la sola sigla (anche doppia chance: 1X, X2, 12),
+    "Quote %" e' la probabilita' della giocata secondo le quote e "Modello %"
+    quella del modello Drago per lo STESSO esito — per le doppie chance la
+    somma delle due probabilita' 1X2, letta dal giro del modello (sola
+    lettura). ENTRAMBE restano colonne numeriche con una cifra decimale;
+    quando il giro non e' pronto o non copre la partita la cella e' vuota.
+    Ordinamento predefinito: "Quote %" decrescente.
+    """
+    colonne = ["Quando", "Partita", "Giocata", "Quote %", "Modello %", "Paga circa"]
+    rows = []
+    for g in migliori or []:
+        rows.append({
+            "Quando": lg.quando_italiano(g.get("commence_time")),
+            "Partita": g.get("partita", "") + lg.suffisso_provvisoria(g, adesso),
+            "Giocata": str(g.get("giocata") or "").strip(),
+            "Quote %": percento_decimale(g.get("probabilita")),
+            "Modello %": numero_modello_percento(g, stato_confronto, mappa_modello_1x2),
+            "Paga circa": lg.paga_circa(g.get("quota_b365_stimata")),
+        })
+    df = pd.DataFrame(rows, columns=colonne)
+    if not df.empty:
+        df = df.sort_values("Quote %", ascending=False,
+                            na_position="last", kind="mergesort").reset_index(drop=True)
+    return df
+
+
+def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
+                          mappa_modello_1x2=None):
     """Lista "Le più probabili" (punto 2): una sola riga per partita — la
     giocata con la probabilita' piu' alta fra quelle che pagano almeno
     quanto scelto — con filtro per campionato e pulsante "Mostra altre"."""
@@ -3913,16 +4133,23 @@ def _mostra_piu_probabili(in_periodo, adesso):
         return
     n_mostrate = int(st.session_state.get("lg_n_mostrate", 10))
     visibili = migliori[:n_mostrate]
-    rows = []
-    for g in visibili:
-        rows.append({
-            "Quando": lg.quando_italiano(g.get("commence_time")),
-            "Partita": g.get("partita", "") + lg.suffisso_provvisoria(g, adesso),
-            "Giocata": lg.giocata_in_parole_con_sigla(g.get("giocata"), g.get("home"), g.get("away")),
-            "Riesce circa": lg.riesce_circa(g.get("probabilita")),
-            "Paga circa": lg.paga_circa(g.get("quota_b365_stimata")),
-        })
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    st.dataframe(righe_piu_probabili_visibili(visibili, adesso=adesso,
+                                              stato_confronto=stato_confronto,
+                                              mappa_modello_1x2=mappa_modello_1x2),
+                 width="stretch", hide_index=True,
+                 column_config={
+                     "Quote %": st.column_config.NumberColumn(
+                         "Quote %",
+                         format="%.1f%%",
+                         help="Probabilità della giocata secondo le quote dei bookmaker."),
+                     "Modello %": st.column_config.NumberColumn(
+                         "Modello %",
+                         format="%.1f%%",
+                         help="Probabilità dello stesso esito secondo il nostro modello "
+                              "(Drago); per le doppie chance è la somma delle due "
+                              "probabilità 1X2. Vuota finché il giro del modello non è "
+                              "pronto."),
+                 })
     if len(migliori) > n_mostrate:
         if st.button(f"Mostra altre (ne restano {len(migliori) - n_mostrate})",
                      key="lg_mostra_altre"):
@@ -4367,7 +4594,7 @@ def calcolatore_multipla(righe, adesso=None, gambe_pre=None):
             gambe_scelte.append(g)
             quota_inserita = st.number_input(
                 f"Quota che vedi su bet365 ({g['partita']} — "
-                f"{lg.giocata_in_parole_con_sigla(str(g.get('giocata') or ''), g.get('home') or '?', g.get('away') or '?')})",
+                f"{str(g.get('giocata') or '').strip()})",
                 min_value=1.01, step=0.01, format="%.2f", value=None,
                 key=f"prova_quota_{i}",
                 placeholder="lascia vuota per usare la stima dell'app",
@@ -4629,28 +4856,79 @@ def _metriche_famiglia_registro(records, famiglia, etichetta, nota):
     return True
 
 
-def _tabella_registro_mercato_in_parole(df):
-    """Tabella in parole della famiglia Mercato del Registro (punto 5): le
-    stesse righe, con la giocata tradotta (la sigla resta in piccolo fra
-    parentesi, come impone il punto 3) e la probabilita' del mercato come
-    "N volte su 100". Risultato ed Esito restano quelli del Registro."""
+def percento_prima_registrazione(riga):
+    """Percento di mercato della PRIMA registrazione di una riga (o None).
+
+    Stessa lettura delle statistiche per registrazione (``prob_di_registrazione``
+    con ``REGISTRAZIONE_PRIMA``): frazione in [0,1] trasformata qui in
+    percentuale con una cifra decimale. ``None`` quando non c'e' nessun numero
+    leggibile: la cella resta vuota, nessuna probabilita' inventata.
+    """
+    p, _ricostruita = prob_di_registrazione(riga, REGISTRAZIONE_PRIMA)
+    if p is None:
+        return None
+    try:
+        return round(float(p) * 100.0, 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _tabella_registro_mercato_visibile(df):
+    """Tabella in vista della famiglia Mercato del Registro (scheda Com'è andata).
+
+    Le stesse righe del Registro, presentate senza parole: la giocata e' la
+    SOLA sigla (1, X, 2, 1X, X2, 12), "Quote %" e "Modello %" sono quelle
+    della PRIMA registrazione (i campi ``prob_mercato_prima``/
+    ``prob_modello_prima`` della riga: e' quello che si aveva in mano quando
+    la giocata e' entrata in tabella) come numeri con una cifra decimale, per
+    un ordinamento al clic numerico. Risultato ed Esito restano quelli del
+    Registro; il segnale "d'accordo" esce dalla vista e resta nei dati e nei
+    Dettagli.
+    """
+    records = df.to_dict("records") if hasattr(df, "to_dict") else []
     quando = [q.strftime("%d/%m/%Y %H:%M") if hasattr(q, "strftime") else str(q or "")
               for q in df["data"]]
     return pd.DataFrame({
         "Quando": quando,
         "Campionato": df["campionato"].tolist(),
-        "Partita": [f"{r.get('home')} vs {r.get('away')}" for _i, r in df.iterrows()],
-        "Giocata": [lg.giocata_in_parole_con_sigla(r.get("mercato_standard"),
-                                                   r.get("home"), r.get("away"))
-                    for _i, r in df.iterrows()],
-        "Riesce circa": [(lg.riesce_circa(r.get("prob_sicuro") / 100.0)
-                          if isinstance(r.get("prob_sicuro"), (int, float)) else "n/d")
-                         for _i, r in df.iterrows()],
-        "Il nostro modello è d'accordo": ["sì" if r.get("accordo_modello") else "no"
-                                           for _i, r in df.iterrows()],
+        "Partita": [f"{r.get('home')} vs {r.get('away')}" for r in records],
+        "Giocata": [str(r.get("mercato_standard") or "").strip() for r in records],
+        "Quote %": [percento_prima_registrazione(r) for r in records],
+        "Modello %": [percento_decimale(r.get(PROB_MODELLO_PRIMA_FIELD))
+                      for r in records],
         "Risultato": df["risultato_reale"].tolist(),
         "Esito": df["esito"].tolist(),
     })
+
+
+def ordina_righe_mercato_in_attesa(righe):
+    """Righe "In attesa di risultato" in ordine di "Quote %" DECRESCENTE.
+
+    La "Quote %" e' quella della prima registrazione (``percento_prima_
+    registrazione``): e' la stessa colonna che la tabella mostra, cosi' l'ordine
+    di arrivo coincide con il primo clic sull'intestazione. Le righe senza una
+    probabilita' leggibile vanno in coda (nessuna inventata), l'ordine fra loro
+    resta quello del Registro (sort stabile).
+    """
+    def _chiave(riga):
+        p = percento_prima_registrazione(riga)
+        # (False/True, -p): le righe senza numero dopo tutte, l'ordine
+        # decrescente sul valore; la tupla mantiene il sort stabile.
+        return (p is None, -(p if p is not None else 0.0))
+    return sorted([r for r in (righe or [])], key=_chiave)
+
+
+def ordina_righe_mercato_concluse(df):
+    """Righe concluse della famiglia Mercato per DATA DECRESCENTE.
+
+    L'ultima giocata conclusa in cima, come nella vista tecnica dei Dettagli:
+    la colonna ``data`` del Registro e' datetime64, quindi l'ordine e'
+    cronologico e non alfabetico sulla stringa «Quando».
+    """
+    if df is None or df.empty:
+        return df
+    return df.sort_values(by="data", ascending=False, na_position="last",
+                          kind="mergesort")
 
 
 def _sintesi_registro_mercato(righe) -> tuple:
@@ -4737,18 +5015,24 @@ def _sintesi_registro_mercato(righe) -> tuple:
 
 
 def _mostra_registro_mercato(righe, altezza=420):
-    """Registro della famiglia MERCATO in parole (parte IN VISTA).
+    """Registro della famiglia MERCATO in vista (scheda Com'è andata).
 
-    In vista: Quando, Campionato, Partita, Giocata in parole, "Riesce circa",
-    "Il nostro modello e' d'accordo", Risultato, Esito — e le partite ancora da
-    giocare separate in una seconda tabella "In attesa di risultato": un esito
-    non ancora scritto non e' una giocata andata male, e mischiarlo alle
-    concluse farebbe leggere male il riepilogo in testa.
+    In vista: Quando, Campionato, Partita, Giocata (sola sigla), "Quote %" e
+    "Modello %" della PRIMA registrazione, Risultato, Esito — e le partite
+    ancora da giocare separate in una seconda tabella "In attesa di
+    risultato": un esito non ancora scritto non e' una giocata andata male, e
+    mischiarlo alle concluse farebbe leggere male il riepilogo in testa.
+
+    Ordinamento predefinito: le concluse per data decrescente (l'ultima
+    giocata in cima, come nella vista tecnica dei Dettagli), le righe in
+    attesa per "Quote %" decrescente (la probabilita' della prima
+    registrazione: prima le scelte che il mercato dava piu' probabili).
+    Entrambe restano ordinabili al clic dall'intestazione.
 
     La tabella tecnica completa di un tempo (P modello, "Δ dalla prima", Prima
-    registrazione, Stato, origine, stagione) sta nel riquadro "Dettagli" della
-    scheda, resa da ``_mostra_dettagli_mercato``. Nessun dato del Registro e'
-    toccato: e' solo lettura presentata diversamente.
+    registrazione, Stato, accordo, origine, stagione) sta nel riquadro
+    "Dettagli" della scheda, resa da ``_mostra_dettagli_mercato``. Nessun dato
+    del Registro e' toccato: e' solo lettura presentata diversamente.
     """
     st.markdown(f"<div class='top-mix-model top-mix-mercato'><b>🌟 Com'è andata: le scelte secondo le quote</b>"
                 f" — {len(righe)} righe</div>",
@@ -4765,17 +5049,31 @@ def _mostra_registro_mercato(righe, altezza=420):
         st.markdown(f"**{bil_riga1}**")
     concluse = righe[righe["esito"].isin(["✅", "❌"])]
     in_attesa = righe[~righe["esito"].isin(["✅", "❌"])]
+    colonne_percento = {
+        "Quote %": st.column_config.NumberColumn(
+            "Quote %",
+            format="%.1f%%",
+            help="Probabilità della scelta alla PRIMA registrazione, dalle quote."),
+        "Modello %": st.column_config.NumberColumn(
+            "Modello %",
+            format="%.1f%%",
+            help="Probabilità del nostro modello (Drago) per lo stesso esito, "
+                 "alla prima registrazione."),
+    }
     if not concluse.empty:
-        st.dataframe(_tabella_registro_mercato_in_parole(concluse), width="stretch",
-                     height=altezza, hide_index=True)
+        st.dataframe(_tabella_registro_mercato_visibile(
+            ordina_righe_mercato_concluse(concluse)), width="stretch",
+            height=altezza, hide_index=True, column_config=colonne_percento)
     else:
         st.info("Nessuna giocata conclusa con i filtri attivi.")
     if not in_attesa.empty:
         st.markdown("##### ⏳ In attesa di risultato")
         st.caption(f"{len(in_attesa)} giocate ancora da giocare: l'esito arriva da solo, "
                    "quando la partita e' finita da almeno tre ore.")
-        st.dataframe(_tabella_registro_mercato_in_parole(in_attesa), width="stretch",
-                     height=min(altezza, 260), hide_index=True)
+        in_attesa_ord = pd.DataFrame(
+            ordina_righe_mercato_in_attesa(in_attesa.to_dict("records")))
+        st.dataframe(_tabella_registro_mercato_visibile(in_attesa_ord), width="stretch",
+                     height=min(altezza, 260), hide_index=True, column_config=colonne_percento)
 
 
 def _mostra_dettagli_mercato(righe, altezza=420):
@@ -4856,10 +5154,10 @@ def _mostra_dettagli_mercato(righe, altezza=420):
 
 
 with tab_giocate:
-    st.caption("Una tabella sola, costruita sulle **quote dei bookmaker**: la scelta (1/X/2) e' "
-               "quella con la probabilita' piu' alta, e compare se supera il **55%**. Accanto, "
-               "la probabilita' del nostro modello sullo stesso esito e il segnale **d'accordo** "
-               "(modello e quote entrambi al 55% o piu'). "
+    st.caption("Una tabella sola, costruita sulle **quote dei bookmaker**: la scelta "
+               "(1/X/2) e' quella con la probabilita' piu' alta, e compare se supera il **55%**. "
+               "Accanto, la probabilita' che il nostro modello dà allo stesso esito "
+               "(«Modello %»; per le doppie chance e' la somma delle due probabilita' 1X2). "
                "Le quote vengono aggiornate ogni giorno: l'app non chiama nessun servizio esterno. "
                "Le scelte 1X2 dei due modelli interni non sono piu' in tabella: continuano a "
                "essere annotate dietro le quinte, per il controllo dei risultati.")
@@ -4891,7 +5189,11 @@ with tab_giocate:
     # Il confronto col modello si limita a dichiarare il suo stato: il calcolo
     # vero parte in coda alla scheda, quando il resto e' gia' disegnato.
     stato_confronto = avvia_confronto_modello()
-    mappa_accordo = accordo_modello_per_partita(st.session_state.get(CONFRONTO_RIGHE_CHIAVE))
+    # Terna 1X2 del modello per partita (sola lettura, stesso giro del
+    # confronto): alimenta la colonna numerica "Modello %" delle tabelle in
+    # vista. Il conteggio del segnale "d'accordo" sta SOLO nei Dettagli.
+    mappa_modello_1x2 = prob_modello_1x2_per_partita(
+        st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE))
 
     if in_periodo:
         _mostra_riquadro_raddoppio(in_periodo, righe_quote, adesso)
@@ -4905,10 +5207,11 @@ with tab_giocate:
     _mostra_pulsante_registrazione()
 
     if in_periodo:
-        _mostra_piu_probabili(in_periodo, adesso)
+        _mostra_piu_probabili(in_periodo, adesso, stato_confronto=stato_confronto,
+                              mappa_modello_1x2=mappa_modello_1x2)
     _mostra_tabella_top_mix_mercato(righe_quote, stato_quote, adesso,
                                     stato_confronto=stato_confronto,
-                                    mappa_accordo=mappa_accordo)
+                                    mappa_modello_1x2=mappa_modello_1x2)
     calcolatore_multipla(righe_quote, adesso, gambe_pre=in_periodo)
     _mostra_dettagli_giocate(res_lista, in_periodo, righe_quote, stato_quote, adesso)
     if info_quote.get("senza_quote"):
