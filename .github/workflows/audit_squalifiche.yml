@@ -183,24 +183,91 @@ jobs:
 
       # 5. Prova che l'archivio scaricato NON e' entrato nel repository: si
       #    committa il solo referto.
+      #
+      #    Il controllo guarda SOLO cio' che conta: nessun ``player_match_*.json``
+      #    e nessun file della cartella scaricata da questo run
+      #    (``audit/output/ppda-player-verify-*/``) tracciato nell'indice o
+      #    staged al momento del commit. NON guarda "audit/output/ e' tracciato?":
+      #    sotto audit/output/ ci sono 18 file tracciati da PR #34 (2026-10-06,
+      #    log e CSV degli audit economici: analyze_all_full.log, ev_pooled.csv,
+      #    baserate_*.csv, reruns/*.log, ...) che con l'archivio player_match non
+      #    c'entrano niente, e il vecchio controllo
+      #    ``git ls-files --error-unmatch audit/output`` falliva su quelli
+      #    (run 38393593454, 2026-10-13, step «Nessun file dell'archivio nel
+      #    repository»: "audit/output e' tracciato: l'archivio non deve entrare
+      #    nel repository", exit 1, con tutti gli step precedenti verdi).
+      #    I preesistenti non correlati vengono ELENCATI come informazione, non
+      #    come errore.
       - name: Nessun file dell'archivio nel repository
+        env:
+          RUN_SORGENTE_ID: ${{ steps.sorgente.outputs.run_id }}
         run: |
-          if [ -n "$(git status --porcelain -- SoccerMath)" ]; then
-            echo "::error::lo scaricamento ha toccato SoccerMath/"
-            git status --porcelain -- SoccerMath
+          # 1. Quello che conta: l'archivio NON deve essere nell'indice.
+          #    `git ls-files` elenca l'INDICE, quindi sia i file gia' tracciati
+          #    sia quelli aggiunti con `git add`; `git diff --cached` elenca le
+          #    aggiunte staged rispetto a HEAD: insieme coprono i due casi.
+          #    Il controllo sta PRIMA di quello generico su audit/ perche' il suo
+          #    messaggio dice la cosa che conta, e perche' non guarda "c'e' un
+          #    file tracciato sotto audit/output?": sotto audit/output/ il
+          #    repository traccia 18 file della PR #34 (log e CSV degli audit
+          #    economici) che con l'archivio player_match non c'entrano niente, e
+          #    il vecchio `git ls-files --error-unmatch audit/output` falliva su
+          #    quelli (run 38393593454, 2026-10-13).
+          PATTERN='(^|/)player_match_[^/]*\.json$|^audit/output/ppda-player-verify-'
+          DEST="audit/output/ppda-player-verify-$RUN_SORGENTE_ID"
+          TRACCIATI=$(git ls-files | grep -E "$PATTERN" || true)
+          STAGED=$(git diff --cached --name-only | grep -E "$PATTERN" || true)
+          if [ -n "$TRACCIATI" ] || [ -n "$STAGED" ]; then
+            echo "::error::l'archivio player_match e' entrato nell'indice del repository"
+            if [ -n "$TRACCIATI" ]; then
+              echo "tracciati nell'indice:"
+              printf '%s\n' "$TRACCIATI"
+            fi
+            if [ -n "$STAGED" ]; then
+              echo "staged rispetto a HEAD:"
+              printf '%s\n' "$STAGED"
+            fi
             exit 1
           fi
-          MODIFICATI=$(git status --porcelain -- audit | grep -v 'audit/results/sonda_squalifiche.md' || true)
+          echo "OK: nessun player_match_*.json e nessun file di $DEST e' tracciato o staged."
+
+          # 2. Prova che la cartella scaricata ci sia davvero: il controllo qui
+          #    sopra non deve poter passare perche' non c'era niente da trovare.
+          N_ARCH=$(find "$DEST" -name 'player_match_*.json' | wc -l | tr -d ' ')
+          echo "player_match_*.json scaricati in $DEST: $N_ARCH (non versionati)"
+          if [ "$N_ARCH" -lt 1 ]; then
+            echo "::error::nessun player_match_*.json scaricato in $DEST: il controllo qui sopra non proverebbe niente"
+            exit 1
+          fi
+
+          # 3. Informativa: i file tracciati PREESISTENTI sotto audit/output/
+          #    restano dove sono e non fanno fallire il run.
+          PREESISTENTI=$(git ls-files audit/output | grep -Ev "$PATTERN" || true)
+          if [ -n "$PREESISTENTI" ]; then
+            N_PRE=$(printf '%s\n' "$PREESISTENTI" | wc -l | tr -d ' ')
+            echo "Preesistenti tracciati sotto audit/output/ (non correlati all'archivio, tollerati): $N_PRE"
+            printf '%s\n' "$PREESISTENTI"
+            echo "::notice::audit/output/ ha $N_PRE file tracciati preesistenti (PR #34) non correlati all'archivio; nessun player_match_*.json e nessun file di $DEST nell'indice"
+          else
+            echo "Nessun file tracciato sotto audit/output/."
+          fi
+
+          # 4. Nessuna altra modifica: SoccerMath/ intatto e, in audit/, solo il
+          #    referto. -uall perche' senza git riassume le cartelle non
+          #    tracciate in una riga ("?? audit/results/") e il messaggio non
+          #    direbbe quale file e' di troppo.
+          if [ -n "$(git status --porcelain -uall -- SoccerMath)" ]; then
+            echo "::error::lo scaricamento ha toccato SoccerMath/"
+            git status --porcelain -uall -- SoccerMath
+            exit 1
+          fi
+          MODIFICATI=$(git status --porcelain -uall -- audit | grep -v 'audit/results/sonda_squalifiche.md' || true)
           if [ -n "$MODIFICATI" ]; then
             echo "::error::oltre al referto sono cambiati altri file in audit/"
             echo "$MODIFICATI"
             exit 1
           fi
-          if git ls-files --error-unmatch audit/output > /dev/null 2>&1; then
-            echo "::error::audit/output e' tracciato: l'archivio non deve entrare nel repository"
-            exit 1
-          fi
-          echo "OK: l'archivio resta in audit/output/ (non versionata)."
+          echo "OK: l'archivio resta in audit/output/ (non versionata), da committare c'e' solo il referto."
 
       - name: Referto come artifact del run
         uses: actions/upload-artifact@v4

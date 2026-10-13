@@ -78,7 +78,18 @@ concurrency:
 
 jobs:
   verifica:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04 e NON ubuntu-latest: l'acquisizione deve girare sullo stesso
+    # OS del run riuscito di riferimento (37917985080, 2026-10-09, 44m22s,
+    # Ubuntu 24.04). Non e' la causa del segfault del 2026-10-13 (fra l'immagine
+    # 20261004.327.1 usata il 9/10 e la 20261012.334.1 pubblicata il 13/10 alle
+    # 10:25 UTC cambiano solo Kotlin, Homebrew, Gradle, Bazel, il Go in cache e
+    # una patch di sudo: OS 24.04.5 LTS, kernel 6.17.0-1022-azure e systemd
+    # identici), ma `ubuntu-latest` passa a Ubuntu 26.04: l'annotazione presente
+    # in entrambi i run dice "will migrate to Ubuntu 26 beginning October 19,
+    # 2026" (actions/runner-images#14748) e le note dell'immagine 20261012
+    # dicono "in November 2026". Fissare l'etichetta evita che un archivio che
+    # deve essere riproducibile cambi sistema operativo di nascosto.
+    runs-on: ubuntu-24.04
     # 1 richiesta per partita sulle statistiche giocatore: il job e' lungo per
     # costruzione (misurato e riportato nel referto).
     timeout-minutes: 240
@@ -107,11 +118,192 @@ jobs:
       - name: Installazione dipendenze (soccerdata pinnato)
         run: |
           python -m pip install --upgrade pip
-          pip install 'soccerdata==1.9.1' pandas pytest
+          # `wrapper-tls-requests` e' la dipendenza di soccerdata che scarica a
+          # runtime la libreria C condivisa di tls-client e la apre con ctypes.
+          # soccerdata 1.9.1 la chiede solo come `<3.0.0,>=1.1.4`, quindi fino a
+          # qui pip metteva l'ultima disponibile: qui si PINNA alla 1.2.5, che e'
+          # l'ultima pubblicata (2026-02-23) ed e' percio' quella che girava sia
+          # nel run riuscito 37917985080 (2026-10-09) sia in quello fallito
+          # 38393468899 (2026-10-13). Dentro la 1.2.5 la versione della libreria
+          # tls-client e' fissata a v1.13.1 (LATEST_VERSION_TAG_NAME in
+          # tls_requests/models/libraries.py): lo step successivo lo verifica e
+          # si ferma se un aggiornamento del wrapper la cambia.
+          pip install 'soccerdata==1.9.1' 'wrapper-tls-requests==1.2.5' pandas pytest
           python - <<'PY'
+          import platform
           from importlib.metadata import version
           print("soccerdata installato:", version("soccerdata"))
+          print("wrapper-tls-requests installato:", version("wrapper-tls-requests"))
+          print("python:", platform.python_version())
           PY
+          echo "::notice::ambiente verifica PPDA -> python $(python -c 'import platform;print(platform.python_version())'), soccerdata $(python -c 'from importlib.metadata import version;print(version("soccerdata"))'), wrapper-tls-requests $(python -c 'from importlib.metadata import version;print(version("wrapper-tls-requests"))'), pandas $(python -c 'import pandas;print(pandas.__version__)') | runner ${ImageOS:-n/d} ${ImageVersion:-n/d} (${RUNNER_OS:-n/d})"
+
+      # ---------------------------------------------------------------------
+      # La libreria C condivisa di tls-client NON deve piu' scaricarsi durante
+      # l'acquisizione.
+      #
+      # IL GUASTO. `tls_requests.models.tls.TLSClient.initialize()` chiama
+      # `TLSLibrary.load()` alla PRIMA richiesta e non ha nessun lock: se la
+      # libreria manca, `load()` la scarica in site-packages/tls_requests/bin/
+      # con `open(destinazione, "wb")` (che TRONCA il file) e poi la apre con
+      # `ctypes.cdll.LoadLibrary`; in piu' `cleanup_files()` cancella le altre
+      # librerie della cartella. Con `--parallel-leagues 2` quella prima
+      # richiesta succede dentro due worker thread del ThreadPoolExecutor dello
+      # script (ogni lega crea la sua istanza di `sd.Understat`, quindi il suo
+      # `tls_requests.Client`): i due thread scrivono/aprono lo STESSO file e
+      # uno dei due apre con ctypes un ELF scritto a meta' -> SIGSEGV. E' il run
+      # 38393468899 (2026-10-13, step «Acquisizione reale», 5 secondi:
+      # "Downloading tls-client-linux-ubuntu-amd64-1.13.1.so: [...] 100.0%"
+      # seguito da "Segmentation fault (core dumped)", exit 139).
+      #
+      # PERCHE' E' UNA CORSA E NON UN AMBIENTE ROTTO. Il run riuscito
+      # 37917985080 (2026-10-09) ha lo stesso identico script e lo stesso
+      # workflow (nessun commit fra bcbeb74 e f7029be tocca
+      # update_all_ppda_player_db.py, ppda_player_verify.yml,
+      # SoccerMath/match_stats_archive.py, xg_archive.py o
+      # audit/ppda_deep_player_audit.py: l'ultima modifica e' del 2026-09-19),
+      # lo stesso soccerdata pinnato, lo stesso wrapper-tls-requests (1.2.5,
+      # ultima release dal 2026-02-23) e quindi la stessa libreria tls-client
+      # v1.13.1, il cui asset `tls-client-linux-ubuntu-amd64-1.13.1.so` ha
+      # digest sha256 e4a4a5d7...78fc e data 2026-01-10, mai cambiati. Il 9/10
+      # la corsa fra i due thread e' andata bene, il 13/10 no.
+      #
+      # LA CORREZIONE. Download UNA volta sola, nel thread principale, PRIMA di
+      # qualunque lavoro parallelo; sha256 confrontato con quello pubblicato da
+      # GitHub per l'asset; prova di carico con dlopen + una richiesta TLS reale;
+      # `TLS_LIBRARY_PATH` dice a tls_requests di usare quel file e di NON
+      # scaricare piu' niente a runtime (la libreria resta anche in
+      # tls_requests/bin/, cosi' pure senza la variabile la versione locale
+      # risulta gia' pari a quella richiesta e il download non parte). Con il
+      # file completo e immutabile, il `LoadLibrary` concorrente dei worker e'
+      # innocuo: dlopen di glibc e' esso stesso protetto da lock.
+      # ---------------------------------------------------------------------
+      - name: "Libreria tls-client: scaricata una volta, hash verificato, precaricata"
+        id: tlslib
+        env:
+          # Tutto PINNATO: versione della release, nome dell'asset, URL e sha256
+          # pubblicato da GitHub per quell'asset (creato il 2026-01-10T16:34:30Z,
+          # 15236872 byte; gh api repos/bogdanfinn/tls-client/releases/tags/v1.13.1).
+          # E' la libreria che wrapper-tls-requests 1.2.5 chiede
+          # (LATEST_VERSION_TAG_NAME = v1.13.1) ed e' quella che il run riuscito
+          # 37917985080 (2026-10-09) ha usato: il digest non e' mai cambiato.
+          TLS_CLIENT_VERSION: v1.13.1
+          TLS_CLIENT_ASSET: tls-client-linux-ubuntu-amd64-1.13.1.so
+          TLS_CLIENT_URL: https://github.com/bogdanfinn/tls-client/releases/download/v1.13.1/tls-client-linux-ubuntu-amd64-1.13.1.so
+          TLS_CLIENT_SHA256: e4a4a5d771d1bd1558186a5ee46af1dfa1318bd31950d68ccd81ed30bad078fc
+        run: |
+          set -euo pipefail
+
+          # 0. Il wrapper deve chiedere QUESTA versione, e il runner deve essere
+          #    quello per cui l'asset e' costruito (linux amd64 Ubuntu): nessun
+          #    binario giusto "piu' o meno".
+          BIN_DIR=$(python - <<'PY'
+          import os
+          import sys
+
+          from importlib.metadata import version as pkg_version
+          from tls_requests.models.libraries import (BIN_DIR, FILE_EXT, IS_UBUNTU,
+                                                     LATEST_VERSION_TAG_NAME, MACHINE,
+                                                     PLATFORM)
+
+          attesa = os.environ["TLS_CLIENT_VERSION"]
+          wrapper = pkg_version("wrapper-tls-requests")
+          print(f"wrapper-tls-requests {wrapper}: libreria tls-client richiesta "
+                f"{LATEST_VERSION_TAG_NAME}", file=sys.stderr)
+          if LATEST_VERSION_TAG_NAME != attesa:
+              print(f"::error::wrapper-tls-requests {wrapper} chiede tls-client "
+                    f"{LATEST_VERSION_TAG_NAME}, questo workflow e' tarato su {attesa}: "
+                    f"aggiornare TLS_CLIENT_VERSION, TLS_CLIENT_ASSET, TLS_CLIENT_URL e "
+                    f"TLS_CLIENT_SHA256. Nessun cambio silenzioso della libreria TLS.",
+                    file=sys.stderr)
+              sys.exit(1)
+          print(f"piattaforma rilevata dal wrapper: {PLATFORM} {MACHINE} "
+                f"ubuntu={IS_UBUNTU} estensione={FILE_EXT}", file=sys.stderr)
+          if PLATFORM != "linux" or MACHINE != "amd64" or FILE_EXT != "so" or not IS_UBUNTU:
+              print(f"::error::l'asset pinnato e' {os.environ['TLS_CLIENT_ASSET']} "
+                    f"(linux ubuntu amd64), ma il runner e' {PLATFORM} {MACHINE} "
+                    f"ubuntu={IS_UBUNTU}: il pin va rifatto per questa piattaforma.",
+                    file=sys.stderr)
+              sys.exit(1)
+          print(BIN_DIR)
+          PY
+          )
+          echo "cartella delle librerie di tls_requests: $BIN_DIR"
+
+          # 1. Download SERIALE, nel thread principale, PRIMA del lavoro
+          #    parallelo: una sola scrittura del file, nessuna corsa fra thread.
+          #    curl sull'URL canonico dell'asset: nessuna chiamata all'API dei
+          #    rilasci (che senza token ha il limite di 60/ora per IP).
+          mkdir -p "$BIN_DIR" "$RUNNER_TEMP/tls-client-bin"
+          DEST="$RUNNER_TEMP/tls-client-bin/$TLS_CLIENT_ASSET"
+          echo "scarico $TLS_CLIENT_URL"
+          curl --fail --location --retry 3 --retry-delay 2 --show-error \
+               --max-time 300 --output "$DEST" "$TLS_CLIENT_URL"
+
+          # 2. Il binario e' QUELLO pubblicato: niente ELF tronco, niente asset
+          #    sostituito, niente sorpresa se un giorno cambia.
+          if ! printf '%s  %s\n' "$TLS_CLIENT_SHA256" "$DEST" | sha256sum --strict -c -; then
+            echo "::error::sha256 della libreria tls-client scaricata diverso da $TLS_CLIENT_SHA256 ($TLS_CLIENT_ASSET): il binario pubblicato e' cambiato, nessuna acquisizione con una libreria non verificata"
+            sha256sum "$DEST" || true
+            exit 1
+          fi
+          echo "sha256 verificato: $(stat -c '%s byte' "$DEST")"
+
+          # 3. La libreria verificata va ANCHE nella cartella che tls_requests
+          #    guarda di suo: se TLS_LIBRARY_PATH per qualunque motivo non
+          #    arrivasse al processo, `TLSLibrary.load()` troverebbe un file
+          #    completo e della versione richiesta, quindi non scaricherebbe
+          #    nulla (e la corsa fra thread non potrebbe nemmeno iniziare).
+          cp -f "$DEST" "$BIN_DIR/$TLS_CLIENT_ASSET"
+          echo "TLS_LIBRARY_PATH=$DEST" >> "$GITHUB_ENV"
+          echo "$DEST" > "$RUNNER_TEMP/tls-library-path.txt"
+          echo "TLS_LIBRARY_PATH=$DEST (tls_requests non scarica piu' niente a runtime)"
+
+          # 4. Prova di carico in un processo nuovo, con TLS_LIBRARY_PATH gia'
+          #    impostato (le stesse condizioni dell'acquisizione): dlopen,
+          #    simboli, TLSLibrary.load() e UNA richiesta TLS reale all'host che
+          #    l'acquisizione usa. Se la libreria non si carica il run si ferma
+          #    QUI, con un messaggio leggibile, invece che con un segnale fatale
+          #    dentro l'acquisizione parallela.
+          PERCORSO=$(cat "$RUNNER_TEMP/tls-library-path.txt")
+          TLS_LIBRARY_PATH="$PERCORSO" python - <<'PY'
+          import ctypes
+          import os
+          import sys
+          import time
+
+          percorso = os.environ["TLS_LIBRARY_PATH"]
+          lib = ctypes.CDLL(percorso)          # dlopen: qui il run 38393468899 e' morto
+          print("dlopen ok:", percorso)
+          for simbolo in ("request", "destroySession", "destroyAll", "freeMemory"):
+              if not hasattr(lib, simbolo):
+                  print(f"::error::la libreria tls-client non esporta {simbolo}: binario sbagliato")
+                  sys.exit(1)
+          print("simboli esportati: request, destroySession, destroyAll, freeMemory")
+
+          from tls_requests.models.libraries import TLSLibrary
+          print("TLSLibrary.load() ->", TLSLibrary.load())
+          import tls_requests
+          for tentativo in (1, 2, 3):
+              try:
+                  risposta = tls_requests.get("https://understat.com/", timeout=30)
+                  print(f"handshake TLS reale ok: HTTP {risposta.status_code} "
+                        f"({len(risposta.content)} byte, tentativo {tentativo})")
+                  break
+              except Exception as ecc:
+                  print(f"tentativo {tentativo}: {type(ecc).__name__}: {ecc}")
+                  if tentativo == 3:
+                      # La libreria si carica e i simboli ci sono: qui il problema
+                      # sarebbe la rete, non il binario. Non si blocca il run.
+                      print("::warning::libreria tls-client caricata e verificata, ma la "
+                            f"richiesta di prova a understat.com non e' riuscita: "
+                            f"{type(ecc).__name__}: {ecc}")
+                  else:
+                      time.sleep(3)
+          print("libreria tls-client pronta: l'acquisizione non scarica nulla a runtime")
+          PY
+
+          echo "::notice::tls-client $TLS_CLIENT_VERSION: $TLS_CLIENT_ASSET $(stat -c '%s' "$DEST") byte sha256=$TLS_CLIENT_SHA256 (verificato), wrapper-tls-requests $(python -c 'from importlib.metadata import version;print(version("wrapper-tls-requests"))'), precaricata via TLS_LIBRARY_PATH; runner ${ImageOS:-n/d} ${ImageVersion:-n/d}"
 
       # Cartella di lavoro FUORI dal repository ($RUNNER_TEMP): la verifica non
       # scrive mai dentro SoccerMath/database ne' in audit/results, e non lascia
@@ -235,6 +427,59 @@ jobs:
             echo "### Copertura (dal referto)"
             head -n 40 "$VERIFY_DIR/reports/ppda_deep_player_feasibility.md" 2>/dev/null || echo "(referto assente)"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Prove del run leggibili anche dall'API (check-runs/<job>/annotations):
+      # log e artifact stanno su host che non tutti riescono ad aprire
+      # (results-receiver.actions.githubusercontent.com,
+      # productionresultssa*.blob.core.windows.net), le annotazioni si leggono
+      # con `gh api repos/<repo>/check-runs/<job_id>/annotations`. E' un
+      # riassunto compatto, non un sostituto dei log: i numeri completi restano
+      # nel referto e nell'artifact.
+      - name: Esito dell'acquisizione nelle annotazioni (leggibili dall'API)
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          verify = os.environ.get("VERIFY_DIR", "")
+          reports = os.path.join(verify, "reports")
+          percorso = os.path.join(reports, "acquisizione.json")
+          sample = os.environ.get("SAMPLE_MATCHES", "") or "perimetro intero"
+
+          if not os.path.exists(percorso):
+              print(f"::notice::acquisizione -> report assente ({percorso}): "
+                    f"il processo e' morto prima di scriverlo (sample={sample})")
+          else:
+              with open(percorso, encoding="utf-8") as fh:
+                  dati = json.load(fh)
+              parti = []
+              tot_partite = tot_righe = tot_errori = 0
+              for esito in dati.get("leagues", []):
+                  for nome, payload in (esito.get("datasets") or {}).items():
+                      errori = payload.get("errors") or []
+                      partite = int(payload.get("matches") or 0)
+                      righe = int(payload.get("rows") or 0)
+                      tot_partite += partite
+                      tot_righe += righe
+                      tot_errori += len(errori)
+                      parti.append(
+                          f"{esito['league']}/{nome}: scritto={payload.get('written')} "
+                          f"partite={partite} righe={righe} "
+                          f"secondi={payload.get('seconds')} errori={len(errori)}")
+              intestazione = (f"acquisizione -> sample={sample} "
+                              f"leghe={len(dati.get('leagues', []))} "
+                              f"partite={tot_partite} righe={tot_righe} errori={tot_errori}")
+              print("::notice::" + (intestazione + " || " + " | ".join(parti))[:900])
+
+          referto = os.path.join(reports, "ppda_deep_player_feasibility.md")
+          if os.path.exists(referto):
+              with open(referto, encoding="utf-8") as fh:
+                  testo = " ".join(l.strip() for l in fh if l.strip())
+              print("::notice::referto (inizio) -> " + testo[:900])
+          else:
+              print("::notice::referto -> assente (ppda_deep_player_feasibility.md non prodotto)")
+          PY
 
       # 3. Prova che i dati e i report committati non sono stati toccati.
       - name: Nessuna modifica ai file committati
