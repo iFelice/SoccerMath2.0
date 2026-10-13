@@ -39,6 +39,12 @@ from display_names import display_name
 # dallo stesso resolver di produzione usato da ``market_odds.indice_partite``
 # (nessun fuzzy matching inventato qui).
 from team_names import resolve_team_name
+# La scheda partita: modulo PURO (nessuno Streamlit dentro), qui si disegna
+# soltanto. Fonte unica: i CSV della stagione in corso, l'Elo gia' calcolato
+# dall'app e il file delle quote. Nessuna chiamata di rete, nessun numero
+# ricalcolato: le probabilita' sono quelle delle quote, il resto sono i fatti
+# dei risultati archiviati.
+import scheda_partita as sp
 # Quote 1X2 dal vivo: l'app LEGGE il file scritto dal workflow live_odds.yml,
 # non chiama mai The Odds API (vincolo della commessa, verificato da
 # test_quote_live.py::TestLAppNonChiamaLaFonte).
@@ -3092,6 +3098,110 @@ with st.sidebar:
 
 engine = get_league_engine(camp_sel)
 
+# ---------------------------------------------------------------------------
+# SCHEDA PARTITA: il riquadro in parole, aperto dai pulsanti «Scheda»
+# ---------------------------------------------------------------------------
+# Un solo punto di apertura per tutte le schede (scheda Giocate e scheda
+# Partite): il pulsante scrive la RICHIESTA in ``st.session_state`` e in coda al
+# disegno ``_mostra_scheda_richiesta()`` apre il riquadro. Cosi' il contenuto
+# della scheda non dipende da dove si e' cliccato.
+#
+# Il riquadro e' un ``st.dialog`` (Streamlit >= 1.50, la versione richiesta da
+# SoccerMath/requirements.txt): si apre sopra la pagina e si chiude con la X.
+# Il modulo ``scheda_partita`` produce il testo, qui si disegna e basta.
+SCHEDA_PARTITA_APERTA_CHIAVE = "scheda_partita_aperta"
+
+
+def apri_scheda_partita(lega, casa, trasferta, kickoff_utc=None):
+    """Chiede l'apertura della scheda di una partita (nessuna scrittura)."""
+    st.session_state[SCHEDA_PARTITA_APERTA_CHIAVE] = {
+        "lega": lega, "casa": casa, "trasferta": trasferta,
+        "kickoff_utc": kickoff_utc,
+    }
+
+
+def _pulsanti_scheda(righe, chiave_prefisso):
+    """Una fila di pulsanti «Scheda», uno per riga mostrata (partita reale).
+
+    ``righe`` = [{"lega", "casa", "trasferta", "kickoff_utc", "nome"}]: la
+    chiave del pulsante e' l'indice (deterministico dentro il disegno), il nome
+    della partita sta nel suggerimento del pulsante e nella didascalia sopra.
+    """
+    if not righe:
+        return
+    st.caption("🔎 Scheda partita: " + " · ".join(r["nome"] for r in righe))
+    colonne = st.columns(len(righe))
+    for i, r in enumerate(righe):
+        with colonne[i]:
+            if st.button("Scheda", key=f"{chiave_prefisso}_{i}", help=r["nome"]):
+                apri_scheda_partita(r["lega"], r["casa"], r["trasferta"], r.get("kickoff_utc"))
+
+
+def _righe_partita_da_giocata(g):
+    """La richiesta di scheda per una riga della scheda Giocate (quote).
+
+    Le righe della scheda Giocate nascono in punti diversi (scelte del mercato,
+    riquadro «Per raddoppiare», tabelle dei Dettagli) e chiamano il campionato
+    con nomi diversi: qui si leggono tutti, il primo che c'e'. Un campionato
+    assente non inventa niente: la scheda lo dichiara.
+    """
+    lega = g.get("lega") or g.get("league") or g.get("campionato")
+    return {"lega": lega, "casa": g.get("home"), "trasferta": g.get("away"),
+            "kickoff_utc": g.get("commence_time") or g.get("utcDate"),
+            "nome": f"{g.get('home')} - {g.get('away')}"}
+
+
+def _contenuto_scheda_partita(richiesta):
+    """Il contenuto della scheda: solo i blocchi prodotti dal modulo puro."""
+    lega = richiesta.get("lega")
+    casa, trasferta = richiesta.get("casa"), richiesta.get("trasferta")
+    if not lega or not casa or not trasferta:
+        st.info("Scheda non disponibile per questa partita.")
+        return
+    risultati = sp.carica_risultati_stagione(lega)
+    try:
+        storico = sp.storico_elo_da_engine(get_elo_engine(lega))
+    except Exception as e:  # l'Elo mancante non deve far sparire la scheda
+        logging.warning(f"Scheda partita: Elo non disponibile per {lega}: {e}")
+        storico = {}
+    scheda = sp.costruisci_scheda(
+        lega, casa, trasferta, kickoff_utc=richiesta.get("kickoff_utc"),
+        payload_quote=market_odds.carica_quote_live(),
+        # La stessa mappa della colonna "Modello %" in vista: in session_state
+        # stanno le LETTURE del giro del modello, la terna per partita si
+        # ricava con la funzione di sempre (sola lettura, nessun ricalcolo).
+        modello_1x2=prob_modello_1x2_per_partita(
+            st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE)),
+        risultati=risultati, storico_elo=storico)
+    st.markdown(f"### {scheda['casa']['nome']} - {scheda['trasferta']['nome']}")
+    st.caption(f"{scheda['quando']} · {scheda['lega']}")
+    for titolo, righe in sp.blocchi_scheda(scheda):
+        st.markdown(f"##### {titolo}")
+        for riga in righe:
+            st.markdown(riga)
+
+
+# Il RIQUADRO: `st.dialog` quando c'e' (Streamlit >= 1.50, il minimo di
+# requirements.txt), altrimenti un expander aperto sotto la riga. Il contenuto
+# e' lo stesso oggetto: cambia solo il contenitore, e il referto lo dichiara.
+if hasattr(st, "dialog"):
+    _dialogo_scheda_partita = st.dialog("Scheda partita", width="large")(
+        _contenuto_scheda_partita)
+else:                                                       # pragma: no cover
+    _dialogo_scheda_partita = _contenuto_scheda_partita
+
+
+def _mostra_scheda_richiesta():
+    """Apre il riquadro se un pulsante «Scheda» l'ha chiesto in questo disegno."""
+    richiesta = st.session_state.pop(SCHEDA_PARTITA_APERTA_CHIAVE, None)
+    if not richiesta:
+        return
+    if hasattr(st, "dialog"):
+        _dialogo_scheda_partita(richiesta)
+    else:                                                   # pragma: no cover
+        with st.expander("Scheda partita", expanded=True):
+            _dialogo_scheda_partita(richiesta)
+
 # --- SCHEDE ---
 # Tre schede, nell'ordine in cui si usano: le giocate (la PRIMA, quindi quella
 # aperta all'avvio), le partite e com'è andata. ELO RATING e BACKTEST escono
@@ -3114,52 +3224,89 @@ with tab_partite:
     if 'live_data' in st.session_state and st.session_state.live_data and g_sel is not None and engine:
         team_stats, avg_h, avg_a, _ = engine
         matches = [m for m in st.session_state.live_data if int(m.get('matchday', 0)) == int(g_sel)]
-        col_title, col_btn = st.columns([4, 1])
-        with col_title: st.subheader(f"🏟️ {camp_sel.upper()} - GIORNATA {g_sel}")
-        with col_btn:
-            if st.button("⚡ Analisi Rapida"):
-                with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, st.session_state.get("classifica", {}), g_sel)
-                st.success(f"✅ {n} righe salvate ({len(matches)} partite x 2 motori: attuale e legacy)!")
-        for idx, match in enumerate(matches):
-            h_api, a_api, m_poisson, m, sconosciuti, senza_stats = dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)
-            dt = format_date_italy(match['utcDate'])
-            if m is None:
-                # Caso (a): la card NON usa statistiche di default. L'avviso
-                # esplicito in scheda (qui) e il WARNING nel log (nome grezzo e
-                # pulito, in _stato_squadre_match) dicono perche'.
-                dettaglio = ", ".join(f"'{grezzo}' (pulito: '{pulito}')"
-                                      for grezzo, pulito in sconosciuti)
-                st.warning(f"⚠️ PARTITE: {display_name(h_api)} vs {display_name(a_api)} "
-                           f"non mostrata: nome squadra non nel roster di {camp_sel}: "
-                           f"{dettaglio}. Nessuna statistica di default usata.")
-                continue
-            with st.container():
-                st.markdown('<div class="match-card">', unsafe_allow_html=True)
-                c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])
-                # [solo UI] il nome mostrato nella card passa da display_name
-                # ("Atleti" -> "Atletico Madrid"); h_api/a_api RESTANO GREZZI
-                # per le chiavi sopra (clean_name, blend Elo) e per
-                # show_details, che fa matching contro live_data/classifica.
-                with c_h: st.markdown(f"<span class='team-name'>{display_name(h_api)}<br>{display_name(a_api)}</span><br><span class='match-date'>🕒 {dt}</span>", unsafe_allow_html=True)
-                with c1: st.markdown(f"<div class='stat-container'><span class='label-header'>1X2</span><div style='display:flex; justify-content:space-around'><div>1<br><b>{m['1']:.0%}</b></div><div>X<br><b>{m['X']:.0%}</b></div><div>2<br><b>{m['2']:.0%}</b></div></div></div>", unsafe_allow_html=True)
-                with c3: st.markdown(f"<div class='stat-container'><span class='label-header'>U/O 2.5</span><b>{m['u25']:.0%}</b> / <b>{(1-m['u25']):.0%}</b></div>", unsafe_allow_html=True)
-                with c5: st.markdown(f"<div class='stat-container'><span class='label-header'>GG/NG</span><b>{m['gg']:.0%}</b> / <b>{(1-m['gg']):.0%}</b></div>", unsafe_allow_html=True)
-                with c6:
-                    if match.get('status') == "FINISHED":
-                        gh = match["score"]["fullTime"]["home"]
-                        ga = match["score"]["fullTime"]["away"]
-                        st.markdown(f"<div style='text-align:center; color:#28a745; font-weight:800; font-size:18px;'>🏁<br>{gh}-{ga}</div>", unsafe_allow_html=True)
-                    else:
-                        st.write("<br>", unsafe_allow_html=True)
-                        st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, m_poisson, camp_sel, g_sel))
-                if senza_stats:
-                    # Caso (b) marcato nella card: il Poisson mostrato ha usato
-                    # le statistiche di default (squadra del roster ancora
-                    # senza dati nel motore, per es. al debutto).
-                    st.markdown(f"<small>⚠️ stats di default (nessun dato: "
-                                f"{', '.join(pulito for _grezzo, pulito in senza_stats)})</small>",
-                                unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+        st.subheader(f"🏟️ {camp_sel.upper()} - GIORNATA {g_sel}")
+        st.caption("Le partite della giornata con la data e l'ora italiane e le "
+                   "probabilità 1, X, 2 in parole, quando le quote ci sono. "
+                   "«Scheda» apre la scheda della partita.")
+        # --- L'ELENCO IN PAROLE (la scheda si apre da qui) -------------------
+        # Le partite sono quelle del calendario (football-data, come oggi); le
+        # probabilita' arrivano dal file delle quote, abbinate per nome
+        # canonico e per lega. Nessun numero e' ricalcolato qui.
+        _adesso_partite = market_odds._adesso_utc()
+        _payload_partite = market_odds.carica_quote_live()
+        righe_giornata = sp.righe_partite_giornata(
+            [{"lega": camp_sel,
+              "casa": (m.get("homeTeam") or {}).get("name"),
+              "trasferta": (m.get("awayTeam") or {}).get("name"),
+              "utcDate": m.get("utcDate")} for m in matches],
+            _payload_partite, _adesso_partite)
+        if not righe_giornata:
+            st.info("Nessuna partita in questa giornata.")
+        for i, r in enumerate(righe_giornata):
+            c_nomi, c_prob, c_btn = st.columns([2.0, 3.2, 0.8])
+            with c_nomi:
+                st.markdown(f"**{r['casa_nome']} - {r['trasferta_nome']}**")
+                st.caption(f"🕒 {r['quando']}")
+            with c_prob:
+                st.markdown(r["in_parole"])
+            with c_btn:
+                if st.button("Scheda", key=f"partite_scheda_{i}",
+                             help=f"{r['casa_nome']} - {r['trasferta_nome']}"):
+                    apri_scheda_partita(camp_sel, r["casa"], r["trasferta"], r["utcDate"])
+        # --- «DETTAGLI»: l'analisi del modello di oggi, INVARIATA, in fondo ---
+        # Tutto quello che questa scheda mostrava prima (il pulsante «Analisi
+        # Rapida» e le card per partita con 1X2, U/O 2.5, GG/NG e il pulsante
+        # «🔍» che apre il dettaglio) sta qui dentro, chiuso di default: le
+        # stesse funzioni, gli stessi numeri, nessuna riga tolta.
+        st.divider()
+        with st.expander("🔎 Dettagli", expanded=False):
+            col_title, col_btn = st.columns([4, 1])
+            with col_title:
+                st.caption("L'analisi del modello: Analisi Rapida e dettaglio per partita.")
+            with col_btn:
+                if st.button("⚡ Analisi Rapida"):
+                    with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, st.session_state.get("classifica", {}), g_sel)
+                    st.success(f"✅ {n} righe salvate ({len(matches)} partite x 2 motori: attuale e legacy)!")
+            for idx, match in enumerate(matches):
+                h_api, a_api, m_poisson, m, sconosciuti, senza_stats = dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)
+                dt = format_date_italy(match['utcDate'])
+                if m is None:
+                    # Caso (a): la card NON usa statistiche di default. L'avviso
+                    # esplicito in scheda (qui) e il WARNING nel log (nome grezzo e
+                    # pulito, in _stato_squadre_match) dicono perche'.
+                    dettaglio = ", ".join(f"'{grezzo}' (pulito: '{pulito}')"
+                                          for grezzo, pulito in sconosciuti)
+                    st.warning(f"⚠️ PARTITE: {display_name(h_api)} vs {display_name(a_api)} "
+                               f"non mostrata: nome squadra non nel roster di {camp_sel}: "
+                               f"{dettaglio}. Nessuna statistica di default usata.")
+                    continue
+                with st.container():
+                    st.markdown('<div class="match-card">', unsafe_allow_html=True)
+                    c_h, c1, c3, c5, c6 = st.columns([1.5, 1.2, 0.8, 1, 0.4])
+                    # [solo UI] il nome mostrato nella card passa da display_name
+                    # ("Atleti" -> "Atletico Madrid"); h_api/a_api RESTANO GREZZI
+                    # per le chiavi sopra (clean_name, blend Elo) e per
+                    # show_details, che fa matching contro live_data/classifica.
+                    with c_h: st.markdown(f"<span class='team-name'>{display_name(h_api)}<br>{display_name(a_api)}</span><br><span class='match-date'>🕒 {dt}</span>", unsafe_allow_html=True)
+                    with c1: st.markdown(f"<div class='stat-container'><span class='label-header'>1X2</span><div style='display:flex; justify-content:space-around'><div>1<br><b>{m['1']:.0%}</b></div><div>X<br><b>{m['X']:.0%}</b></div><div>2<br><b>{m['2']:.0%}</b></div></div></div>", unsafe_allow_html=True)
+                    with c3: st.markdown(f"<div class='stat-container'><span class='label-header'>U/O 2.5</span><b>{m['u25']:.0%}</b> / <b>{(1-m['u25']):.0%}</b></div>", unsafe_allow_html=True)
+                    with c5: st.markdown(f"<div class='stat-container'><span class='label-header'>GG/NG</span><b>{m['gg']:.0%}</b> / <b>{(1-m['gg']):.0%}</b></div>", unsafe_allow_html=True)
+                    with c6:
+                        if match.get('status') == "FINISHED":
+                            gh = match["score"]["fullTime"]["home"]
+                            ga = match["score"]["fullTime"]["away"]
+                            st.markdown(f"<div style='text-align:center; color:#28a745; font-weight:800; font-size:18px;'>🏁<br>{gh}-{ga}</div>", unsafe_allow_html=True)
+                        else:
+                            st.write("<br>", unsafe_allow_html=True)
+                            st.button("🔍", key=f"ex_{camp_sel}_{g_sel}_{idx}", on_click=show_details, args=(h_api, a_api, m, m_poisson, camp_sel, g_sel))
+                    if senza_stats:
+                        # Caso (b) marcato nella card: il Poisson mostrato ha usato
+                        # le statistiche di default (squadra del roster ancora
+                        # senza dati nel motore, per es. al debutto).
+                        st.markdown(f"<small>⚠️ stats di default (nessun dato: "
+                                    f"{', '.join(pulito for _grezzo, pulito in senza_stats)})</small>",
+                                    unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
     else:
         if not engine:
             st.warning("⚠️ Database locale non trovato. Verifica che i file CSV siano presenti in `database/`.")
@@ -4066,6 +4213,18 @@ def _mostra_riquadro_raddoppio(in_periodo, top_mercato, adesso):
                                  help="Probabilità combinata della giocata, dalle quote."),
                          })
             st.caption("★ = la giocata che riesce più spesso, non un consiglio a puntare di più.")
+            # Ogni partita del riquadro ha il suo pulsante «Scheda» (le partite
+            # ripetute fra le combinazioni si aprono una volta sola).
+            _viste, _righe_scheda = set(), []
+            for k in (1, 2, 3, 4):
+                item = best_by_k.get(k)
+                for g in (item or {}).get("giocate", []):
+                    identificativo = (g.get("match_id"), g.get("home"), g.get("away"))
+                    if identificativo in _viste:
+                        continue
+                    _viste.add(identificativo)
+                    _righe_scheda.append(_righe_partita_da_giocata(g))
+            _pulsanti_scheda(_righe_scheda, "scheda_raddoppio")
             cols_btn = st.columns(len(righe))
             for i, r in enumerate(righe):
                 item = best_by_k[r["k"]]
@@ -4155,6 +4314,11 @@ def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
                      key="lg_mostra_altre"):
             st.session_state["lg_n_mostrate"] = n_mostrate + 10
             st.rerun()
+    # Ogni riga mostrata ha il suo pulsante «Scheda»: apre la scheda partita
+    # (st.dialog) con i fatti di QUELLA partita. La riga resta nella tabella,
+    # i pulsanti stanno sotto nell'ordine delle righe.
+    _pulsanti_scheda([_righe_partita_da_giocata(g) for g in visibili],
+                     "scheda_piu_probabili")
 
 
 def _carica_proposta_nel_calcolatore(prop_item, top_mercato=None):
@@ -5308,6 +5472,12 @@ if strumenti_avanzati:
         _mostra_elo_rating(camp_sel)
         st.divider()
         _mostra_backtest_storico(camp_sel)
+
+# --- LA SCHEDA PARTITA, in coda al disegno --------------------------------
+# Un solo punto di apertura per i pulsanti «Scheda» di TUTTE le schede: quando
+# uno e' stato premuto la richiesta e' in ``st.session_state`` e qui si apre il
+# riquadro (sola lettura: nessuna scrittura, nessuna rete).
+_mostra_scheda_richiesta()
 
 
 # --- SCHEDA COM'E' ANDATA (ex TAB 5 REGISTRO) ---

@@ -1,0 +1,149 @@
+name: Sonda allenatori (football-data.org, manuale)
+
+# Sonda di SOLA LETTURA degli allenatori delle 5 leghe, dalle API
+# football-data.org v4 (GET /competitions/{code}/teams e GET /teams/{id}).
+# Salva una voce per squadra (id, nome, allenatore, contract.start,
+# contract.until, istante della chiamata) in audit/data/allenatori/<giorno>.json
+# e riscrive il referto audit/results/sonda_allenatori.md, che mette la REGOLA
+# prima dei numeri: l'allenatore entra nella scheda partita solo se la copertura
+# e' >= 95% e tutti i casi di esonero 2026/27 verificati su fonti pubbliche
+# risultano aggiornati nelle API.
+#
+# Trigger: SOLO workflow_dispatch (nessun cron, nessun push, nessuna PR): il run
+# lo lancia Felice a mano. La sonda non tocca l'applicazione.
+#
+# Chiave: secret FOOTBALL_DATA_API_KEY, passata come variabile d'ambiente e MAI
+# stampata (le API v4 vogliono l'intestazione X-Auth-Token, quindi la chiave non
+# finisce nemmeno negli URL). Nessun `set -x`. La sonda rifiuta di scrivere un
+# file che contenga la chiave e uno step finale lo verifica sui file salvati.
+#
+# Limite di chiamate: 10 al minuto (piano gratuito di football-data.org), con
+# finestra mobile dentro lo script: ~5 chiamate per le 5 leghe + 1 per squadra
+# (~100 squadre) = ~11 minuti in tutto.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stagione:
+        description: "Stagione di partenza (es. 2026). Vuoto = quella predefinita delle API"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: audit-allenatori
+  cancel-in-progress: false
+
+jobs:
+  sonda:
+    name: Sonda allenatori (5 leghe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: "Dipendenze (solo requests: la sonda non importa streamlit)"
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Test offline della sonda (nessuna rete, nessuna chiave)
+        run: python -m pytest audit/test_sonda_allenatori.py -q
+
+      # Esistenza del secret SENZA leggerne il valore (come totals_probe.yml).
+      - name: Verifica FOOTBALL_DATA_API_KEY (senza stamparla)
+        env:
+          CHIAVE: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          if [ -z "$CHIAVE" ]; then
+            echo "::error::FOOTBALL_DATA_API_KEY mancante. Aggiungila in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "FOOTBALL_DATA_API_KEY presente (valore non letto, non stampato)."
+
+      - name: Scarica allenatori e scrivi referto (10 chiamate al minuto)
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          STAGIONE: ${{ github.event.inputs.stagione }}
+        run: |
+          # lo script accetta --stagione "" (vuoto = stagione predefinita delle
+          # API): nessuna espansione condizionale, nessuna parola spezzata
+          set +e
+          python audit/sonda_allenatori.py \
+            --stagione "$STAGIONE" \
+            --keep-going 2>&1 | tee /tmp/sonda_allenatori.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$rc"
+          # 3 = chiave assente (non dovrebbe accadere: lo step sopra l'ha gia' verificata)
+          if [ "$rc" = "3" ]; then
+            echo "::error::chiave assente nell'ambiente"
+            exit 1
+          fi
+          if [ "$rc" != "0" ]; then
+            echo "::warning::sonda con errori su almeno una lega: il referto li elenca"
+          fi
+
+      # La chiave si cerca per VALORE (da variabile d'ambiente: mai stampata) e
+      # si controlla che nei file non finisca un'intestazione con un token. Il
+      # nome dell'intestazione puo' comparire nel referto (e' documentazione),
+      # il suo valore no.
+      - name: Nessuna chiave nei file salvati
+        env:
+          CHIAVE: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          if [ -n "$CHIAVE" ] && grep -rFq "$CHIAVE" audit/data/allenatori audit/results/sonda_allenatori.md; then
+            echo "::error::la chiave API e' finita nei file salvati"
+            exit 1
+          fi
+          if grep -rEq 'X-Auth-Token:[[:space:]]*[A-Za-z0-9]' audit/data/allenatori audit/results/sonda_allenatori.md; then
+            echo "::error::un'intestazione di autenticazione con un token e' finita nei file salvati"
+            exit 1
+          fi
+          echo "OK: nessuna chiave nei file."
+
+      - name: Riepilogo nel job
+        run: |
+          head -n 40 audit/results/sonda_allenatori.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Referto e snapshot come artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonda-allenatori-${{ github.run_id }}
+          path: |
+            audit/data/allenatori/
+            audit/results/sonda_allenatori.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      # Commit con retry: stesso schema degli altri workflow manuali (rebase prima del push).
+      - name: Commit dello snapshot e del referto
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add audit/data/allenatori audit/results/sonda_allenatori.md
+          if git diff --cached --quiet; then
+            echo "nessuna modifica da committare"
+            exit 0
+          fi
+          git commit -m "audit: sonda allenatori football-data.org (manuale)"
+          for i in 1 2 3; do
+            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
+              echo "push ok"
+              exit 0
+            fi
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            sleep 5
+          done
+          echo "::error::push fallito dopo 3 tentativi"
+          exit 1

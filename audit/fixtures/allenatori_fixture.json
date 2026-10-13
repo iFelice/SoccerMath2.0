@@ -1,0 +1,27 @@
+{
+  "nota": "Risposte FINTA per le prove offline della sonda allenatori: nessuna chiamata di rete, nomi e id inventati (tranne due casi reali usati come esempio di confronto).",
+  "Serie A": {
+    "teams": [
+      {"id": 9901, "name": "Esempio FC", "shortName": "Esempio", "tla": "ESP"},
+      {"id": 9902, "name": "Fiorentina", "shortName": "Fiorentina", "tla": "FIO"},
+      {"id": 9903, "name": "Senza Mister", "shortName": "Senza", "tla": "SNZ"},
+      {"id": 9904, "name": "Parma", "shortName": "Parma", "tla": "PAR"}
+    ],
+    "teams_payload": {
+      "9901": {"id": 9901, "name": "Esempio FC", "coach": {"id": 1, "name": "Mario Rossi", "contract": {"start": "2026-07", "until": "2028-06"}}},
+      "9902": {"id": 9902, "name": "Fiorentina", "coach": {"id": 2, "name": "Fabio Grosso", "contract": {"start": "2026-07", "until": "2027-06"}}},
+      "9903": {"id": 9903, "name": "Senza Mister", "coach": null},
+      "9904": {"id": 9904, "name": "Parma", "coach": {"id": 4, "name": "Alberto Gilardino", "contract": {"start": "2026-09", "until": "2027-06"}}}
+    }
+  },
+  "Bundesliga": {
+    "teams": [
+      {"id": 9910, "name": "Borussia Mönchengladbach", "shortName": "Gladbach", "tla": "BMG"},
+      {"id": 9911, "name": "Squadra Senza Contratto", "shortName": "SSC", "tla": "SSC"}
+    ],
+    "teams_payload": {
+      "9910": {"id": 9910, "name": "Borussia Mönchengladbach", "coach": {"id": 10, "name": "Alexander Blessin", "contract": {"start": null, "until": null}}},
+      "9911": {"id": 9911, "name": "Squadra Senza Contratto", "coach": {"id": 11, "name": "Tizio Caio"}}
+    }
+  }
+}

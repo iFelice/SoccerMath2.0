@@ -1,0 +1,75 @@
+{
+  "versione": "casi_allenatori_2026_27_v1",
+  "raccolti_il": "2026-10-13",
+  "nota": "Casi di cambio allenatore della stagione 2026/27 nelle 5 leghe, raccolti da fonti pubbliche con data e link. Servono a UNA cosa: verificare se le API football-data.org riportano gia' il nuovo allenatore. Non entrano nella scheda partita: la sonda e' di sola lettura.",
+  "casi": [
+    {
+      "lega": "Serie A",
+      "squadra": "Fiorentina",
+      "allenatore_uscente": "Fabio Grosso",
+      "allenatore_atteso": "Paolo Vanoli",
+      "data_cambio": "2026-09-06",
+      "fonte": "https://sport.sky.it/calcio/serie-a/serie-a-2026-2027-allenatori-esonerati",
+      "nota": "Grosso esonerato dopo la 3ª giornata (0 punti, ultimo posto); Vanoli subentrato."
+    },
+    {
+      "lega": "Serie A",
+      "squadra": "Bologna",
+      "allenatore_uscente": "Domenico Tedesco",
+      "allenatore_atteso": "Raffaele Palladino",
+      "data_cambio": "2026-09-27",
+      "fonte": "https://sport.sky.it/calcio/serie-a/serie-a-2026-2027-allenatori-esonerati",
+      "nota": "Palladino ha firmato fino al 30 giugno 2029 (fonte: Sky Sport, 27/09/2026)."
+    },
+    {
+      "lega": "Serie A",
+      "squadra": "Parma",
+      "allenatore_uscente": "Carlos Cuesta",
+      "allenatore_atteso": "Alberto Gilardino",
+      "data_cambio": "2026-09-27",
+      "fonte": "https://www.corrieredellosport.it/news/calcio/serie-a/parma/2026/09/29-151546958/parma_gilardino_il_nuovo_allenatore_ora_ufficiale",
+      "nota": "Cuesta fuori il 27/09/2026, Gilardino ufficializzato il 29/09/2026 (contratto fino al 30/06/2027 con opzione)."
+    },
+    {
+      "lega": "Bundesliga",
+      "squadra": "Borussia Mönchengladbach",
+      "allenatore_uscente": "Eugen Polanski",
+      "allenatore_atteso": "Alexander Blessin",
+      "data_cambio": "2026-09-22",
+      "fonte": "https://www.bundesliga.com/de/bundesliga/news/alexander-blessin-gladbach-trainer-fix-nachfolger-eugen-polanski-39297",
+      "nota": "Polanski si e' dimesso il 13/09/2026 dopo lo 0-5 di Friburgo; Blessin annunciato il 22/09/2026 (contratto fino al 2028)."
+    },
+    {
+      "lega": "Ligue 1",
+      "squadra": "Lens",
+      "allenatore_uscente": "Dino Toppmöller",
+      "allenatore_atteso": "Yannick Cahuzac",
+      "data_cambio": "2026-09-15",
+      "fonte": "https://www.franceinfo.fr/sports/foot/rc-lens/ligue-1-yannick-cahuzac-restera-l-entraineur-de-lens-au-dela-du-match-a-monaco_8197349.html",
+      "nota": "Toppmöller sollevato il 15/09/2026; Cahuzac promosso primo allenatore (annuncio 17/09/2026, nessun interim a termine)."
+    },
+    {
+      "lega": "La Liga",
+      "squadra": "Osasuna",
+      "allenatore_uscente": "Luis Miguel Ramis",
+      "allenatore_atteso": "Jagoba Arrasate",
+      "data_cambio": "2026-10-12",
+      "fonte": "https://www.infobae.com/america/agencias/2026/10/12/el-osasuna-espanol-destituye-a-su-entrenador-luis-miguel-ramis-y-jagoba-arrasate-vuelve/",
+      "nota": "Ramis sollevato il 12/10/2026 dopo 8 giornate; Arrasate torna a Pamplona (fonte EFE/Infobae)."
+    }
+  ],
+  "esclusi": [
+    {
+      "lega": "La Liga",
+      "squadra": "Valencia",
+      "motivo": "Carlos Corberan esonerato il 13/09/2026 (fonte: https://www.rtve.es/deportes/20260913/valencia-destiutcion-carlos-corberan-entrenador-ceo-cupula-directiva-futbol/17223177.shtml), ma le fonti consultate danno un tecnico ad interim (Oscar Sanchez, Mestalla) senza un sostituto definitivo certo: senza l'entrante il confronto con le API non direbbe nulla, quindi il caso NON e' conteggiato.",
+      "data_cambio": "2026-09-13"
+    },
+    {
+      "lega": "Premier League",
+      "squadra": null,
+      "motivo": "nessun esonero in Premier League 2026/27 al 09/10/2026 (fonti: https://www.footballtransfers.com/en/transfer-news/uk-premier-league/2021/10/what-managers-have-been-sacked-this-season del 06/10/2026 e la pagina BBC \"Manager ins and outs - 2026-27\", in cui non compare nessun cambio di panchina di Premier fino al 10/10/2026): per la Premier non c'e' un caso da verificare, e' il risultato stesso.",
+      "data_cambio": null
+    }
+  ]
+}

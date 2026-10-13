@@ -1,0 +1,67 @@
+{
+  "versione": "sonda_squalifiche_v1",
+  "quando": "2026-10-13T08:32:35Z",
+  "stagione": 2026,
+  "archivio": null,
+  "riepilogo": null,
+  "leghe": [
+    "Serie A",
+    "Premier League",
+    "La Liga",
+    "Bundesliga",
+    "Ligue 1"
+  ],
+  "soglia_copertura": 1.0,
+  "min_casi_pubblici": 3,
+  "esito": {
+    "copertura_ok": false,
+    "casi_ok": false,
+    "ok": false,
+    "motivi": [
+      "copertura non misurabile: archivio assente"
+    ]
+  },
+  "casi": [],
+  "fatti": {
+    "versione": "ultimo_run_archivio_player_match_v1",
+    "raccolto_il": "2026-10-13",
+    "come_raccolto": "gh api repos/iFelice/SoccerMath2.0/actions/runs/37917985080 (e /jobs, /artifacts) — nessun valore stimato",
+    "workflow": "ppda_player_verify.yml",
+    "run_id": 37917985080,
+    "nome_run": "Verifica PPDA/deep/giocatore (sola lettura)",
+    "evento": "push",
+    "branch": "arena/ffcc5cc6-soccermath2-0",
+    "iniziato_il": "2026-10-09T10:30:09Z",
+    "finito_il": "2026-10-09T11:14:31Z",
+    "durata": "44m22s",
+    "esito": "success",
+    "resoconto_del_job": "tutti i passi `success`, compresi «Acquisizione reale (Understat, 5 leghe)» e «Pubblica referto e snapshot come artifact»",
+    "artifact": {
+      "id": 11612646869,
+      "nome": "ppda-player-verify-37917985080",
+      "byte": 10030903,
+      "creato_il": "2026-10-09T11:14:27Z",
+      "scade_il": "2026-10-23T11:14:24Z"
+    },
+    "run_precedenti": [
+      {
+        "run_id": 37754793747,
+        "esito": "cancelled",
+        "iniziato_il": "2026-10-08T09:10:20Z",
+        "finito_il": "2026-10-08T09:49:32Z"
+      },
+      {
+        "run_id": 37467064447,
+        "esito": "success",
+        "iniziato_il": "2026-10-06T12:57:20Z",
+        "finito_il": "2026-10-06T13:31:07Z"
+      }
+    ],
+    "lettura_da_questa_sandbox": "artifact non scaricabile (EOF sul blob Azure) e log del run non leggibili (EOF su results-receiver.actions.githubusercontent.com)",
+    "perimetro_dichiarato_dal_workflow": {
+      "richieste_http": "1 per partita (Understat read_player_match_stats)",
+      "finestra_stagioni": "5 (stagione corrente + 4 precedenti, season_calendar.SEASON_WINDOW)",
+      "timeout_job": "240 minuti"
+    }
+  }
+}
