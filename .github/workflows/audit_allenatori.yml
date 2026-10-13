@@ -65,10 +65,30 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: "Dipendenze (solo requests: la sonda non importa streamlit)"
+      # requests per la sonda, pytest per lo step successivo: il run 38393792900
+      # (2026-10-13, primo lancio manuale) si e' fermato qui con
+      # "No module named pytest" perche' lo step installava solo requests.
+      # `pytest` e' scritto come in test_suite.yml (senza pin): la stessa
+      # specifica risolve la stessa versione nei due workflow. La versione
+      # risolta viene stampata e messa in un'annotazione, leggibile dall'API
+      # anche da chi non puo' aprire i log del run.
+      - name: "Dipendenze (requests per la sonda, pytest per il test offline)"
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests pytest
+          PYTEST_VER=$(python -m pytest --version 2>&1 | head -n 1)
+          VERSIONI=$(python - <<'PY'
+          import platform
+          from importlib.metadata import version
+          print(f"python {platform.python_version()}, "
+                f"requests {version('requests')}, pytest {version('pytest')}")
+          PY
+          )
+          echo "$VERSIONI"
+          echo "$PYTEST_VER"
+          # Annotazione: si legge dall'API (check-runs/<job>/annotations) anche
+          # senza poter aprire i log del run.
+          echo "::notice::ambiente sonda allenatori -> $VERSIONI | runner ${ImageOS:-n/d} ${ImageVersion:-n/d}"
 
       - name: Test offline della sonda (nessuna rete, nessuna chiave)
         run: python -m pytest audit/test_sonda_allenatori.py -q
