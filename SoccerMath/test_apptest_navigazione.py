@@ -341,8 +341,8 @@ class TestSchedeLettura(_BaseAppTest):
         m = sum(1 for x in concluse if self.esiti_seed[x] == "✅")
         x_cento = int(round(100.0 * m / n))
         y_cento = int(round(100.0 * sum(self.prima_prob[x] for x in concluse) / n))
-        attesa = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento} su 100). "
-                  f"Le quote si aspettavano {y_cento} su 100.")
+        attesa = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento}%). "
+                  f"Quote: {y_cento}%. Modello: 63%.")
         fuori, _ = _testi_della_tab(self.at, 2)
         self.assertIn(attesa, " \n".join(fuori))
 
