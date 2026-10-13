@@ -550,8 +550,8 @@ class TestPresentazioneTopMix(unittest.TestCase):
         # Riepilogo del fixture: 2 righe concluse (1 ✅ e 1 ❌) -> 50 su 100;
         # le quote, alla PRIMA registrazione sulle stesse righe, davano
         # (62,5 + 58,0)/2 = 60,25 -> "60 su 100".
-        self.assertIn("Finora 2 giocate concluse, 1 riuscite (50 su 100)", testo)
-        self.assertIn("Le quote si aspettavano 60 su 100.", testo)
+        self.assertIn("Finora 2 giocate concluse, 1 riuscite (50%)", testo)
+        self.assertIn("Quote: 60%. Modello: 57%.", testo)
         # Il conto in euro e' un conto, non una descrizione: sta nei Dettagli.
         testo_dettagli = " \n".join(dentro_tab5)
         self.assertIn("Su 100 giocate da 1 €", testo_dettagli)
