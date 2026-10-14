@@ -344,10 +344,19 @@ class TestGuardieTab2(unittest.TestCase):
         self.assertIn("{r['home']} vs {r['away']} ({r['league']}: {r['motivo']})", self.tab2)
         # Lo stato del file ha un messaggio per ogni caso (assente / non
         # leggibile / senza_leghe / ok): il testo sta in
-        # _DETTAGLIO_STATO_QUOTE, qui si verifica che il tab2 lo usi e che
-        # mostri anche i nomi della fonte non riconosciuti (avviso separato).
-        self.assertIn('_avviso_stato_quote(stato_quote, "Giocate")', self.scheda)
-        self.assertIn('_mostra_non_abbinati_fonte(stato_quote, "Giocate")', self.scheda)
+        # _DETTAGLIO_STATO_QUOTE, qui si verifica che la scheda Multiple lo usi
+        # e che mostri anche i nomi della fonte non riconosciuti (avviso
+        # separato). Da questa PR i due avvisi stanno nei «Dettagli» della
+        # scheda (``_mostra_dettagli_giocate``), non piu' in testa: in vista
+        # resta solo «Nessuna quota disponibile» quando il file non si legge.
+        import inspect as _inspect
+        dettagli = _inspect.getsource(app._mostra_dettagli_giocate)
+        self.assertIn('_avviso_stato_quote(stato_quote, "Multiple")', dettagli)
+        self.assertIn('_mostra_non_abbinati_fonte(stato_quote, "Multiple")', dettagli)
+        self.assertIn("_mostra_dettagli_giocate(res_lista, in_periodo, proposta, stato_quote, adesso",
+                      self.scheda)
+        self.assertIn('st.info("Nessuna quota disponibile: file delle quote assente o non valido.")',
+                      self.scheda)
         self.assertNotIn("Quote dal vivo ASSENTI", self.scheda,
                          "il testo unico 'non c'e\'' e' sostituito dai messaggi per stato")
         stati_guasti = (mo.STATO_ASSENTE, mo.STATO_NON_LEGGIBILE, mo.STATO_SENZA_LEGHE)

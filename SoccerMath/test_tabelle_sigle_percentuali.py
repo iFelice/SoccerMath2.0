@@ -323,7 +323,19 @@ class TestModelloDoppiaChanceSomma(unittest.TestCase):
 
 
 class TestLePiuProbabili(unittest.TestCase):
-    """Le righe di «Le più probabili»: sigla, due percentuali, ordine decrescente."""
+    """Le righe di «Le più probabili»: sigla, due percentuali, ordine decrescente.
+
+    Da questa PR la tabella e' quella delle schede Pronostici e Pareggi
+    (``tabella_piu_probabili`` -> ``riga_pronostico_da_giocata`` ->
+    ``tabella_pronostici_visibile``): sei colonne, «Pronostico» al posto di
+    «Giocata», «Quota» al posto di «Paga circa». I NUMERI attesi sono gli stessi
+    di prima: 71,2 e 67,5 in «Quote %», «68,7» e cella vuota in «Modello %».
+    """
+
+    def _tabella(self, **kw):
+        # ``quota_min`` 1.0: tutte e due le giocate restano (1,52 e 1,41).
+        return app.tabella_pronostici_visibile(
+            app.tabella_piu_probabili(self._giocata(), 1.0, **kw))[0]
 
     def _giocata(self):
         return [
@@ -337,12 +349,13 @@ class TestLePiuProbabili(unittest.TestCase):
 
     def test_sigla_percentuali_e_ordine(self):
         mappa = app.prob_modello_1x2_per_partita(_terna_snapshot())
-        df = app.righe_piu_probabili_visibili(self._giocata(), adesso=None,
-                                              stato_confronto="pronto", mappa_modello_1x2=mappa)
-        self.assertEqual(["Quando", "Partita", "Giocata", "Quote %",
-                          "Modello %", "Paga circa"], list(df.columns))
-        self.assertEqual(["1", "1X"], df["Giocata"].tolist(),
+        df = self._tabella(adesso=None, stato_confronto="pronto", mappa_modello_1x2=mappa)
+        self.assertEqual(app.COLONNE_PRONOSTICI, list(df.columns))
+        self.assertEqual(["1", "1X"], df["Pronostico"].tolist(),
                          "la sigla secca, anche per le doppie chance, in ordine decrescente")
+        # «Partita» senza testo aggiunto, «Quota» con la virgola italiana.
+        self.assertEqual(["Milan - Lazio", "Inter - Roma"], df["Partita"].tolist())
+        self.assertEqual(["1,41", "1,52"], df["Quota"].tolist())
         self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
         self.assertEqual([71.2, 67.5], df["Quote %"].tolist(),
                          "ordine «Quote %» decrescente, una cifra decimale")
@@ -354,17 +367,22 @@ class TestLePiuProbabili(unittest.TestCase):
 
     def test_modello_non_pronto_cella_vuota(self):
         """Giro non pronto o partita non coperta: due celle vuote, non "None"."""
-        g = self._giocata()
         for stato in (None, "in_calcolo", "non_disponibile"):
-            df = app.righe_piu_probabili_visibili(g, stato_confronto=stato)
+            df = self._tabella(stato_confronto=stato)
             self.assertEqual([""] * 2, df["Modello %"].tolist())
-        df = app.righe_piu_probabili_visibili(g, stato_confronto="pronto",
-                                              mappa_modello_1x2={})
+        df = self._tabella(stato_confronto="pronto", mappa_modello_1x2={})
         self.assertEqual([""] * 2, df["Modello %"].tolist())
+
+    def test_una_riga_per_partita_sopra_la_quota_minima(self):
+        """«Paga almeno» filtra come prima (``lg.migliori_giocate_per_partita``):
+        con 1,50 resta la sola giocata che paga almeno 1,50."""
+        righe = app.tabella_piu_probabili(self._giocata(), 1.50)
+        self.assertEqual(["Inter - Roma"], [r["Partita"] for r in righe])
+        self.assertEqual([67.5], [r["Quote %"] for r in righe])
 
 
 class TestPerRaddoppiare(unittest.TestCase):
-    """Il riquadro «Per raddoppiare»: ogni partita «<casa> - <trasferta>: <sigla>»,
+    """La tabella «Per raddoppiare» (nei Dettagli): ogni partita «<casa> - <trasferta>: <sigla>»,
     «Quote %» numerica al posto di «Riesce circa», niente «Modello %»."""
 
     def test_riga_partita_sigla(self):
@@ -502,7 +520,8 @@ class TestLeFunzioniInParoleRestano(unittest.TestCase):
         in parole, nessun «Riesce circa», nessuna colonna del segnale."""
         import ast
         for nome in ("tabella_pronostici_visibile", "riga_pronostico_da_mercato",
-                     "riga_pronostico_da_giocata", "righe_piu_probabili_visibili",
+                     "riga_pronostico_da_giocata", "tabella_piu_probabili",
+                     "riquadri_multiple",
                      "tabella_per_raddoppiare_visibile", "_tabella_registro_mercato_visibile"):
             fn = getattr(app, nome)
             albero = ast.parse(inspect.getsource(fn))

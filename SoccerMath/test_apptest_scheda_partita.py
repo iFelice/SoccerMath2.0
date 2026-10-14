@@ -8,10 +8,10 @@ parte da qui.
 
 Cosa verifica, in parole povere:
 
-* dalla scheda «🎯 Giocate», il pulsante «Scheda» di «Le più probabili» apre il
-  RIQUADRO della partita giusta (i due nomi del pulsante sono quelli del titolo)
-  con i blocchi in parole: probabilità dalle quote, classifica e obiettivi,
-  forma, gol, precedenti;
+* dalla scheda «🎯 Multiple», selezionare una riga di «Le più probabili» apre
+  il RIQUADRO della partita giusta (i due nomi della riga sono quelli del
+  titolo) con i blocchi in parole: probabilità dalle quote, classifica e
+  obiettivi, forma, gol, precedenti — nessun pulsante «Scheda» nella scheda;
 * dalla giornata — il pezzo in fondo a «🔧 Strumenti avanzati», che i test
   accendono perche' senza quell'interruttore la quinta scheda non esiste — le
   partite sono elencate in parole (data e ora
@@ -186,24 +186,33 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         cls.eccezioni(cls.at, "apertura della pagina")
         cls.render_out = os.environ.get("SCHEDA_RENDER_OUT")
 
-    # -- 1. dal pulsante «Scheda» delle Giocate -----------------------------
-    def test_01_il_pulsante_scheda_apre_la_partita_giusta(self):
-        pulsanti = [b for b in self.at.button
-                    if (b.key or "").startswith("scheda_piu_probabili_")]
-        self.assertTrue(pulsanti, "«Le più probabili» deve avere i pulsanti «Scheda»")
-        self.assertTrue([b for b in self.at.button
-                         if (b.key or "").startswith("scheda_raddoppio_")],
-                        "«Per raddoppiare» deve avere i pulsanti «Scheda»")
-        scelto = pulsanti[0]
-        chiave, aiuto = scelto.key, scelto.help
-        # Il suggerimento del pulsante porta i nomi come arrivano dalle quote;
-        # il titolo della scheda porta i nomi di vista (es. «Borussia Dortmund»
-        # -> «Dortmund»): la stessa risoluzione dei due lati.
-        casa, trasferta = [x.strip() for x in aiuto.split(" - ", 1)]
+    # -- 1. dalla riga di «Le più probabili» della scheda Multiple -----------
+    def test_01_la_riga_selezionata_apre_la_partita_giusta(self):
+        import app as app_mod
+        from test_apptest_topmix_presentazione import SCHEDA_MULTIPLE, _elementi_della_tab
+        # Nella scheda Multiple non c'e' nessun pulsante «Scheda»: il clic e' la
+        # selezione della riga della tabella, come in Pronostici e Pareggi.
+        self.assertEqual([], [b for b in self.at.button
+                              if (b.key or "").startswith(("scheda_piu_probabili_",
+                                                           "scheda_raddoppio_"))])
+        self.assertEqual([], [b for b in _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "button")
+                              if (b.label or "").strip() == "Scheda"])
+        tabelle = [e for e in _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "dataframe")
+                   if str(getattr(e, "key", "") or "") == app_mod.CHIAVE_TABELLA_PIU_PROBABILI]
+        self.assertEqual(1, len(tabelle), "«Le più probabili» e' una tabella sola")
+        df = tabelle[0].value
+        if hasattr(df, "data"):
+            df = df.data
+        self.assertGreaterEqual(len(df), 2)
+        # La riga porta i nomi come arrivano dalle quote; il titolo della scheda
+        # porta i nomi di vista (es. «Borussia Dortmund» -> «Dortmund»): la
+        # stessa risoluzione dei due lati.
+        casa, trasferta = [x.strip() for x in str(df.iloc[1]["Partita"]).split(" - ", 1)]
         atteso = _titolo_atteso(casa, trasferta)
-        self._pulsante(self.at, chiave).click()
+        self.at.session_state[app_mod.CHIAVE_TABELLA_PIU_PROBABILI] = {
+            "selection": {"rows": [1], "columns": [], "cells": []}}
         self.at.run(timeout=900)
-        self.eccezioni(self.at, "apertura della scheda dalle Giocate")
+        self.eccezioni(self.at, "apertura della scheda dalla riga di «Le più probabili»")
         testo = self._testo_riquadro(self.at, atteso)
         for titolo in ("Probabilità (dalle quote dei bookmaker)",
                        "Classifica e obiettivi",
@@ -212,9 +221,9 @@ class TestSchedaPartitaAppTest(_BaseScheda):
             with self.subTest(blocco=titolo):
                 self.assertIn(titolo, testo)
         self.assertIn(f"### {atteso}", testo,
-                      "il riquadro deve essere quello della partita del pulsante")
+                      "il riquadro deve essere quello della partita della riga")
         self.assertIn(_nomi_mostrati(trasferta), testo,
-                      "nel riquadro ci sono i nomi delle due squadre del pulsante")
+                      "nel riquadro ci sono i nomi delle due squadre della riga")
         self.assertIn("Quote %", testo)
         self.assertIn("Modello %", testo)
         # In vista, in chiaro: le percentuali delle quote e i punti delle due

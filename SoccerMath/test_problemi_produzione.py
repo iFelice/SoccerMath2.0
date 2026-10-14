@@ -153,7 +153,8 @@ class TestProblema1_MultiplaPersistenza(unittest.TestCase):
         self.assertEqual(0, corpo.count("save_prediction_entry("),
                          "una scrittura per riga: deve restare fuori")
         self.assertIn('st.button("📝 Calcola i pronostici della giornata"', app_src)
-        for nome in ("_mostra_intestazione_giocate", "_mostra_dettagli_giocate",
+        for nome in ("_mostra_testa_multiple", "_mostra_riquadri_multiple",
+                     "_mostra_piu_probabili", "_mostra_dettagli_giocate",
                      "_scheda_pronostici", "calcola_pronostici_giornata",
                      "ultima_registrazione_mercato"):
             f = next(n for n in tree.body if isinstance(n, _ast.FunctionDef)
