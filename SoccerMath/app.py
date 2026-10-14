@@ -2967,8 +2967,8 @@ CSS_TEMA_CHIARO_FORZATO = """
 
 # --- SIDEBAR ---
 # In vista restano SOLO i due comandi che servono per usare le schede: il
-# campionato (lo legge la scheda Partite) e l'interruttore «Strumenti
-# avanzati», spento all'avvio. Tutto il resto - diagnostica, sincronizzazione,
+# campionato (lo legge la scheda «Strumenti avanzati») e l'interruttore
+# «Strumenti avanzati», spento all'avvio. Tutto il resto - diagnostica, sincronizzazione,
 # chat con Billy, tema e scelta della giornata - sta nel riquadro chiuso
 # «Impostazioni e diagnostica». Spostarli non cambia il loro funzionamento:
 # Streamlit esegue il contenuto di un expander anche quando e' chiuso, quindi
@@ -2980,9 +2980,10 @@ with st.sidebar:
     camp_sel = st.selectbox("CAMPIONATO", list(LEAGUES_CONFIG.keys()))
     strumenti_avanzati = st.toggle(
         "🔧 Strumenti avanzati", value=False, key="strumenti_avanzati",
-        help="Acceso aggiunge la scheda «🔧 Strumenti avanzati» con Elo e "
-             "Backtest, invariati. Spento all'avvio: le schede sono tre "
-             "(Giocate, Partite, Com'è andata).")
+        help="Acceso aggiunge la scheda «🔧 Strumenti avanzati» con Elo, "
+             "Backtest e l'analisi della giornata (la vecchia scheda Partite), "
+             "invariati. Spento all'avvio: le schede sono quattro (Pronostici, "
+             "Pareggi, Multiple, Registro).")
 
     with st.expander("⚙️ Impostazioni e diagnostica", expanded=False):
         if not Groq: st.error("Lib 'groq' non installata (pip3 install groq)")
@@ -3203,24 +3204,40 @@ def _mostra_scheda_richiesta():
             _dialogo_scheda_partita(richiesta)
 
 # --- SCHEDE ---
-# Tre schede, nell'ordine in cui si usano: le giocate (la PRIMA, quindi quella
-# aperta all'avvio), le partite e com'è andata. ELO RATING e BACKTEST escono
-# dalle schede: compaiono solo con l'interruttore «Strumenti avanzati» della
-# barra laterale (spento all'avvio) come quarta scheda, con i due contenuti
-# invariati uno sotto l'altro. Nessuna funzione di calcolo viene rimossa.
-TITOLO_SCHEDA_GIOCATE = "🎯 Giocate"
-TITOLO_SCHEDA_PARTITE = "🏟️ Partite"
-TITOLO_SCHEDA_ANDATA = "📒 Com'è andata"
+# Quattro schede sempre in vista, nell'ordine in cui si usano: i pronostici della
+# giornata (la PRIMA, quindi quella aperta all'avvio), i pareggi, le multiple e il
+# registro. L'analisi giornata per giornata di una volta (la vecchia scheda
+# «🏟️ Partite»), ELO RATING e BACKTEST stanno invece nella quinta scheda, che
+# esiste solo con l'interruttore «Strumenti avanzati» della barra laterale (spento
+# all'avvio), con i contenuti invariati uno sotto l'altro. Nessuna funzione di
+# calcolo viene rimossa e nessun numero cambia: qui si spostano e si rinominano.
+TITOLO_SCHEDA_PRONOSTICI = "⚽ Pronostici"
+TITOLO_SCHEDA_PAREGGI = "🟰 Pareggi"
+TITOLO_SCHEDA_MULTIPLE = "🎯 Multiple"
+TITOLO_SCHEDA_REGISTRO = "📒 Registro"
 TITOLO_SCHEDA_STRUMENTI = "🔧 Strumenti avanzati"
 
-_etichette_schede = [TITOLO_SCHEDA_GIOCATE, TITOLO_SCHEDA_PARTITE, TITOLO_SCHEDA_ANDATA]
+_etichette_schede = [TITOLO_SCHEDA_PRONOSTICI, TITOLO_SCHEDA_PAREGGI,
+                     TITOLO_SCHEDA_MULTIPLE, TITOLO_SCHEDA_REGISTRO]
 if strumenti_avanzati:
     _etichette_schede.append(TITOLO_SCHEDA_STRUMENTI)
 _schede = st.tabs(_etichette_schede)
-tab_giocate, tab_partite, tab_andata = _schede[0], _schede[1], _schede[2]
-tab_strumenti = _schede[3] if len(_schede) > 3 else None
+tab_pronostici, tab_pareggi, tab_multiple, tab_registro = _schede[:4]
+tab_strumenti = _schede[4] if len(_schede) > 4 else None
 
-with tab_partite:
+
+# ---------------------------------------------------------------------------
+# 🏟️  PARTITE: il contenuto completo della vecchia scheda, solo spostato
+# ---------------------------------------------------------------------------
+# E' il corpo che stava in ``with tab_partite:``, riga per riga: l'elenco delle
+# partite della giornata (con il pulsante «Scheda» di ogni riga) e, chiuso, il
+# riquadro «Dettagli» con l'Analisi Rapida e le card del modello. Non cambia
+# niente tranne il contenitore: sta nella quinta scheda, che esiste solo con
+# l'interruttore «Strumenti avanzati» acceso, e le key restano le stesse
+# (partite_scheda_*, ex_*). Nessuna scrittura: qui si calcola l'analisi solo se
+# si preme «⚡ Analisi Rapida», come prima.
+def _mostra_scheda_partite(camp_sel, g_sel, engine):
+    """L'analisi della giornata selezionata: elenco partite, «Scheda», Dettagli."""
     if 'live_data' in st.session_state and st.session_state.live_data and g_sel is not None and engine:
         team_stats, avg_h, avg_a, _ = engine
         matches = [m for m in st.session_state.live_data if int(m.get('matchday', 0)) == int(g_sel)]
@@ -3483,56 +3500,264 @@ def percento_decimale(valore):
     return round(v, 1)
 
 
-def tabella_top_mix_mercato_visibile(righe, adesso=None, stato_confronto=None,
-                                     mappa_modello_1x2=None):
-    """La tabella del Top Mix in vista della scheda Giocate (segnali asciutti).
+# ---------------------------------------------------------------------------
+# Le tabelle «del periodo» di Pronostici e Pareggi: una costruzione sola
+# ---------------------------------------------------------------------------
+# Stesse sei colonne per tutte e due (commessa presentazione, punto 2): Quando,
+# Partita, Pronostico, Quote %, Modello %, Quota. Le righe arrivano da due fonti
+# diverse - le scelte del selettore ``topmix_mercato_v3`` per i pronostici, la
+# lista dei pareggi per i pareggi - e qui vengono lette e allineate: nessun
+# numero viene ricalcolato e nessun testo si aggiunge dentro la colonna Partita.
+COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"]
 
-    Stessi numeri di ``tabella_top_mix_mercato`` (probabilita', quote, scelte:
-    nulla viene ricalcolato), presentati senza gergo: la giocata e' la SOLA
-    sigla (1, X, 2 — qui il selettore di mercato non propone doppie chance) e
-    "Quote %" e "Modello %" sono DUE colonne numeriche con una cifra decimale
-    (l'ordinamento al clic e' numerico per entrambe). Le partite lontane
-    (calcio d'inizio fra piu' di 3 giorni) portano il marcatore delle quote
-    provvisorie (punto 8).
+# L'interruttore che sostituisce i vecchi pulsanti radio «Periodo»: una scelta
+# sola, letta da Pronostici, Pareggi e Multiple.
+CHIAVE_PROSSIMI_GIORNI = "lg_periodo_prossimi"
+ETICHETTA_PROSSIMI_GIORNI = "Mostra anche i prossimi giorni"
 
-    La colonna "Modello %" non dipende dalle righe: arriva dal confronto
-    (``numero_modello_percento`` su ``fetch_and_calc_top_mix``, sola lettura);
-    mentre il calcolo gira o se non riesce la cella resta VUOTA (``None``):
-    lo stato lo dice una volta sola la caption sotto il titolo della
-    sezione, non la cella.
+# Il marcatore delle partite lontane (calcio d'inizio oltre 3 giorni) e la riga
+# unica che lo spiega sotto la tabella.
+MARCATORE_PARTITA_LONTANA = "⏳"
+FRASE_QUOTE_ANCORA_PROVVISORIE = MARCATORE_PARTITA_LONTANA + " quote ancora provvisorie"
 
-    Ordinamento predefinito: "Quote %" decrescente (commessa PR presentazione
-    sigle e percentuali); il clic sull'intestazione lo cambia, il DataFrame
-    sotto resta quello.
+# Ultima riga cliccata in una tabella: la selezione di ``st.dataframe`` resta in
+# ``session_state`` anche nei ridisegni successivi, e senza questo promemoria la
+# scheda si riaprirebbe a ogni ridisegno.
+CHIAVE_ULTIMA_RIGA = "scheda_riga_ultima"
+
+
+def periodo_selezionato():
+    """Il periodo delle tabelle: ``(valore, etichetta)``, la giornata di default.
+
+    Interruttore spento: vale la regola di sempre, fino alle 23:59 del lunedi'.
+    Acceso: escede dal confine e prende tutte le partite in programma. Il widget
+    sta una volta sola (in testa alla scheda Multiple) e qui si legge: tre
+    schede, un selettore.
     """
-    # Le colonne in vista sono ESATTAMENTE queste sei. La quota ("Paga") non
-    # sta qui: quanto paga una giocata si vede provandola in "Prova la tua
-    # giocata", dove le quote entrano davvero nel calcolo. Il segnale
-    # "d'accordo" e' uscito dalla vista: resta nei dati, nel Registro e nei
-    # Dettagli.
-    colonne = ["Quando", "Campionato", "Partita", "Giocata", "Quote %",
-               "Modello %"]
-    rows = []
-    for p in righe or []:
-        quanto = {"commence_time": p.get("kickoff_utc") or p.get("utcDate")}
-        prob_quota = p.get("prob_val")
-        if prob_quota is None:
-            prob_quota = p.get("prob")
-        rows.append({
-            "Quando": lg.quando_italiano(p.get("utcDate")),
-            "Campionato": p.get("league") or "",
-            "Partita": f"{p.get('home')} vs {p.get('away')}" + lg.suffisso_provvisoria(quanto, adesso),
-            "Giocata": str(p.get("esito") or "").strip(),
-            "Quote %": percento_decimale(prob_quota),
-            "Modello %": numero_modello_percento(p, stato_confronto, mappa_modello_1x2),
-        })
-    df = pd.DataFrame(rows, columns=colonne)
-    if not df.empty:
-        # mergesort = stabile: a parita' di "Quote %" resta l'ordine del
-        # selettore (``classifica_top_mix``, probabilita' e rank).
-        df = df.sort_values("Quote %", ascending=False,
-                            na_position="last", kind="mergesort").reset_index(drop=True)
-    return df
+    if st.session_state.get(CHIAVE_PROSSIMI_GIORNI):
+        return lg.PERIODO_TUTTE, lg.ETICHETTA_PERIODO_TUTTE
+    return lg.PERIODO_GIORNATA, lg.ETICHETTA_PERIODO_GIORNATA
+
+
+def _quando_breve(istante, lontana=False):
+    """La colonna «Quando»: «sab 17/10, 20:45», ora italiana, con ⏳ se lontana.
+
+    Il giorno in tre lettere e la data corta stanno in una colonna stretta; l'ora
+    e' quella italiana perche' le partite si guardano da qui. ``lontana`` mette
+    il marcatore in QUESTA colonna, non in «Partita», dove restano solo le due
+    squadre. Un istante non interpretabile lascia la cella vuota: meglio vuota
+    che inventata.
+    """
+    dt = istante if isinstance(istante, datetime) else lg.parse_commence_time(istante)
+    if dt is None:
+        return MARCATORE_PARTITA_LONTANA if lontana else ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    locale = dt.astimezone(ITALY_TZ)
+    testo = (f"{lg.GIORNI_SETTIMANA_IT[locale.weekday()][:3]} "
+             f"{locale.strftime('%d/%m')}, {locale.strftime('%H:%M')}")
+    return f"{testo} {MARCATORE_PARTITA_LONTANA}" if lontana else testo
+
+
+def _quota_in_colonna(valore):
+    """«Quota» come numero finito con due decimali, ``None`` se non c'e'.
+
+    ``None`` (e non 0, non "n/d", non "nan") perche' la cella resti vuota: una
+    quota che non c'e' non e' una quota a zero.
+    """
+    if valore is None or isinstance(valore, bool):
+        return None
+    try:
+        q = float(valore)
+    except (TypeError, ValueError):
+        return None
+    return round(q, 2) if math.isfinite(q) else None
+
+
+def quota_b365_stimata(probabilita, lega):
+    """La quota bet365 STIMATA da una probabilita' di mercato (o ``None``).
+
+    E' la stima del progetto, la stessa della lista giocate
+    (``lista_giocate.stima_quota_b365_1x2``), perche' «Quota» deve dire quanto
+    pagherebbe una schedina giocata qui: il prezzo del bookmaker che ha prodotto
+    la probabilita' non e' quel prezzo e non viene mostrato. Accetta la frazione
+    0-1 e la percentuale gia' pronta, come ``percento_decimale``.
+    """
+    if probabilita is None or isinstance(probabilita, bool):
+        return None
+    try:
+        p = float(probabilita)
+    except (TypeError, ValueError):
+        return None
+    if p > 1.0:
+        p /= 100.0
+    if not math.isfinite(p) or not 0.0 < p < 1.0:
+        return None
+    try:
+        return _quota_in_colonna(lg.stima_quota_b365_1x2(p, lega or ""))
+    except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+        return None
+
+
+def riga_pronostico_da_mercato(riga, adesso=None, stato_confronto=None,
+                              mappa_modello_1x2=None):
+    """Una riga della tabella di «Pronostici»: la scelta del mercato in colonna.
+
+    Lettura, non calcolo: la probabilita' e' quella del selettore
+    (``prob``/``prob_val``), il numero di «Modello %» e' quello del confronto
+    (``numero_modello_percento``, che per le doppie chance somma la terna 1X2) e
+    la «Quota» e' la stima bet365 della stessa probabilita'. Le due chiavi
+    ``provvisoria`` e ``scheda`` non finiscono in tabella: servono una alla riga
+    del ⏳ sotto la tabella e l'altra al clic sulla riga.
+    """
+    riferimento = (riga.get("kickoff_utc") or riga.get("utcDate")
+                   or riga.get("commence_time"))
+    lontana = lg.e_partita_provvisoria({"commence_time": riferimento}, adesso)
+    probabilita = riga.get("prob")
+    if probabilita is None:
+        probabilita = riga.get("prob_val")
+    return {
+        "Quando": _quando_breve(riferimento, lontana),
+        "Partita": f"{riga.get('home') or '?'} - {riga.get('away') or '?'}",
+        "Pronostico": str(riga.get("esito") or "").strip(),
+        "Quote %": percento_decimale(probabilita),
+        "Modello %": numero_modello_percento(riga, stato_confronto, mappa_modello_1x2),
+        "Quota": quota_b365_stimata(probabilita, riga.get("league") or riga.get("lega")),
+        "provvisoria": bool(lontana),
+        "scheda": _righe_partita_da_giocata(riga),
+    }
+
+
+def riga_pronostico_da_giocata(giocata, adesso=None, stato_confronto=None,
+                               mappa_modello_1x2=None):
+    """Una riga della tabella di «Pareggi»: una giocata della lista in colonna.
+
+    «Quote %» e' la probabilita' di mercato di quell'esito (``probabilita``/
+    ``prob_percentuale`` della lista giocate) e «Quota» la stima bet365 che la
+    lista ha gia' calcolato: la scheda legge, non rimoltiplica niente.
+    """
+    lontana = lg.e_partita_provvisoria(giocata, adesso)
+    probabilita = giocata.get("probabilita")
+    if probabilita is None:
+        probabilita = giocata.get("prob_percentuale")
+    return {
+        "Quando": _quando_breve(giocata.get("commence_time"), lontana),
+        "Partita": f"{giocata.get('home') or '?'} - {giocata.get('away') or '?'}",
+        "Pronostico": str(giocata.get("giocata") or giocata.get("esito") or "").strip(),
+        "Quote %": percento_decimale(probabilita),
+        "Modello %": numero_modello_percento(giocata, stato_confronto, mappa_modello_1x2),
+        "Quota": _quota_in_colonna(giocata.get("quota_b365_stimata")),
+        "provvisoria": bool(lontana),
+        "scheda": _righe_partita_da_giocata(giocata),
+    }
+
+
+def tabella_pronostici_visibile(righe):
+    """Il DataFrame delle tabelle «del periodo» e le righe nello stesso ordine.
+
+    Sei colonne nell'ordine ``COLONNE_PRONOSTICI``; le tre numeriche restano
+    NUMERI (``pd.to_numeric``: il vuoto e' NaN, una cella vuota e ordinabile, non
+    la stringa "None"), perche' il clic sull'intestazione deve ordinare per
+    valore. Ordine predefinito: «Quote %» decrescente, stabile (a parita' resta
+    l'ordine della fonte).
+
+    Ritorna ``(df, righe_ordinate)``: la seconda lista e' quella normalizzata
+    nello STESSO ordine del DataFrame, e serve al clic sulla riga - che indica la
+    posizione nella tabella, non la partita.
+    """
+    sorgente = [r for r in (righe or []) if isinstance(r, dict)]
+    df = pd.DataFrame(sorgente, columns=COLONNE_PRONOSTICI)
+    for colonna in ("Quote %", "Modello %", "Quota"):
+        df[colonna] = pd.to_numeric(df[colonna], errors="coerce")
+    if df.empty:
+        return df, []
+    df = df.sort_values("Quote %", ascending=False, na_position="last", kind="mergesort")
+    return df.reset_index(drop=True), [sorgente[i] for i in df.index]
+
+
+def riga_selezionata(evento):
+    """L'indice della riga selezionata nell'evento di ``st.dataframe`` (``None``).
+
+    Con ``selection_mode="single-row"`` la selezione e' una riga sola. ``None``
+    quando non c'e' (nessun clic, o selezione annullata): la scheda non si apre.
+    """
+    selezione = getattr(evento, "selection", None)
+    if selezione is None and isinstance(evento, dict):
+        selezione = evento.get("selection")
+    if selezione is None:
+        return None
+    indici = selezione.get("rows") if isinstance(selezione, dict) else getattr(selezione, "rows", None)
+    if not indici:
+        return None
+    try:
+        return int(indici[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def _apri_scheda_della_riga(evento, chiave_widget, righe_ordinate):
+    """Il clic su una riga apre la scheda della sua partita (nessuna scrittura).
+
+    Sostituisce la fila di pulsanti «Scheda» e la riga «Scheda partita: ...» che
+    la accompagnava: la selezione della tabella e' gia' un clic sulla riga, e la
+    scheda e' lo stesso riquadro (``st.dialog`` quando c'e') che apriva il
+    pulsante. Una selezione non cambia a ogni ridisegno, quindi la scheda si apre
+    una volta sola per riga cliccata.
+    """
+    indice = riga_selezionata(evento)
+    if indice is None or not 0 <= indice < len(righe_ordinate or []):
+        return
+    if st.session_state.get(CHIAVE_ULTIMA_RIGA) == (chiave_widget, indice):
+        return
+    st.session_state[CHIAVE_ULTIMA_RIGA] = (chiave_widget, indice)
+    richiesta = righe_ordinate[indice].get("scheda") or {}
+    apri_scheda_partita(richiesta.get("lega"), richiesta.get("casa"),
+                        richiesta.get("trasferta"), richiesta.get("kickoff_utc"))
+
+
+def _config_colonne_pronostici():
+    """Le colonne delle tabelle «del periodo»: numeri veri e una cella vuota.
+
+    «Quote %» e «Modello %» con una cifra decimale, «Quota» con due. I suggeritori
+    dicono cosa legge la colonna, perche' il segno da solo (1, X, 2) non basta a
+    chi non gioca.
+    """
+    return {
+        "Quando": st.column_config.TextColumn(
+            "Quando",
+            help="Giorno, data e ora italiana del fischio d'inizio. ⏳ = la "
+                 "partita gioca fra più di 3 giorni."),
+        "Partita": st.column_config.TextColumn(
+            "Partita", help="Squadra di casa e squadra in trasferta."),
+        "Pronostico": st.column_config.TextColumn(
+            "Pronostico", help="L'esito scelto: 1 in casa, X pareggio, 2 in trasferta."),
+        "Quote %": st.column_config.NumberColumn(
+            "Quote %", format="%.1f%%",
+            help="Probabilità dell'esito secondo le quote dei bookmaker."),
+        "Modello %": st.column_config.NumberColumn(
+            "Modello %", format="%.1f%%",
+            help="Probabilità dello stesso esito secondo il nostro modello (Drago). "
+                 "Vuota quando il calcolo non è disponibile."),
+        "Quota": st.column_config.NumberColumn(
+            "Quota", format="%.2f", help="Quota bet365 stimata"),
+    }
+
+
+def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
+    """La tabella in vista: sei colonne, il clic sulla riga, la riga dei ⏳.
+
+    Sotto la tabella UNA sola riga sulle quote provvisorie, e solo se almeno una
+    riga riguarda una partita oltre i 3 giorni: il marcatore da solo non sarebbe
+    capito, la frase da sola direbbe una cosa non vera per tutte le righe.
+    """
+    df, righe_ordinate = tabella_pronostici_visibile(righe)
+    evento = st.dataframe(df, width="stretch", height=altezza, hide_index=True,
+                          on_select="rerun", selection_mode="single-row",
+                          key=chiave_widget,
+                          column_config=_config_colonne_pronostici())
+    if any(r.get("provvisoria") for r in righe_ordinate):
+        st.caption(FRASE_QUOTE_ANCORA_PROVVISORIE)
+    _apri_scheda_della_riga(evento, chiave_widget, righe_ordinate)
 
 
 def caption_scelte_secondo_le_quote(n_righe, stato_confronto, nascoste=0):
@@ -3541,8 +3766,9 @@ def caption_scelte_secondo_le_quote(n_righe, stato_confronto, nascoste=0):
     «<N> partite in tabella», lo stato di «Modello %» quando il giro del
     modello non e' pronto (detto UNA volta sola: le celle della colonna
     restano numeri, vuote finche' il giro non c'e') e, se pertinente, la
-    frase sulle partite dopo lunedì. Nessun conteggio del segnale
-    "d'accordo" in vista: e' un dettaglio del riquadro chiuso.
+    frase sulle partite dopo lunedì, che nomina l'interruttore del periodo.
+    Nessun conteggio del segnale "d'accordo" in vista: e' un dettaglio del
+    riquadro chiuso.
     """
     parti = [f"{n_righe} partite in tabella"]
     if stato_confronto != "pronto":
@@ -3551,32 +3777,39 @@ def caption_scelte_secondo_le_quote(n_righe, stato_confronto, nascoste=0):
                      else "Modello %: non disponibile")
     frase = " · ".join(parti) + "."
     if nascoste > 0:
-        frase += (f" Altre {nascoste} dopo lunedì: "
-                  f"passa a «{lg.ETICHETTA_PERIODO_TUTTE}».")
+        frase += (f" Altre {nascoste} dopo lunedì: «{ETICHETTA_PROSSIMI_GIORNI}» "
+                  "si accende nella scheda 🎯 Multiple.")
     return frase
 
 
 def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
-                                    stato_confronto=None,
-                                    mappa_modello_1x2=None):
-    """La tabella del Top Mix (mercato) in vista, nella scheda Giocate.
+                                    stato_confronto=None, mappa_modello_1x2=None,
+                                    chiave_widget="pronostici_tabella_periodo"):
+    """La tabella delle scelte del mercato (``topmix_mercato_v3``) nel periodo.
 
-    Il contenuto tecnico di un tempo (fonte e eta' delle quote riga per riga,
-    quota numerica, segnale "d'accordo") NON e' sparito: e' nel riquadro
-    chiuso "Dettagli" piu' sotto, insieme al resto. Le persone che non
-    conoscono il gergo leggono qui; chi vuole i numeri apre il riquadro.
-    Quando il file delle quote manca o non copre il turno lo si dice
-    esplicitamente, invece di mostrare una tabella vuota che sembrerebbe
-    "nessuna partita probabile".
+    Sta nella scheda «⚽ Pronostici», dopo il clic: le righe sono quelle del giro
+    che il pulsante ha appena registrato, mostrate con le sei colonne comuni alla
+    scheda Pareggi (Quando, Partita, Pronostico, Quote %, Modello %, Quota) e
+    ordinate per «Quote %» decrescente. Il contenuto tecnico di un tempo (fonte ed
+    eta' delle quote riga per riga, quota del bookmaker, segnale "d'accordo") NON
+    e' sparito: sta nel riquadro chiuso "Dettagli" della scheda Multiple. Le
+    persone che non conoscono il gergo leggono la tabella; chi vuole i numeri apre
+    il riquadro. Quando il file delle quote manca o non copre il turno lo si dice
+    esplicitamente, invece di mostrare una tabella vuota che sembrerebbe "nessuna
+    partita probabile".
 
-    ``stato_confronto`` alimenta lo stato di «Modello %» nella caption (una
-    volta sola, non nelle celle); ``mappa_modello_1x2`` alimenta la colonna
-    "Modello %": la tabella non aspetta il giro del modello, quindi mentre
-    quello gira le celle restano vuote e le righe tutte li'.
+    ``stato_confronto`` alimenta lo stato di «Modello %» nella caption (una volta
+    sola, non nelle celle); ``mappa_modello_1x2`` alimenta la colonna "Modello %":
+    la tabella non aspetta il giro del modello, quindi mentre quello gira le celle
+    restano vuote e le righe tutte li'. ``chiave_widget`` e' la chiave della
+    tabella, che e' anche il canale del clic sulla riga (scheda partita).
     """
     st.markdown("##### 🌟 Le scelte più sicure secondo le quote")
     st.caption("Le probabilità vengono dalle quote dei bookmaker, che in media "
-               "sbagliano meno di qualunque modello.")
+               "sbagliano meno di qualunque modello. La scelta (1/X/2) è quella con la "
+               "probabilità più alta, e compare se supera il **55%**; accanto c'è la "
+               "probabilità che il nostro modello dà allo stesso esito («Modello %»; per "
+               "le doppie chance è la somma delle due probabilità 1X2).")
     meta = quote_meta if isinstance(quote_meta, dict) else {}
     stato = meta.get("stato")
     if stato == STATO_OK:
@@ -3602,13 +3835,12 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
                 "(sopra il 55%)"
                 + ("" if stato == STATO_OK else " (nessuna quota disponibile)."))
         return
-    # Punto 5a: la tabella in parole segue lo STESSO controllo «Periodo» dei
-    # riquadri qui sopra (stesso selettore, key `lg_periodo`): con «Questa
-    # giornata» le partite dopo il lunedì alle 23:59 non compaiono qui dentro.
+    # La tabella in parole segue lo STESSO periodo delle altre schede (stesso
+    # stato, key ``lg_periodo_prossimi``): con la giornata le partite dopo il
+    # lunedì alle 23:59 non compaiono qui dentro.
     if adesso is None:
         adesso = market_odds._adesso_utc()
-    periodo_lbl = st.session_state.get("lg_periodo", lg.ETICHETTA_PERIODO_GIORNATA)
-    periodo_val = lg.PERIODO_GIORNATA if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA else lg.PERIODO_TUTTE
+    periodo_val, _periodo_lbl = periodo_selezionato()
     in_periodo = lg.righe_mercato_nel_periodo(righe, adesso, periodo_val)
     if not in_periodo:
         prossima = None
@@ -3623,30 +3855,15 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
         quando = (f" La prima in tabella gioca {lg.quando_italiano(prossima)}."
                   if prossima else "")
         st.info(f"In questa giornata nessuna partita della tabella.{quando} "
-                f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
+                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» nella scheda 🎯 Multiple "
+                "per vederle.")
         return
     nascoste = len(righe) - len(in_periodo)
     st.caption(caption_scelte_secondo_le_quote(len(in_periodo), stato_confronto,
                                                nascoste=nascoste))
-    st.dataframe(tabella_top_mix_mercato_visibile(in_periodo, adesso=adesso,
-                                                  stato_confronto=stato_confronto,
-                                                  mappa_modello_1x2=mappa_modello_1x2),
-                 width="stretch", height=420, hide_index=True,
-                 column_config={
-                     # Numero, non stringa: il clic sull'intestazione ordina
-                     # per valore (decrescente/primo clic) e non alfabeticamente.
-                     "Quote %": st.column_config.NumberColumn(
-                         "Quote %",
-                         format="%.1f%%",
-                         help="Probabilità dell'esito secondo le quote dei bookmaker."),
-                     "Modello %": st.column_config.NumberColumn(
-                         "Modello %",
-                         format="%.1f%%",
-                         help="Probabilità dello stesso esito secondo il nostro modello "
-                              "(Drago); per le doppie chance è la somma delle due "
-                              "probabilità 1X2. Vuota finché il giro del modello non è "
-                              "pronto: lo stato sta nella caption sopra."),
-                 })
+    _mostra_tabella_periodo([riga_pronostico_da_mercato(p, adesso, stato_confronto,
+                                                        mappa_modello_1x2)
+                             for p in in_periodo], chiave_widget)
 
 
 import lista_giocate as lg
@@ -4492,12 +4709,18 @@ def _mostra_dettaglio_proposte(prop, top_mercato):
 
 
 def _mostra_intestazione_giocate(payload, adesso, res):
-    """Testa della scheda Giocate: riga dell'aggiornamento quote e «Periodo».
+    """Testa della scheda Multiple: riga dell'aggiornamento quote e periodo.
 
     Ritorna la lista delle giocate del periodo scelto, che i riquadri qui sotto
-    (\"Per raddoppiare\", \"Le più probabili\") e la tabella del mercato usano:
-    un solo calcolo, gli stessi numeri dappertutto. Tutto nasce dal file delle
+    ("Per raddoppiare", "Le più probabili") e le tabelle del periodo usano: un
+    solo calcolo, gli stessi numeri dappertutto. Tutto nasce dal file delle
     quote, quindi questa parte non aspetta il giro del modello.
+
+    Il periodo non sono piu' i pulsanti radio «Periodo» ma un interruttore solo,
+    «Mostra anche i prossimi giorni». Sta qui, e non si ripete nelle altre schede,
+    perche' una chiave non puo' alimentare due widget nella stessa pagina: le
+    schede Pronostici e Pareggi leggono lo stesso stato (``periodo_selezionato``)
+    e, quando serve, dicono che l'interruttore e' qui.
     """
     if not payload:
         st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
@@ -4507,10 +4730,14 @@ def _mostra_intestazione_giocate(payload, adesso, res):
     # Freschezza delle quote in testa alla scheda (punto 8), in italiano.
     st.caption(lg.aggiornamento_quote_parole(payload.get("generato_il"), adesso))
 
-    # Periodo di gioco (punto 8): di default fino al lunedì alle 23:59.
-    periodo_lbl = st.radio("Periodo", [lg.ETICHETTA_PERIODO_GIORNATA, lg.ETICHETTA_PERIODO_TUTTE],
-                           index=0, horizontal=True, key="lg_periodo")
-    periodo_val = "giornata" if periodo_lbl == lg.ETICHETTA_PERIODO_GIORNATA else "tutte"
+    # Periodo di gioco (punto 8): di default fino al lunedì alle 23:59, e
+    # l'interruttore che aggiunge i giorni successivi — due stati, un widget
+    # solo, le tre schede che leggono lo stesso valore.
+    st.toggle(ETICHETTA_PROSSIMI_GIORNI, key=CHIAVE_PROSSIMI_GIORNI,
+              help="Spento: le partite di questa giornata, fino a lunedì alle 23:59. "
+                   "Acceso: tutte quelle in programma. Vale anche per le schede "
+                   "«Pronostici» e «Pareggi».")
+    periodo_val, _periodo_lbl = periodo_selezionato()
     in_periodo = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
 
     if in_periodo and lg.miccia_provvisoria(in_periodo, adesso):
@@ -4525,29 +4752,135 @@ def _mostra_intestazione_giocate(payload, adesso, res):
         quando = (f" La prossima partita in programma è {lg.quando_italiano(prossima)}."
                   if prossima else "")
         st.info(f"In questa giornata non ci sono ancora partite da mostrare.{quando} "
-                f"Cambia «Periodo» in «{lg.ETICHETTA_PERIODO_TUTTE}» per vederle.")
+                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» per vederle.")
     return in_periodo
 
 
-def _mostra_pulsante_registrazione():
-    """Il pulsante che scrive, e le due righe che gli stanno sotto.
+# ---------------------------------------------------------------------------
+# ⚽  PRONOSTICI  —  la giornata, calcolata quando si chiede
+# ---------------------------------------------------------------------------
+# Il pulsante che registra sta qui, e non c'e' piu' nella scheda delle giocate:
+# premerlo vuol dire «calcola i pronostici di oggi» oltreche' scriverli. Le
+# scritture sono ESATTAMENTE quelle di prima (stessa funzione, stessa cache,
+# stesso Registro), e la tabella che ne nasce resta in ``session_state`` finche'
+# non si preme di nuovo o non cambia il periodo.
+CHIAVE_PRONOSTICI = "pronostici_giornata"
 
-    Posto dopo il riquadro \"Per raddoppiare\": e' l'UNICO punto della scheda che
-    scrive (registro di mercato, registro ombra, proposte della settimana). Al
-    clic una riga dice com'e' andata; sotto, sempre, quando e' avvenuta
-    l'ultima registrazione (letta dal Registro, non ricordata qui).
+
+def pronostici_in_sessione():
+    """Il risultato dell'ultimo clic, finche' vale; ``None`` = da calcolare.
+
+    Cambiare periodo significa chiedere un'altra giornata: il risultato si scarta
+    e la scheda torna a chiedere il clic. Qui si legge soltanto — ne' all'apertura
+    ne' allo scarto il Registro viene toccato.
     """
-    cliccato = st.button("📝 Registra le giocate della giornata", type="primary",
-                         key="btn_registra_giornata")
-    if cliccato:
-        esito = registra_giocate_della_giornata()
-        st.session_state["esito_registrazione"] = esito
-    st.caption(ultima_registrazione_mercato())
-    ultimo = st.session_state.get("esito_registrazione")
-    if isinstance(ultimo, dict) and ultimo.get("riga_esito"):
-        st.markdown(f"**{ultimo['riga_esito']}**")
-    return cliccato
+    risultato = st.session_state.get(CHIAVE_PRONOSTICI)
+    if not isinstance(risultato, dict):
+        return None
+    if risultato.get("periodo") != periodo_selezionato()[1]:
+        st.session_state.pop(CHIAVE_PRONOSTICI, None)
+        return None
+    return risultato
 
+
+def calcola_pronostici_giornata():
+    """Il corpo del clic: le scritture di sempre e le righe da mostrare.
+
+    Chiama ``registra_giocate_della_giornata`` (stesso ``fetch_and_calc_top_mix``
+    con la stessa cache, un ``save_predictions`` per clic, stesso registro ombra e
+    stesse proposte della settimana: nessuna regola nuova) e congela le righe del
+    mercato del periodo scelto. La tabella sotto resta QUELLA che hai cliccato,
+    anche nei ridisegni che non premono niente.
+    """
+    esito = registra_giocate_della_giornata()
+    adesso = market_odds._adesso_utc()
+    _periodo_val, periodo_lbl = periodo_selezionato()
+    righe, _info = righe_mercato_dalle_quote(market_odds.carica_quote_live(), adesso)
+    st.session_state[CHIAVE_PRONOSTICI] = {"periodo": periodo_lbl, "righe": righe,
+                                           "esito": esito}
+
+
+def stato_confronto_in_lettura():
+    """``(stato, terna per partita)`` del confronto col modello, SENZA avviarlo.
+
+    Le schede che non hanno pulsanti non possono mettersi a girare il modello:
+    leggono quello che c'e' in ``session_state``. Se il giro non e' finito le celle
+    «Modello %» restano vuote — esattamente quello che fanno gia' nella scheda
+    Multiple mentre il confronto lavora (e come le dice ``numero_modello_percento``).
+    """
+    return (st.session_state.get(CONFRONTO_STATO_CHIAVE),
+            prob_modello_1x2_per_partita(st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE)))
+
+
+def _scheda_pronostici():
+    """Il pulsante, l'ultima registrazione, l'esito in una riga e la tabella.
+
+    Prima del clic la scheda dice solo come muoversi; dopo, mostra le scelte del
+    mercato del periodo e nient'altro. L'esito sta in UNA riga (registrata /
+    niente di nuovo / salvataggio fallito) e il dettaglio tecnico e' nel riquadro
+    chiuso in fondo: la riga deve poter essere letta da sola.
+    """
+    if st.button("📝 Calcola i pronostici della giornata", type="primary",
+                 key="btn_calcola_pronostici",
+                 help="Calcola le scelte della giornata sulle quote del file, le "
+                      "registra nel Registro e mostra la tabella qui sotto. Nessun "
+                      "servizio esterno viene chiamato."):
+        calcola_pronostici_giornata()
+    st.caption(ultima_registrazione_mercato())
+    risultato = pronostici_in_sessione()
+    if risultato is None:
+        st.info("Premi il pulsante per calcolare i pronostici della giornata.")
+        return
+    esito = risultato.get("esito") or {}
+    if esito.get("riga_esito"):
+        st.markdown(f"**{esito['riga_esito']}**")
+    stato_confronto, mappa_modello_1x2 = stato_confronto_in_lettura()
+    _mostra_tabella_top_mix_mercato(risultato.get("righe") or [],
+                                    carica_indice_quote_live(),
+                                    market_odds._adesso_utc(),
+                                    stato_confronto=stato_confronto,
+                                    mappa_modello_1x2=mappa_modello_1x2)
+    with st.expander("🔎 Dettagli", expanded=False):
+        if esito.get("dettaglio"):
+            st.caption("**Ultima registrazione (dettaglio tecnico):** " + esito["dettaglio"])
+        else:
+            st.caption("Nessuna registrazione in questa sessione: il Registro non è stato "
+                       "tocciato.")
+
+
+# ---------------------------------------------------------------------------
+# 🟰  PAREGGI  —  le partite con il pronostico X, senza premere niente
+# ---------------------------------------------------------------------------
+def _scheda_pareggi():
+    """Tutte le partite del periodo con il pronostico X, in ordine di probabilità.
+
+    Nessun pulsante e nessuna scrittura: la lista viene dallo STESSO calcolo della
+    scheda Multiple (``lista_giocate.calcola_lista_giocate`` sul file delle quote),
+    filtrata per periodo e ridotta ai pareggi, e «Modello %» legge il giro del
+    modello in sola lettura. La riga sopra la tabella dice quanto vale un pareggio:
+    anche il piu' probabile esce circa una volta su tre, per questo la scheda non e'
+    una promessa ma una graduatoria.
+    """
+    st.caption("Anche il pareggio più probabile esce circa 1 volta su 3.")
+    payload = market_odds.carica_quote_live()
+    if not payload:
+        st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
+        return
+    adesso = market_odds._adesso_utc()
+    res = lg.calcola_lista_giocate(payload, adesso_utc=adesso)
+    in_periodo = lg.giocate_nel_periodo(res.get("giocate", []), adesso,
+                                        periodo_selezionato()[0])
+    pareggi = [g for g in in_periodo
+               if str(g.get("giocata") or g.get("esito") or "").strip() == "X"]
+    if not pareggi:
+        st.info(f"Nessun pareggio in programma nel periodo scelto. "
+                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» nella scheda 🎯 Multiple "
+                "per guardare più avanti.")
+        return
+    stato_confronto, mappa_modello_1x2 = stato_confronto_in_lettura()
+    _mostra_tabella_periodo([riga_pronostico_da_giocata(g, adesso, stato_confronto,
+                                                        mappa_modello_1x2)
+                             for g in pareggi], "pareggi_tabella_periodo")
 
 def _mostra_dettagli_giocate(res, in_periodo, righe, stato_quote, adesso):
     """Il riquadro chiuso «Dettagli» della scheda Giocate.
@@ -4557,19 +4890,13 @@ def _mostra_dettagli_giocate(res, in_periodo, righe, stato_quote, adesso):
     equa, marcatori, partite escluse, sovrascrittura manuale, ipotesi di
     indipendenza, proposte per numero di partite. Chiuso di default.
 
-    In piu', perche' la scheda non scrive piu' niente da sola: il dettaglio
-    tecnico dell'ultima registrazione (conteggi per famiglia, allineate, in
-    attesa, remoto) e il pulsante che rifa' il confronto col modello svuotando
-    la cache. Nemmeno quello scrive.
+    In piu', perche' la scheda non scrive piu' niente da sola: il pulsante che
+    rifa' il confronto col modello svuotando la cache. Nemmeno quello scrive. Il
+    dettaglio tecnico dell'ultima registrazione non sta piu' qui: si registra nella
+    scheda «⚽ Pronostici» e i suoi conteggi stanno nel «Dettagli» di quella scheda.
     """
     with st.expander("🔎 Dettagli", expanded=False):
         _mostra_dettagli_tecnici(res, in_periodo, righe, stato_quote, adesso)
-        ultimo = st.session_state.get("esito_registrazione")
-        if isinstance(ultimo, dict) and ultimo.get("dettaglio"):
-            st.caption("**Ultima registrazione (dettaglio tecnico):** " + ultimo["dettaglio"])
-        else:
-            st.caption("Nessuna registrazione fatta in questa sessione: il Registro "
-                       "non e' stato toccato.")
         if st.button("Ricalcola il confronto col modello", key="btn_ricalcola_confronto"):
             # Svuota la cache del giro del modello e lo ripete: sola lettura,
             # nessuna scrittura nel Registro.
@@ -5323,26 +5650,37 @@ def _mostra_dettagli_mercato(righe, altezza=420):
 
 
 
-with tab_giocate:
-    st.caption("Una tabella sola, costruita sulle **quote dei bookmaker**: la scelta "
-               "(1/X/2) e' quella con la probabilita' piu' alta, e compare se supera il **55%**. "
-               "Accanto, la probabilita' che il nostro modello dà allo stesso esito "
-               "(«Modello %»; per le doppie chance e' la somma delle due probabilita' 1X2). "
-               "Le quote vengono aggiornate ogni giorno: l'app non chiama nessun servizio esterno. "
-               "Le scelte 1X2 dei due modelli interni non sono piu' in tabella: continuano a "
-               "essere annotate dietro le quinte, per il controllo dei risultati.")
+# ---------------------------------------------------------------------------
+# ⚽  PRONOSTICI e 🟰  PAREGGI  —  le due schede nate dalla vecchia «Giocate»
+# ---------------------------------------------------------------------------
+# Pronostici: niente in vista finche' non si chiede il giro (il pulsante fa le
+# scritture di una volta e la tabella resta quella che si e' cliccata). Pareggi:
+# la graduatoria dei pareggi del periodo, che si legge all'apertura perche' non
+# c'e' nulla da calcolare in piu'. Le due tabelle hanno le stesse colonne e il
+# clic sulla riga apre la stessa scheda partita.
+with tab_pronostici:
+    _scheda_pronostici()
+
+with tab_pareggi:
+    _scheda_pareggi()
+
+with tab_multiple:
+    st.caption("Le quote vengono aggiornate ogni giorno: l'app non chiama nessun servizio "
+               "esterno. Le scelte 1X2 dei due modelli interni non sono piu' in tabella: "
+               "continuano a essere annotate dietro le quinte, per il controllo dei risultati.")
     # --- La scheda si GUARDA, non si preme ---
     # Tutto quello che segue nasce dal file delle quote (``live_odds.json``,
     # scritto dal workflow) e non attende il giro del modello: riga
-    # dell'aggiornamento quote, "Per raddoppiare", "Le più probabili", "Le
-    # scelte più sicure secondo le quote", "Prova la tua giocata" e "Dettagli"
-    # sono gia' in pagina al primo disegno. Il confronto con il modello parte da
+    # dell'aggiornamento quote, "Per raddoppiare", "Le più probabili", "Prova la
+    # tua giocata" e "Dettagli" sono gia' in pagina al primo disegno. La tabella
+    # delle scelte del mercato e il pulsante che la registrano non stanno piu'
+    # qui: sono la scheda «⚽ Pronostici». Il confronto con il modello parte da
     # solo in coda alla scheda, in SOLA LETTURA (stessa cache di prima); finche'
     # non finisce la sua colonna dice "in calcolo", e se non riesce dice "non
     # disponibile" lasciando in piedi tutto il resto.
     # NESSUNA scrittura avviene qui o a ogni rerun: registro di mercato,
-    # registro ombra e proposte della settimana si scrivono SOLO col pulsante
-    # «📝 Registra le giocate della giornata».
+    # registro ombra e proposte della settimana si scrivono SOLO al clic di
+    # «📝 Calcola i pronostici della giornata».
     stato_quote = carica_indice_quote_live()
     _avviso_stato_quote(stato_quote, "Giocate")
     _mostra_non_abbinati_fonte(stato_quote, "Giocate")
@@ -5354,6 +5692,8 @@ with tab_giocate:
     in_periodo = _mostra_intestazione_giocate(payload_quote, adesso, res_lista)
 
     # Le scelte del mercato: stesse funzioni del selettore, nate dalle sole quote.
+    # Qui alimentano i riquadri e i Dettagli; la loro tabella in vista e' nella
+    # scheda «⚽ Pronostici», dove nasce dal giro che si e' appena cliccato.
     righe_quote, info_quote = righe_mercato_dalle_quote(payload_quote, adesso)
 
     # Il confronto col modello si limita a dichiarare il suo stato: il calcolo
@@ -5370,18 +5710,12 @@ with tab_giocate:
     elif payload_quote:
         with st.container(border=True):
             st.markdown("**🎯 Per raddoppiare**")
-            st.info("In questa giornata non ci sono ancora partite da mostrare: "
-                    "cambia «Periodo» per vedere le combinazioni possibili.")
-
-    # --- Il pulsante che scrive (e solo lui) ---
-    _mostra_pulsante_registrazione()
+            st.info("In questa giornata non ci sono ancora partite da mostrare: accendi "
+                    f"«{ETICHETTA_PROSSIMI_GIORNI}» per vedere le combinazioni possibili.")
 
     if in_periodo:
         _mostra_piu_probabili(in_periodo, adesso, stato_confronto=stato_confronto,
                               mappa_modello_1x2=mappa_modello_1x2)
-    _mostra_tabella_top_mix_mercato(righe_quote, stato_quote, adesso,
-                                    stato_confronto=stato_confronto,
-                                    mappa_modello_1x2=mappa_modello_1x2)
     calcolatore_multipla(righe_quote, adesso, gambe_pre=in_periodo)
     _mostra_dettagli_giocate(res_lista, in_periodo, righe_quote, stato_quote, adesso)
     if info_quote.get("senza_quote"):
@@ -5397,11 +5731,11 @@ with tab_giocate:
     if concludi_confronto_modello():
         st.rerun()
 
-# --- STRUMENTI AVANZATI (Elo e Backtest) ---
-# I due contenuti sono INVARIATI: sono gli stessi corpi che stavano nelle schede
-# ELO RATING e BACKTEST, solo spostati in due funzioni per poterli mettere uno
-# sotto l'altro dentro la quarta scheda, che esiste solo quando l'interruttore
-# «Strumenti avanzati» della barra laterale e' acceso.
+# --- STRUMENTI AVANZATI (Elo, Backtest e il contenuto della scheda Partite) ---
+# I contenuti sono INVARIATI: sono gli stessi corpi che stavano nelle schede ELO
+# RATING, BACKTEST e «🏟️ Partite», solo spostati in tre funzioni per poterli
+# mettere uno sotto l'altro dentro la quinta scheda, che esiste solo quando
+# l'interruttore «Strumenti avanzati» della barra laterale e' acceso.
 def _mostra_elo_rating(camp_sel):
     st.subheader(f"⚡ Elo - {camp_sel}")
     elo_df = get_elo_leaderboard(camp_sel)
@@ -5470,14 +5804,19 @@ def _mostra_backtest_storico(camp_sel):
                 st.dataframe(df_show, width="stretch", hide_index=True)
 
 
-# La quarta scheda esiste solo con l'interruttore acceso: quando e' spento le
-# schede sono tre e qui non viene renderizzato niente (Streamlit esegue il
+# La quinta scheda esiste solo con l'interruttore acceso: quando e' spento le
+# schede sono quattro e qui non viene renderizzato niente (Streamlit esegue il
 # codice di un tab solo se il tab esiste).
 if strumenti_avanzati:
     with tab_strumenti:
         _mostra_elo_rating(camp_sel)
         st.divider()
         _mostra_backtest_storico(camp_sel)
+        st.divider()
+        # E qui c'e' anche tutta la vecchia scheda «🏟️ Partite»: l'elenco delle
+        # partite della giornata con i suoi pulsanti «Scheda» e, chiuso, il
+        # riquadro «Dettagli» con l'Analisi Rapida. Stesso codice, stesse key.
+        _mostra_scheda_partite(camp_sel, g_sel, engine)
 
 # --- LA SCHEDA PARTITA, in coda al disegno --------------------------------
 # Un solo punto di apertura per i pulsanti «Scheda» di TUTTE le schede: quando
@@ -5486,7 +5825,7 @@ if strumenti_avanzati:
 _mostra_scheda_richiesta()
 
 
-# --- SCHEDA COM'E' ANDATA (ex TAB 5 REGISTRO) ---
+# --- SCHEDA REGISTRO (ex «COM'E' ANDATA», ex TAB 5 REGISTRO) ---
 def _mostra_affidabilita(record_cal, etichetta=None):
     """Blocco Brier/gap del Registro su un insieme di record (una variante o tutti)."""
     cal_stat = compute_calibration_stats(record_cal)
@@ -5624,7 +5963,11 @@ def _mostra_testa_andata(df_mercato):
         st.caption(f"Le proposte settimanali registrate: {k}, riuscite {j}")
     if errore:
         logging.warning("Proposte settimanali non leggibili: %s", errore)
-with tab_andata:
+# La scheda si chiama «📒 Registro» ed e' il registro di sempre: le due tabelle
+# (le scelte del mercato e le previsioni del modello), il controllo dei risultati
+# che parte da solo e UN SOLO riquadro «🔎 Dettagli» chiuso in fondo. Contenuto
+# invariato: qui cambia il nome della scheda, non che cosa mostra.
+with tab_registro:
     st.subheader("📒 Com'è andata")
     preds = righe_visibili(load_predictions())
     # --- Controllo dei risultati AUTOMATICO (una volta per sessione) ---

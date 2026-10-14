@@ -330,13 +330,18 @@ class TestTabellaUnica(unittest.TestCase):
         self.assertNotIn("MODEL_VARIANT_LEGACY, top_legacy,", tab2)
         self.assertNotIn("MODEL_VARIANT_CURRENT, top_current,", tab2)
         self.assertNotIn("_mostra_tabella_top_mix(", tab2)
-        # una sola tabella di scelte, quella del mercato. La scheda oggi e' in
-        # due pezzi (la parte in vista nel blocco `with tab_giocate:` e le
-        # scritture nella funzione del pulsante): la tabella visibile resta
-        # UNA sola contando tutta la superficie della scheda.
-        scheda = src[src.index("with tab_giocate:"):]
-        self.assertEqual(1, scheda.count("_mostra_tabella_top_mix_mercato("),
+        # una sola tabella di scelte, quella del mercato. La vecchia scheda e' ora
+        # tre pezzi (le tabelle nei blocchi `with tab_pronostici:`/
+        # `with tab_pareggi:`, i riquadri in `with tab_multiple:` e le scritture
+        # nella funzione del pulsante): la tabella visibile resta UNA sola, e si
+        # conta sul file intero dove la stringa compare due volte sole - la
+        # definizione e l'unico punto in vista, nella scheda «Pronostici».
+        scheda = src[src.index("with tab_pronostici:"):]
+        self.assertEqual(2, src.count("_mostra_tabella_top_mix_mercato("),
                          "la tabella di mercato in vista e' una sola")
+        self.assertIn("_mostra_tabella_top_mix_mercato(",
+                      src[src.index("def _scheda_pronostici("):src.index("def _scheda_pareggi(")],
+                      "e' la scheda Pronostici a mostrarla")
         self.assertIn("calcolatore_multipla(righe_quote, adesso", scheda)
         # UN SOLO punto di scrittura nel Registro visibile per click (rifinitura
         # dopo la PR #53): le righe di mercato passano da `build_prediction_entry`

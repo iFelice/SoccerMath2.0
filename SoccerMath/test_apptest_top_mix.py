@@ -1,5 +1,5 @@
-"""AppTest sul VERO ``app.py``: click "Registra le giocate della giornata",
-multipla, Registro.
+"""AppTest sul VERO ``app.py``: click "Calcola i pronostici della giornata"
+(che dal resto della PR registra anche le giocate), multipla, Registro.
 
 Perche' questo file esiste (punto 4 delle rifiniture dopo la PR #53): la verifica
 precedente del flusso tab2 era un test strutturale sul ``session_state`` e
@@ -245,7 +245,7 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
 
         # La cache di @st.cache_data e' process-global e condivisa fra gli
         # AppTest di file diversi: svuotarla prima del primo run, altrimenti
-        # il click di "Registra le giocate" rilegge dati calcolati da un altro
+        # il click di "Calcola i pronostici" rilegge dati calcolati da un altro
         # fixture (es. lo snapshot da 90 eventi di
         # test_apptest_topmix_presentazione).
         import streamlit as st
@@ -295,13 +295,16 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         self.assertEqual([], [c for c in self.chiamate if c[0] != "GET"],
                          "aprire la pagina non scrive da nessuna parte")
 
-        # --- 1) premere "Registra le giocate della giornata" ---------------
+        # --- 1) premere "Calcola i pronostici della giornata" --------------
+        # Il pulsante di registrazione non sta piu' nella scheda delle giocate:
+        # e' il protagonista di «⚽ Pronostici», e da li' fa esattamente lo stesso
+        # lavoro di prima (stessa funzione, stesse scritture).
         bottoni = [b for b in self.at.button
-                   if "Registra le giocate della giornata" in (b.label or "")]
+                   if "Calcola i pronostici della giornata" in (b.label or "")]
         self.assertEqual(1, len(bottoni), "un solo pulsante di registrazione in pagina")
         bottoni[0].click()
         self.at.run()
-        self.eccezioni("click su Registra le giocate della giornata")
+        self.eccezioni("click su Calcola i pronostici della giornata")
 
         top = self.at.session_state["topmix_mercato"]
         self.assertEqual({111, 113}, {int(r["match_id"]) for r in top},
@@ -373,19 +376,21 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         self.assertEqual(1, len(exp_prova), "il riquadro «Prova la tua giocata» c'e'")
         self.scritture.clear()
         self.chiamate.clear()
-        # Giorno-indipendente: il calcolatore segue il controllo «Periodo», e
+        # Giorno-indipendente: il calcolatore segue il comando del periodo, e
         # a 20 ore dal calcio la "giornata" puo' essere gia' chiusa (lunedì
-        # sera). Si passa a "Tutte": il contenuto del riquadro non cambia.
+        # sera). Si accende «Mostra anche i prossimi giorni» (= tutte): il
+        # contenuto del riquadro non cambia. Il radio «Periodo» e' diventato un
+        # interruttore solo, condiviso dalle tre schede che filtrano il periodo.
         import lista_giocate as _lg
         from datetime import datetime as _dt, timezone as _tz
         _adesso = _dt.now(_tz.utc)
-        periodi = [r for r in self.at.radio if (r.key or "") == "lg_periodo"]
-        self.assertEqual(1, len(periodi), "il controllo «Periodo» c'e'")
-        periodo_val = ("giornata" if periodi[0].value == _lg.ETICHETTA_PERIODO_GIORNATA
-                       else "tutte")
-        if _lg.lunedi_gioco(_adesso) <= _adesso + timedelta(hours=20):
-            periodi[0].set_value(_lg.ETICHETTA_PERIODO_TUTTE)
+        periodi = [t for t in self.at.toggle if (t.key or "") == "lg_periodo_prossimi"]
+        self.assertEqual(1, len(periodi), "il comando del periodo c'e'")
+        periodo_val = ("tutte" if bool(periodi[0].value) else "giornata")
+        if periodo_val == "giornata" and _lg.lunedi_gioco(_adesso) <= _adesso + timedelta(hours=20):
+            periodi[0].set_value(True)
             self.at.run()
+            self.eccezioni("accensione di «Mostra anche i prossimi giorni»")
             periodo_val = "tutte"
         quota_payload = json.loads((self.prediction_file.parent / "live_odds.json").read_text())
         sel_n = [s for s in self.at.selectbox if s.key == "prova_n_gambe"]
@@ -445,7 +450,7 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         self.scritture.clear()
         self.chiamate.clear()
         [b for b in self.at.button
-         if "Registra le giocate della giornata" in (b.label or "")][0].click()
+         if "Calcola i pronostici della giornata" in (b.label or "")][0].click()
         self.at.run()
         self.eccezioni("secondo click")
         self.assertLessEqual(len(self.scritture), 1,

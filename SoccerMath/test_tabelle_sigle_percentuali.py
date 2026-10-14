@@ -1,5 +1,6 @@
-"""REGOLA (presentazione dopo la PR #65): nelle tabelle IN VISTA della scheda
-Giocate e della tabella Mercato di Com'è andata
+"""REGOLA (presentazione dopo la PR #65, e dopo la rimozione degli spoiler):
+nelle tabelle IN VISTA delle schede Pronostici/Pareggi e della scheda Multiple,
+e nella tabella Mercato del Registro
 
 * la giocata e' la SOLA sigla (1, X, 2, 1X, X2, 12): niente «Vince <squadra>»,
   «<squadra> non perde», «Non finisce in pareggio», niente sigla fra parentesi;
@@ -73,31 +74,76 @@ def _terna_snapshot():
     }]
 
 
+def _tabella_periodo(righe, adesso=None, stato_confronto=None, mappa_modello_1x2=None):
+    """Le righe del selettore passano dalla normalizzazione della scheda Pronostici.
+
+    E' il percorso reale: ``riga_pronostico_da_mercato`` + ``tabella_pronostici_visibile``.
+    """
+    normalizzate = [app.riga_pronostico_da_mercato(r, adesso, stato_confronto,
+                                                  mappa_modello_1x2)
+                    for r in righe]
+    df, _ordinate = app.tabella_pronostici_visibile(normalizzate)
+    return df
+
+
 class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
-    """«Le scelte più sicure secondo le quote» (tabella in vista della scheda Giocate)."""
+    """«Le scelte più sicure secondo le quote»: la tabella della scheda Pronostici.
+
+    Le colonne del punto 2 della commessa schede: Quando, Partita, Pronostico,
+    Quote %, Modello %, Quota. «Campionato» esce dalla vista (la lega non e' una
+    colonna, e dentro «Partita» non c'e' altra scritta che le due squadre), la
+    sigla si chiama «Pronostico» e la quota bet365 stimata torna in tabella.
+    I numeri restano quelli di prima: qui cambia come si leggono, non cosa si
+    calcola.
+    """
 
     def test_colonne_sigla_e_niente_accordo(self):
         righe = [_riga_mercato(prob=0.66, esito="1"), _riga_mercato(prob=0.58, esito="X",
                                                                     home="Milan", away="Lazio")]
-        df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="pronto",
-                                                  mappa_modello_1x2={})
-        self.assertEqual(["Quando", "Campionato", "Partita", "Giocata",
-                          "Quote %", "Modello %"], list(df.columns))
+        df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2={})
+        self.assertEqual(["Quando", "Partita", "Pronostico", "Quote %", "Modello %",
+                          "Quota"], list(df.columns))
         self.assertNotIn("Riesce circa", df.columns)
+        self.assertNotIn("Campionato", df.columns,
+                         "il campionato non e' una colonna: la vista e' asciutta")
         self.assertFalse(any("d'accordo" in str(c) for c in df.columns),
                          "la colonna del segnale d'accordo esce dalla vista")
-        for valore in df["Giocata"]:
+        for valore in df["Pronostico"]:
             self.assertIn(valore, {"1", "X", "2", "1X", "X2", "12"},
-                          f"la Giocata in vista e' la sola sigla, non {valore!r}")
+                          f"il pronostico in vista e' la sola sigla, non {valore!r}")
         for vietato in ("Vince", "non perde", "Non finisce in pareggio", "("):
-            for valore in df["Giocata"]:
+            for valore in df["Pronostico"]:
                 self.assertNotIn(vietato, valore)
+        self.assertEqual(["Inter - Roma", "Milan - Lazio"], df["Partita"].tolist(),
+                         "«Partita» e' casa - trasferta e nient'altro")
+
+    def test_nessuna_scritta_dentro_partita(self):
+        """Il marcatore delle quote provvisorie sta in «Quando», non in «Partita»."""
+        lontana = _riga_mercato(prob=0.66, esito="1",
+                                utc="2026-12-19T18:45:00Z")   # oltre 3 giorni dal fixture
+        df = _tabella_periodo([lontana], adesso=datetime(2026, 10, 16, 16, 0))
+        self.assertEqual("Inter - Roma", df["Partita"].iloc[0])
+        self.assertIn("⏳", df["Quando"].iloc[0])
+        prossimo = _riga_mercato(prob=0.66, esito="1", utc="2026-10-17T18:45:00Z")
+        df2 = _tabella_periodo([prossimo], adesso=datetime(2026, 10, 16, 16, 0))
+        self.assertNotIn("⏳", df2["Quando"].iloc[0],
+                         "a due giorni dal fischio le quote non sono piu' provvisorie")
+
+    def test_quando_giorno_breve_data_e_ora_italiana(self):
+        self.assertEqual("sab 17/10, 20:45",
+                         app._quando_breve("2026-10-17T18:45:00Z"),
+                         "giorno in tre lettere, data corta, ora Europe/Rome")
+        self.assertEqual("dom 18/10, 20:45 ⏳",
+                         app._quando_breve("2026-10-18T18:45:00Z", lontana=True))
+        self.assertEqual("", app._quando_breve(None))
+        self.assertEqual("⏳", app._quando_breve("non una data", lontana=True),
+                         "data non letta: niente da inventare, resta il marcatore")
 
     def test_quote_percento_numerica_e_ordine_decrescente(self):
         righe = [_riga_mercato(prob=0.58, home="A", away="B"),
                  _riga_mercato(prob=0.71, home="C", away="D"),
                  _riga_mercato(prob=0.649, home="E", away="F")]
-        df = app.tabella_top_mix_mercato_visibile(righe)
+        df = _tabella_periodo(righe)
         self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]),
                         "«Quote %» resta numerica: il clic sull'intestazione ordina per valore")
         valori = df["Quote %"].tolist()
@@ -106,31 +152,30 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
         self.assertEqual([71.0, 64.9, 58.0], valori, "una cifra decimale")
 
     def test_modello_percento_non_pronto_cella_vuota(self):
-        """Niente stato scritto nella cella: vuota, e la caption lo dice."""
+        """Niente stato scritto nella cella: vuota (e la caption lo dice)."""
         righe = [_riga_mercato(esito="1")]
-        # giro del modello non ancora finito -> cella vuota
+        # giro del modello non ancora finito -> cella vuota, colonna numerica
         for stato in (None, "in_calcolo"):
-            df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto=stato)
-            self.assertEqual([None], df["Modello %"].tolist())
-            self.assertTrue(pd.isna(df["Modello %"]).all())
+            df = _tabella_periodo(righe, stato_confronto=stato)
+            self.assertTrue(pd.isna(df["Modello %"]).all(),
+                            f"cella vuota con stato {stato!r}: mai «None», «nan» o «n/d»")
+            self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
+                            "vuota ma numerica: si puo' ordinare al clic")
         # giro fallito -> cella vuota
-        df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="non_disponibile")
-        self.assertEqual([None], df["Modello %"].tolist())
+        df = _tabella_periodo(righe, stato_confronto="non_disponibile")
+        self.assertTrue(pd.isna(df["Modello %"]).all())
         # giro pronto ma partita non coperta -> cella vuota (niente inventato)
-        df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="pronto",
-                                                  mappa_modello_1x2={})
-        self.assertEqual([None], df["Modello %"].tolist())
+        df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2={})
+        self.assertTrue(pd.isna(df["Modello %"]).all())
 
     def test_modello_percento_pronto_il_numero_del_selettore(self):
         righe = [_riga_mercato(prob=0.675, esito="1", prob_modello_val=63.0)]
         mappa = app.prob_modello_1x2_per_partita(_terna_snapshot())
-        df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="pronto",
-                                                  mappa_modello_1x2=mappa)
+        df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2=mappa)
         self.assertEqual([41.2], df["Modello %"].tolist(),
                          "l'esito 1 della riga legge la STESSA terna dello snapshot")
         self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
                         "«Modello %» resta numerica con il modello pronto")
-
 
     def test_modello_percento_numerica_ordinamento(self):
         """Con il modello pronto «Modello %» e' numerica e l'ordinamento per
@@ -147,8 +192,7 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
         mappa = app.prob_modello_1x2_per_partita(letture)
         righe = [_riga_mercato(prob=0.60, esito="1", home="Inter", away="Roma"),
                  _riga_mercato(prob=0.56, esito="1", home="Milan", away="Lazio")]
-        df = app.tabella_top_mix_mercato_visibile(righe, stato_confronto="pronto",
-                                                  mappa_modello_1x2=mappa)
+        df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2=mappa)
         self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
                         "«Modello %» resta numerica (NumberColumn, una cifra decimale)")
         self.assertEqual([85.4, 9.5],
@@ -156,6 +200,49 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
                          "l'ordinamento per «Modello %» e' numerico: 85,4 sopra 9,5")
         # l'ordine predefinito resta «Quote %» decrescente
         self.assertEqual([60.0, 56.0], df["Quote %"].tolist())
+
+    def test_quota_colonna_numerica_con_due_decimali(self):
+        """«Quota» e' la stima bet365 della probabilita' di mercato, non il prezzo
+        del bookmaker: due decimali, numerica, vuota se il numero non c'e'."""
+        df = _tabella_periodo([_riga_mercato(prob=0.675, esito="1")])
+        quota = df["Quota"].iloc[0]
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quota"]))
+        self.assertEqual(round(float(quota), 2), quota, "due decimali")
+        self.assertGreater(quota, 1.0)
+        self.assertEqual(app.quota_b365_stimata(0.675, "Serie A"), quota,
+                         "la colonna legge la stima del progetto, non un prezzo altrui")
+
+    def test_quota_mancante_cella_vuota(self):
+        self.assertIsNone(app.quota_b365_stimata(None, "Serie A"))
+        self.assertIsNone(app.quota_b365_stimata(0.0, "Serie A"))
+        self.assertIsNone(app.quota_b365_stimata(1.0, "Serie A"))
+        self.assertIsNone(app.quota_b365_stimata("x", "Serie A"))
+        self.assertIsNone(app.quota_b365_stimata(True, "Serie A"))
+        # la stessa stima, data come percentuale: non e' una quota da 1,4 a zero
+        self.assertEqual(app.quota_b365_stimata(0.675, "Serie A"),
+                         app.quota_b365_stimata(67.5, "Serie A"))
+
+    def test_righe_ordinate_seguono_il_dataframe(self):
+        """Il clic sulla riga N deve leggere la partita della riga N: la lista
+        normalizzata e il DataFrame hanno lo STESSO ordine."""
+        righe = [_riga_mercato(prob=0.58, home="A", away="B"),
+                 _riga_mercato(prob=0.71, home="C", away="D"),
+                 _riga_mercato(prob=0.649, home="E", away="F")]
+        normalizzate = [app.riga_pronostico_da_mercato(r) for r in righe]
+        df, ordinate = app.tabella_pronostici_visibile(normalizzate)
+        self.assertEqual(len(df), len(ordinate))
+        self.assertEqual(df["Partita"].tolist(), [r["Partita"] for r in ordinate])
+        self.assertEqual(["C - D", "E - F", "A - B"], [r["Partita"] for r in ordinate])
+        self.assertEqual("C - D", ordinate[0]["scheda"]["nome"])
+        self.assertEqual("C", ordinate[0]["scheda"]["casa"],
+                         "la richiesta di scheda viaggia con la sua riga")
+
+    def test_tabella_vuota_non_inventa_righe(self):
+        for righe in ([], None, ["non un dict", 3]):
+            df, ordinate = app.tabella_pronostici_visibile(righe)
+            self.assertEqual([], list(ordinate))
+            self.assertEqual(app.COLONNE_PRONOSTICI, list(df.columns))
+            self.assertTrue(df.empty)
 
 
 class TestCaptionScelteSecondoLeQuote(unittest.TestCase):
@@ -180,7 +267,8 @@ class TestCaptionScelteSecondoLeQuote(unittest.TestCase):
         frase = app.caption_scelte_secondo_le_quote(11, "pronto", nascoste=7)
         self.assertTrue(frase.startswith("11 partite in tabella."))
         self.assertIn("Altre 7 dopo lunedì", frase)
-        self.assertIn(lg.ETICHETTA_PERIODO_TUTTE, frase)
+        self.assertIn(app.ETICHETTA_PROSSIMI_GIORNI, frase,
+                      "la frase nomina l'interruttore che ha sostituito i radio")
 
     def test_nessun_conteggio_accordo_in_caption(self):
         for stato in (None, "in_calcolo", "non_disponibile", "pronto"):
@@ -401,7 +489,8 @@ class TestLeFunzioniInParoleRestano(unittest.TestCase):
         """Codice (docstring esclusi) delle quattro tabelle: nessuna traduzione
         in parole, nessun «Riesce circa», nessuna colonna del segnale."""
         import ast
-        for nome in ("tabella_top_mix_mercato_visibile", "righe_piu_probabili_visibili",
+        for nome in ("tabella_pronostici_visibile", "riga_pronostico_da_mercato",
+                     "riga_pronostico_da_giocata", "righe_piu_probabili_visibili",
                      "tabella_per_raddoppiare_visibile", "_tabella_registro_mercato_visibile"):
             fn = getattr(app, nome)
             albero = ast.parse(inspect.getsource(fn))

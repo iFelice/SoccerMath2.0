@@ -230,10 +230,12 @@ class TestUiColumnContract(unittest.TestCase):
         la pipeline dove il dataframe viene costruito (quella funzione) e
         verifica che il tab5 la chiami per ENTRAMBI i motori.
         """
-        # La sezione si chiama «Com'è andata» da quando la navigazione e' a
-        # tre schede; il blocco e' il corpo del ``with tab_andata:``.
-        registro_start = _APP_SOURCE.find("with tab_andata:")
-        self.assertGreater(registro_start, 0, "scheda Com'è andata non trovata in app.py")
+        # Il blocco e' il corpo del ``with tab_registro:``: la variabile si
+        # chiama cosi' da quando la scheda Registro e' l'ultima di una
+        # navigazione a quattro (prima era ``tab_andata``, col titolo vecchio
+        # «Com'è andata»). La guardia insegue il nome, come fa il resto dei test.
+        registro_start = _APP_SOURCE.find("with tab_registro:")
+        self.assertGreater(registro_start, 0, "scheda Registro non trovata in app.py")
         # Il tab Registro e' l'ultimo del file: si legge fino in fondo, non una
         # finestra a caratteri fissi (era 6000 e il blocco e' cresciuto: la
         # guardia falliva anche senza regressioni).

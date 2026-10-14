@@ -450,7 +450,7 @@ class TestStatistichePerFamiglia(unittest.TestCase):
         self.assertEqual("09/10/2026", app.CONFINE_FAMIGLIA_MERCATO)
         self.assertEqual({"🧠", "🌟"}, set(app.FAMIGLIA_ICONA.values()))
         src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
-        i = src.index("with tab_andata:")
+        i = src.index("with tab_registro:")
         tab5 = src[i:src.index("with tab6:") if "with tab6:" in src[i:] else len(src)]
         self.assertIn("FAMIGLIA_SELETTORE_MODELLO", tab5)
         self.assertIn("FAMIGLIA_SELETTORE_MERCATO", tab5)

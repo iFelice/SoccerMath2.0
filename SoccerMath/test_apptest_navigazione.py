@@ -54,6 +54,12 @@ for _p in (HERE, REPO_ROOT):
 # vietate sono gli stessi della PR #64: una sola definizione, due schede.
 from test_apptest_topmix_presentazione import (  # noqa: E402
     PAROLE_VIETATE,
+    SCHEDA_MULTIPLE,
+    SCHEDA_PAREGGI,
+    SCHEDA_PRONOSTICI,
+    SCHEDA_REGISTRO,
+    SCHEDA_STRUMENTI,
+    _elementi_della_tab,
     _testo_blocco,
     _testi_della_tab,
 )
@@ -291,21 +297,27 @@ class TestSchedeLettura(_BaseAppTest):
         cls.at.run(timeout=900)
         cls.eccezioni(cls.at, "apertura della pagina")
 
-    def test_01_le_schede_sono_tre_e_la_prima_e_giocate(self):
-        self.assertEqual(["🎯 Giocate", "🏟️ Partite", "📒 Com'è andata"],
+    def test_01_le_schede_sono_quattro_e_la_prima_e_pronostici(self):
+        """Quattro schede fisse, in quest'ordine. La quinta (gli strumenti
+        avanzati) non si conta: l'interruttore e' spento all'apertura."""
+        self.assertEqual([SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE,
+                          SCHEDA_REGISTRO],
                          self._etichette_schede(self.at))
 
     def test_02_strumenti_avanzati_spento_all_avvio(self):
         self.assertFalse(self._toggle(self.at, "strumenti_avanzati").value,
                          "l'interruttore degli strumenti avanzati parte spento")
 
-    def test_03_giocate_si_legge_senza_premere_niente(self):
-        fuori, dentro = _testi_della_tab(self.at, 0)
+    def test_03_multiple_si_legge_senza_premere_niente(self):
+        """Le due liste per la multipla stanno in vista da subito; la tabella
+        delle scelte del mercato no: si e' spostata in «⚽ Pronostici» e vuole
+        un click."""
+        fuori, dentro = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
-        for atteso in ("Per raddoppiare", "Le più probabili",
-                       "Le scelte più sicure secondo le quote"):
+        for atteso in ("Per raddoppiare", "Le più probabili"):
             with self.subTest(atteso=atteso):
                 self.assertIn(atteso, testo)
+        self.assertNotIn("Le scelte più sicure secondo le quote", testo)
         etichette = [str(e.label or "") for e in self.at.expander]
         self.assertTrue(any("Prova la tua giocata" in e for e in etichette), etichette)
         self.assertTrue(any(e.strip().endswith("Dettagli") for e in etichette), etichette)
@@ -318,21 +330,64 @@ class TestSchedeLettura(_BaseAppTest):
                                   f"parola vietata fuori dai Dettagli: {parola!r}")
         self.assertTrue(dentro, "i Dettagli devono contenere qualcosa")
 
+    def test_03b_pronostici_prima_del_clic_e_un_pulsante_solo(self):
+        """Punto 2: la scheda si apre sul pulsante, sulla riga dell'ultima
+        registrazione e sull'invito. Nessun numero, nessuna tabella, niente che
+        aspetti il giro del modello."""
+        import app as app_mod
+        fuori, dentro = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
+        testo = " \n".join(fuori)
+        self.assertIn("Ultima registrazione:", testo)
+        self.assertIn("Premi il pulsante per calcolare i pronostici della giornata.",
+                      testo)
+        self.assertEqual(1, len([b for b in _elementi_della_tab(
+            self.at, SCHEDA_PRONOSTICI, "button")
+            if "Calcola i pronostici della giornata" in (b.label or "")]),
+            "un solo pulsante di calcolo nella scheda")
+        self.assertEqual([], _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"),
+                         "prima del click non c'e' nessuna tabella")
+        self.assertEqual([], dentro, "e nessun riquadro chiuso")
+        for parola in ("Quote %", "Modello %", "Le scelte più sicure"):
+            with self.subTest(parola=parola):
+                self.assertNotIn(parola, testo)
+        # L'interruttore del periodo e' UNO SOLO e vive nella testa della scheda
+        # 🎯 Multiple: una chiave non puo' alimentare due widget nella stessa
+        # pagina, e le altre due schede leggono lo stesso stato
+        # (``periodo_selezionato``) dicendo dove si accende.
+        comandi = [t for t in self.at.toggle
+                   if (t.key or "") == app_mod.CHIAVE_PROSSIMI_GIORNI]
+        self.assertEqual(1, len(comandi),
+                         "un solo interruttore del periodo in tutta la pagina")
+        self.assertIn(app_mod.ETICHETTA_PROSSIMI_GIORNI,
+                      " \n".join(_testi_della_tab(self.at, SCHEDA_MULTIPLE)[0]),
+                      "e sta nella scheda Multiple")
+        self.assertNotIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, testo,
+                         "non duplicato in Pronostici")
+
+    def test_03c_pareggi_non_chiede_nessun_click(self):
+        """La scheda Pareggi legge le quote e basta: nessun pulsante, nessun
+        calcolo da attivare."""
+        fuori, dentro = _testi_della_tab(self.at, SCHEDA_PAREGGI)
+        testo = " \n".join(fuori)
+        self.assertTrue(testo, "la scheda Pareggi non deve essere bianca")
+        self.assertNotIn("Calcola i pronostici", testo)
+        self.assertEqual([], [e for e in _elementi_della_tab(
+            self.at, SCHEDA_PAREGGI, "button") if "Calcola" in (e.label or "")])
+
     def test_04_colonna_modello_percento_presente(self):
         """La vista mostra «Modello %» (probabilità del modello per lo stesso
         esito); il segnale «d'accordo» esce da TUTTA la parte in vista —
         colonna e conteggi nella caption — e resta solo nei Dettagli (campo
         nei dati, tabella tecnica)."""
-        fuori, dentro = _testi_della_tab(self.at, 0)
+        fuori, dentro = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
         self.assertIn("Modello %", testo)
         self.assertIn("Quote %", testo)
         self.assertNotIn("d'accordo", testo.lower(),
                          "«d'accordo» (colonna o conteggio) non sta piu' in vista")
-        self.assertIn("partite in tabella", testo,
-                      "la caption dice quante partite sono in tabella")
-        self.assertIn("d'accordo", " \n".join(dentro).lower(),
-                      "il campo resta nei Dettagli (tabella tecnica)")
+        # La caption del conteggio segue la tabella in «⚽ Pronostici», dopo il
+        # click: la legge test_apptest_scheda_pronostici.
+        self.assertNotIn("partite in tabella", testo)
 
     def test_05_andata_riepilogo_torna_con_i_conti_fatti_a_mano(self):
         """I numeri della frase in testa sono quelli delle righe del fixture."""
@@ -343,17 +398,17 @@ class TestSchedeLettura(_BaseAppTest):
         y_cento = int(round(100.0 * sum(self.prima_prob[x] for x in concluse) / n))
         attesa = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento}%). "
                   f"Quote: {y_cento}%. Modello: 63%.")
-        fuori, _ = _testi_della_tab(self.at, 2)
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
         self.assertIn(attesa, " \n".join(fuori))
 
     def test_06_andata_proposte_settimanali(self):
         """K e J lette dal registro ombra: 2 proposte, 1 riuscita."""
-        fuori, _ = _testi_della_tab(self.at, 2)
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
         self.assertIn("Le proposte settimanali registrate: 2, riuscite 1",
                       " \n".join(fuori))
 
     def test_07_andata_fuori_dai_dettagli_nessuna_parola_vietata(self):
-        fuori, _ = _testi_della_tab(self.at, 2)
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
         testo = " \n".join(fuori).lower()
         for parola in PAROLE_VIETATE:
             with self.subTest(parola=parola):
@@ -361,7 +416,7 @@ class TestSchedeLettura(_BaseAppTest):
                                   f"parola vietata fuori dai Dettagli di Com'è andata: {parola!r}")
 
     def test_08_andata_tecniche_nel_riquadro_chiuso(self):
-        _, dentro = _testi_della_tab(self.at, 2)
+        _, dentro = _testi_della_tab(self.at, SCHEDA_REGISTRO)
         testo = " \n".join(dentro).lower()
         for atteso in ("registro ombra", "brier"):
             with self.subTest(atteso=atteso):
@@ -390,14 +445,24 @@ class TestSchedeLettura(_BaseAppTest):
         self._toggle(self.at, "strumenti_avanzati").set_value(True)
         self.at.run(timeout=900)
         self.eccezioni(self.at, "strumenti avanzati accesi")
-        self.assertEqual(["🎯 Giocate", "🏟️ Partite", "📒 Com'è andata",
-                          "🔧 Strumenti avanzati"], self._etichette_schede(self.at))
-        fuori, _ = _testi_della_tab(self.at, 3)
+        self.assertEqual([SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE,
+                          SCHEDA_REGISTRO, SCHEDA_STRUMENTI],
+                         self._etichette_schede(self.at))
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_STRUMENTI)
         testo = " \n".join(fuori)
         self.assertIn("Elo", testo)
         self.assertIn("Backtest", testo)
-        # E le prime tre schede restano al loro posto.
-        self.assertIn("Per raddoppiare", " \n".join(_testi_della_tab(self.at, 0)[0]))
+        # La vecchia scheda «🏟️ Partite» non e' piu' una scheda: e' il pezzo in
+        # fondo a questa. Qui il calendario non e' stato sincronizzato, quindi
+        # della giornata si legge l'invito a premere SINCRONIZZA (il contenuto,
+        # con i pulsanti «Scheda», e' verificato in test_apptest_scheda_partita).
+        self.assertIn("SINCRONIZZA", testo)
+        self.assertFalse([b for b in self.at.button
+                          if (b.key or "").startswith("partite_scheda_")],
+                         "senza giornata non ci sono righe da elencare")
+        # E le altre schede non si spostano: il loro contenuto e' lo stesso.
+        self.assertIn("Per raddoppiare",
+                      " \n".join(_testi_della_tab(self.at, SCHEDA_MULTIPLE)[0]))
 
 
 class TestScrittureSoloSuClick(_BaseAppTest):
@@ -424,7 +489,8 @@ class TestScrittureSoloSuClick(_BaseAppTest):
                          "nemmeno il ridisegno scrive")
 
     def test_02_ultima_registrazione_letta_dal_registro(self):
-        fuori, _ = _testi_della_tab(self.at, 0)
+        # La riga sta in testa alla scheda che ha il pulsante: prima era «Giocate».
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
         self.assertIn("Ultima registrazione: venerdì 16/10/2026, ore 09:30",
                       " \n".join(fuori))
 
@@ -432,7 +498,7 @@ class TestScrittureSoloSuClick(_BaseAppTest):
         prima = len(self.storage_vivo)
         self.chiamate_registro.clear()
         bottoni = [b for b in self.at.button
-                   if "Registra le giocate della giornata" in (b.label or "")]
+                   if "Calcola i pronostici della giornata" in (b.label or "")]
         self.assertEqual(1, len(bottoni), "un solo pulsante di registrazione")
         bottoni[0].click()
         self.at.run(timeout=900)
@@ -453,15 +519,17 @@ class TestScrittureSoloSuClick(_BaseAppTest):
                                    msg=f"la prima registrazione di {mid} deve restare intatta")
         self.assertGreater(len(self.storage_vivo), prima,
                            "il clic aggiunge le giocate della giornata")
-        fuori, _ = _testi_della_tab(self.at, 0)
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
         testo = " \n".join(fuori)
         self.assertRegex(testo, r"Registrate \d+ giocate nuove|Niente di nuovo da registrare")
+        self.assertIn("Le scelte più sicure secondo le quote", testo,
+                      "dopo il click la tabella compare nella stessa scheda")
 
     def test_04_secondo_clic_sulle_stesse_quote_non_duplica(self):
         ids_prima = sorted(int(r["match_id"]) for r in self.storage_vivo)
         self.chiamate_registro.clear()
         [b for b in self.at.button
-         if "Registra le giocate della giornata" in (b.label or "")][0].click()
+         if "Calcola i pronostici della giornata" in (b.label or "")][0].click()
         self.at.run(timeout=900)
         self.eccezioni(self.at, "secondo clic")
         ids_dopo = sorted(int(r["match_id"]) for r in self.storage_vivo)
@@ -496,12 +564,26 @@ class TestScrittureSoloSuClick(_BaseAppTest):
         with mock.patch.object(requests, "get", get_giu):
             self.at.run(timeout=900)
         self.eccezioni(self.at, "confronto col modello non disponibile")
-        fuori, _ = _testi_della_tab(self.at, 0)
+        # «Per raddoppiare» sta nella scheda Multiple, la tabella dei pronostici
+        # in Pronostici. Qui non si preme niente: un confronto fallito non scrive
+        # e non toglie niente in vista (la caption dello stato segue la tabella,
+        # e la tabella arriva solo dopo un click: test_apptest_scheda_pronostici).
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
         self.assertIn("Per raddoppiare", testo,
                       "il confronto col modello non e' un prerequisito")
-        self.assertIn("Modello %: non disponibile", testo,
-                      "la caption dice una volta che il giro del modello non c'e'")
+        self.assertNotIn("Modello %: non disponibile", testo,
+                         "la caption dello stato sta sotto la tabella, non qui")
+        # In questa classe il click c'e' gia' stato (test 03): la tabella e'
+        # rimasta in vista, come promesso. Il lettore di AppTest duplica ogni
+        # caption (due attributi dello stesso elemento), quindi si conta sulle
+        # righe uniche: la frase dello stato deve comparire UNA volta sola, non
+        # una per riga.
+        fuori_pr, _ = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
+        uniche = list(dict.fromkeys(fuori_pr))
+        self.assertEqual(1, sum(t.count("Modello %: non disponibile") for t in uniche),
+                         "la caption dice una volta che il giro del modello non c'e'")
+        self.assertIn("Le scelte più sicure secondo le quote", " \n".join(fuori_pr))
         self.assertNotIn("n/d", testo,
                          "le celle restano vuote: nessuno stato scritto nella colonna")
         self.assertNotIn("d'accordo", testo.lower(),

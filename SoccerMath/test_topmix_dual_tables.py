@@ -284,20 +284,25 @@ class TestGuardieTab2(unittest.TestCase):
     def setUpClass(cls):
         cls.src = open(APP_PATH, encoding="utf-8").read()
         # Le scritture del Registro e il cablaggio del Top Mix vivono nella
-        # funzione chiamata dal pulsante «Registra le giocate della
+        # funzione chiamata dal pulsante «Calcola i pronostici della
         # giornata», non piu' nel corpo modulo della scheda.
         i = cls.src.index("def registra_giocate_della_giornata(")
         j = cls.src.index("\n\ndef ", i + 10)
         cls.tab2 = cls.src[i:j]
-        # La parte in VISTA della scheda (tabelle e avvisi) vive nel blocco
-        # ``with tab_giocate:``: due fette, perche' due sono i contratti.
-        k = cls.src.index("with tab_giocate:")
+        # La parte in VISTA delle schede nate dalla «Giocate» (tabelle, riquadri e
+        # avvisi) vive nei tre blocchi in ordine di scheda: ``with tab_pronostici``,
+        # ``with tab_pareggi``, ``with tab_multiple``. La fetta parte dal primo e
+        # finisce dove cominciano gli strumenti avanzati; la seconda fetta e' solo
+        # la scheda dove la tabella del mercato e' andata ad abitare.
+        k = cls.src.index("with tab_pronostici:")
         cls.scheda = cls.src[k:cls.src.index("\n# --- STRUMENTI AVANZATI", k)]
+        i = cls.src.index("def _scheda_pronostici(")
+        cls.pronostici = cls.src[i:cls.src.index("def _scheda_pareggi(", i)]
 
     def test_una_sola_tabella_quella_di_mercato(self):
         """Commessa 'quote live', punto 4: NESSUNA tabella visibile dei modelli."""
-        self.assertIn("_mostra_tabella_top_mix_mercato(righe_quote, stato_quote, adesso",
-                      self.scheda)
+        self.assertIn("_mostra_tabella_top_mix_mercato(", self.pronostici,
+                      "la tabella delle scelte del mercato e' una sola e sta in «Pronostici»")
         self.assertIn("calcolatore_multipla(righe_quote, adesso", self.scheda)
         # la vecchia tabella dei modelli non esiste piu' (ne' la chiamata, ne' i
         # titoli etichettati per motore)

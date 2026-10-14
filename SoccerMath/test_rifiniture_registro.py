@@ -773,7 +773,7 @@ class TestLayoutArchivioModelloStorico(unittest.TestCase):
     def setUpClass(cls):
         cls.src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
         cls.albero = ast.parse(cls.src)
-        cls.tab5 = cls.src[cls.src.index("with tab_andata:"):]
+        cls.tab5 = cls.src[cls.src.index("with tab_registro:"):]
 
     # ------------------------------------------------------------------ aiuti
     def _riquadro(self):
@@ -893,16 +893,16 @@ class TestLayoutArchivioModelloStorico(unittest.TestCase):
     def _riquadro_dettagli(self):
         """L'unico riquadro «Dettagli» della scheda Com'è andata.
 
-        Cercato DENTRO il blocco ``with tab_andata:``, non in tutto il file: la
+        Cercato DENTRO il blocco ``with tab_registro:``, non in tutto il file: la
         scheda Giocate ha un riquadro con la stessa etichetta.
         """
         radice = None
         for nodo in ast.walk(self.albero):
             if isinstance(nodo, ast.With) and nodo.items:
                 nome = nodo.items[0].context_expr
-                if isinstance(nome, ast.Name) and nome.id == "tab_andata":
+                if isinstance(nome, ast.Name) and nome.id == "tab_registro":
                     radice = nodo
-        self.assertIsNotNone(radice, "blocco `with tab_andata:` non trovato")
+        self.assertIsNotNone(radice, "blocco `with tab_registro:` non trovato")
         for nodo in ast.walk(radice):
             if isinstance(nodo, ast.With) and nodo.items:
                 testo = ast.get_source_segment(self.src, nodo.items[0].context_expr) or ""
