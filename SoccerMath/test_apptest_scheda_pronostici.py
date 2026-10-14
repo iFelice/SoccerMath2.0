@@ -779,6 +779,36 @@ class TestSchedaPronostici(_BaseQuoteFinte):
             vuote = sum(1 for v in df["Modello %"] if str(v) == "")
             self.assertGreaterEqual(vuote, 1, f"{scheda}: nessuna cella vuota da provare")
 
+    # -- 14. la vista tecnica del Top Mix sta nei Dettagli dei Pronostici ---
+    def test_14_la_vista_tecnica_del_top_mix_sta_nei_dettagli_dei_pronostici(self):
+        """La tabella tecnica «Top Mix — scelte del mercato» (fonte, eta' delle
+        quote, probabilita' del modello, segnale d'accordo) sta nel riquadro
+        chiuso «Dettagli» della scheda Pronostici, dopo il click: TUTTE le righe
+        del calcolo (in sessione stanno tutte, il periodo e' un filtro di
+        lettura della tabella in vista), e nessuna cella "None"/"nan" (vuota).
+        Nei Dettagli della scheda Multiple non c'e' piu'."""
+        import app as app_mod
+        if not _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"):
+            self._premi_click(self.at, ETICHETTA_CALCOLA)
+        _fuori, dentro = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
+        self.assertIn("Top Mix — scelte del mercato (vista tecnica)", " \n".join(dentro))
+        tabelle = _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe")
+        self.assertEqual(2, len(tabelle), "la tabella in vista e quella tecnica nei Dettagli")
+        tecnica = tabelle[1].value
+        if hasattr(tecnica, "data"):
+            tecnica = tecnica.data
+        self.assertEqual(app_mod.COLONNE_TOP_MIX_MERCATO + ["Lega", "Inizio"],
+                         list(tecnica.columns))
+        in_vista = self._df(self.at, SCHEDA_PRONOSTICI)
+        self.assertGreaterEqual(len(tecnica), len(in_vista))
+        partite_tecniche = {str(p).replace(" vs ", " - ") for p in tecnica["Partita"]}
+        for partita in in_vista["Partita"]:
+            self.assertIn(str(partita), partite_tecniche)
+        self.assertEqual([], self.NON_NUMERO.findall(tecnica.to_string(index=False)))
+        self.assertNotIn("n/d", tecnica.to_string(index=False))
+        _fuori_m, dentro_m = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
+        self.assertNotIn("vista tecnica", " \n".join(dentro_m))
+
     # -- 9. secondo click: una scrittura per click, nessuna riga doppia ----
     def test_09_secondo_click_non_duplica_niente(self):
         ids_prima = sorted(_id(r) for r in self.registro.vivo)
@@ -818,9 +848,26 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         df_x = self._df(self.at, SCHEDA_PAREGGI)
         self.assertEqual(COLONNE, list(df_x.columns))
         testo_multipla = self._testo(self.at, SCHEDA_MULTIPLE)
-        for atteso in ("Per raddoppiare", "Le più probabili"):
-            with self.subTest(atteso=atteso):
-                self.assertIn(atteso, testo_multipla)
+        self.assertIn("Le più probabili", testo_multipla)
+        # I riquadri delle proposte: uno per numero di partite che la ricerca
+        # trova su QUESTE quote (stessa funzione, stesso periodo), con il nome
+        # Singola/Doppia/Tripla/Quadrupla e il pulsante del calcolatore; la
+        # tabella «Per raddoppiare» sta nei Dettagli.
+        import app as app_mod
+        import lista_giocate as lg
+        res = lg.calcola_lista_giocate(self.payload, adesso_utc=self.ADESSO)
+        in_periodo = lg.giocate_nel_periodo(res["giocate"], self.ADESSO, "giornata")
+        per_k = {k: v for k, v in lg.cerca_proposta_multipla(in_periodo)["per_k"].items() if v}
+        chiavi = sorted(int((b.key or "").rsplit("_", 1)[1]) for b in
+                        _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "button")
+                        if (b.key or "").startswith("prova_quote_b365_"))
+        self.assertEqual(sorted(per_k), chiavi, "un riquadro per proposta trovata")
+        for k in per_k:
+            with self.subTest(k=k):
+                self.assertIn(app_mod.NOMI_MULTIPLA_PER_K[k], testo_multipla)
+        if not per_k:
+            self.assertIn(app_mod.FRASE_NESSUNA_COMBINAZIONE, testo_multipla)
+        self.assertNotIn("Per raddoppiare", testo_multipla)
         etichette_riquadri = "\n".join(str(e.label or "") for e in self.at.expander)
         self.assertIn("Prova la tua giocata", etichette_riquadri,
                       "il calcolatore resta nel suo riquadro")

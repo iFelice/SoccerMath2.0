@@ -443,8 +443,8 @@ class TestPresentazioneTopMix(unittest.TestCase):
         if cls.at.exception:
             raise AssertionError("eccezioni all'apertura: "
                                  f"{[e.value for e in cls.at.exception][:2]}")
-        # «Per raddoppiare» e «Le più probabili» si disegnano da soli all'apertura
-        # (leggono soltanto il file delle quote). La tabella delle scelte del
+        # I riquadri delle proposte e «Le più probabili» si disegnano da soli
+        # all'apertura (leggono soltanto il file delle quote). La tabella delle scelte del
         # mercato invece NO: da questa PR sta nella scheda ⚽ Pronostici e arriva
         # DOPO il click su «Calcola i pronostici della giornata», che la lascia
         # in ``session_state`` e la fa quindi restare in vista anche nei run
@@ -530,52 +530,72 @@ class TestPresentazioneTopMix(unittest.TestCase):
                                       f"parola vietata fuori dagli expander "
                                       f"di {scheda}: {parola!r}")
 
-    def test_04_il_riquadro_per_raddoppiare_rende_i_numeri_della_ricerca(self):
+    def test_04_i_riquadri_e_la_tabella_per_raddoppiare_rendono_i_numeri_della_ricerca(self):
+        """In vista i riquadri (Singola/Doppia/Tripla/Quadrupla) con quota e
+        «Riesce»; la tabella «Per raddoppiare» con «Su 100 € giocati tornano in
+        media» sta nei Dettagli. Stessi numeri di ``cerca_proposta_multipla``,
+        gli stessi di prima della riorganizzazione."""
+        import app as app_mod
         import lista_giocate as lg
         res = lg.calcola_lista_giocate(self.snap, adesso_utc=self.adesso)
         in_periodo = lg.giocate_nel_periodo(res["giocate"], self.adesso, "giornata")
         prop = lg.cerca_proposta_multipla(in_periodo)
         righe = lg.righe_riquadro_raddoppio(prop["per_k"], self.adesso)
 
-        fuori, _ = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
+        fuori, dentro = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
-        self.assertIn("Per raddoppiare", testo)
-        self.assertIn("Su 100 € giocati tornano in media", testo)
-        self.assertIn("Quote %", testo)
-        self.assertIn("Paga circa", testo)
+        testo_dentro = " \n".join(dentro)
+        self.assertNotIn("Per raddoppiare", testo)
+        self.assertIn("Per raddoppiare", testo_dentro)
+        self.assertIn("Su 100 € giocati tornano in media", testo_dentro)
+        self.assertIn("Quote %", testo_dentro)
+        self.assertIn("Paga circa", testo_dentro)
         if righe:
             for r in righe:
-                # «Quote %» = probabilita' combinata, numero con una cifra
-                # decimale (la resa della cella e' str(numero)).
-                self.assertIn(f"{round(r['probabilita'] * 100.0, 1)}", testo)
-                self.assertIn(r["paga"], testo)
-                self.assertIn(f"{r['ritorno_100']} €", testo)
-            # Ogni partita del riquadro: «<casa> - <trasferta>: <sigla>», la
-            # giocata come sola sigla (niente parole, niente sigla fra parentesi).
+                item = prop["per_k"][r["k"]]
+                # In vista: il riquadro con il suo nome, la quota totale e la
+                # probabilita' combinata in percentuale intera.
+                self.assertIn(app_mod.NOMI_MULTIPLA_PER_K[r["k"]], testo)
+                self.assertIn(lg.quota_italiana(item["quota_totale"]), testo)
+                self.assertIn(f"{int(round(item['probabilita'] * 100))}%", testo)
+                # Nei Dettagli: «Quote %» = probabilita' combinata, numero con
+                # una cifra decimale (la resa della cella e' str(numero)).
+                self.assertIn(f"{round(r['probabilita'] * 100.0, 1)}", testo_dentro)
+                self.assertIn(r["paga"], testo_dentro)
+                self.assertIn(f"{r['ritorno_100']} €", testo_dentro)
+            # Ogni partita: in vista «<casa> - <trasferta>» e sotto la sola
+            # sigla; nei Dettagli «<casa> - <trasferta>: <sigla>».
             for item in prop["per_k"].values():
                 for g in (item or {}).get("giocate", []):
+                    self.assertIn(f"{g['home']} - {g['away']}", testo)
                     self.assertIn(f"{g['home']} - {g['away']}: {str(g['giocata']).strip()}",
-                                  testo)
+                                  testo_dentro)
+            self.assertIn(app_mod.ETICHETTA_PROVA_QUOTE_BET365, testo)
         else:
-            self.assertIn("Oggi nessuna giocata paga fra 2 e 3 volte la puntata.", testo)
-        self.assertIn("Ogni partita aggiunta abbassa le probabilità di riuscita: "
-                      "di solito la giocata singola è quella che riesce più spesso.", testo)
+            self.assertIn(app_mod.FRASE_NESSUNA_COMBINAZIONE, testo)
+            self.assertIn("Oggi nessuna giocata paga fra 2 e 3 volte la puntata.", testo_dentro)
+        self.assertNotIn("Ogni partita aggiunta abbassa le probabilità di riuscita", testo)
 
     def test_05_le_piu_probabili_una_riga_per_partita_e_sopra_la_quota_minima(self):
         import lista_giocate as lg
         res = lg.calcola_lista_giocate(self.snap, adesso_utc=self.adesso)
         in_periodo = lg.giocate_nel_periodo(res["giocate"], self.adesso, "giornata")
-        attese = lg.migliori_giocate_per_partita(in_periodo, 1.20)[:10]
+        # TUTTE le righe, non piu' le prime 10: il «Mostra altre» non c'e' piu'.
+        attese = lg.migliori_giocate_per_partita(in_periodo, 1.20)
 
         fuori, _ = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
         self.assertIn("Le più probabili", testo)
         self.assertIn("Paga almeno", testo)
+        self.assertNotIn("Campionato", testo)
+        self.assertNotIn("Mostra altre", testo)
         # una sola riga per partita
         partite = [g["partita"] for g in attese]
         self.assertEqual(len(partite), len(set(partite)))
         for g in attese:
-            self.assertIn(g["partita"], testo)
+            # «Partita» come nelle altre schede: «Casa - Trasferta», senza
+            # testo aggiunto.
+            self.assertIn(f"{g['home']} - {g['away']}", testo)
             # Giocata = sola sigla (1, X, 2, 1X, X2, 12); «Quote %» = numero
             # con una cifra decimale al posto del testo in parole.
             self.assertIn(str(g["giocata"]).strip(), testo)
@@ -764,25 +784,28 @@ class TestPresentazioneTopMix(unittest.TestCase):
                                   f"parola vietata dentro «Prova la tua giocata»: {parola!r}")
 
     def _raddoppio_atteso(self):
-        """Il riquadro atteso dallo snapshot pinnato (come nei test sopra)."""
+        """Le proposte attese dallo snapshot pinnato (come nei test sopra)."""
         import lista_giocate as lg
         res = lg.calcola_lista_giocate(self.snap, adesso_utc=self.adesso)
         in_periodo = lg.giocate_nel_periodo(res["giocate"], self.adesso, "giornata")
         prop = lg.cerca_proposta_multipla(in_periodo)
         return lg.righe_riquadro_raddoppio(prop["per_k"], self.adesso), prop, in_periodo
 
-    def test_11_usa_nel_calcolatore_precarica_gambe_e_apre(self):
-        """Click su «Usa nel calcolatore»: expander aperto, numero e gambe
-        precaricate dalla proposta, caselle bet365 VUOTE, titolo e NUMERI che
-        coincidono con la riga del riquadro scelta."""
+    def test_11_prova_con_le_quote_bet365_precarica_gambe_e_apre(self):
+        """Click su «Prova con le quote bet365» (il vecchio «Usa nel
+        calcolatore»): expander aperto, numero e gambe precaricate dalla
+        proposta, caselle bet365 VUOTE, titolo e NUMERI che coincidono con il
+        riquadro scelto."""
+        import app as app_mod
         import lista_giocate as lg
         righe, prop, in_periodo = self._raddoppio_atteso()
-        assert righe, "il riquadro Per raddoppiare deve avere righe a questo istante"
+        assert righe, "le proposte devono avere righe a questo istante"
         riga = righe[0]
         k = int(riga["k"])
         bottoni = [b for b in self.at.button
-                   if str(getattr(b, "key", "") or "") == f"usa_calc_r_{k}"]
-        self.assertEqual(1, len(bottoni), f"il pulsante della riga k={k} non c'e'")
+                   if str(getattr(b, "key", "") or "") == f"prova_quote_b365_{k}"]
+        self.assertEqual(1, len(bottoni), f"il pulsante del riquadro k={k} non c'e'")
+        self.assertEqual(app_mod.ETICHETTA_PROVA_QUOTE_BET365, bottoni[0].label)
         bottoni[0].click()
         self.at.run(timeout=600)
         self.assertFalse(self.at.exception,

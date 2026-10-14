@@ -10,18 +10,17 @@ Cosa verifica, in parole povere:
 * le schede sono TRE all'apertura e la prima e' «🎯 Giocate»; con
   «🔧 Strumenti avanzati» acceso diventano QUATTRO e la quarta contiene Elo e
   Backtest invariati;
-* la scheda Giocate si GUARDA senza premere niente: riga dell'aggiornamento
-  quote, «Per raddoppiare», «Le più probabili», «Le scelte più sicure secondo
-  le quote», «Prova la tua giocata» e «Dettagli» sono gia' in pagina al primo
-  disegno;
+* la scheda Multiple si GUARDA senza premere niente: i riquadri delle
+  proposte (Singola/Doppia/Tripla/Quadrupla), «Le più probabili», «Prova la
+  tua giocata» e «Dettagli» sono gia' in pagina al primo disegno;
 * aprire la scheda (e ridisegnarla) NON scrive nulla: registro di mercato,
   registro ombra e proposte della settimana restano intatti finche' nessuno
   preme «📝 Registra le giocate della giornata»;
 * quel pulsante scrive, e un secondo clic sullo stesso turno di quote non
   aggiunge righe doppie;
 * se il confronto col modello non riesce, la caption lo dice una volta
-  («Modello %: non disponibile»), le celle restano vuote e «Per raddoppiare»
-  resta dov'e';
+  («Modello %: non disponibile»), le celle restano vuote e i riquadri delle
+  proposte restano dove sono;
 * la scheda «📒 Com'è andata» apre con il riepilogo in parole, i cui numeri
   tornano con quelli contati a mano sulle stesse righe, e il controllo dei
   risultati parte DA SOLO una volta per sessione (e non parte se nessuna
@@ -309,20 +308,28 @@ class TestSchedeLettura(_BaseAppTest):
                          "l'interruttore degli strumenti avanzati parte spento")
 
     def test_03_multiple_si_legge_senza_premere_niente(self):
-        """Le due liste per la multipla stanno in vista da subito; la tabella
-        delle scelte del mercato no: si e' spostata in «⚽ Pronostici» e vuole
-        un click."""
+        """I riquadri delle proposte e «Le più probabili» stanno in vista da
+        subito; la tabella delle scelte del mercato no: si e' spostata in
+        «⚽ Pronostici» e vuole un click."""
+        import app as app_mod
         fuori, dentro = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
-        for atteso in ("Per raddoppiare", "Le più probabili"):
-            with self.subTest(atteso=atteso):
-                self.assertIn(atteso, testo)
+        # Almeno un riquadro (a venerdi' lo snapshot ha le proposte): il titolo
+        # e' Singola/Doppia/Tripla/Quadrupla, e sotto c'e' «Le più probabili».
+        self.assertTrue(any(nome in testo for nome in app_mod.NOMI_MULTIPLA_PER_K.values()),
+                        "nessun riquadro delle proposte in vista")
+        self.assertIn(app_mod.ETICHETTA_PROVA_QUOTE_BET365, testo)
+        self.assertIn("Le più probabili", testo)
+        self.assertNotIn("Per raddoppiare", testo, "la tabella sta nei Dettagli")
         self.assertNotIn("Le scelte più sicure secondo le quote", testo)
         etichette = [str(e.label or "") for e in self.at.expander]
         self.assertTrue(any("Prova la tua giocata" in e for e in etichette), etichette)
         self.assertTrue(any(e.strip().endswith("Dettagli") for e in etichette), etichette)
-        # La riga dell'aggiornamento delle quote sta in testa alla scheda.
-        self.assertRegex(testo, r"[Qq]uote")
+        # Le quote dello snapshot sono di un giorno precedente: in testa alla
+        # scheda c'e' la stessa riga d'avviso dei Pronostici, e nient'altro.
+        self.assertIn("Quote di ", testo)
+        self.assertNotIn("Le quote vengono aggiornate ogni giorno", testo)
+        self.assertNotIn("Quote aggiornate oggi alle", testo)
         # Il tecnico (parole vietate della PR #64) sta nei riquadri chiusi.
         for parola in PAROLE_VIETATE:
             with self.subTest(parola=parola):
@@ -465,7 +472,7 @@ class TestSchedeLettura(_BaseAppTest):
                           if (b.key or "").startswith("partite_scheda_")],
                          "senza giornata non ci sono righe da elencare")
         # E le altre schede non si spostano: il loro contenuto e' lo stesso.
-        self.assertIn("Per raddoppiare",
+        self.assertIn("Le più probabili",
                       " \n".join(_testi_della_tab(self.at, SCHEDA_MULTIPLE)[0]))
 
 
@@ -546,7 +553,7 @@ class TestScrittureSoloSuClick(_BaseAppTest):
     def test_05_se_il_modello_non_risponde_il_resto_resta_in_piedi(self):
         """Giro del modello NON disponibile: le celle di «Modello %» restano
         vuote (numeri, non parole) e la caption lo dice UNA volta («Modello %:
-        non disponibile»); «Per raddoppiare» resta dove e'. Lo stato lo
+        non disponibile»); i riquadri delle proposte restano dove sono. Lo stato lo
         scriviamo direttamente in session (AppTest esegue lo script in un
         namespace separato: la funzione del giro non e' intercettabile dal
         ``import app`` dei test; la transizione in_calcolo -> fallito e'
@@ -568,14 +575,17 @@ class TestScrittureSoloSuClick(_BaseAppTest):
         with mock.patch.object(requests, "get", get_giu):
             self.at.run(timeout=900)
         self.eccezioni(self.at, "confronto col modello non disponibile")
-        # «Per raddoppiare» sta nella scheda Multiple, la tabella dei pronostici
-        # in Pronostici. Qui non si preme niente: un confronto fallito non scrive
-        # e non toglie niente in vista (la caption dello stato segue la tabella,
-        # e la tabella arriva solo dopo un click: test_apptest_scheda_pronostici).
+        # I riquadri delle proposte e «Le più probabili» stanno nella scheda
+        # Multiple, la tabella dei pronostici in Pronostici. Qui non si preme
+        # niente: un confronto fallito non scrive e non toglie niente in vista
+        # (la caption dello stato segue la tabella, e la tabella arriva solo
+        # dopo un click: test_apptest_scheda_pronostici).
         fuori, _ = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
-        self.assertIn("Per raddoppiare", testo,
+        self.assertIn("Le più probabili", testo,
                       "il confronto col modello non e' un prerequisito")
+        self.assertIn("Prova con le quote bet365", testo,
+                      "i riquadri delle proposte restano in vista")
         self.assertNotIn("Modello %: non disponibile", testo,
                          "la caption dello stato sta sotto la tabella, non qui")
         # In questa classe il click c'e' gia' stato (test 03): la tabella e'
