@@ -3203,6 +3203,12 @@ def _mostra_scheda_richiesta():
         with st.expander("Scheda partita", expanded=True):
             _dialogo_scheda_partita(richiesta)
 
+# L'interruttore che sostituisce i vecchi pulsanti radio «Periodo»: una scelta
+# sola, letta da Pronostici, Pareggi e Multiple. Le due costanti stanno QUI,
+# prima della barra delle schede, perche' e' li' che il widget viene disegnato.
+CHIAVE_PROSSIMI_GIORNI = "lg_periodo_prossimi"
+ETICHETTA_PROSSIMI_GIORNI = "Mostra anche i prossimi giorni"
+
 # --- SCHEDE ---
 # Quattro schede sempre in vista, nell'ordine in cui si usano: i pronostici della
 # giornata (la PRIMA, quindi quella aperta all'avvio), i pareggi, le multiple e il
@@ -3221,6 +3227,17 @@ _etichette_schede = [TITOLO_SCHEDA_PRONOSTICI, TITOLO_SCHEDA_PAREGGI,
                      TITOLO_SCHEDA_MULTIPLE, TITOLO_SCHEDA_REGISTRO]
 if strumenti_avanzati:
     _etichette_schede.append(TITOLO_SCHEDA_STRUMENTI)
+# --- IL PERIODO DI GIOCO, SOPRA LE SCHEDE (punto 8) ---
+# Un interruttore solo, FUORI da tutte le schede: accenderlo vuol dire chiedere
+# un'altra giornata, e la richiesta vale ovunque. Metterlo dentro una scheda
+# significava o duplicare la chiave (Streamlit non lo permette: due widget con
+# la stessa key nella stessa pagina vanno in conflitto) o spiegare a chi legge
+# dove andare a cercarlo; qui si vede da qualsiasi scheda, e nessuna frase deve
+# piu' nominarlo.
+st.toggle(ETICHETTA_PROSSIMI_GIORNI, key=CHIAVE_PROSSIMI_GIORNI,
+          help="Spento: le partite di questa giornata, fino a lunedì alle 23:59. "
+               "Acceso: tutte quelle in programma. Vale per «Pronostici», "
+               "«Pareggi» e «Multiple».")
 _schede = st.tabs(_etichette_schede)
 tab_pronostici, tab_pareggi, tab_multiple, tab_registro = _schede[:4]
 tab_strumenti = _schede[4] if len(_schede) > 4 else None
@@ -3510,11 +3527,6 @@ def percento_decimale(valore):
 # numero viene ricalcolato e nessun testo si aggiunge dentro la colonna Partita.
 COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"]
 
-# L'interruttore che sostituisce i vecchi pulsanti radio «Periodo»: una scelta
-# sola, letta da Pronostici, Pareggi e Multiple.
-CHIAVE_PROSSIMI_GIORNI = "lg_periodo_prossimi"
-ETICHETTA_PROSSIMI_GIORNI = "Mostra anche i prossimi giorni"
-
 # Il marcatore delle partite lontane (calcio d'inizio oltre 3 giorni) e la riga
 # unica che lo spiega sotto la tabella.
 MARCATORE_PARTITA_LONTANA = "⏳"
@@ -3531,8 +3543,8 @@ def periodo_selezionato():
 
     Interruttore spento: vale la regola di sempre, fino alle 23:59 del lunedi'.
     Acceso: escede dal confine e prende tutte le partite in programma. Il widget
-    sta una volta sola (in testa alla scheda Multiple) e qui si legge: tre
-    schede, un selettore.
+    sta una volta sola, sopra la barra delle schede, e qui si legge: tre schede,
+    un selettore.
     """
     if st.session_state.get(CHIAVE_PROSSIMI_GIORNI):
         return lg.PERIODO_TUTTE, lg.ETICHETTA_PERIODO_TUTTE
@@ -3559,11 +3571,69 @@ def _quando_breve(istante, lontana=False):
     return f"{testo} {MARCATORE_PARTITA_LONTANA}" if lontana else testo
 
 
+def frase_quote_vecchie(generato_il) -> str:
+    """L'avviso sulle quote non aggiornate oggi: UNA riga, in italiano.
+
+    Sostituisce la coppia di frasi che stava sopra la tabella — «Attenzione:
+    quote di martedi 13/10, non aggiornate oggi.» seguita da «Le quote sono
+    ferme a 3.0 giorni fa (aggiornate il 2026-10-13T16:04:13Z)...»: l'eta' in
+    giorni non serviva a nessuno, e la data ISO non la legge nessuno. Qui
+    restano il giorno, la data e l'ora ITALIANA in cui le quote sono state
+    scaricate, e il fatto che l'aggiornamento di oggi non c'e' ancora.
+    """
+    dt = (lg.parse_commence_time(generato_il) if isinstance(generato_il, str)
+          else generato_il)
+    if dt is None:
+        return ("⚠️ Quote senza data di aggiornamento leggibile: l'aggiornamento "
+                "di oggi non è ancora arrivato.")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    locale = dt.astimezone(ITALY_TZ)
+    return (f"⚠️ Quote di {lg.GIORNI_SETTIMANA_IT[locale.weekday()]} "
+            f"{locale.day:02d}/{locale.month:02d} alle {locale.strftime('%H:%M')}: "
+            "l'aggiornamento di oggi non è ancora arrivato.")
+
+
+def percentuale_in_colonna(valore, nd=""):
+    """Un numero di percentuale come TESTO con la virgola italiana: 66,0.
+
+    «Modello %» non e' una colonna numerica proprio per questo: una
+    ``NumberColumn`` col valore mancante si porta dietro un ``NaN`` che a
+    schermo non si vede ma nel testo reso si'. Una ``TextColumn`` con stringa
+    vuota e' una cella vuota e basta, dentro e fuori dallo schermo. Nessun
+    numero inventato: ``nd`` (vuoto di default) per tutto cio' che numero non e'.
+    """
+    if valore is None or isinstance(valore, bool):
+        return nd
+    try:
+        v = float(valore)
+    except (TypeError, ValueError):
+        return nd
+    if not math.isfinite(v):
+        return nd
+    return f"{v:.1f}".replace(".", ",")
+
+
+def cella_di_testo(valore) -> str:
+    """Una cella di testo della tabella: ``None``/NaN diventano ``""``.
+
+    Serve perche' le righe arrivano da costruttori diversi (mercato, lista
+    giocate): qualunque numero mancante deve arrivare in tabella come stringa
+    vuota, non come "None" o "nan" scritti in una cella.
+    """
+    if valore is None:
+        return ""
+    if isinstance(valore, float) and not math.isfinite(valore):
+        return ""
+    return str(valore)
+
+
 def _quota_in_colonna(valore):
     """«Quota» come numero finito con due decimali, ``None`` se non c'e'.
 
     ``None`` (e non 0, non "n/d", non "nan") perche' la cella resti vuota: una
-    quota che non c'e' non e' una quota a zero.
+    quota che non c'e' non e' una quota a zero. In tabella passa poi da
+    :func:`quota_in_colonna`, che ne fa testo con la virgola italiana.
     """
     if valore is None or isinstance(valore, bool):
         return None
@@ -3572,6 +3642,17 @@ def _quota_in_colonna(valore):
     except (TypeError, ValueError):
         return None
     return round(q, 2) if math.isfinite(q) else None
+
+
+def quota_in_colonna(valore, nd=""):
+    """«Quota» come TESTO con la virgola italiana: 1.42 -> ``"1,42"``.
+
+    Stesso motivo di ``percentuale_in_colonna``: nessun ``NaN`` e nessun
+    ``None`` in nessuna cella. La formattazione e' quella della lista giocate
+    (``lista_giocate.quota_italiana``), perche' «Quota» della tabella e «Paga
+    circa» della lista devono dirsi la stessa cosa.
+    """
+    return lg.quota_italiana(valore, nd=nd)
 
 
 def quota_b365_stimata(probabilita, lega):
@@ -3621,8 +3702,10 @@ def riga_pronostico_da_mercato(riga, adesso=None, stato_confronto=None,
         "Partita": f"{riga.get('home') or '?'} - {riga.get('away') or '?'}",
         "Pronostico": str(riga.get("esito") or "").strip(),
         "Quote %": percento_decimale(probabilita),
-        "Modello %": numero_modello_percento(riga, stato_confronto, mappa_modello_1x2),
-        "Quota": quota_b365_stimata(probabilita, riga.get("league") or riga.get("lega")),
+        "Modello %": percentuale_in_colonna(
+            numero_modello_percento(riga, stato_confronto, mappa_modello_1x2)),
+        "Quota": quota_in_colonna(
+            quota_b365_stimata(probabilita, riga.get("league") or riga.get("lega"))),
         "provvisoria": bool(lontana),
         "scheda": _righe_partita_da_giocata(riga),
     }
@@ -3645,8 +3728,9 @@ def riga_pronostico_da_giocata(giocata, adesso=None, stato_confronto=None,
         "Partita": f"{giocata.get('home') or '?'} - {giocata.get('away') or '?'}",
         "Pronostico": str(giocata.get("giocata") or giocata.get("esito") or "").strip(),
         "Quote %": percento_decimale(probabilita),
-        "Modello %": numero_modello_percento(giocata, stato_confronto, mappa_modello_1x2),
-        "Quota": _quota_in_colonna(giocata.get("quota_b365_stimata")),
+        "Modello %": percentuale_in_colonna(
+            numero_modello_percento(giocata, stato_confronto, mappa_modello_1x2)),
+        "Quota": quota_in_colonna(_quota_in_colonna(giocata.get("quota_b365_stimata"))),
         "provvisoria": bool(lontana),
         "scheda": _righe_partita_da_giocata(giocata),
     }
@@ -3655,10 +3739,12 @@ def riga_pronostico_da_giocata(giocata, adesso=None, stato_confronto=None,
 def tabella_pronostici_visibile(righe):
     """Il DataFrame delle tabelle «del periodo» e le righe nello stesso ordine.
 
-    Sei colonne nell'ordine ``COLONNE_PRONOSTICI``; le tre numeriche restano
-    NUMERI (``pd.to_numeric``: il vuoto e' NaN, una cella vuota e ordinabile, non
-    la stringa "None"), perche' il clic sull'intestazione deve ordinare per
-    valore. Ordine predefinito: «Quote %» decrescente, stabile (a parita' resta
+    Sei colonne nell'ordine ``COLONNE_PRONOSTICI``. Sola «Quote %» resta NUMERO
+    (``pd.to_numeric``), perche' e' quella per cui la tabella e' ordinata e il
+    clic sulla sua intestazione deve ordinare per valore; «Modello %» e «Quota»
+    sono TESTO gia' formattato (virgola italiana, stringa vuota dove il numero
+    manca) perche' nessuna cella di nessuna tabella possa rendere un "NaN" o un
+    "None". Ordine predefinito: «Quote %» decrescente, stabile (a parita' resta
     l'ordine della fonte).
 
     Ritorna ``(df, righe_ordinate)``: la seconda lista e' quella normalizzata
@@ -3667,8 +3753,9 @@ def tabella_pronostici_visibile(righe):
     """
     sorgente = [r for r in (righe or []) if isinstance(r, dict)]
     df = pd.DataFrame(sorgente, columns=COLONNE_PRONOSTICI)
-    for colonna in ("Quote %", "Modello %", "Quota"):
-        df[colonna] = pd.to_numeric(df[colonna], errors="coerce")
+    df["Quote %"] = pd.to_numeric(df["Quote %"], errors="coerce")
+    for colonna in ("Quando", "Partita", "Pronostico", "Modello %", "Quota"):
+        df[colonna] = df[colonna].map(cella_di_testo)
     if df.empty:
         return df, []
     df = df.sort_values("Quote %", ascending=False, na_position="last", kind="mergesort")
@@ -3716,11 +3803,13 @@ def _apri_scheda_della_riga(evento, chiave_widget, righe_ordinate):
 
 
 def _config_colonne_pronostici():
-    """Le colonne delle tabelle «del periodo»: numeri veri e una cella vuota.
+    """Le colonne delle tabelle «del periodo»: un numero e cinque di testo.
 
-    «Quote %» e «Modello %» con una cifra decimale, «Quota» con due. I suggeritori
-    dicono cosa legge la colonna, perche' il segno da solo (1, X, 2) non basta a
-    chi non gioca.
+    «Quote %» e' numerica con una cifra decimale (e' quella per cui si ordina);
+    «Modello %» e «Quota» sono testo gia' formattato — una cifra e due cifre
+    decimali con la virgola italiana, e stringa vuota dove manca il numero —
+    cosi' non compare mai un "NaN" né un "None". I suggeritori dicono cosa legge
+    la colonna, perche' il segno da solo (1, X, 2) non basta a chi non gioca.
     """
     return {
         "Quando": st.column_config.TextColumn(
@@ -3734,12 +3823,15 @@ def _config_colonne_pronostici():
         "Quote %": st.column_config.NumberColumn(
             "Quote %", format="%.1f%%",
             help="Probabilità dell'esito secondo le quote dei bookmaker."),
-        "Modello %": st.column_config.NumberColumn(
-            "Modello %", format="%.1f%%",
-            help="Probabilità dello stesso esito secondo il nostro modello (Drago). "
-                 "Vuota quando il calcolo non è disponibile."),
-        "Quota": st.column_config.NumberColumn(
-            "Quota", format="%.2f", help="Quota bet365 stimata"),
+        # Le due colonne che possono restare senza numero sono DI TESTO: cosi'
+        # la cella vuota e' vuota davvero, senza "NaN" scritti nella tabella.
+        "Modello %": st.column_config.TextColumn(
+            "Modello %",
+            help="Probabilità dello stesso esito secondo il nostro modello "
+                 "(Drago), in percentuale. Vuota dove il modello non ha una "
+                 "lettura per quell'esito."),
+        "Quota": st.column_config.TextColumn(
+            "Quota", help="Quota bet365 stimata: quante volte paga la puntata."),
     }
 
 
@@ -3760,25 +3852,21 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     _apri_scheda_della_riga(evento, chiave_widget, righe_ordinate)
 
 
-def caption_scelte_secondo_le_quote(n_righe, stato_confronto, nascoste=0):
+def caption_scelte_secondo_le_quote(n_righe, nascoste=0):
     """La caption sotto il titolo «Le scelte più sicure secondo le quote».
 
-    «<N> partite in tabella», lo stato di «Modello %» quando il giro del
-    modello non e' pronto (detto UNA volta sola: le celle della colonna
-    restano numeri, vuote finche' il giro non c'e') e, se pertinente, la
-    frase sulle partite dopo lunedì, che nomina l'interruttore del periodo.
-    Nessun conteggio del segnale "d'accordo" in vista: e' un dettaglio del
-    riquadro chiuso.
+    Due fatti e nient'altro: quante partite sono in tabella e, con l'interruttore
+    del periodo spento, quante ne restano fuori perche' giocano dopo il lunedì.
+    Nessuna indicazione su DOVE stia l'interruttore — sta sopra le schede, si
+    vede da qualsiasi scheda — e nessuna frase sullo stato di «Modello %»: la
+    colonna e' vuota dove il modello non ha una lettura e il suo suggeritore lo
+    dice, ripeterlo in una caption significherebbe parlare di una colonna senza
+    numeri. Nessun conteggio del segnale "d'accordo" in vista: e' un dettaglio
+    del riquadro chiuso.
     """
-    parti = [f"{n_righe} partite in tabella"]
-    if stato_confronto != "pronto":
-        parti.append("Modello %: in calcolo"
-                     if stato_confronto in (None, "in_calcolo")
-                     else "Modello %: non disponibile")
-    frase = " · ".join(parti) + "."
+    frase = f"{n_righe} partite in tabella."
     if nascoste > 0:
-        frase += (f" Altre {nascoste} dopo lunedì: «{ETICHETTA_PROSSIMI_GIORNI}» "
-                  "si accende nella scheda 🎯 Multiple.")
+        frase += f" Altre {nascoste} nei prossimi giorni."
     return frase
 
 
@@ -3813,17 +3901,15 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
     meta = quote_meta if isinstance(quote_meta, dict) else {}
     stato = meta.get("stato")
     if stato == STATO_OK:
-        st.caption(lg.aggiornamento_quote_parole(meta.get("generato_il"), adesso))
         if meta.get("obsoleto") and meta.get("eta_ore") is not None:
             # Quote vecchie: le righe RESTANO visibili (meglio una quota vecchia
-            # dichiarata che una tabella vuota senza spiegazione), ma la data
-            # si legge qui, non va indovinata.
-            eta = meta["eta_ore"]
-            st.warning(
-                f"⚠️ Le quote sono ferme a {eta / 24.0:.1f} giorni fa "
-                f"(aggiornate il {meta.get('generato_il') or 'n/d'}): l'aggiornamento "
-                "quotidiano non e' riuscito, quindi le probabilita' qui sotto sono "
-                "quelle di allora.")
+            # dichiarata che una tabella vuota senza spiegazione) e lo si dice
+            # in UNA riga, con la data italiana. La riga di freschezza di
+            # ``aggiornamento_quote_parole`` non si aggiunge anche lei: sarebbe
+            # la stessa cosa detta due volte, con in piu' una data ISO.
+            st.warning(frase_quote_vecchie(meta.get("generato_il")))
+        else:
+            st.caption(lg.aggiornamento_quote_parole(meta.get("generato_il"), adesso))
     elif stato is not None:
         st.caption(_DETTAGLIO_STATO_QUOTE.get(stato, stato))
     else:
@@ -3855,12 +3941,10 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
         quando = (f" La prima in tabella gioca {lg.quando_italiano(prossima)}."
                   if prossima else "")
         st.info(f"In questa giornata nessuna partita della tabella.{quando} "
-                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» nella scheda 🎯 Multiple "
-                "per vederle.")
+                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» in alto per vederle.")
         return
     nascoste = len(righe) - len(in_periodo)
-    st.caption(caption_scelte_secondo_le_quote(len(in_periodo), stato_confronto,
-                                               nascoste=nascoste))
+    st.caption(caption_scelte_secondo_le_quote(len(in_periodo), nascoste=nascoste))
     _mostra_tabella_periodo([riga_pronostico_da_mercato(p, adesso, stato_confronto,
                                                         mappa_modello_1x2)
                              for p in in_periodo], chiave_widget)
@@ -4057,13 +4141,14 @@ def numero_modello_percento(riga, stato, mappa_1x2):
 
     * calcolo non ancora terminato, fallito, partita non coperta dal giro
       del modello, oppure modello senza numero per quella partita ->
-      ``None``: la cella resta VUOTA (nessuno stato scritto nella cella,
-      nessuno zero inventato) — lo stato lo dice una volta sola la caption
-      della sezione;
+      ``None``: la cella resta VUOTA — nessuno stato scritto nella cella,
+      nessuno zero inventato, nessun "NaN" nel testo reso;
     * calcolo pronto -> percento del modello per lo STESSO esito della riga
       (doppie chance: somma delle due probabilita' 1X2), numero con una
-      cifra decimale: la colonna resta numerica e l'ordinamento al clic e'
-      numerico.
+      cifra decimale: il numero esce da qui e la tabella lo mette in testo con
+      la virgola (:func:`percentuale_in_colonna`), perche' una colonna che puo'
+      restare senza numero non deve rendere "NaN". L'ordinamento della tabella
+      resta quello di «Quote %».
     """
     if stato != "pronto":
         return None
@@ -4460,8 +4545,9 @@ def righe_piu_probabili_visibili(migliori, adesso=None, stato_confronto=None,
     "Quote %" e' la probabilita' della giocata secondo le quote e "Modello %"
     quella del modello Drago per lo STESSO esito — per le doppie chance la
     somma delle due probabilita' 1X2, letta dal giro del modello (sola
-    lettura). ENTRAMBE restano colonne numeriche con una cifra decimale;
-    quando il giro non e' pronto o non copre la partita la cella e' vuota.
+    lettura). «Quote %» resta numerica con una cifra decimale; «Modello %» e'
+    testo con la virgola italiana e stringa vuota quando il giro non e' pronto o
+    non copre la partita: una cella vuota non deve mai rendere "NaN".
     Ordinamento predefinito: "Quote %" decrescente.
     """
     colonne = ["Quando", "Partita", "Giocata", "Quote %", "Modello %", "Paga circa"]
@@ -4472,7 +4558,8 @@ def righe_piu_probabili_visibili(migliori, adesso=None, stato_confronto=None,
             "Partita": g.get("partita", "") + lg.suffisso_provvisoria(g, adesso),
             "Giocata": str(g.get("giocata") or "").strip(),
             "Quote %": percento_decimale(g.get("probabilita")),
-            "Modello %": numero_modello_percento(g, stato_confronto, mappa_modello_1x2),
+            "Modello %": percentuale_in_colonna(
+                numero_modello_percento(g, stato_confronto, mappa_modello_1x2)),
             "Paga circa": lg.paga_circa(g.get("quota_b365_stimata")),
         })
     df = pd.DataFrame(rows, columns=colonne)
@@ -4518,13 +4605,13 @@ def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
                          "Quote %",
                          format="%.1f%%",
                          help="Probabilità della giocata secondo le quote dei bookmaker."),
-                     "Modello %": st.column_config.NumberColumn(
+                     "Modello %": st.column_config.TextColumn(
                          "Modello %",
-                         format="%.1f%%",
                          help="Probabilità dello stesso esito secondo il nostro modello "
                               "(Drago); per le doppie chance è la somma delle due "
-                              "probabilità 1X2. Vuota finché il giro del modello non è "
-                              "pronto."),
+                              "probabilità 1X2. Vuota dove il modello non ha una "
+                              "lettura: la cella non scrive stati né numeri "
+                              "inventati."),
                  })
     if len(migliori) > n_mostrate:
         if st.button(f"Mostra altre (ne restano {len(migliori) - n_mostrate})",
@@ -4717,26 +4804,27 @@ def _mostra_intestazione_giocate(payload, adesso, res):
     quote, quindi questa parte non aspetta il giro del modello.
 
     Il periodo non sono piu' i pulsanti radio «Periodo» ma un interruttore solo,
-    «Mostra anche i prossimi giorni». Sta qui, e non si ripete nelle altre schede,
-    perche' una chiave non puo' alimentare due widget nella stessa pagina: le
-    schede Pronostici e Pareggi leggono lo stesso stato (``periodo_selezionato``)
-    e, quando serve, dicono che l'interruttore e' qui.
+    «Mostra anche i prossimi giorni», che pero' NON sta qui: vive sopra la barra
+    delle schede perche' lo leggono anche Pronostici e Pareggi. Qui si legge
+    soltanto il valore, con ``periodo_selezionato``: tre schede, un selettore.
     """
     if not payload:
         st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
         return []
     giocate = res.get("giocate", [])
 
-    # Freschezza delle quote in testa alla scheda (punto 8), in italiano.
-    st.caption(lg.aggiornamento_quote_parole(payload.get("generato_il"), adesso))
+    # Freschezza delle quote in testa alla scheda (punto 8), in italiano. Una
+    # riga sola e con la STESSA forma dell'avviso della scheda Pronostici:
+    # "Attenzione: quote di ieri, non aggiornate oggi." non esiste piu', perche'
+    # due modi di dire la stessa cosa sono due cose da leggere.
+    _freschezza = lg.aggiornamento_quote_parole(payload.get("generato_il"), adesso)
+    if _freschezza.startswith("Attenzione: quote"):
+        st.warning(frase_quote_vecchie(payload.get("generato_il")))
+    else:
+        st.caption(_freschezza)
 
-    # Periodo di gioco (punto 8): di default fino al lunedì alle 23:59, e
-    # l'interruttore che aggiunge i giorni successivi — due stati, un widget
-    # solo, le tre schede che leggono lo stesso valore.
-    st.toggle(ETICHETTA_PROSSIMI_GIORNI, key=CHIAVE_PROSSIMI_GIORNI,
-              help="Spento: le partite di questa giornata, fino a lunedì alle 23:59. "
-                   "Acceso: tutte quelle in programma. Vale anche per le schede "
-                   "«Pronostici» e «Pareggi».")
+    # Periodo di gioco (punto 8): l'interruttore sta sopra la barra delle
+    # schede, qui si legge il valore — due stati, un widget, tre schede.
     periodo_val, _periodo_lbl = periodo_selezionato()
     in_periodo = lg.giocate_nel_periodo(giocate, adesso, periodo_val)
 
@@ -4820,11 +4908,11 @@ def _scheda_pronostici():
     niente di nuovo / salvataggio fallito) e il dettaglio tecnico e' nel riquadro
     chiuso in fondo: la riga deve poter essere letta da sola.
     """
+    # Nessun testo sotto il pulsante: dice cosa fa il pulsante, che si legge
+    # dall'etichetta, e ripeteva una promessa (nessun servizio esterno) che
+    # riga per riga non aggiunge nulla a chi guarda la scheda.
     if st.button("📝 Calcola i pronostici della giornata", type="primary",
-                 key="btn_calcola_pronostici",
-                 help="Calcola le scelte della giornata sulle quote del file, le "
-                      "registra nel Registro e mostra la tabella qui sotto. Nessun "
-                      "servizio esterno viene chiamato."):
+                 key="btn_calcola_pronostici"):
         calcola_pronostici_giornata()
     st.caption(ultima_registrazione_mercato())
     risultato = pronostici_in_sessione()
@@ -4874,8 +4962,8 @@ def _scheda_pareggi():
                if str(g.get("giocata") or g.get("esito") or "").strip() == "X"]
     if not pareggi:
         st.info(f"Nessun pareggio in programma nel periodo scelto. "
-                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» nella scheda 🎯 Multiple "
-                "per guardare più avanti.")
+                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» in alto per guardare "
+                "più avanti.")
         return
     stato_confronto, mappa_modello_1x2 = stato_confronto_in_lettura()
     _mostra_tabella_periodo([riga_pronostico_da_giocata(g, adesso, stato_confronto,
@@ -5371,10 +5459,12 @@ def _tabella_registro_mercato_visibile(df):
     SOLA sigla (1, X, 2, 1X, X2, 12), "Quote %" e "Modello %" sono quelle
     della PRIMA registrazione (i campi ``prob_mercato_prima``/
     ``prob_modello_prima`` della riga: e' quello che si aveva in mano quando
-    la giocata e' entrata in tabella) come numeri con una cifra decimale, per
-    un ordinamento al clic numerico. Risultato ed Esito restano quelli del
-    Registro; il segnale "d'accordo" esce dalla vista e resta nei dati e nei
-    Dettagli.
+    la giocata e' entrata in tabella). «Quote %» e' un numero con una cifra
+    decimale, per l'ordinamento al clic; «Modello %» e' testo con la virgola
+    italiana e stringa vuota dove il campo manca — come nelle schede Pronostici
+    e Pareggi, nessuna cella rende "NaN" o "None". Risultato ed Esito restano
+    quelli del Registro (vuoti, non "None", le righe da giocare); il segnale
+    "d'accordo" esce dalla vista e resta nei dati e nei Dettagli.
     """
     records = df.to_dict("records") if hasattr(df, "to_dict") else []
     quando = [q.strftime("%d/%m/%Y %H:%M") if hasattr(q, "strftime") else str(q or "")
@@ -5385,10 +5475,10 @@ def _tabella_registro_mercato_visibile(df):
         "Partita": [f"{r.get('home')} vs {r.get('away')}" for r in records],
         "Giocata": [str(r.get("mercato_standard") or "").strip() for r in records],
         "Quote %": [percento_prima_registrazione(r) for r in records],
-        "Modello %": [percento_decimale(r.get(PROB_MODELLO_PRIMA_FIELD))
-                      for r in records],
-        "Risultato": df["risultato_reale"].tolist(),
-        "Esito": df["esito"].tolist(),
+        "Modello %": [percentuale_in_colonna(
+            percento_decimale(r.get(PROB_MODELLO_PRIMA_FIELD))) for r in records],
+        "Risultato": [cella_di_testo(v) for v in df["risultato_reale"].tolist()],
+        "Esito": [cella_di_testo(v) for v in df["esito"].tolist()],
     })
 
 
@@ -5551,11 +5641,11 @@ def _mostra_registro_mercato(righe, altezza=420):
             "Quote %",
             format="%.1f%%",
             help="Probabilità della scelta alla PRIMA registrazione, dalle quote."),
-        "Modello %": st.column_config.NumberColumn(
+        "Modello %": st.column_config.TextColumn(
             "Modello %",
-            format="%.1f%%",
             help="Probabilità del nostro modello (Drago) per lo stesso esito, "
-                 "alla prima registrazione."),
+                 "alla prima registrazione. Vuota dove il Registro non aveva "
+                 "una lettura del modello."),
     }
     if not concluse.empty:
         st.dataframe(_tabella_registro_mercato_visibile(
@@ -5666,7 +5756,7 @@ with tab_pareggi:
 
 with tab_multiple:
     st.caption("Le quote vengono aggiornate ogni giorno: l'app non chiama nessun servizio "
-               "esterno. Le scelte 1X2 dei due modelli interni non sono piu' in tabella: "
+               "esterno. Le scelte 1X2 dei due modelli interni non sono più in tabella: "
                "continuano a essere annotate dietro le quinte, per il controllo dei risultati.")
     # --- La scheda si GUARDA, non si preme ---
     # Tutto quello che segue nasce dal file delle quote (``live_odds.json``,

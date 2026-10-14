@@ -23,14 +23,18 @@ Cosa prova, sul VERO ``app.py``:
 * il click calcola la giornata sulle quote del file, la registra nel Registro e
   lascia in vista UNA tabella con le sei colonne promesse (Quando, Partita,
   Pronostico, Quote %, Modello %, Quota), ordinate per «Quote %» decrescente,
-  con la «Quota» = stima bet365 di QUELLA riga e «Modello %» vuoto finche' il
-  giro del modello non e' pronto (punti 2 e 4);
-* l'interruttore del periodo (sta nella scheda 🎯 Multiple, perche' una chiave
-  non puo' alimentare due widget nella stessa pagina) cambia GIORNATA: la tabella
-  dei pronostici si ritira e chiede un click nuovo — cosi' non si mescolano mai
-  righe di due periodi — mentre la scheda Pareggi, che un click non ce l'ha, si
-  allunga e basta; al click nuovo compare anche la partita dopo il lunedi', col
-  marcatore ⏳ e la sua legenda sotto la tabella (punti 1 e 2);
+  con la «Quota» = stima bet365 di QUELLA riga; «Modello %» e «Quota» sono testo
+  formattato (virgola italiana) e la loro cella vuota e' una stringa vuota, non
+  un "NaN" né un "None" — e la caption dice solo quante partite sono in tabella
+  e quante restano nei prossimi giorni (punti 2 e 4);
+* l'interruttore del periodo e' UN widget solo, e sta SOPRA la barra delle
+  schede: lo leggono Pronostici, Pareggi e Multiple e nessuno dei tre testi
+  rimanda a un'altra scheda per cercarlo. Cambiare periodo vuol dire chiedere
+  un'altra giornata: la tabella dei pronostici si ritira e chiede un click nuovo
+  — cosi' non si mescolano mai righe di due periodi — mentre la scheda Pareggi,
+  che un click non ce l'ha, si allunga e basta; al click nuovo compare anche la
+  partita dopo il lunedi', col marcatore ⏳ e la sua legenda sotto la tabella
+  (punti 1 e 2);
 * cliccare una riga apre la scheda partita di QUELLA riga e non scrive niente:
   nessun salvataggio nel Registro, nessuna chiamata di rete in uscita (punto 3);
 * «🟰 Pareggi» elenca le X del periodo in ordine di probabilita', senza
@@ -421,6 +425,21 @@ class _BaseQuoteFinte(unittest.TestCase):
                 return b
         raise AssertionError(f"pulsante {etichetta!r} non trovato")
 
+    def _nessun_non_numero(self, df):
+        """Nessuna cella di nessuna tabella rende un non-numero.
+
+        Si guarda il DataFrame RESO (dtype e celle), perche' e' li' che un
+        ``NaN`` numerico ricompare quando qualcuno trascrive la tabella o la
+        legge da AppTest: le colonne che possono mancare di un numero sono di
+        TESTO, con stringa vuota.
+        """
+        for colonna in df.columns:
+            for cella in df[colonna]:
+                test = str(cella).strip().lower()
+                self.assertNotIn(test, ("nan", "none", "nat"),
+                                 f"cella di {colonna!r} che rende {test!r}")
+                self.assertNotIn("n/d", test, "nessuno «n/d» in una cella in tabella")
+
     @staticmethod
     def _toggle(at, chiave: str, valore: bool):
         """Accende/spegne l'interruttore del periodo e ridisegna."""
@@ -481,6 +500,12 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertIn(attesa, testo, "la riga dice l'ultima scrittura del Registro")
         self.assertIn("Premi il pulsante per calcolare i pronostici della giornata.",
                       testo)
+        # Sotto il pulsante non c'e' nessun'altra frase: l'aiuto che spiegava il
+        # giro ("Calcola le scelte della giornata sulle quote del file... Nessun
+        # servizio esterno viene chiamato.") e' tolto, e con lui la promessa che
+        # nessuno ha chiesto di leggere ogni volta.
+        self.assertNotIn("Nessun servizio esterno viene chiamato", testo)
+        self.assertNotIn("Calcola le scelte della giornata", testo)
         self.assertEqual([], _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"),
                          "nessuna tabella, prima del click")
         self.assertEqual([], _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "expander"),
@@ -547,17 +572,24 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                   for _mid, casa, trasferta, _p, kickoff in self.partite}
         self.assertEqual([_quando_italiano(calcio[p]) for p in df["Partita"]],
                          list(df["Quando"]), "data e ora italiane nella colonna stretta")
-        # «Modello %» resta NUMERICO e vuoto finche' il giro non c'e': il clic
-        # sull'intestazione deve poter ordinare, e una cella vuota non e' "n/d".
-        self.assertTrue(df["Modello %"].isna().all(), list(df["Modello %"]))
+        # «Modello %» e «Quota» sono TESTO formattato: qui il giro del modello
+        # non c'e', quindi le tre celle sono tre stringhe vuote. Non un NaN, non
+        # un "n/d", non una colonna numerica che si trascrive "nan".
+        self.assertEqual(["", "", ""], list(df["Modello %"]), list(df["Modello %"]))
+        self._nessun_non_numero(df)
+        # ...e vale anche per la tabella dei pareggi, che di righe senza lettura
+        # del modello ne ha di mestiere.
+        self._nessun_non_numero(self._df(self.at, SCHEDA_PAREGGI))
         uniche = self._uniche(self.at, SCHEDA_PRONOSTICI)
         testo = " \n".join(uniche)
-        self.assertEqual(1, sum(t.count("Modello %: non disponibile") for t in uniche),
-                         "lo stato del modello e' detto una volta sola, non riga per riga")
-        self.assertIn("3 partite in tabella", testo)
-        self.assertIn("Altre 1 dopo lunedì", testo, "le partite fuori periodo si dichiarano")
-        # (l'emoji la toglie il lettore di AppTest: ``WEB_SAFE``)
-        self.assertIn("Multiple", testo, "e si dice DOVE sta l'interruttore")
+        self.assertIn("3 partite in tabella.", testo)
+        self.assertIn("Altre 1 nei prossimi giorni.", testo,
+                      "le partite fuori periodo si dichiarano")
+        self.assertNotIn("Modello %: non disponibile", testo,
+                         "la caption non parla piu' dello stato del modello")
+        self.assertNotIn("dopo lunedì", testo, "e non nomina l'interruttore")
+        self.assertNotIn("Multiple", testo, "né manda il lettore in un'altra scheda")
+        self.assertNotIn("Accendi", testo, "l'interruttore sta sopra le schede: non serve dirlo")
         # L'esito del click sta in UNA riga, e le righe restano in sessione.
         self.assertRegex(testo, r"Registrate \d+ giocate nuove|Niente di nuovo da registrare")
         self.assertEqual(1, len([t for t in uniche
@@ -586,20 +618,23 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                 riga = df[df["Partita"] == partita].iloc[0]
                 attesa = lg.stima_quota_b365_1x2(p, "Serie A")
                 self.assertIsNotNone(attesa, "nel fixture la stima dev'esserci")
-                self.assertAlmostEqual(round(float(attesa), 2), round(float(riga["Quota"]), 2),
-                                       places=2,
-                                       msg="la «Quota» della riga dev'essere la stima "
-                                           "bet365 di QUELLA riga")
-        # Due decimali, come promesso, e nessun numero inventato: la colonna e'
-        # finita e maggiore di uno.
+                # La cella e' la stima scritta in italiano: 1,55 e non "nan",
+                # non 1.55, non "n/d".
+                self.assertEqual(lg.quota_italiana(attesa), riga["Quota"],
+                                 "la «Quota» della riga dev'essere la stima bet365 "
+                                 "di QUELLA riga")
+        # Due decimali con la virgola, come promesso, e nessun numero inventato:
+        # ogni cella e' finita e maggiore di uno.
         for q in df["Quota"]:
-            q = float(q)
-            self.assertGreater(q, 1.0)
-            self.assertEqual(round(q, 2), q)
+            self.assertRegex(str(q), r"^\d+,\d{2}$")
+            self.assertGreater(float(str(q).replace(",", ".")), 1.0)
         # Piu' probabilita' vuol dire quota piu' bassa: se la colonna fosse
         # spostata di una riga, questo si romperebbe.
-        ordinate = df.sort_values("Quote %", ascending=False)
-        self.assertEqual(sorted(df["Quota"].tolist()), list(ordinate["Quota"]))
+        per_quota = sorted(float(str(q).replace(",", ".")) for q in df["Quota"])
+        by_quote = df.sort_values("Quote %", ascending=False)
+        self.assertEqual(per_quota,
+                         sorted(float(str(q).replace(",", ".")) for q in by_quote["Quota"]),
+                         "l'ordine della tabella e' «Quote %» decrescente")
 
     # -- 5. il clic su una riga apre la scheda, senza scrivere -------------
     def test_05_cliccare_una_riga_apre_la_scheda_di_quella_partita(self):
@@ -686,8 +721,9 @@ class TestSchedaPronostici(_BaseQuoteFinte):
             df = self._df(self.at, SCHEDA_PRONOSTICI)
             self.assertEqual(chiuse + 1, len(df), "la partita lontana si aggiunge")
             self.assertIn("Milan - Juventus", list(df["Partita"]))
-            self.assertIn("4 partite in tabella", self._testo(self.at, SCHEDA_PRONOSTICI))
-            self.assertNotIn("dopo lunedì", self._testo(self.at, SCHEDA_PRONOSTICI))
+            self.assertIn("4 partite in tabella.", self._testo(self.at, SCHEDA_PRONOSTICI))
+            self.assertNotIn("nei prossimi giorni", self._testo(self.at, SCHEDA_PRONOSTICI),
+                             "con l'interruttore acceso non c'e' niente da dichiarare")
             # ⏳ solo sulla riga lontana, e la sua legenda una volta sola.
             lontane = [q for q in df["Quando"] if str(q).endswith("⏳")]
             self.assertEqual(1, len(lontane), list(df["Quando"]))
@@ -700,6 +736,48 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         finally:
             self._toggle(self.at, app_mod.CHIAVE_PROSSIMI_GIORNI, False)
             self.at.run(timeout=900)
+
+    # -- 13. zero "NaN" e zero "None" nel testo reso ----------------------
+    NON_NUMERO = re.compile(r"\b(nan|none|nat)\b", re.IGNORECASE)
+
+    def test_13_nel_testo_reso_zero_nan_zero_none(self):
+        """Il testo reso di Pronostici (dopo il click) e di Pareggi non contiene
+        nessuna occorrenza di "NaN", "nan", "None": zero, non "una di meno".
+
+        Le celle si guardano tre volte, perche' i tre lettori sono tre posti
+        diversi dove il non-numero ricomparirebbe: le frasi della scheda, le
+        celle come il browser le riceve (``_raccogli_da_df``) e la trascrizione
+        ``to_string`` della tabella, che e' quella di chi copia o stampa la
+        vista. Il fixture non ha il giro del modello: TUTTE le righe sono senza
+        lettura, e questo e' esattamente il caso che la commessa chiede di
+        provare (una riga con «Modello %» vuoto non deve scrivere niente).
+        """
+        from test_apptest_topmix_presentazione import _raccogli_da_df
+        if not _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"):
+            # il metodo non deve dipendere dall'ordine: se la tabella non c'e',
+            # il click lo fa qui
+            self._premi_click(self.at, ETICHETTA_CALCOLA)
+        for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI):
+            with self.subTest(scheda=scheda):
+                pezzi = list(_testi_della_tab(self.at, scheda)[0])
+                for el in _elementi_della_tab(self.at, scheda, "dataframe"):
+                    pezzi += [str(c) for c in _raccogli_da_df(el)]
+                    df = getattr(el, "value", None)
+                    if df is not None and hasattr(df, "to_string"):
+                        pezzi.append(df.to_string(index=False))
+                self.assertTrue(pezzi, f"{scheda}: nessuna cosa resa da controllare")
+                testo = " \n".join(pezzi)
+                self.assertEqual([], self.NON_NUMERO.findall(testo),
+                                 f"non-numero nel testo reso di {scheda}: "
+                                 f"{testo[:240]!r}")
+                self.assertNotIn("n/d", testo, "nessuno stato scritto nelle celle")
+                self.assertNotIn("Non disponibile", testo)
+        # e la prova non deve essere vuota: almeno una riga senza modello, qui e
+        # nella tabella dei pareggi, dev'esserci per davvero.
+        for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI):
+            df = self._df(self.at, scheda)
+            vuote = sum(1 for v in df["Modello %"] if str(v) == "")
+            self.assertGreaterEqual(vuote, 1, f"{scheda}: nessuna cella vuota da provare")
 
     # -- 9. secondo click: una scrittura per click, nessuna riga doppia ----
     def test_09_secondo_click_non_duplica_niente(self):
@@ -749,6 +827,54 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         # Il pulsante di registrazione NON sta piu' nella scheda delle giocate.
         self.assertEqual([], [b for b in _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "button")
                               if ETICHETTA_CALCOLA in (b.label or "")])
+
+    # -- 12. l'interruttore del periodo sta sopra le schede ----------------
+    def test_12_l_interruttore_e_sopra_le_schede_e_vale_per_tre_schede(self):
+        """Un widget solo, fuori da tutte le schede, e il suo effetto si vede
+        nello stesso momento su Pronostici, Pareggi e Multiple.
+
+        La posizione e' la promessa: l'interruttore non sta piu' in testa alla
+        scheda Multiple (dove chi leggeva i Pronostici doveva andarlo a cercare),
+        e nessuna frase in vista lo nomina.
+        """
+        import app as app_mod
+        comandi = [t for t in self.at.toggle
+                   if (t.key or "") == app_mod.CHIAVE_PROSSIMI_GIORNI]
+        self.assertEqual(1, len(comandi),
+                         "un solo interruttore del periodo in tutta la pagina")
+        for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE, SCHEDA_REGISTRO):
+            self.assertEqual([], _elementi_della_tab(self.at, scheda, "toggle"),
+                              f"l'interruttore non deve stare dentro {scheda!r}")
+        # Il testo del comando resta pulito dal gergo vietato (la pagina non lo
+        # contiene piu' dentro una scheda: va controllato dove sta davvero).
+        parole = ((comandi[0].label or "") + " " + str(getattr(comandi[0], "help", "") or "")).lower()
+        for vietata in PAROLE_VIETATE:
+            with self.subTest(parola=vietata):
+                self.assertIsNone(re.search(vietata, parole, re.IGNORECASE),
+                                  f"gergo nel comando del periodo: {vietata!r}")
+
+        prima = {"pronostici": self._testo(self.at, SCHEDA_PRONOSTICI),
+                 "pareggi": len(self._df(self.at, SCHEDA_PAREGGI)),
+                 "multiple": sum(len(e.value) for e in
+                                 _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "dataframe"))}
+        self._toggle(self.at, app_mod.CHIAVE_PROSSIMI_GIORNI, True)
+        try:
+            # Pronostici: il periodo nuovo e' un altro calcolo, la tabella si
+            # ritira (test_08) — cio' prova che la scheda legge lo stesso stato.
+            self.assertIn("Premi il pulsante per calcolare i pronostici della giornata.",
+                          self._testo(self.at, SCHEDA_PRONOSTICI))
+            # Pareggi: una X in piu', senza premere niente.
+            self.assertEqual(prima["pareggi"] + 1, len(self._df(self.at, SCHEDA_PAREGGI)))
+            # Multiple: le sue tabelle si allungano con la partita lontana.
+            after = sum(len(e.value) for e in
+                        _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "dataframe"))
+            self.assertGreater(after, prima["multiple"],
+                               "la scheda Multiple segue lo stesso interruttore")
+        finally:
+            self._toggle(self.at, app_mod.CHIAVE_PROSSIMI_GIORNI, False)
+            self.at.run(timeout=900)
+        self.assertEqual(prima["pareggi"], len(self._df(self.at, SCHEDA_PAREGGI)),
+                         "spento, la tabella dei pareggi torna com'era")
 
 
 # ---------------------------------------------------------------------------

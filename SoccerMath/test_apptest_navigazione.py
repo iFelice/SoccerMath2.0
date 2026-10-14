@@ -350,19 +350,23 @@ class TestSchedeLettura(_BaseAppTest):
         for parola in ("Quote %", "Modello %", "Le scelte più sicure"):
             with self.subTest(parola=parola):
                 self.assertNotIn(parola, testo)
-        # L'interruttore del periodo e' UNO SOLO e vive nella testa della scheda
-        # 🎯 Multiple: una chiave non puo' alimentare due widget nella stessa
-        # pagina, e le altre due schede leggono lo stesso stato
-        # (``periodo_selezionato``) dicendo dove si accende.
+        # L'interruttore del periodo e' UNO SOLO e sta SOPRA la barra delle
+        # schede: non appartiene a nessuna scheda, lo leggono Pronostici, Pareggi
+        # e Multiple (``periodo_selezionato``), e nessun testo in vista deve
+        # nominarlo — chi guarda la pagina lo vede da qualsiasi scheda.
         comandi = [t for t in self.at.toggle
                    if (t.key or "") == app_mod.CHIAVE_PROSSIMI_GIORNI]
         self.assertEqual(1, len(comandi),
                          "un solo interruttore del periodo in tutta la pagina")
-        self.assertIn(app_mod.ETICHETTA_PROSSIMI_GIORNI,
-                      " \n".join(_testi_della_tab(self.at, SCHEDA_MULTIPLE)[0]),
-                      "e sta nella scheda Multiple")
-        self.assertNotIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, testo,
-                         "non duplicato in Pronostici")
+        for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE):
+            with self.subTest(scheda=scheda):
+                self.assertEqual([], _elementi_della_tab(self.at, scheda, "toggle"),
+                                 f"il comando non sta dentro {scheda!r}")
+                self.assertNotIn(app_mod.ETICHETTA_PROSSIMI_GIORNI,
+                                 " \n".join(_testi_della_tab(self.at, scheda)[0]),
+                                 "e nessuna scheda lo nomina")
+        self.assertIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, comandi[0].label or "",
+                      "l'etichetta del comando e' quella promessa")
 
     def test_03c_pareggi_non_chiede_nessun_click(self):
         """La scheda Pareggi legge le quote e basta: nessun pulsante, nessun
@@ -581,8 +585,9 @@ class TestScrittureSoloSuClick(_BaseAppTest):
         # una per riga.
         fuori_pr, _ = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
         uniche = list(dict.fromkeys(fuori_pr))
-        self.assertEqual(1, sum(t.count("Modello %: non disponibile") for t in uniche),
-                         "la caption dice una volta che il giro del modello non c'e'")
+        self.assertEqual(0, sum(t.count("Modello %:") for t in uniche),
+                         "la caption non parla piu' dello stato del modello: la "
+                         "colonna vuota lo dice da sola, e meno parole si vedono")
         self.assertIn("Le scelte più sicure secondo le quote", " \n".join(fuori_pr))
         self.assertNotIn("n/d", testo,
                          "le celle restano vuote: nessuno stato scritto nella colonna")

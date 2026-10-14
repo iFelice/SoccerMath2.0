@@ -152,35 +152,41 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
         self.assertEqual([71.0, 64.9, 58.0], valori, "una cifra decimale")
 
     def test_modello_percento_non_pronto_cella_vuota(self):
-        """Niente stato scritto nella cella: vuota (e la caption lo dice)."""
+        """Niente stato scritto nella cella: la cella e' una stringa vuota.
+
+        «Modello %» e' DI TESTO proprio per questo: una colonna numerica con il
+        valore mancante si porta appresso un NaN che nel testo reso (e in
+        qualunque ``to_string``) compare. Qui non deve comparire NESSUNA delle
+        tre scritte vietate, e non c'e' nemmeno da nasconderle.
+        """
         righe = [_riga_mercato(esito="1")]
-        # giro del modello non ancora finito -> cella vuota, colonna numerica
-        for stato in (None, "in_calcolo"):
+        for stato in (None, "in_calcolo", "non_disponibile"):
             df = _tabella_periodo(righe, stato_confronto=stato)
-            self.assertTrue(pd.isna(df["Modello %"]).all(),
-                            f"cella vuota con stato {stato!r}: mai «None», «nan» o «n/d»")
-            self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
-                            "vuota ma numerica: si puo' ordinare al clic")
-        # giro fallito -> cella vuota
-        df = _tabella_periodo(righe, stato_confronto="non_disponibile")
-        self.assertTrue(pd.isna(df["Modello %"]).all())
+            self.assertEqual([""], df["Modello %"].tolist(),
+                             f"cella vuota con stato {stato!r}: mai «None», «nan» o «n/d»")
         # giro pronto ma partita non coperta -> cella vuota (niente inventato)
         df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2={})
-        self.assertTrue(pd.isna(df["Modello %"]).all())
+        self.assertEqual([""], df["Modello %"].tolist())
+        for colonna in df.columns:
+            for cella in df[colonna]:
+                self.assertNotIn(str(cella).strip().lower(), ("nan", "none", "nat"),
+                                 "nessuna cella di nessuna tabella rende un non-numero")
 
     def test_modello_percento_pronto_il_numero_del_selettore(self):
         righe = [_riga_mercato(prob=0.675, esito="1", prob_modello_val=63.0)]
         mappa = app.prob_modello_1x2_per_partita(_terna_snapshot())
         df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2=mappa)
-        self.assertEqual([41.2], df["Modello %"].tolist(),
-                         "l'esito 1 della riga legge la STESSA terna dello snapshot")
-        self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
-                        "«Modello %» resta numerica con il modello pronto")
+        self.assertEqual(["41,2"], df["Modello %"].tolist(),
+                         "l'esito 1 della riga legge la STESSA terna dello snapshot, "
+                         "scritta con la virgola italiana")
 
-    def test_modello_percento_numerica_ordinamento(self):
-        """Con il modello pronto «Modello %» e' numerica e l'ordinamento per
-        «Modello %» e' numerico: 85,4 sopra 9,5 (l'ordinamento al clic segue
-        il dtype della colonna)."""
+    def test_modello_percento_testo_con_la_virgola_italiana(self):
+        """«Modello %» e' testo formattato con UNA cifra decimale e la virgola.
+
+        L'ordinamento della tabella e' quello richiesto, «Quote %» decrescente
+        (colonna numerica); le celle di «Modello %» si leggono come si leggono a
+        schermo: "85,4" e "9,5", non 85.4 e non "n/d".
+        """
         letture = [
             {"home": "Inter", "away": "Roma", "per_esito": {
                 "1": {"prob_modello": 85.4}, "X": {"prob_modello": 9.5},
@@ -193,24 +199,27 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
         righe = [_riga_mercato(prob=0.60, esito="1", home="Inter", away="Roma"),
                  _riga_mercato(prob=0.56, esito="1", home="Milan", away="Lazio")]
         df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2=mappa)
-        self.assertTrue(pd.api.types.is_numeric_dtype(df["Modello %"]),
-                        "«Modello %» resta numerica (NumberColumn, una cifra decimale)")
-        self.assertEqual([85.4, 9.5],
-                         df.sort_values("Modello %", ascending=False)["Modello %"].tolist(),
-                         "l'ordinamento per «Modello %» e' numerico: 85,4 sopra 9,5")
-        # l'ordine predefinito resta «Quote %» decrescente
+        self.assertFalse(pd.api.types.is_numeric_dtype(df["Modello %"]),
+                         "«Modello %» non e' numerica: e' testo gia' formattato")
+        self.assertEqual(["85,4", "9,5"], df["Modello %"].tolist(),
+                         "una cifra decimale, virgola italiana, nell'ordine della tabella")
+        # l'ordine predefinito resta «Quote %» decrescente, che e' numerica
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
         self.assertEqual([60.0, 56.0], df["Quote %"].tolist())
 
-    def test_quota_colonna_numerica_con_due_decimali(self):
+    def test_quota_colonna_testo_con_due_decimali(self):
         """«Quota» e' la stima bet365 della probabilita' di mercato, non il prezzo
-        del bookmaker: due decimali, numerica, vuota se il numero non c'e'."""
+        del bookmaker: due decimali con la virgola, vuota se il numero non c'e'."""
         df = _tabella_periodo([_riga_mercato(prob=0.675, esito="1")])
         quota = df["Quota"].iloc[0]
-        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quota"]))
-        self.assertEqual(round(float(quota), 2), quota, "due decimali")
-        self.assertGreater(quota, 1.0)
-        self.assertEqual(app.quota_b365_stimata(0.675, "Serie A"), quota,
-                         "la colonna legge la stima del progetto, non un prezzo altrui")
+        self.assertFalse(pd.api.types.is_numeric_dtype(df["Quota"]),
+                         "anche «Quota» e' testo: nessuna cella rende NaN")
+        self.assertRegex(str(quota), r"^\d+,\d{2}$")
+        self.assertAlmostEqual(app.quota_b365_stimata(0.675, "Serie A"), float(quota.replace(",", ".")),
+                               msg="la colonna legge la stima del progetto, non un prezzo altrui")
+        # e la cella di una riga senza quota e' vuota, non "None"
+        df2 = _tabella_periodo([_riga_mercato(prob=1.0, esito="1")])
+        self.assertEqual([""], df2["Quota"].tolist())
 
     def test_quota_mancante_cella_vuota(self):
         self.assertIsNone(app.quota_b365_stimata(None, "Serie A"))
@@ -246,33 +255,32 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
 
 
 class TestCaptionScelteSecondoLeQuote(unittest.TestCase):
-    """La caption della sezione: N partite + stato del modello UNA volta
-    sola + (se serve) la frase sulle partite dopo lunedì. Nessun conteggio
-    del segnale "d'accordo" in vista."""
+    """La caption della sezione sono DUE fatti e basta: quante partite sono in
+    tabella e quante ne restano fuori perche' giocano dopo il lunedì. Niente
+    stato del modello (la colonna vuota lo dice da sola), niente indicazioni su
+    dove sta l'interruttore (sta sopra le schede), nessun conteggio del segnale
+    "d'accordo" — quello resta nei Dettagli."""
 
-    def test_caption_pronto_solo_le_partite(self):
-        self.assertEqual("18 partite in tabella.",
-                         app.caption_scelte_secondo_le_quote(18, "pronto"))
+    def test_caption_solo_le_partite(self):
+        # Una frase sola, col punto, e null'altro: lo stato del modello non c'e'.
+        for n in (18, 5, 1):
+            self.assertEqual(f"{n} partite in tabella.",
+                             app.caption_scelte_secondo_le_quote(n), n)
 
-    def test_caption_in_calcolo(self):
-        for stato in (None, "in_calcolo"):
-            self.assertEqual("18 partite in tabella · Modello %: in calcolo.",
-                             app.caption_scelte_secondo_le_quote(18, stato), stato)
+    def test_caption_nei_prossimi_giorni(self):
+        self.assertEqual("11 partite in tabella. Altre 7 nei prossimi giorni.",
+                         app.caption_scelte_secondo_le_quote(11, nascoste=7))
 
-    def test_caption_non_disponibile(self):
-        self.assertEqual("18 partite in tabella · Modello %: non disponibile.",
-                         app.caption_scelte_secondo_le_quote(18, "non_disponibile"))
+    def test_caption_non_rimanda_ad_altre_schede(self):
+        frase = app.caption_scelte_secondo_le_quote(11, nascoste=7)
+        for vietato in ("Multiple", "scheda", "Accendi", app.ETICHETTA_PROSSIMI_GIORNI):
+            self.assertNotIn(vietato, frase, f"{vietato!r}: l'interruttore sta sopra le schede")
 
-    def test_caption_partite_dopo_lunedi(self):
-        frase = app.caption_scelte_secondo_le_quote(11, "pronto", nascoste=7)
-        self.assertTrue(frase.startswith("11 partite in tabella."))
-        self.assertIn("Altre 7 dopo lunedì", frase)
-        self.assertIn(app.ETICHETTA_PROSSIMI_GIORNI, frase,
-                      "la frase nomina l'interruttore che ha sostituito i radio")
-
-    def test_nessun_conteggio_accordo_in_caption(self):
-        for stato in (None, "in_calcolo", "non_disponibile", "pronto"):
-            frase = app.caption_scelte_secondo_le_quote(9, stato, nascoste=2)
+    def test_caption_non_parla_del_modello(self):
+        for n, nascoste in ((18, 0), (9, 2)):
+            frase = app.caption_scelte_secondo_le_quote(n, nascoste=nascoste)
+            self.assertNotIn("Modello", frase,
+                             "lo stato della colonna non si dichiara in caption")
             self.assertNotIn("d'accordo", frase)
             self.assertNotIn("senza confronto", frase)
 
@@ -339,19 +347,20 @@ class TestLePiuProbabili(unittest.TestCase):
         self.assertEqual([71.2, 67.5], df["Quote %"].tolist(),
                          "ordine «Quote %» decrescente, una cifra decimale")
         # la doppia chance 1X di Inter-Roma somma le due probabilita' 1X2
-        # della STESSA terna snapshot: 41,2 + 27,5; Milan-Lazio non e' nel
-        # giro del modello -> cella vuota (NaN nella colonna numerica)
-        self.assertTrue(pd.isna(df["Modello %"].iloc[0]))
-        self.assertEqual(68.7, df["Modello %"].iloc[1])
+        # della STESSA terna snapshot: 41,2 + 27,5; Milan-Lazio non e' nel giro
+        # del modello -> cella VUOTA (stringa vuota, non un NaN: la colonna e'
+        # di testo proprio per questo)
+        self.assertEqual(["", "68,7"], df["Modello %"].tolist())
 
     def test_modello_non_pronto_cella_vuota(self):
+        """Giro non pronto o partita non coperta: due celle vuote, non "None"."""
         g = self._giocata()
         for stato in (None, "in_calcolo", "non_disponibile"):
             df = app.righe_piu_probabili_visibili(g, stato_confronto=stato)
-            self.assertEqual([None] * 2, df["Modello %"].tolist())
+            self.assertEqual([""] * 2, df["Modello %"].tolist())
         df = app.righe_piu_probabili_visibili(g, stato_confronto="pronto",
                                               mappa_modello_1x2={})
-        self.assertEqual([None] * 2, df["Modello %"].tolist())
+        self.assertEqual([""] * 2, df["Modello %"].tolist())
 
 
 class TestPerRaddoppiare(unittest.TestCase):
@@ -430,9 +439,12 @@ class TestTabellaMercatoComEAndata(unittest.TestCase):
         # mostra quel numero); «Modello %» senza campo resta vuota.
         self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
         self.assertEqual([62.5, 58.0, 64.0], df["Quote %"].tolist())
-        self.assertEqual([63.0, 51.0], [v for v in df["Modello %"].tolist() if not pd.isna(v)])
-        self.assertTrue(pd.isna(df["Modello %"].iloc[2]),
-                        "senza campo *_prima la cella resta vuota, nessun numero inventato")
+        self.assertEqual(["63,0", "51,0", ""], df["Modello %"].tolist(),
+                         "virgola italiana come nelle altre tabelle; senza campo "
+                         "*_prima la cella resta vuota, nessun numero inventato")
+        self.assertEqual("", df["Risultato"].iloc[2],
+                         'la riga da giocare non scrive "None" nel risultato')
+        self.assertEqual("", df["Esito"].iloc[2])
 
     def test_prima_registrazione_ricostruita_dichiarata_dai_numeri(self):
         # Riga vecchia scritta PRIMA che i campi *_prima esistessero: il campo
@@ -444,7 +456,7 @@ class TestTabellaMercatoComEAndata(unittest.TestCase):
         df = pd.DataFrame([vecchia])
         out = app._tabella_registro_mercato_visibile(df)
         self.assertEqual(57.0, out["Quote %"].iloc[0])
-        self.assertIsNone(out["Modello %"].iloc[0])
+        self.assertEqual("", out["Modello %"].iloc[0])
 
     def test_concluse_per_data_decrescente(self):
         df = self._df()

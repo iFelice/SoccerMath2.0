@@ -582,25 +582,50 @@ class TestPresentazioneTopMix(unittest.TestCase):
             self.assertIn(f"{round(g['probabilita'] * 100.0, 1)}", testo)
 
     def test_06_comando_periodo_e_freschezza_quote(self):
-        """Il comando del periodo e la riga di freschezza delle quote.
+        """Il comando del periodo sta SOPRA le schede; la freschezza delle quote
+        e' una riga sola, in italiano.
 
         Il radio «Periodo» con le sue due etichette non c'e' piu': e' un
-        interruttore solo, «Mostra anche i prossimi giorni», e sta in testa alla
-        scheda ⚽ Pronostici perche' lo leggono anche Pareggi e Multiple."""
+        interruttore solo, «Mostra anche i prossimi giorni», disegnato prima della
+        barra delle schede perche' lo leggono Pronostici, Pareggi e Multiple —
+        quindi NON sta nel testo di nessuna scheda, e nessuna caption lo nomina.
+
+        Le quote dello snapshot sono ferme a giorni fa mentre il calcolo e' di
+        oggi: la riga deve dirlo in italiano — giorno della settimana, data corta
+        e ora — e deve restare UNA riga sola, senza date ISO e senza accenti
+        scritti con l'apostrofo."""
         import app as app_mod
-        fuori, _ = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
-        testo = " \n".join(fuori)
-        self.assertIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, testo)
-        self.assertNotIn("Questa giornata (fino a lunedì)", testo)
-        self.assertNotIn("Tutte le partite in programma", testo)
         comandi = [t for t in self.at.toggle
                    if (t.key or "") == app_mod.CHIAVE_PROSSIMI_GIORNI]
         self.assertEqual(1, len(comandi), "un solo interruttore del periodo")
         self.assertFalse(bool(comandi[0].value),
                          "di default i prossimi giorni restano fuori")
-        # Le quote dello snapshot sono del 11/10, il calcolo e' del 16/10:
-        # la riga di freschezza deve DIRLO in italiano.
-        self.assertIn("Attenzione: quote", testo)
+        self.assertIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, comandi[0].label or "")
+        testi_schede = []
+        for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE):
+            fuori, _dentro = _testi_della_tab(self.at, scheda)
+            t = " \n".join(fuori)
+            self.assertTrue(t, f"la scheda {scheda!r} e' bianca")
+            self.assertNotIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, t,
+                             "il comando non sta piu' dentro una scheda")
+            self.assertNotIn("Questa giornata (fino a lunedì)", t)
+            self.assertNotIn("Tutte le partite in programma", t)
+            testi_schede.append(t)
+        testo = "\n".join(testi_schede)
+        # La riga di freschezza: una sola, nella forma promessa.
+        frasi = [t for t in dict.fromkeys(_testo_blocco(_radice_tab(self.at, SCHEDA_PRONOSTICI),
+                                                        dentro_expander=False))
+                 if "Quote di " in t[1]]
+        self.assertEqual(1, len(frasi), "una riga sola, non un avviso per riga")
+        self.assertRegex(
+            frasi[0][1],
+            r"Quote di (lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica) "
+            r"\d{2}/\d{2} alle \d{2}:\d{2}: l'aggiornamento di oggi non è "
+            r"ancora arrivato\.",
+            "giorno in italiano, data corta, ora, un solo periodo")
+        for vietato in ("Attenzione: quote", "giorni fa", "non e' riuscito",
+                        "aggiornate il 20", "T16:04:13Z", "probabilita'"):
+            self.assertNotIn(vietato, testo, f"la vecchia frase ({vietato!r}) in vista")
 
     def test_07_dentro_i_dettagli_il_tecnico_ce_tutto(self):
         # Il blocco tecnico sta nel riquadro chiuso «Dettagli» della scheda
@@ -670,12 +695,13 @@ class TestPresentazioneTopMix(unittest.TestCase):
         # registrazione sulla STESSA riga (inter-riga il confronto e' alla pari).
         riga_inter = next(t for t in sezione if "Inter vs Roma" in t)
         riga_como = next(t for t in sezione if "Como vs Torino" in t)
-        # Nella tabella Mercato di Com'è andata ENTRAMBE le percentuali sono
-        # numeriche (ordinamento al clic numerico): la resa della cella e'
-        # il numero puro ("63.0"); la virgola italiana sta nelle tabelle
-        # della scheda Giocate, dove «Modello %» porta anche gli stati.
-        for riga, sigla, quote, modello in ((riga_inter, " 1 ", "62.5", "63.0"),
-                                            (riga_como, " 2 ", "58.0", "51.0")):
+        # Nella tabella Mercato di Com'è andata «Quote %» resta numerica (il
+        # clic sull'intestazione ordina per valore: la cella resa e' il numero
+        # puro "62.5"), mentre «Modello %» e' TESTO con la virgola italiana — la
+        # stessa scelta delle schede Pronostici e Pareggi, dove la cella di una
+        # riga senza lettura del modello deve restare vuota e non "nan"/"None".
+        for riga, sigla, quote, modello in ((riga_inter, " 1 ", "62.5", "63,0"),
+                                            (riga_como, " 2 ", "58.0", "51,0")):
             celle = f" {riga} "
             self.assertIn(sigla, celle, f"sigla secca nella riga: {riga!r}")
             self.assertIn(quote, celle, f"«Quote %» della prima registrazione: {riga!r}")
