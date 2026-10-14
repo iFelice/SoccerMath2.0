@@ -1,6 +1,6 @@
 # Replay offline del Top Mix di mercato (`topmix_mercato_v3`)
 
-Generato da `audit/replay_topmix_mercato.py` il 2026-10-13T11:31:16Z (commit `85e01ac`, branch `arena/43b57084-soccermath2-0`). Nessuna rete, nessuna scrittura nel Registro.
+Generato da `audit/replay_topmix_mercato.py` il 2026-10-14T15:10:23Z (commit `27e482e`, branch `arena/c67fea69-soccermath2-0`). Nessuna rete, nessuna scrittura nel Registro.
 
 Comando: `python audit/replay_topmix_mercato.py`.
 

@@ -95,7 +95,7 @@ class TestGuardieTab5(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.src = open(APP_PATH, encoding="utf-8").read()
-        cls.tab5 = cls.src[cls.src.index("with tab_andata:"):]
+        cls.tab5 = cls.src[cls.src.index("with tab_registro:"):]
 
     def test_due_tabelle_etichettate_attuale_sopra_legacy_sotto(self):
         # I nomi dei due modelli in pagina: "Drago a 2 Teste" (attuale) sopra,
@@ -143,7 +143,7 @@ class TestBlocchiAllineatiAlleTabelle(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.src = open(APP_PATH, encoding="utf-8").read()
-        cls.tab5 = cls.src[cls.src.index("with tab_andata:"):]
+        cls.tab5 = cls.src[cls.src.index("with tab_registro:"):]
 
     def test_due_blocchi_e_nessun_terzo_modello(self):
         self.assertEqual(2, self.tab5.count("_mostra_blocco_modello("),

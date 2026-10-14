@@ -135,22 +135,75 @@ def _testo_blocco(el, dentro_expander):
     return parti
 
 
-def _radice_tab(at, indice_tab=0):
+# ---------------------------------------------------------------------------
+# Le schede, da questa PR in poi: ⚽ Pronostici, 🟰 Pareggi, 🎯 Multiple,
+# 📒 Registro e — solo con l'interruttore acceso — 🔧 Strumenti avanzati.
+# L'INDICE dell'ultima dipende da quell'interruttore, quindi la scheda si
+# chiede per TITOLO: cosi' i test non rincorrono l'ordine a mano.
+# ---------------------------------------------------------------------------
+
+SCHEDA_PRONOSTICI = "⚽ Pronostici"
+SCHEDA_PAREGGI = "🟰 Pareggi"
+SCHEDA_MULTIPLE = "🎯 Multiple"
+SCHEDA_REGISTRO = "📒 Registro"
+SCHEDA_STRUMENTI = "🔧 Strumenti avanzati"
+
+
+def _schede(at):
+    """Le schede disegnate, nell'ordine (``at.tabs`` o ``at.tab`` a seconda
+    della versione di Streamlit)."""
+    return list(getattr(at, "tabs", None) or getattr(at, "tab") or [])
+
+
+def _indice_della_scheda(at, titolo):
+    etichette = [str(getattr(t, "label", "")) for t in _schede(at)]
+    if titolo not in etichette:
+        raise AssertionError(f"scheda {titolo!r} non trovata fra {etichette}")
+    return etichette.index(titolo)
+
+
+def _radice_tab(at, scheda=SCHEDA_MULTIPLE):
     """Il blocco-radice della scheda: iterando una Tab, AppTest produce una
     lista PIATTA (se stessa + tutti i discendenti); il vero grafo e' nei
     attributi .children di OGNI elemento. Il primo elemento e' il contenitore
     della scheda, i suoi .children sono i figli diretti.
 
-    Indice 0 = «🎯 Giocate» (prima scheda, si apre da sola), 1 = «🏟️ Partite»,
-    2 = «📒 Com'è andata»."""
-    tab = (getattr(at, "tabs", None) or getattr(at, "tab"))[indice_tab]
+    ``scheda`` e' il titolo (``SCHEDA_*``) o, dove l'ordine e' certo, il suo
+    indice."""
+    indice = (scheda if isinstance(scheda, int)
+              else _indice_della_scheda(at, scheda))
+    tab = _schede(at)[indice]
     piatta = list(tab)
     return piatta[0] if piatta else tab
 
 
-def _testi_della_tab(at, indice_tab=0):
-    """Ritorna (testi_fuori_expander, testi_dentro_expander) della tab data."""
-    parti = _testo_blocco(_radice_tab(at, indice_tab), dentro_expander=False)
+#: Le tabelle cambiano nome di classe fra le versioni di Streamlit.
+_ALIAS_CLASSI = {"dataframe": ("dataframe", "arrowdataframe", "arrownamedlistdatatype"),
+                 "button": ("button",), "expander": ("expander",)}
+
+
+def _elementi_della_tab(at, scheda, classe):
+    """Gli elementi di una classe (es. ``"dataframe"``, ``"button"``,
+    ``"expander"``) dentro una scheda, nell'ordine in cui sono disegnati.
+
+    Il nome del tipo si confronta in basso, e le tabelle hanno piu' di un nome
+    a seconda della versione di Streamlit: ``_ALIAS_CLASSI`` li mette insieme."""
+    ammesse = tuple(c.lower() for c in _ALIAS_CLASSI.get(classe, (classe,)))
+
+    def cammina(el):
+        if type(el).__name__.lower() in ammesse:
+            yield el
+        ch = getattr(el, "children", None)
+        if ch:
+            for c in (ch.values() if isinstance(ch, dict) else ch):
+                yield from cammina(c)
+
+    return list(cammina(_radice_tab(at, scheda)))
+
+
+def _testi_della_tab(at, scheda=SCHEDA_MULTIPLE):
+    """Ritorna (testi_fuori_expander, testi_dentro_expander) della scheda data."""
+    parti = _testo_blocco(_radice_tab(at, scheda), dentro_expander=False)
     fuori = [t for d, t in parti if not d]
     dentro = [t for d, t in parti if d]
     return fuori, dentro
@@ -387,11 +440,37 @@ class TestPresentazioneTopMix(unittest.TestCase):
         st.cache_data.clear()
         cls.at = AppTest.from_file(APP_PATH, default_timeout=300)
         cls.at.run(timeout=600)
-        # La scheda «🎯 Giocate» si popola DA SOLA all'apertura (legge solo il
-        # file delle quote): nessun click per vedere «Per raddoppiare», la
-        # tabella e i Dettagli. Il click di «Registra le giocate della
-        # giornata» serve solo al test 08 (le proposte settimanali): con rete
+        if cls.at.exception:
+            raise AssertionError("eccezioni all'apertura: "
+                                 f"{[e.value for e in cls.at.exception][:2]}")
+        # «Per raddoppiare» e «Le più probabili» si disegnano da soli all'apertura
+        # (leggono soltanto il file delle quote). La tabella delle scelte del
+        # mercato invece NO: da questa PR sta nella scheda ⚽ Pronostici e arriva
+        # DOPO il click su «Calcola i pronostici della giornata», che la lascia
+        # in ``session_state`` e la fa quindi restare in vista anche nei run
+        # successivi. Lo stato «prima del click» e' il territorio di
+        # test_apptest_navigazione: qui si fotografa la scena completa, con rete
         # finta e storage in memoria.
+        cls.calcolato = False
+        cls._premi_calcola()
+
+    @classmethod
+    def _premi_calcola(cls):
+        """Un click solo sul pulsante della scheda Pronostici: la tabella resta
+        in vista per tutti i test della classe."""
+        if cls.calcolato:
+            return
+        for b in cls.at.button:
+            if "Calcola i pronostici della giornata" in (b.label or ""):
+                b.click()
+                cls.at.run(timeout=900)
+                if cls.at.exception:
+                    raise AssertionError(
+                        "eccezioni dopo il click: "
+                        f"{[e.value for e in cls.at.exception][:2]}")
+                cls.calcolato = True
+                return
+        raise AssertionError("pulsante «Calcola i pronostici della giornata» assente")
 
     @classmethod
     def tearDownClass(cls):
@@ -402,8 +481,8 @@ class TestPresentazioneTopMix(unittest.TestCase):
     # -- utilita' ----------------------------------------------------------
 
     def _tab(self):
-        # Prima scheda = «🎯 Giocate».
-        return (getattr(self.at, "tabs", None) or getattr(self.at, "tab"))[0]
+        # La scheda di cui si parla in questo file: ⚽ Pronostici.
+        return _schede(self.at)[_indice_della_scheda(self.at, SCHEDA_PRONOSTICI)]
 
     def test_01_la_pagina_si_apre_senza_eccezioni(self):
         self.assertFalse(self.at.exception, f"Eccezioni: {[e.value for e in self.at.exception][:1]}")
@@ -421,7 +500,7 @@ class TestPresentazioneTopMix(unittest.TestCase):
                 for c in (ch.values() if isinstance(ch, dict) else ch):
                     cammina(c)
 
-        cammina(_radice_tab(self.at))
+        cammina(_radice_tab(self.at, SCHEDA_PRONOSTICI))
         return trovati
 
     def test_02_il_dettaglio_tecnico_esiste_ed_e_chiuso(self):
@@ -438,12 +517,18 @@ class TestPresentazioneTopMix(unittest.TestCase):
                              "il riquadro 'Dettagli' dev'essere chiuso di default")
 
     def test_03_fuori_dagli_expander_nessuna_parola_vietata(self):
-        fuori, dentro = _testi_della_tab(self.at)
-        testo = " \n".join(fuori).lower()
-        for parola in PAROLE_VIETATE:
-            with self.subTest(parola=parola):
-                self.assertIsNone(re.search(parola, testo, re.IGNORECASE),
-                                  f"parola vietata fuori dagli expander: {parola!r}")
+        """Punto 6 sulle schede in vista: Pronostici (dopo il click), Pareggi,
+        Multiple. Il Registro resta fuori perche' il nome della sua sezione di
+        controllo e' «Registro ombra», e nessuno ha mai chiesto di rinominarlo."""
+        for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE):
+            fuori, dentro = _testi_della_tab(self.at, scheda)
+            testo = " \n".join(fuori).lower()
+            self.assertTrue(testo, f"la scheda {scheda} e' bianca")
+            for parola in PAROLE_VIETATE:
+                with self.subTest(scheda=scheda, parola=parola):
+                    self.assertIsNone(re.search(parola, testo, re.IGNORECASE),
+                                      f"parola vietata fuori dagli expander "
+                                      f"di {scheda}: {parola!r}")
 
     def test_04_il_riquadro_per_raddoppiare_rende_i_numeri_della_ricerca(self):
         import lista_giocate as lg
@@ -452,7 +537,7 @@ class TestPresentazioneTopMix(unittest.TestCase):
         prop = lg.cerca_proposta_multipla(in_periodo)
         righe = lg.righe_riquadro_raddoppio(prop["per_k"], self.adesso)
 
-        fuori, _ = _testi_della_tab(self.at)
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
         self.assertIn("Per raddoppiare", testo)
         self.assertIn("Su 100 € giocati tornano in media", testo)
@@ -482,7 +567,7 @@ class TestPresentazioneTopMix(unittest.TestCase):
         in_periodo = lg.giocate_nel_periodo(res["giocate"], self.adesso, "giornata")
         attese = lg.migliori_giocate_per_partita(in_periodo, 1.20)[:10]
 
-        fuori, _ = _testi_della_tab(self.at)
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
         self.assertIn("Le più probabili", testo)
         self.assertIn("Paga almeno", testo)
@@ -496,17 +581,56 @@ class TestPresentazioneTopMix(unittest.TestCase):
             self.assertIn(str(g["giocata"]).strip(), testo)
             self.assertIn(f"{round(g['probabilita'] * 100.0, 1)}", testo)
 
-    def test_06_comandi_periodo_e_freschezza_quote(self):
-        fuori, _ = _testi_della_tab(self.at)
-        testo = " \n".join(fuori)
-        self.assertIn("Periodo", testo)
-        self.assertIn("Questa giornata (fino a lunedì)", testo)
-        self.assertIn("Tutte le partite in programma", testo)
-        # Le quote dello snapshot sono del 11/10, il calcolo e' del 16/10:
-        # la riga di freschezza deve DIRLO in italiano.
-        self.assertIn("Attenzione: quote", testo)
+    def test_06_comando_periodo_e_freschezza_quote(self):
+        """Il comando del periodo sta SOPRA le schede; la freschezza delle quote
+        e' una riga sola, in italiano.
+
+        Il radio «Periodo» con le sue due etichette non c'e' piu': e' un
+        interruttore solo, «Mostra anche i prossimi giorni», disegnato prima della
+        barra delle schede perche' lo leggono Pronostici, Pareggi e Multiple —
+        quindi NON sta nel testo di nessuna scheda, e nessuna caption lo nomina.
+
+        Le quote dello snapshot sono ferme a giorni fa mentre il calcolo e' di
+        oggi: la riga deve dirlo in italiano — giorno della settimana, data corta
+        e ora — e deve restare UNA riga sola, senza date ISO e senza accenti
+        scritti con l'apostrofo."""
+        import app as app_mod
+        comandi = [t for t in self.at.toggle
+                   if (t.key or "") == app_mod.CHIAVE_PROSSIMI_GIORNI]
+        self.assertEqual(1, len(comandi), "un solo interruttore del periodo")
+        self.assertFalse(bool(comandi[0].value),
+                         "di default i prossimi giorni restano fuori")
+        self.assertIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, comandi[0].label or "")
+        testi_schede = []
+        for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE):
+            fuori, _dentro = _testi_della_tab(self.at, scheda)
+            t = " \n".join(fuori)
+            self.assertTrue(t, f"la scheda {scheda!r} e' bianca")
+            self.assertNotIn(app_mod.ETICHETTA_PROSSIMI_GIORNI, t,
+                             "il comando non sta piu' dentro una scheda")
+            self.assertNotIn("Questa giornata (fino a lunedì)", t)
+            self.assertNotIn("Tutte le partite in programma", t)
+            testi_schede.append(t)
+        testo = "\n".join(testi_schede)
+        # La riga di freschezza: una sola, nella forma promessa.
+        frasi = [t for t in dict.fromkeys(_testo_blocco(_radice_tab(self.at, SCHEDA_PRONOSTICI),
+                                                        dentro_expander=False))
+                 if "Quote di " in t[1]]
+        self.assertEqual(1, len(frasi), "una riga sola, non un avviso per riga")
+        self.assertRegex(
+            frasi[0][1],
+            r"Quote di (lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica) "
+            r"\d{2}/\d{2} alle \d{2}:\d{2}: l'aggiornamento di oggi non è "
+            r"ancora arrivato\.",
+            "giorno in italiano, data corta, ora, un solo periodo")
+        for vietato in ("Attenzione: quote", "giorni fa", "non e' riuscito",
+                        "aggiornate il 20", "T16:04:13Z", "probabilita'"):
+            self.assertNotIn(vietato, testo, f"la vecchia frase ({vietato!r}) in vista")
 
     def test_07_dentro_i_dettagli_il_tecnico_ce_tutto(self):
+        # Il blocco tecnico sta nel riquadro chiuso «Dettagli» della scheda
+        # Multiple: e' li' che la riorganizzazione lo ha spostato (prima stava
+        # nella scheda Giocate, che ora non disegna piu' nulla da sola).
         _, dentro = _testi_della_tab(self.at)
         testo = " \n".join(dentro)
         # fonte ed eta' delle quote, quota equa, marcatori ufficiali del punto 4
@@ -538,7 +662,7 @@ class TestPresentazioneTopMix(unittest.TestCase):
         """Tab5, famiglia mercato: titolo «Com'è andata: le scelte secondo le
         quote», bilancio in parole sopra la tabella, e nessuna parola vietata
         nel testo visibile (il tecnico resta nel suo «Dettagli» chiuso)."""
-        fuori_tab5, dentro_tab5 = _testi_della_tab(self.at, 2)
+        fuori_tab5, dentro_tab5 = _testi_della_tab(self.at, SCHEDA_REGISTRO)
         i0 = next((i for i, t in enumerate(fuori_tab5)
                    if "Com'è andata: le scelte secondo le quote" in t), None)
         self.assertIsNotNone(i0, "il titolo del punto 5b non c'e': "
@@ -571,12 +695,13 @@ class TestPresentazioneTopMix(unittest.TestCase):
         # registrazione sulla STESSA riga (inter-riga il confronto e' alla pari).
         riga_inter = next(t for t in sezione if "Inter vs Roma" in t)
         riga_como = next(t for t in sezione if "Como vs Torino" in t)
-        # Nella tabella Mercato di Com'è andata ENTRAMBE le percentuali sono
-        # numeriche (ordinamento al clic numerico): la resa della cella e'
-        # il numero puro ("63.0"); la virgola italiana sta nelle tabelle
-        # della scheda Giocate, dove «Modello %» porta anche gli stati.
-        for riga, sigla, quote, modello in ((riga_inter, " 1 ", "62.5", "63.0"),
-                                            (riga_como, " 2 ", "58.0", "51.0")):
+        # Nella tabella Mercato di Com'è andata «Quote %» resta numerica (il
+        # clic sull'intestazione ordina per valore: la cella resa e' il numero
+        # puro "62.5"), mentre «Modello %» e' TESTO con la virgola italiana — la
+        # stessa scelta delle schede Pronostici e Pareggi, dove la cella di una
+        # riga senza lettura del modello deve restare vuota e non "nan"/"None".
+        for riga, sigla, quote, modello in ((riga_inter, " 1 ", "62.5", "63,0"),
+                                            (riga_como, " 2 ", "58.0", "51,0")):
             celle = f" {riga} "
             self.assertIn(sigla, celle, f"sigla secca nella riga: {riga!r}")
             self.assertIn(quote, celle, f"«Quote %» della prima registrazione: {riga!r}")

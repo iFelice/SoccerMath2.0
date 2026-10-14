@@ -12,7 +12,9 @@ Cosa verifica, in parole povere:
   RIQUADRO della partita giusta (i due nomi del pulsante sono quelli del titolo)
   con i blocchi in parole: probabilità dalle quote, classifica e obiettivi,
   forma, gol, precedenti;
-* dalla scheda «🏟️ Partite» la giornata e' elencata in parole (data e ora
+* dalla giornata — il pezzo in fondo a «🔧 Strumenti avanzati», che i test
+  accendono perche' senza quell'interruttore la quinta scheda non esiste — le
+  partite sono elencate in parole (data e ora
   italiane, 1/X/2 quando le quote ci sono, «Quote non ancora disponibili»
   quando non ci sono) e il pulsante «Scheda» della riga apre la stessa scheda
   della partita giusta;
@@ -50,6 +52,7 @@ for _p in (HERE, REPO_ROOT):
 from test_apptest_navigazione import _BaseAppTest, _iso  # noqa: E402
 from test_apptest_topmix_presentazione import (  # noqa: E402
     PAROLE_VIETATE,
+    SCHEDA_STRUMENTI,
     _testi_della_tab,
 )
 
@@ -105,14 +108,34 @@ class _BaseScheda(_BaseAppTest):
 
     @classmethod
     def _carica_giornata(cls, at, lega: str, extra=None):
-        """Mette in ``session_state`` la giornata e sceglie il campionato."""
+        """Mette in ``session_state`` la giornata e sceglie il campionato.
+
+        L'elenco della giornata non e' piu' una scheda: e' il pezzo in fondo a
+        «🔧 Strumenti avanzati», che qui viene acceso — senza quell'interruttore
+        quel contenuto non esiste proprio."""
         at.session_state["live_data"] = cls._live_data(lega, extra)
         at.session_state["live_camp"] = lega
+        cls._toggle(at, "strumenti_avanzati").set_value(True)
         for sb in at.selectbox:
             if "CAMPIONATO" in str(getattr(sb, "label", "")):
                 sb.set_value(lega)
         at.run(timeout=900)
         cls.eccezioni(at, f"giornata di {lega}")
+
+    @staticmethod
+    def _testo_giornata(at):
+        """(fuori, dentro) LIMITATI alla sezione della giornata.
+
+        La quinta scheda contiene anche Elo e Backtest, che hanno il loro gergo
+        tecnico: le parole vietate si cercano solo da qui in poi, perche' il
+        punto 6 della PR #64 riguarda la giornata in vista, non quelli degli
+        strumenti avanzati."""
+        fuori, dentro = _testi_della_tab(at, SCHEDA_STRUMENTI)
+        for i, riga in enumerate(fuori):
+            if "GIORNATA" in riga:
+                return fuori[i:], dentro
+        raise AssertionError("la sezione della giornata non e' in vista: "
+                             + " | ".join(fuori)[:400])
 
     @staticmethod
     def _testo_riquadro(at, titolo: str = None) -> str:
@@ -217,7 +240,7 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                   "matchday": 8, "score": {"fullTime": {"home": None, "away": None}},
                   "status": "SCHEDULED"}]
         self._carica_giornata(self.at, "Serie A", extra=extra)
-        fuori, dentro = _testi_della_tab(self.at, 1)
+        fuori, dentro = self._testo_giornata(self.at)
         testo = "\n".join(fuori)
         righe = self.at.session_state["live_data"]
         for m in righe:

@@ -138,10 +138,10 @@ class TestProblema1_MultiplaPersistenza(unittest.TestCase):
         # "if ... in session_state" NON fa salvataggio.
         # Verifichiamo che save_prediction_entry sia DENTRO il blocco button
         # e NON nel blocco session_state.
-        # La scheda oggi e' divisa: il pulsante («Registra le giocate della
-        # giornata») chiama `registra_giocate_della_giornata`, e la scrittura
-        # sta SOLO li'. Verifichiamo che (a) la scrittura sia dentro quella
-        # funzione, (b) sia UN SOLO `save_predictions` (non una scrittura per
+        # La scheda e' divisa: il pulsante («Calcola i pronostici della
+        # giornata», nella scheda omonima) chiama `registra_giocate_della_giornata`,
+        # e la scrittura sta SOLO li'. Verifichiamo che (a) la scrittura sia dentro
+        # quella funzione, (b) sia UN SOLO `save_predictions` (non una scrittura per
         # riga), e (c) nessuna funzione di lettura/resa scriva.
         import ast as _ast
         tree = _ast.parse(app_src)
@@ -152,9 +152,10 @@ class TestProblema1_MultiplaPersistenza(unittest.TestCase):
                          "il Registro si scrive una volta sola, dentro la funzione del pulsante")
         self.assertEqual(0, corpo.count("save_prediction_entry("),
                          "una scrittura per riga: deve restare fuori")
-        self.assertIn('st.button("📝 Registra le giocate della giornata"', app_src)
+        self.assertIn('st.button("📝 Calcola i pronostici della giornata"', app_src)
         for nome in ("_mostra_intestazione_giocate", "_mostra_dettagli_giocate",
-                     "_mostra_pulsante_registrazione", "ultima_registrazione_mercato"):
+                     "_scheda_pronostici", "calcola_pronostici_giornata",
+                     "ultima_registrazione_mercato"):
             f = next(n for n in tree.body if isinstance(n, _ast.FunctionDef)
                      and n.name == nome)
             src_f = _ast.get_source_segment(app_src, f)
