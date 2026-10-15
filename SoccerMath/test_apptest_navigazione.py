@@ -1,4 +1,4 @@
-"""AppTest della nuova navigazione a schede (tre schede + strumenti avanzati).
+"""AppTest della navigazione a schede (cinque schede + strumenti avanzati).
 
 Copre i punti 1, 2, 3, 4 e 5 della commessa di navigazione, sul VERO ``app.py``
 e sullo snapshot reale pinnato (``snap_test.snapshot_reale``), con orologio
@@ -7,9 +7,11 @@ Registro in memoria (nessun file reale toccato, nessuna chiamata di rete).
 
 Cosa verifica, in parole povere:
 
-* le schede sono TRE all'apertura e la prima e' «🎯 Giocate»; con
-  «🔧 Strumenti avanzati» acceso diventano QUATTRO e la quarta contiene Elo e
-  Backtest invariati;
+* le schede sono CINQUE all'apertura, la prima e' «🏟️ Partite» e l'ordine e'
+  Partite, Pronostici, Pareggi, Multiple, Registro; con
+  «🔧 Strumenti avanzati» acceso diventano SEI e la sesta contiene SOLO Elo e
+  Backtest invariati (la giornata sta nella scheda «🏟️ Partite», verificata in
+  ``test_apptest_scheda_partita``);
 * la scheda Multiple si GUARDA senza premere niente: i riquadri delle
   proposte (Singola/Doppia/Tripla/Quadrupla), «Le più probabili», «Prova la
   tua giocata» e «Dettagli» sono gia' in pagina al primo disegno;
@@ -55,6 +57,7 @@ from test_apptest_topmix_presentazione import (  # noqa: E402
     PAROLE_VIETATE,
     SCHEDA_MULTIPLE,
     SCHEDA_PAREGGI,
+    SCHEDA_PARTITE,
     SCHEDA_PRONOSTICI,
     SCHEDA_REGISTRO,
     SCHEDA_STRUMENTI,
@@ -296,11 +299,11 @@ class TestSchedeLettura(_BaseAppTest):
         cls.at.run(timeout=900)
         cls.eccezioni(cls.at, "apertura della pagina")
 
-    def test_01_le_schede_sono_quattro_e_la_prima_e_pronostici(self):
-        """Quattro schede fisse, in quest'ordine. La quinta (gli strumenti
+    def test_01_le_schede_sono_cinque_e_la_prima_e_partite(self):
+        """Cinque schede fisse, in quest'ordine. La sesta (gli strumenti
         avanzati) non si conta: l'interruttore e' spento all'apertura."""
-        self.assertEqual([SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE,
-                          SCHEDA_REGISTRO],
+        self.assertEqual([SCHEDA_PARTITE, SCHEDA_PRONOSTICI, SCHEDA_PAREGGI,
+                          SCHEDA_MULTIPLE, SCHEDA_REGISTRO],
                          self._etichette_schede(self.at))
 
     def test_02_strumenti_avanzati_spento_all_avvio(self):
@@ -452,25 +455,26 @@ class TestSchedeLettura(_BaseAppTest):
             self.assertEqual(get_prima, len(self.get_http),
                              "una volta per sessione: il secondo disegno non richiama la fonte")
 
-    def test_10_con_strumenti_avanzati_le_schede_diventano_quattro(self):
+    def test_10_con_strumenti_avanzati_le_schede_diventano_sei(self):
         self._toggle(self.at, "strumenti_avanzati").set_value(True)
         self.at.run(timeout=900)
         self.eccezioni(self.at, "strumenti avanzati accesi")
-        self.assertEqual([SCHEDA_PRONOSTICI, SCHEDA_PAREGGI, SCHEDA_MULTIPLE,
-                          SCHEDA_REGISTRO, SCHEDA_STRUMENTI],
+        self.assertEqual([SCHEDA_PARTITE, SCHEDA_PRONOSTICI, SCHEDA_PAREGGI,
+                          SCHEDA_MULTIPLE, SCHEDA_REGISTRO, SCHEDA_STRUMENTI],
                          self._etichette_schede(self.at))
         fuori, _ = _testi_della_tab(self.at, SCHEDA_STRUMENTI)
         testo = " \n".join(fuori)
         self.assertIn("Elo", testo)
         self.assertIn("Backtest", testo)
-        # La vecchia scheda «🏟️ Partite» non e' piu' una scheda: e' il pezzo in
-        # fondo a questa. Qui il calendario non e' stato sincronizzato, quindi
-        # della giornata si legge l'invito a premere SINCRONIZZA (il contenuto,
-        # con i pulsanti «Scheda», e' verificato in test_apptest_scheda_partita).
-        self.assertIn("SINCRONIZZA", testo)
+        # La giornata NON sta piu' in questa scheda: qui restano Elo e Backtest,
+        # e l'invito a premere SINCRONIZZA (il calendario, in questa istanza, non
+        # e' stato caricato) si legge nella scheda «🏟️ Partite», che verifica
+        # test_apptest_scheda_partita.
+        self.assertIn("SINCRONIZZA",
+                      " \n".join(_testi_della_tab(self.at, SCHEDA_PARTITE)[0]))
         self.assertFalse([b for b in self.at.button
                           if (b.key or "").startswith("partite_scheda_")],
-                         "senza giornata non ci sono righe da elencare")
+                         "i pulsanti «Scheda» non esistono piu': si clicca la riga")
         # E le altre schede non si spostano: il loro contenuto e' lo stesso.
         self.assertIn("Le più probabili",
                       " \n".join(_testi_della_tab(self.at, SCHEDA_MULTIPLE)[0]))

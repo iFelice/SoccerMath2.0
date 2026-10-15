@@ -2965,25 +2965,82 @@ CSS_TEMA_CHIARO_FORZATO = """
     </style>
 """
 
+# ---------------------------------------------------------------------------
+# Il calendario in memoria: le giornate, e la prossima da giocare
+# ---------------------------------------------------------------------------
+# Sono le due funzioni che popolano il selettore della GIORNATA della scheda
+# «🏟️ Partite». Prima questa logica stava scritta dentro la barra laterale (la
+# leggeva la vecchia scheda Partite, allora negli Strumenti avanzati): estrarla
+# non cambia il criterio - la giornata predefinita e' la PRIMA con almeno una
+# partita ancora da giocare, l'ultima quando sono tutte giocate - cambia solo
+# che ora il criterio sta in un posto solo, si legge e si riusa.
+def giornate_del_calendario(righe):
+    """Le giornate presenti nel calendario caricato, in ordine crescente.
+
+    Una riga senza ``matchday`` leggibile non produce una giornata: il calendario
+    e' quello della fonte (football-data) e qui non si inventa niente.
+    """
+    fuori = []
+    for m in righe or []:
+        try:
+            fuori.append(int((m or {}).get("matchday")))
+        except (TypeError, ValueError):
+            continue
+    return sorted(set(fuori))
+
+
+def _kickoff_del_calendario(m):
+    """Il calcio d'inizio (UTC, aware) di una riga del calendario, o ``None``."""
+    try:
+        dt = datetime.fromisoformat(str((m or {}).get("utcDate")).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def indice_prossima_giornata(giornate, righe, adesso=None):
+    """L'indice, in ``giornate``, della prossima giornata da giocare.
+
+    La prossima e' la PRIMA giornata con almeno una partita non ancora iniziata;
+    se sono tutte iniziate resta l'ultima (il calendario mostra i risultati).
+    Un calendario vuoto ritorna 0: il selettore non avra' comunque opzioni.
+    """
+    now = adesso or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    for i, g in enumerate(giornate or []):
+        for m in righe or []:
+            try:
+                if int((m or {}).get("matchday")) != int(g):
+                    continue
+            except (TypeError, ValueError):
+                continue
+            dt = _kickoff_del_calendario(m)
+            if dt is not None and dt > now:
+                return i
+    return max(0, len(giornate or []) - 1)
+
+
 # --- SIDEBAR ---
 # In vista restano SOLO i due comandi che servono per usare le schede: il
-# campionato (lo legge la scheda «Strumenti avanzati») e l'interruttore
-# «Strumenti avanzati», spento all'avvio. Tutto il resto - diagnostica, sincronizzazione,
-# chat con Billy, tema e scelta della giornata - sta nel riquadro chiuso
+# campionato (lo leggono la scheda Partite e gli strumenti avanzati) e
+# l'interruttore «Strumenti avanzati», spento all'avvio. Tutto il resto -
+# diagnostica, sincronizzazione, chat con Billy e tema - sta nel riquadro chiuso
 # «Impostazioni e diagnostica». Spostarli non cambia il loro funzionamento:
 # Streamlit esegue il contenuto di un expander anche quando e' chiuso, quindi
 # pulsanti, caselle, selettori e CSS continuano a fare esattamente quello che
 # facevano; cambia solo che per leggerne l'esito bisogna aprire il riquadro.
+# La scelta della giornata NON sta piu' qui: la fa il selettore in testa alla
+# scheda «🏟️ Partite», l'unico posto che la legge.
 with st.sidebar:
     st.title("🎩 Billy Walters Chat")
 
     camp_sel = st.selectbox("CAMPIONATO", list(LEAGUES_CONFIG.keys()))
     strumenti_avanzati = st.toggle(
         "🔧 Strumenti avanzati", value=False, key="strumenti_avanzati",
-        help="Acceso aggiunge la scheda «🔧 Strumenti avanzati» con Elo, "
-             "Backtest e l'analisi della giornata (la vecchia scheda Partite), "
-             "invariati. Spento all'avvio: le schede sono quattro (Pronostici, "
-             "Pareggi, Multiple, Registro).")
+        help="Acceso aggiunge la scheda «🔧 Strumenti avanzati» con Elo e "
+             "Backtest, invariati. Spento all'avvio: le schede sono cinque "
+             "(Partite, Pronostici, Pareggi, Multiple, Registro).")
 
     with st.expander("⚙️ Impostazioni e diagnostica", expanded=False):
         if not Groq: st.error("Lib 'groq' non installata (pip3 install groq)")
@@ -3083,19 +3140,11 @@ with st.sidebar:
                 except Exception:
                     pass
         
-        if "live_data" in st.session_state and st.session_state.live_data:
-            giornate = sorted(list(set([int(m.get('matchday', 0)) for m in st.session_state.live_data])))
-            default_idx = 0
-            now_utc = datetime.now(timezone.utc)
-            for i, g in enumerate(giornate):
-                for m in st.session_state.live_data:
-                    if m['matchday'] == g:
-                        try:
-                            if datetime.fromisoformat(m["utcDate"].replace("Z", "+00:00")) > now_utc: default_idx = i; break
-                        except: pass
-                if default_idx != 0: break
-            g_sel = st.selectbox("GIORNATA", giornate, index=default_idx)
-        else: g_sel = None
+        # NIENTE selettore della giornata, qui: da quando la scheda «🏟️ Partite»
+        # e' tornata in vista la giornata si sceglie in testa a quella scheda
+        # (le stesse due funzioni di prima, ``giornate_del_calendario`` e
+        # ``indice_prossima_giornata``). Un selettore senza lettore sarebbe
+        # rimasto in pagina a non fare niente.
 
 engine = get_league_engine(camp_sel)
 
@@ -3196,21 +3245,23 @@ CHIAVE_PROSSIMI_GIORNI = "lg_periodo_prossimi"
 ETICHETTA_PROSSIMI_GIORNI = "Mostra anche i prossimi giorni"
 
 # --- SCHEDE ---
-# Quattro schede sempre in vista, nell'ordine in cui si usano: i pronostici della
-# giornata (la PRIMA, quindi quella aperta all'avvio), i pareggi, le multiple e il
-# registro. L'analisi giornata per giornata di una volta (la vecchia scheda
-# «🏟️ Partite»), ELO RATING e BACKTEST stanno invece nella quinta scheda, che
-# esiste solo con l'interruttore «Strumenti avanzati» della barra laterale (spento
-# all'avvio), con i contenuti invariati uno sotto l'altro. Nessuna funzione di
-# calcolo viene rimossa e nessun numero cambia: qui si spostano e si rinominano.
+# CINQUE schede sempre in vista, nell'ordine in cui si usano: le partite della
+# giornata (la PRIMA, quindi quella aperta all'avvio), i pronostici, i pareggi,
+# le multiple e il registro. ELO RATING e BACKTEST stanno invece nella sesta
+# scheda, che esiste solo con l'interruttore «Strumenti avanzati» della barra
+# laterale (spento all'avvio), con i contenuti invariati uno sotto l'altro.
+# Nessuna funzione di calcolo viene rimossa e nessun numero cambia: qui si
+# spostano e si rinominano.
+TITOLO_SCHEDA_PARTITE = "🏟️ Partite"
 TITOLO_SCHEDA_PRONOSTICI = "⚽ Pronostici"
 TITOLO_SCHEDA_PAREGGI = "🟰 Pareggi"
 TITOLO_SCHEDA_MULTIPLE = "🎯 Multiple"
 TITOLO_SCHEDA_REGISTRO = "📒 Registro"
 TITOLO_SCHEDA_STRUMENTI = "🔧 Strumenti avanzati"
 
-_etichette_schede = [TITOLO_SCHEDA_PRONOSTICI, TITOLO_SCHEDA_PAREGGI,
-                     TITOLO_SCHEDA_MULTIPLE, TITOLO_SCHEDA_REGISTRO]
+_etichette_schede = [TITOLO_SCHEDA_PARTITE, TITOLO_SCHEDA_PRONOSTICI,
+                     TITOLO_SCHEDA_PAREGGI, TITOLO_SCHEDA_MULTIPLE,
+                     TITOLO_SCHEDA_REGISTRO]
 if strumenti_avanzati:
     _etichette_schede.append(TITOLO_SCHEDA_STRUMENTI)
 # --- IL PERIODO DI GIOCO, SOPRA LE SCHEDE (punto 8) ---
@@ -3219,36 +3270,201 @@ if strumenti_avanzati:
 # significava o duplicare la chiave (Streamlit non lo permette: due widget con
 # la stessa key nella stessa pagina vanno in conflitto) o spiegare a chi legge
 # dove andare a cercarlo; qui si vede da qualsiasi scheda, e nessuna frase deve
-# piu' nominarlo.
+# piu' nominarlo. Alla scheda «🏟️ Partite» non si applica: li' la giornata si
+# sceglie con il selettore in testa alla scheda, e la tabella mostra QUELLA.
 st.toggle(ETICHETTA_PROSSIMI_GIORNI, key=CHIAVE_PROSSIMI_GIORNI,
           help="Spento: le partite di questa giornata, fino a lunedì alle 23:59. "
                "Acceso: tutte quelle in programma. Vale per «Pronostici», "
                "«Pareggi» e «Multiple».")
 _schede = st.tabs(_etichette_schede)
-tab_pronostici, tab_pareggi, tab_multiple, tab_registro = _schede[:4]
-tab_strumenti = _schede[4] if len(_schede) > 4 else None
+tab_partite, tab_pronostici, tab_pareggi, tab_multiple, tab_registro = _schede[:5]
+tab_strumenti = _schede[5] if len(_schede) > 5 else None
 
 
 # ---------------------------------------------------------------------------
-# 🏟️  PARTITE: il contenuto completo della vecchia scheda, solo spostato
+# 🏟️  PARTITE: la giornata di nuovo in vista, come prima scheda
 # ---------------------------------------------------------------------------
-# E' il corpo che stava in ``with tab_partite:``, riga per riga: l'elenco delle
-# partite della giornata (con il pulsante «Scheda» di ogni riga) e, chiuso, il
-# riquadro «Dettagli» con l'Analisi Rapida e le card del modello. Non cambia
-# niente tranne il contenitore: sta nella quinta scheda, che esiste solo con
-# l'interruttore «Strumenti avanzati» acceso, e le key restano le stesse
-# (partite_scheda_*, ex_*). Nessuna scrittura: qui si calcola l'analisi solo se
-# si preme «⚡ Analisi Rapida», come prima.
-def _mostra_scheda_partite(camp_sel, g_sel, engine):
-    """L'analisi della giornata selezionata: elenco partite, «Scheda», Dettagli."""
-    if 'live_data' in st.session_state and st.session_state.live_data and g_sel is not None and engine:
+# In testa, sulla stessa riga, il campionato (i cinque di sempre, predefinito
+# quello della barra laterale) e la giornata (predefinita la prossima da
+# giocare: le stesse due funzioni che popolavano il selettore della barra
+# laterale). Sotto, UNA tabella con tutte le partite della giornata: quando si
+# giocano, le probabilita' 1/X/2 delle quote e l'esito piu' probabile; per le
+# partite gia' giocate il risultato prende il posto delle probabilita'. Il clic
+# sulla riga apre la scheda della partita, come nelle altre schede: la fila di
+# pulsanti «Scheda» non c'e' piu' (le key partite_scheda_* spariscono con lei).
+# In fondo, chiuso, il riquadro «Dettagli» con l'Analisi Rapida e le card del
+# modello di oggi: INVARIATI, stesse funzioni, stesse key (ex_*), nessun numero
+# ricalcolato. Nessuna scrittura: l'analisi si calcola solo premendo
+# «⚡ Analisi Rapida», come prima.
+#
+# L'interruttore «Mostra anche i prossimi giorni» qui NON si applica: la
+# giornata la sceglie il selettore in testa e la tabella mostra quella.
+CHIAVE_CAMPIONATO_PARTITE = "partite_campionato"
+CHIAVE_GIORNATA_PARTITE = "partite_giornata"
+CHIAVE_TABELLA_PARTITE = "partite_tabella_giornata"
+COLONNE_PARTITE = ["Quando", "Partita", "1", "X", "2", "Pronostico", "Risultato"]
+ESITI_PARTITE = ("1", "X", "2")
+
+
+def risultato_in_colonna(match):
+    """Il risultato finale di una partita giocata: «2-1» (vuoto se non c'e').
+
+    Vuoto, e non «n/d» né uno zero: una partita non ancora refertata dalla fonte
+    non ha un risultato da mostrare.
+    """
+    if str((match or {}).get("status") or "").upper() != "FINISHED":
+        return ""
+    score = ((match or {}).get("score") or {}).get("fullTime") or {}
+    casa, trasferta = score.get("home"), score.get("away")
+    try:
+        return f"{int(casa)}-{int(trasferta)}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def esito_piu_probabile(quote):
+    """La sigla dell'esito con la probabilita' piu' alta: «1», «X» o «2».
+
+    Lettura, non calcolo: i numeri sono quelli delle quote, gia' passati da
+    :func:`percento_decimale`. Se anche uno solo dei tre manca la cella resta
+    vuota (nessuna classifica parziale spacciata per un pronostico); a parita'
+    di probabilita' vince la sigla che viene prima nell'ordine 1, X, 2.
+    """
+    valori = {e: percento_decimale((quote or {}).get(e)) for e in ESITI_PARTITE}
+    if any(v is None for v in valori.values()):
+        return ""
+    return max(ESITI_PARTITE, key=lambda e: valori[e])
+
+
+def riga_tabella_partita(riga, match, adesso=None):
+    """Una riga della tabella della giornata, da una riga di ``scheda_partita``.
+
+    I nomi mostrati, l'orario e le probabilita' sono quelli gia' preparati da
+    :func:`scheda_partita.righe_partite_giornata` (stessa fonte quote, stessa
+    de-vig, nessun numero ricalcolato qui); da qui si aggiungono solo il formato
+    delle colonne e il risultato delle partite gia' giocate. Di una partita
+    CONCLUSA si legge il risultato AL POSTO delle probabilita': le quote di una
+    partita gia' giocata non dicono piu' niente, e tenerle in vista accanto al
+    risultato farebbe leggere un pronostico su un fatto gia' avvenuto. Le due
+    chiavi ``provvisoria`` e ``scheda`` non finiscono in tabella: la prima serve
+    alla riga del ⏳ sotto la tabella, la seconda al clic sulla riga.
+    """
+    riferimento = riga.get("utcDate")
+    lontana = lg.e_partita_provvisoria({"commence_time": riferimento}, adesso)
+    risultato = risultato_in_colonna(match)
+    quote = None if risultato else (riga.get("probabilita") or {}).get("quote")
+    return {
+        "Quando": _quando_breve(riferimento, lontana),
+        "Partita": f"{riga.get('casa_nome') or '?'} - {riga.get('trasferta_nome') or '?'}",
+        "1": percento_decimale((quote or {}).get("1")),
+        "X": percento_decimale((quote or {}).get("X")),
+        "2": percento_decimale((quote or {}).get("2")),
+        "Pronostico": esito_piu_probabile(quote),
+        "Risultato": risultato,
+        "provvisoria": bool(lontana),
+        "scheda": {"lega": riga.get("lega"), "casa": riga.get("casa"),
+                   "trasferta": riga.get("trasferta"),
+                   "kickoff_utc": riferimento},
+    }
+
+
+def tabella_partite_giornata(righe):
+    """Il DataFrame della giornata e le righe nello STESSO ordine.
+
+    Sette colonne nell'ordine ``COLONNE_PARTITE``. «1», «X» e «2» restano NUMERI
+    (una cifra decimale, come «Quote %» nelle altre schede) perche' la colonna
+    si possa ordinare al clic sull'intestazione; le altre quattro sono TESTO
+    gia' formattato, con stringa vuota dove il dato manca: nessuna cella di
+    questa tabella puo' rendere un "None" o un "nan". L'ordine e' quello del
+    calendario (per orario), non una graduatoria: la giornata si legge in
+    sequenza, e l'indice della riga cliccata e' quello della tabella.
+    """
+    sorgente = [r for r in (righe or []) if isinstance(r, dict)]
+    df = pd.DataFrame(sorgente, columns=COLONNE_PARTITE)
+    for colonna in ESITI_PARTITE:
+        df[colonna] = pd.to_numeric(df[colonna], errors="coerce")
+    for colonna in ("Quando", "Partita", "Pronostico", "Risultato"):
+        df[colonna] = df[colonna].map(cella_di_testo)
+    return df, sorgente
+
+
+def _config_colonne_partite():
+    """Le colonne della tabella della giornata, con i loro suggeritori."""
+    return {
+        "Quando": st.column_config.TextColumn(
+            "Quando",
+            help="Giorno, data e ora italiana del fischio d'inizio. ⏳ = la "
+                 "partita gioca fra più di 3 giorni."),
+        "Partita": st.column_config.TextColumn(
+            "Partita", help="Squadra di casa e squadra in trasferta."),
+        "1": st.column_config.NumberColumn(
+            "1", format="%.1f%%", help="Vittoria della squadra di casa: "
+            "probabilità secondo le quote dei bookmaker. Vuota senza quote."),
+        "X": st.column_config.NumberColumn(
+            "X", format="%.1f%%", help="Pareggio: probabilità secondo le quote "
+            "dei bookmaker. Vuota senza quote."),
+        "2": st.column_config.NumberColumn(
+            "2", format="%.1f%%", help="Vittoria della squadra in trasferta: "
+            "probabilità secondo le quote dei bookmaker. Vuota senza quote."),
+        "Pronostico": st.column_config.TextColumn(
+            "Pronostico",
+            help="L'esito con la probabilità più alta secondo le quote: "
+                 "1 in casa, X pareggio, 2 in trasferta."),
+        "Risultato": st.column_config.TextColumn(
+            "Risultato",
+            help="Il risultato finale delle partite già giocate: al posto delle "
+                 "probabilità, che su una partita conclusa non dicono più niente."),
+    }
+
+
+def _mostra_scheda_partite(camp_barra, engine_barra):
+    """La scheda «🏟️ Partite»: campionato e giornata, la tabella, i Dettagli.
+
+    ``camp_barra`` e' il campionato della barra laterale: e' il valore
+    PREDEFINITO del selettore di questa scheda, che poi vive per conto suo
+    (``st.session_state[partite_campionato]``). ``engine_barra`` e' il motore del
+    campionato della barra laterale, gia' calcolato: se la scheda ne sceglie un
+    altro prende quello, dalla stessa cache.
+    """
+    # --- LA TESTA: campionato e giornata sulla stessa riga -----------------
+    col_camp, col_gior = st.columns(2)
+    with col_camp:
+        if st.session_state.get(CHIAVE_CAMPIONATO_PARTITE) not in LEAGUES_CONFIG:
+            st.session_state[CHIAVE_CAMPIONATO_PARTITE] = camp_barra
+        camp_sel = st.selectbox(
+            "CAMPIONATO", list(LEAGUES_CONFIG.keys()), key=CHIAVE_CAMPIONATO_PARTITE,
+            help="Il campionato della giornata in tabella. All'apertura e' "
+                 "quello della barra laterale.")
+    righe_calendario = list(st.session_state.get("live_data") or [])
+    giornate = giornate_del_calendario(righe_calendario)
+    with col_gior:
+        g_sel = None
+        if giornate:
+            if st.session_state.get(CHIAVE_GIORNATA_PARTITE) not in giornate:
+                # Un cambio di campionato puo' lasciare in memoria una giornata
+                # che qui non c'e': si riparte dalla prossima da giocare.
+                st.session_state.pop(CHIAVE_GIORNATA_PARTITE, None)
+            g_sel = st.selectbox(
+                "GIORNATA", giornate, key=CHIAVE_GIORNATA_PARTITE,
+                index=indice_prossima_giornata(giornate, righe_calendario),
+                help="La giornata da mostrare. All'apertura e' la prossima da "
+                     "giocare.")
+        else:
+            st.caption("GIORNATA: nessuna, finché il calendario non è caricato.")
+    engine = engine_barra if camp_sel == camp_barra else get_league_engine(camp_sel)
+
+    if righe_calendario and g_sel is not None and engine:
         team_stats, avg_h, avg_a, _ = engine
-        matches = [m for m in st.session_state.live_data if int(m.get('matchday', 0)) == int(g_sel)]
+        # La giornata in ordine di orario: la tabella si legge in sequenza.
+        matches = sorted([m for m in righe_calendario
+                          if int(m.get('matchday', 0)) == int(g_sel)],
+                         key=lambda m: str((m or {}).get("utcDate") or "9999"))
         st.subheader(f"🏟️ {camp_sel.upper()} - GIORNATA {g_sel}")
-        st.caption("Le partite della giornata con la data e l'ora italiane e le "
-                   "probabilità 1, X, 2 in parole, quando le quote ci sono. "
-                   "«Scheda» apre la scheda della partita.")
-        # --- L'ELENCO IN PAROLE (la scheda si apre da qui) -------------------
+        st.caption("Tutte le partite della giornata: quando si giocano, le "
+                   "probabilità 1, X, 2 delle quote e l'esito più probabile. "
+                   "Delle partite già giocate si legge il risultato. "
+                   "Clic sulla riga: la scheda della partita.")
+        # --- LA TABELLA DELLA GIORNATA (la scheda si apre dal clic) ---------
         # Le partite sono quelle del calendario (football-data, come oggi); le
         # probabilita' arrivano dal file delle quote, abbinate per nome
         # canonico e per lega. Nessun numero e' ricalcolato qui.
@@ -3262,17 +3478,18 @@ def _mostra_scheda_partite(camp_sel, g_sel, engine):
             _payload_partite, _adesso_partite)
         if not righe_giornata:
             st.info("Nessuna partita in questa giornata.")
-        for i, r in enumerate(righe_giornata):
-            c_nomi, c_prob, c_btn = st.columns([2.0, 3.2, 0.8])
-            with c_nomi:
-                st.markdown(f"**{r['casa_nome']} - {r['trasferta_nome']}**")
-                st.caption(f"🕒 {r['quando']}")
-            with c_prob:
-                st.markdown(r["in_parole"])
-            with c_btn:
-                if st.button("Scheda", key=f"partite_scheda_{i}",
-                             help=f"{r['casa_nome']} - {r['trasferta_nome']}"):
-                    apri_scheda_partita(camp_sel, r["casa"], r["trasferta"], r["utcDate"])
+        else:
+            df_partite, righe_ordinate = tabella_partite_giornata(
+                [riga_tabella_partita(r, m, _adesso_partite)
+                 for r, m in zip(righe_giornata, matches)])
+            evento_partite = st.dataframe(
+                df_partite, width="stretch", height=420, hide_index=True,
+                on_select="rerun", selection_mode="single-row",
+                key=CHIAVE_TABELLA_PARTITE, column_config=_config_colonne_partite())
+            if any(r.get("provvisoria") for r in righe_ordinate):
+                st.caption(FRASE_QUOTE_ANCORA_PROVVISORIE)
+            _apri_scheda_della_riga(evento_partite, CHIAVE_TABELLA_PARTITE,
+                                    righe_ordinate)
         # --- «DETTAGLI»: l'analisi del modello di oggi, INVARIATA, in fondo ---
         # Tutto quello che questa scheda mostrava prima (il pulsante «Analisi
         # Rapida» e le card per partita con 1X2, U/O 2.5, GG/NG e il pulsante
@@ -3518,9 +3735,12 @@ COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %",
 MARCATORE_PARTITA_LONTANA = "⏳"
 FRASE_QUOTE_ANCORA_PROVVISORIE = MARCATORE_PARTITA_LONTANA + " quote ancora provvisorie"
 
-# Ultima riga cliccata in una tabella: la selezione di ``st.dataframe`` resta in
-# ``session_state`` anche nei ridisegni successivi, e senza questo promemoria la
-# scheda si riaprirebbe a ogni ridisegno.
+# Ultima riga cliccata, UNA VOCE PER TABELLA (``{chiave_widget: indice}``): la
+# selezione di ``st.dataframe`` resta in ``session_state`` anche nei ridisegni
+# successivi, e senza questo promemoria la scheda si riaprirebbe a ogni
+# ridisegno. Una voce sola per tutta la pagina non basta: con piu' schede in
+# vista, la selezione lasciata in una tabella ruberebbe il riquadro alla tabella
+# cliccata (vedi ``_apri_scheda_della_riga``).
 CHIAVE_ULTIMA_RIGA = "scheda_riga_ultima"
 
 
@@ -3776,13 +3996,23 @@ def _apri_scheda_della_riga(evento, chiave_widget, righe_ordinate):
     scheda e' lo stesso riquadro (``st.dialog`` quando c'e') che apriva il
     pulsante. Una selezione non cambia a ogni ridisegno, quindi la scheda si apre
     una volta sola per riga cliccata.
+
+    Il promemoria delle righe gia' aperte e' PER TABELLA (una chiave per
+    tabella, non una sola per tutta la pagina): con piu' schede in vista, la
+    selezione di una tabella sopravvive al clic fatto in un'altra, e un
+    promemoria unico farebbe riaprire a ogni ridisegno la scheda della tabella
+    disegnata per ultima — non quella che si e' cliccata.
     """
     indice = riga_selezionata(evento)
     if indice is None or not 0 <= indice < len(righe_ordinate or []):
         return
-    if st.session_state.get(CHIAVE_ULTIMA_RIGA) == (chiave_widget, indice):
+    aperte = st.session_state.get(CHIAVE_ULTIMA_RIGA)
+    if not isinstance(aperte, dict):
+        aperte = {}          # formato vecchio (una coppia sola): si riparte
+    if aperte.get(chiave_widget) == indice:
         return
-    st.session_state[CHIAVE_ULTIMA_RIGA] = (chiave_widget, indice)
+    aperte[chiave_widget] = indice
+    st.session_state[CHIAVE_ULTIMA_RIGA] = aperte
     richiesta = righe_ordinate[indice].get("scheda") or {}
     apri_scheda_partita(richiesta.get("lega"), richiesta.get("casa"),
                         richiesta.get("trasferta"), richiesta.get("kickoff_utc"))
@@ -5776,6 +6006,15 @@ def _mostra_dettagli_mercato(righe, altezza=420):
 
 
 # ---------------------------------------------------------------------------
+# 🏟️  PARTITE  —  la prima scheda: la giornata, con i suoi selettori
+# ---------------------------------------------------------------------------
+# Sempre in vista (l'interruttore «Strumenti avanzati» non la riguarda): in
+# testa il campionato e la giornata, sotto la tabella con le probabilita' delle
+# quote e, chiuso in fondo, il riquadro «Dettagli» con l'analisi del modello.
+with tab_partite:
+    _mostra_scheda_partite(camp_sel, engine)
+
+# ---------------------------------------------------------------------------
 # ⚽  PRONOSTICI e 🟰  PAREGGI  —  le due schede nate dalla vecchia «Giocate»
 # ---------------------------------------------------------------------------
 # Pronostici: niente in vista finche' non si chiede il giro (il pulsante fa le
@@ -5859,11 +6098,11 @@ with tab_multiple:
     if concludi_confronto_modello():
         st.rerun()
 
-# --- STRUMENTI AVANZATI (Elo, Backtest e il contenuto della scheda Partite) ---
+# --- STRUMENTI AVANZATI (Elo e Backtest) ---
 # I contenuti sono INVARIATI: sono gli stessi corpi che stavano nelle schede ELO
-# RATING, BACKTEST e «🏟️ Partite», solo spostati in tre funzioni per poterli
-# mettere uno sotto l'altro dentro la quinta scheda, che esiste solo quando
-# l'interruttore «Strumenti avanzati» della barra laterale e' acceso.
+# RATING e BACKTEST, solo spostati in due funzioni per poterli mettere uno sotto
+# l'altro dentro la sesta scheda, che esiste solo quando l'interruttore
+# «Strumenti avanzati» della barra laterale e' acceso.
 def _mostra_elo_rating(camp_sel):
     st.subheader(f"⚡ Elo - {camp_sel}")
     elo_df = get_elo_leaderboard(camp_sel)
@@ -5932,19 +6171,16 @@ def _mostra_backtest_storico(camp_sel):
                 st.dataframe(df_show, width="stretch", hide_index=True)
 
 
-# La quinta scheda esiste solo con l'interruttore acceso: quando e' spento le
-# schede sono quattro e qui non viene renderizzato niente (Streamlit esegue il
-# codice di un tab solo se il tab esiste).
+# La sesta scheda esiste solo con l'interruttore acceso: quando e' spento le
+# schede sono cinque e qui non viene renderizzato niente (Streamlit esegue il
+# codice di un tab solo se il tab esiste). Dentro ci sono SOLO Elo e Backtest:
+# la giornata (l'ex scheda «🏟️ Partite») e' tornata in vista come prima scheda,
+# e si disegna in ``with tab_partite:``.
 if strumenti_avanzati:
     with tab_strumenti:
         _mostra_elo_rating(camp_sel)
         st.divider()
         _mostra_backtest_storico(camp_sel)
-        st.divider()
-        # E qui c'e' anche tutta la vecchia scheda «🏟️ Partite»: l'elenco delle
-        # partite della giornata con i suoi pulsanti «Scheda» e, chiuso, il
-        # riquadro «Dettagli» con l'Analisi Rapida. Stesso codice, stesse key.
-        _mostra_scheda_partite(camp_sel, g_sel, engine)
 
 # --- LA SCHEDA PARTITA, in coda al disegno --------------------------------
 # Un solo punto di apertura per i pulsanti «Scheda» di TUTTE le schede: quando
