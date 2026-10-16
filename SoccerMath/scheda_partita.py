@@ -1039,6 +1039,14 @@ def costruisci_scheda(camp_key: str, casa: Any, trasferta: Any, *,
     if evento is None and payload_quote:
         evento = evento_di(payload_quote, casa, trasferta, scheda["kickoff_utc"])
     prob = probabilita_di(evento)
+    from totals_mercato import calcola_totals
+    from market_odds import SOGLIA_TOPMIX_MERCATO
+    terna = prob.get("quote") or {}
+    esito_gol = max(terna, key=terna.get) if terna else ""
+    if esito_gol and terna[esito_gol] < SOGLIA_TOPMIX_MERCATO:
+        esito_gol = ""
+    scheda["totals"] = calcola_totals((evento or {}).get("libri"), esito_gol)
+
     terna_modello = {}
     for esito in ("1", "X", "2"):
         terna_modello[esito] = modello_per_esito(modello_1x2, casa, trasferta, esito)
@@ -1130,6 +1138,10 @@ def blocchi_scheda(scheda: Dict[str, Any]) -> List[Tuple[str, List[str]]]:
             righe.append(f"{esito} · Quote % {valore} · Modello % {modello_txt}")
     else:
         righe.append(FRASE_QUOTE_ASSENTI)
+    from totals_mercato import frase_totals
+    frase_gol = frase_totals(scheda.get("totals") or {})
+    if frase_gol:
+        righe.append(frase_gol)
     fuori.append(("Probabilità (dalle quote dei bookmaker)", righe))
 
     # (b) classifica e obiettivi

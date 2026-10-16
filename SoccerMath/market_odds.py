@@ -66,7 +66,7 @@ ESITI: Tuple[str, str, str] = ("1", "X", "2")
 ETICHETTE_ESITO = {"1": "1 (casa)", "X": "X (pareggio)", "2": "2 (trasferta)"}
 
 LIVE_ODDS_FILE = "live_odds.json"
-SCHEMA_LIVE_ODDS = "soccermath_live_odds_v1"
+SCHEMA_LIVE_ODDS = "soccermath_live_odds_v2"
 
 # Bookmaker primario e etichette della fonte (campo ``fonte`` della riga).
 BOOKMAKER_PRIMARIO = "pinnacle"

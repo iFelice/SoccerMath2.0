@@ -9,9 +9,24 @@ In sidebar ora ci sono DUE switch: «🔧 Strumenti avanzati» e
 mai per posizione: la posizione 0 oggi e' l'altro interruttore.
 """
 import sys
-from streamlit.testing.v1 import AppTest
+from pathlib import Path
+from unittest.mock import Mock, patch
 
-at = AppTest.from_file("app.py", default_timeout=120)
+HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(HERE), str(HERE.parent)]
+from streamlit.testing.v1 import AppTest
+from audit.totals_snapshot_fixture import payload_snapshot
+
+# Anche lo smoke test e' offline: quote del 16/10, calendario vuoto simulato.
+# Niente secret e nessun tentativo di rete all'import/rerun dell'app.
+risposta = Mock(status_code=200)
+risposta.json.return_value = {"matches": []}
+patch("requests.get", return_value=risposta).start()
+patch("requests.sessions.Session.request", side_effect=AssertionError("Rete disabilitata nel test tema")).start()
+patch("market_odds.carica_quote_live", return_value=payload_snapshot()).start()
+
+
+at = AppTest.from_file(str(HERE / "app.py"), default_timeout=900)
 
 
 def _tema(_at):

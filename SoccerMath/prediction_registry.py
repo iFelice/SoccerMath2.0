@@ -1097,6 +1097,8 @@ def famiglia_selettore(entry: Any) -> str:
     Una riga senza versione (scritta prima del versionamento) e' del modello:
     il selettore di mercato non esisteva.
     """
+    if selector_version_of(entry) == "totals_mercato_v1":
+        return "totals"
     return (FAMIGLIA_SELETTORE_MERCATO if selector_version_of(entry) in VERSIONI_SELETTORE_MERCATO
             else FAMIGLIA_SELETTORE_MODELLO)
 

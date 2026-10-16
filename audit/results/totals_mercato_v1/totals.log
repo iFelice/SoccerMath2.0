@@ -1,0 +1,14 @@
+test_congiunta_e_riquadro_non_prodotto (test_totals_mercato.TestTotalsMercato.test_congiunta_e_riquadro_non_prodotto) ... ok
+test_legacy_senza_totals_si_legge_senza_ou (test_totals_mercato.TestTotalsMercato.test_legacy_senza_totals_si_legge_senza_ou) ... ok
+test_linee_intere_mezze_quarti (test_totals_mercato.TestTotalsMercato.test_linee_intere_mezze_quarti) ... ok
+test_parita_snapshot_tutti_gli_eventi_fittabili (test_totals_mercato.TestTotalsMercato.test_parita_snapshot_tutti_gli_eventi_fittabili) ... ok
+test_primaria_linea_piu_bassa_valida (test_totals_mercato.TestTotalsMercato.test_primaria_linea_piu_bassa_valida) ... ok
+test_riserva_mediana_minimo_tre_e_terna_di_riserva (test_totals_mercato.TestTotalsMercato.test_riserva_mediana_minimo_tre_e_terna_di_riserva) ... ok
+test_soglia_e_celle_senza_non_numeri (test_totals_mercato.TestTotalsMercato.test_soglia_e_celle_senza_non_numeri) ... ok
+test_writer_conserva_tutte_le_linee_e_totals_senza_h2h (test_totals_mercato.TestTotalsMercato.test_writer_conserva_tutte_le_linee_e_totals_senza_h2h) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 2.936s
+
+OK
+Parità snapshot: 97 eventi, tolleranza 1e-9

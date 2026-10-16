@@ -342,7 +342,7 @@ class TestProblema2_EtichetteRegistro(unittest.TestCase):
         le righe di mercato, che portano ``model_variant = current``).
         """
         app_src = open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
-        self.assertIn("maschera_modello = ~maschera_mercato", app_src)
+        self.assertIn("maschera_modello = ~(maschera_mercato | maschera_totals)", app_src)
         self.assertIn("maschera_attuale = maschera_attuale & maschera_modello", app_src)
         self.assertIn("maschera_legacy = maschera_legacy & maschera_modello", app_src)
         # la famiglia si decide UNA volta sola, con la funzione di produzione

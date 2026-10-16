@@ -1,0 +1,5 @@
+          Quando                        Partita Pronostico  Quote % Modello % Quota            Gol Insieme %
+sab 17/10, 02:11     Bayern Munich - RB Leipzig          1     78.6            1,22 Over 2,5 · 85%        70
+sab 17/10, 00:11          Real Madrid - Sevilla          1     78.1            1,23 Over 2,5 · 68%        59
+sab 17/10, 04:11 Manchester City - Ipswich Town          1     76.9            1,25 Over 2,5 · 69%        59
+sab 17/10, 06:11   Hamburger SV - VfB Stuttgart          —     69.3       n/d  1,39 Over 2,5 · 69%

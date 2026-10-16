@@ -559,7 +559,7 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertEqual(3, len(in_periodo), "una gioca dopo lunedi': e' fuori periodo")
 
         df = self._df(self.at, SCHEDA_PRONOSTICI)
-        self.assertEqual(COLONNE, list(df.columns))
+        self.assertEqual(COLONNE + ["Gol", "Insieme %"], list(df.columns))
         self.assertEqual(len(in_periodo), len(df))
         self.assertEqual(["Roma - Lecce", "Genoa - Fiorentina", "Napoli - Venezia"],
                          list(df["Partita"]), "la tabella e' l'elenco delle scelte")
@@ -592,9 +592,9 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertNotIn("Accendi", testo, "l'interruttore sta sopra le schede: non serve dirlo")
         # L'esito del click sta in UNA riga, e le righe restano in sessione.
         self.assertRegex(testo, r"Registrate \d+ giocate nuove|Niente di nuovo da registrare")
-        self.assertEqual(1, len([t for t in uniche
+        self.assertEqual(2, len([t for t in uniche
                                  if "Registrate" in t or "Niente di nuovo" in t]),
-                         "l'esito e' una riga sola")
+                         "esiti separati 1X2 e O/U")
         salvate = self.at.session_state[app_mod.CHIAVE_PRONOSTICI]
         self.assertEqual(4, len(salvate["righe"]),
                          "in sessione stanno TUTTE le righe del calcolo: il periodo "
@@ -781,7 +781,8 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                 self.assertEqual([], self.NON_NUMERO.findall(testo),
                                  f"non-numero nel testo reso di {scheda}: "
                                  f"{testo[:240]!r}")
-                self.assertNotIn("n/d", testo, "nessuno stato scritto nelle celle")
+                self.assertNotIn("n/d", testo.replace("Modello % per i gol: n/d", ""),
+                                 "n/d ammesso solo per O/U")
                 self.assertNotIn("Non disponibile", testo)
         # e la prova non deve essere vuota: almeno una riga senza modello, qui e
         # nella tabella dei pareggi, dev'esserci per davvero.

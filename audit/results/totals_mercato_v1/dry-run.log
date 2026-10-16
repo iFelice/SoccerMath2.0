@@ -1,0 +1,8 @@
+INFO soccer_italy_serie_a: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=398 (distinti=24), mercati grezzi: h2h=398, totals=398 - OK
+INFO soccer_epl: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=429 (distinti=25), mercati grezzi: h2h=429, totals=429 - OK
+INFO soccer_spain_la_liga: eventi=21, eventi con almeno un libro=21, eventi con Pinnacle=21, bookmaker nella risposta grezza=381 (distinti=21), mercati grezzi: h2h=381, totals=381 - OK
+INFO soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=341 (distinti=22), mercati grezzi: h2h=341, totals=341 - OK
+INFO soccer_france_ligue_one: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=333 (distinti=22), mercati grezzi: h2h=333, totals=333 - OK
+INFO Giro completo: 5/5 leghe con eventi, 5/5 leghe con quote, 97 eventi totali, 97 eventi con almeno un libro, 97 con Pinnacle, 1882 libri in tutto.
+INFO Crediti: usati None, residui None, costo ultima chiamata None (quota 500/mese).
+INFO dry-run: /home/user/totals-dry-run.json NON scritto (97 eventi sarebbero stati scritti).
