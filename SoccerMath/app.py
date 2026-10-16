@@ -3156,7 +3156,7 @@ engine = get_league_engine(camp_sel)
 # scrive la RICHIESTA in ``st.session_state`` e in coda al disegno
 # ``_mostra_scheda_richiesta()`` apre il riquadro. Cosi' il contenuto della
 # scheda non dipende da dove si e' cliccato. Nelle tre schede in vista il clic
-# e' la selezione della riga della tabella (``_apri_scheda_della_riga``): la
+# e' la selezione della riga della tabella (``chiave_tabella_pulita``): la
 # fila di pulsanti «Scheda» non esiste piu' da nessuna parte.
 #
 # Il riquadro e' un ``st.dialog`` (Streamlit >= 1.50, la versione richiesta da
@@ -3482,14 +3482,16 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
             df_partite, righe_ordinate = tabella_partite_giornata(
                 [riga_tabella_partita(r, m, _adesso_partite)
                  for r, m in zip(righe_giornata, matches)])
-            evento_partite = st.dataframe(
+            # PRIMA del disegno: la selezione pendente diventa richiesta di
+            # scheda e la tabella si disegna con la chiave nuova, senza spunte.
+            chiave_partite = chiave_tabella_pulita(CHIAVE_TABELLA_PARTITE,
+                                                   righe_ordinate)
+            st.dataframe(
                 df_partite, width="stretch", height=420, hide_index=True,
                 on_select="rerun", selection_mode="single-row",
-                key=CHIAVE_TABELLA_PARTITE, column_config=_config_colonne_partite())
+                key=chiave_partite, column_config=_config_colonne_partite())
             if any(r.get("provvisoria") for r in righe_ordinate):
                 st.caption(FRASE_QUOTE_ANCORA_PROVVISORIE)
-            _apri_scheda_della_riga(evento_partite, CHIAVE_TABELLA_PARTITE,
-                                    righe_ordinate)
         # --- «DETTAGLI»: l'analisi del modello di oggi, INVARIATA, in fondo ---
         # Tutto quello che questa scheda mostrava prima (il pulsante «Analisi
         # Rapida» e le card per partita con 1X2, U/O 2.5, GG/NG e il pulsante
@@ -3735,13 +3737,13 @@ COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %",
 MARCATORE_PARTITA_LONTANA = "⏳"
 FRASE_QUOTE_ANCORA_PROVVISORIE = MARCATORE_PARTITA_LONTANA + " quote ancora provvisorie"
 
-# Ultima riga cliccata, UNA VOCE PER TABELLA (``{chiave_widget: indice}``): la
+# Versione della chiave di OGNI tabella cliccabile (``{chiave_base: n}``): la
 # selezione di ``st.dataframe`` resta in ``session_state`` anche nei ridisegni
-# successivi, e senza questo promemoria la scheda si riaprirebbe a ogni
-# ridisegno. Una voce sola per tutta la pagina non basta: con piu' schede in
-# vista, la selezione lasciata in una tabella ruberebbe il riquadro alla tabella
-# cliccata (vedi ``_apri_scheda_della_riga``).
-CHIAVE_ULTIMA_RIGA = "scheda_riga_ultima"
+# successivi, quindi ogni riga cliccata alza la versione della sua tabella e
+# la tabella si ridisegna con una chiave NUOVA — senza selezione, senza spunta
+# blu che resta, e con la stessa riga subito ricliccabile. Vedi
+# ``chiave_tabella_pulita``.
+CHIAVE_VERSIONI_TABELLE = "tabelle_cliccabili_versioni"
 
 
 def periodo_selezionato():
@@ -3988,34 +3990,58 @@ def riga_selezionata(evento):
         return None
 
 
-def _apri_scheda_della_riga(evento, chiave_widget, righe_ordinate):
-    """Il clic su una riga apre la scheda della sua partita (nessuna scrittura).
+def chiave_tabella_corrente(chiave_base, session_state=None):
+    """La chiave con cui la tabella ``chiave_base`` viene disegnata in questo disegno.
 
-    Sostituisce la fila di pulsanti «Scheda» e la riga «Scheda partita: ...» che
-    la accompagnava: la selezione della tabella e' gia' un clic sulla riga, e la
-    scheda e' lo stesso riquadro (``st.dialog`` quando c'e') che apriva il
-    pulsante. Una selezione non cambia a ogni ridisegno, quindi la scheda si apre
-    una volta sola per riga cliccata.
+    La chiave di ogni tabella cliccabile porta una versione che sale a ogni
+    selezione consumata: dopo un clic la tabella nasce con una chiave NUOVA,
+    quindi vuota (la spunta blu non resta) e la stessa riga si puo'
+    ricliccare. I test che simulano un clic impostano la selezione su QUESTA
+    chiave (``at.session_state[chiave_tabella_corrente(base, at.session_state)]``).
 
-    Il promemoria delle righe gia' aperte e' PER TABELLA (una chiave per
-    tabella, non una sola per tutta la pagina): con piu' schede in vista, la
-    selezione di una tabella sopravvive al clic fatto in un'altra, e un
-    promemoria unico farebbe riaprire a ogni ridisegno la scheda della tabella
-    disegnata per ultima — non quella che si e' cliccata.
+    ``session_state`` serve ai test, che leggono lo stato dell'AppTest e non
+    quello del processo: di default c'e' la sessione di Streamlit.
     """
-    indice = riga_selezionata(evento)
-    if indice is None or not 0 <= indice < len(righe_ordinate or []):
-        return
-    aperte = st.session_state.get(CHIAVE_ULTIMA_RIGA)
-    if not isinstance(aperte, dict):
-        aperte = {}          # formato vecchio (una coppia sola): si riparte
-    if aperte.get(chiave_widget) == indice:
-        return
-    aperte[chiave_widget] = indice
-    st.session_state[CHIAVE_ULTIMA_RIGA] = aperte
-    richiesta = righe_ordinate[indice].get("scheda") or {}
-    apri_scheda_partita(richiesta.get("lega"), richiesta.get("casa"),
-                        richiesta.get("trasferta"), richiesta.get("kickoff_utc"))
+    stato = st.session_state if session_state is None else session_state
+    versioni = stato.get(CHIAVE_VERSIONI_TABELLE)
+    if not isinstance(versioni, dict):
+        versioni = {}
+    return f"{chiave_base}__v{int(versioni.get(chiave_base) or 0)}"
+
+
+def chiave_tabella_pulita(chiave_base, righe_ordinate):
+    """PRIMA del disegno: consuma la selezione pendente, torna la chiave da usare.
+
+    Se il disegno precedente ha lasciato una riga selezionata, qui e' il solo
+    punto in cui la si consuma, e in QUESTO stesso disegno succedono due cose:
+    la richiesta della scheda di quella riga viene salvata (``_mostra_scheda_richiesta``
+    apre il riquadro alla fine dello script) e la versione della chiave della
+    tabella sale — quindi la tabella si disegna con la chiave nuova, senza
+    selezione. Cosi', quando il riquadro si chiude con la X (che non fa un
+    nuovo disegno), la pagina resta come si e' gia' disegnata: tabella pulita,
+    e la stessa riga si puo' cliccare di nuovo.
+
+    La selezione si legge da ``st.session_state[chiave_corrente]`` PRIMA di
+    ridisegnare: e' l'unico momento in cui la lettura e il consumo sono
+    atomici. ``CHIAVE_ULTIMA_RIGA`` (il promemoria delle righe gia' aperte) non
+    serve piu': la tabella ridisegnata nasce vuota, non c'e' nulla da ricordare.
+    """
+    corrente = chiave_tabella_corrente(chiave_base)
+    indice = riga_selezionata(st.session_state.get(corrente))
+    if indice is None:
+        return corrente
+    if 0 <= indice < len(righe_ordinate or []):
+        richiesta = (righe_ordinate[indice] or {}).get("scheda") or {}
+        apri_scheda_partita(richiesta.get("lega"), richiesta.get("casa"),
+                            richiesta.get("trasferta"), richiesta.get("kickoff_utc"))
+    # La selezione si consuma anche quando la riga non c'e' piu' (tabella piu'
+    # corta di quando si e' cliccato): la sua spunta non deve restare.
+    versioni = st.session_state.get(CHIAVE_VERSIONI_TABELLE)
+    if not isinstance(versioni, dict):
+        versioni = {}
+    versioni[chiave_base] = int(versioni.get(chiave_base) or 0) + 1
+    st.session_state[CHIAVE_VERSIONI_TABELLE] = versioni
+    return chiave_tabella_corrente(chiave_base)
 
 
 def _config_colonne_pronostici():
@@ -4059,13 +4085,15 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     capito, la frase da sola direbbe una cosa non vera per tutte le righe.
     """
     df, righe_ordinate = tabella_pronostici_visibile(righe)
-    evento = st.dataframe(df, width="stretch", height=altezza, hide_index=True,
-                          on_select="rerun", selection_mode="single-row",
-                          key=chiave_widget,
-                          column_config=_config_colonne_pronostici())
+    # PRIMA del disegno: la selezione pendente diventa richiesta di scheda e la
+    # tabella si disegna con la chiave nuova, senza spunte (chiave_tabella_pulita).
+    chiave_corrente = chiave_tabella_pulita(chiave_widget, righe_ordinate)
+    st.dataframe(df, width="stretch", height=altezza, hide_index=True,
+                 on_select="rerun", selection_mode="single-row",
+                 key=chiave_corrente,
+                 column_config=_config_colonne_pronostici())
     if any(r.get("provvisoria") for r in righe_ordinate):
         st.caption(FRASE_QUOTE_ANCORA_PROVVISORIE)
-    _apri_scheda_della_riga(evento, chiave_widget, righe_ordinate)
 
 
 def caption_scelte_secondo_le_quote(n_righe, nascoste=0):

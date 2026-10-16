@@ -370,6 +370,38 @@ class TestFrasiObiettivi(unittest.TestCase):
         self.assertEqual(self._frase(4, 24, {1: 32, 6: 20}),
                          "In zona Europa: 4 punti sopra il sesto posto.")
 
+    def test_obiettivo_piu_vicino_vince_su_entrambe_le_soglie(self):
+        """Fuori dalla zona ma dentro ENTRAMBE le soglie: vince il piu' vicino.
+
+        Il caso Napoli (8°, 1 punto dal sesto, piu' punti sopra la zona): con
+        la salvezza controllata per prima la frase era «Lotta per non
+        retrocedere» — sbagliata. Regola: Europa se ``dal_sesto < dalla_zona``,
+        salvezza altrimenti (anche a parita').
+        """
+        # Napoli: 8°, 1 punto dal sesto, 5 sopra la zona -> Europa (1 < 5).
+        self.assertEqual(self._frase(8, 23, {6: 24, 18: 18}),
+                         "In corsa per l'Europa: 1 punto dal sesto posto.")
+        # 8° a 2 punti dal sesto e 5 sopra la zona: Europa (2 < 5).
+        self.assertEqual(self._frase(8, 23, {6: 25, 18: 18}),
+                         "In corsa per l'Europa: 2 punti dal sesto posto.")
+        # 5° in zona Europa con solo 5 punti sopra la zona: Europa (−2 < 5).
+        self.assertEqual(self._frase(5, 22, {6: 20, 18: 17}),
+                         "In zona Europa: 2 punti sopra il sesto posto.")
+
+    def test_salvezza_piu_vicina_dell_europa(self):
+        """1 punto sopra la zona e 5 dal sesto: «Lotta per non retrocedere»."""
+        self.assertEqual(self._frase(17, 10, {18: 9, 6: 15}),
+                         "Lotta per non retrocedere: 1 punto sopra la zona.")
+        # Parita' di distanze: la regola dice salvezza («Europa se MINORE»).
+        self.assertEqual(self._frase(17, 10, {18: 5, 6: 15}),
+                         "Lotta per non retrocedere: 5 punti sopra la zona.")
+        # Solo la soglia salvezza vale (fuori dall'Europa): stessa frase di sempre.
+        self.assertEqual(self._frase(17, 10, {18: 9}),
+                         "Lotta per non retrocedere: 1 punto sopra la zona.")
+        # Solo la soglia Europa vale: stessa frase di sempre.
+        self.assertEqual(self._frase(9, 18, {1: 30, 6: 24}),
+                         "In corsa per l'Europa: 6 punti dal sesto posto.")
+
     def test_zona_tranquilla(self):
         self.assertEqual(self._frase(10, 19, {6: 26, 18: 9}),
                          "Zona tranquilla: 7 punti dal sesto posto, "
@@ -769,6 +801,124 @@ class TestQuoteEAbbinamento(unittest.TestCase):
             self.snap, ADESSO)
         if evento["lega"] != "Bundesliga":
             self.assertEqual(righe_sbagliate[0]["in_parole"], sp.FRASE_QUOTE_ASSENTI)
+
+
+class TestRighePartiteCalendariFootballData(unittest.TestCase):
+    """Le righe della tabella «Partite» con i nomi LUNGHI dei calendari.
+
+    Il caso di produzione (bug «None nella scheda Partite»): il calendario
+    (``live_data`` dell'app) porta i nomi lunghi di football-data.org in
+    ``homeTeam.name`` («US Sassuolo Calcio»), la fonte quote i nomi brevi
+    («Sassuolo»). Convenzione in prova:
+
+    * per OGNI partita della giornata che ha un evento nel file quote (stessa
+      coppia canonica E stessa lega) la riga della tabella Partite ha le
+      probabilità 1/X/2: non celle vuote con la quota presente;
+    * dove la quota manca davvero (nessun evento) le celle restano vuote, e
+      NESSUNA tabella rende «None»/«nan»/«NaN»: le colonne di testo sono
+      stringhe (anche vuote), le numeriche mancanti sono il vuoto che la
+      tabella mostra vuoto (test_02a/test_02b di test_apptest_scheda_partita).
+
+    I nomi lunghi vengono dallo snapshot committato dei nomi football-data
+    (``audit/data/allenatori/2026-10-13_02.json``), le quote dallo snapshot
+    pinnato: nessuna rete, nessun file scritto.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        cls.snap = snap_test.snapshot_reale()
+        if cls.snap is None:
+            raise unittest.SkipTest("snapshot pinnato non raggiungibile (clone shallow?)")
+        cls.eventi = [e for e in mo.eventi_quote(cls.snap) if e.get("libri")]
+        if not cls.eventi:
+            raise unittest.SkipTest("snapshot senza eventi con quote")
+        perc = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "audit", "data", "allenatori", "2026-10-13_02.json")
+        if not os.path.exists(perc):
+            raise unittest.SkipTest("snapshot dei nomi football-data non in repo")
+        with open(perc, encoding="utf-8") as fh:
+            nomi = json.load(fh).get("squadre_per_lega") or {}
+        # canocnico -> nome lungo dell'API (quello che porta il calendario)
+        cls.lungo_per_canonico = {}
+        for voci in nomi.values():
+            for voce in voci or []:
+                nome = voce.get("nome")
+                res = sp.resolve_team_name(nome)
+                if res.mapped:
+                    cls.lungo_per_canonico.setdefault(res.canonical, nome)
+
+    def _giornata_con_nomi_lunghi(self):
+        """La giornata degli eventi dello snapshot, con i nomi dell'API lunga."""
+        from team_names import resolve_team_name as _rtn
+        partite, attese = [], {}
+        for ev in self.eventi:
+            h = _rtn(ev.get("home_team")).canonical
+            a = _rtn(ev.get("away_team")).canonical
+            lungo_h = self.lungo_per_canonico.get(h, ev.get("home_team"))
+            lungo_a = self.lungo_per_canonico.get(a, ev.get("away_team"))
+            partite.append({"lega": ev.get("lega"), "casa": lungo_h, "trasferta": lungo_a,
+                            "utcDate": ev.get("commence_time")})
+            attese[(h, a, ev.get("lega"))] = ev
+        # Una partita SENZA evento nella fonte quote: le celle restano vuote.
+        partite.append({"lega": "Serie A", "casa": "US Sassuolo Calcio",
+                        "trasferta": "Bologna FC 1909",
+                        "utcDate": "2027-05-01T15:00:00Z"})
+        return partite, attese
+
+    def test_ogni_partita_con_evento_ha_le_probabilita_nella_riga(self):
+        import app as app_mod
+        partite, attese = self._giornata_con_nomi_lunghi()
+        righe = sp.righe_partite_giornata(partite, self.snap, ADESSO)
+        self.assertEqual(len(partite), len(righe))
+        visti = 0
+        for m, riga in zip(partite, righe):
+            chiave = sp.chiave_partita_canonica(m["casa"], m["trasferta"])
+            evento = attese.get(chiave + (m["lega"],))
+            if evento is None:
+                continue
+            visti += 1
+            prob = riga.get("probabilita") or {}
+            with self.subTest(partita=f"{m['casa']} - {m['trasferta']} ({m['lega']})"):
+                self.assertTrue(prob.get("disponibile"),
+                                f"quota presente ma non agganciata: {m['casa']} / "
+                                f"{m['trasferta']} -> {chiave}")
+                self.assertTrue(all(prob.get("quote", {}).get(e) is not None
+                                    for e in ("1", "X", "2")))
+                # ...e la riga COME ESCE dalla tabella ha i numeri, non None.
+                match = {"status": "SCHEDULED", "score": {"fullTime": {}}}
+                riga_tab = app_mod.riga_tabella_partita(riga, match, ADESSO)
+                for esito in ("1", "X", "2"):
+                    self.assertIsInstance(riga_tab[esito], float,
+                                          f"cella {esito} senza numero: {riga_tab[esito]!r}")
+        self.assertGreaterEqual(visti, 90,
+                                "la copertura deve toccare tutte le partite con quote")
+
+    def test_quota_mancante_cella_vuota_e_mai_none(self):
+        import app as app_mod
+        import pandas as pd
+        partite, _attese = self._giornata_con_nomi_lunghi()
+        righe = sp.righe_partite_giornata(partite, self.snap, ADESSO)
+        match = {"status": "SCHEDULED", "score": {"fullTime": {}}}
+        tabella, _ordinate = app_mod.tabella_partite_giornata(
+            [app_mod.riga_tabella_partita(r, match, ADESSO) for r in righe])
+        self.assertGreaterEqual(len(tabella), 91)
+        # La partita senza evento: tre celle numeriche vuote (NaN = vuoto della
+        # colonna numerica, che la tabella mostra vuota), mai la stringa.
+        ultima = tabella.iloc[-1]
+        for esito in ("1", "X", "2"):
+            self.assertTrue(pd.isna(ultima[esito]),
+                            f"senza quota la cella e' vuota: {ultima[esito]!r}")
+        for colonna in tabella.columns:
+            numerica = pd.api.types.is_numeric_dtype(tabella[colonna])
+            for cella in tabella[colonna].tolist():
+                if pd.isna(cella):
+                    self.assertTrue(numerica,
+                                    f"colonna {colonna!r}: cella di testo non-numero {cella!r}")
+                    continue
+                testo = str(cella)
+                self.assertNotIn(testo.strip().lower(), ("nan", "none", "nat"),
+                                 f"colonna {colonna!r}: cella {testo!r} rende un non-numero")
 
 
 class TestSchedaCompleta(unittest.TestCase):

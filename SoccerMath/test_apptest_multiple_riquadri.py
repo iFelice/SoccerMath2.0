@@ -153,8 +153,10 @@ class TestMultipleRiquadri(_BaseAppTest):
     @classmethod
     def _df_probabili(cls, at):
         import app as app_mod
+        chiave = app_mod.chiave_tabella_corrente(app_mod.CHIAVE_TABELLA_PIU_PROBABILI,
+                                                 at.session_state)
         for el in _elementi_della_tab(at, SCHEDA_MULTIPLE, "dataframe"):
-            if str(getattr(el, "key", "") or "") == app_mod.CHIAVE_TABELLA_PIU_PROBABILI:
+            if str(getattr(el, "key", "") or "") == chiave:
                 val = getattr(el, "value", None)
                 if val is not None and hasattr(val, "data"):
                     val = val.data
@@ -345,7 +347,9 @@ class TestMultipleRiquadri(_BaseAppTest):
         self.assertGreaterEqual(len(df), 3)
         for n in (2, 0):
             casa, trasferta = [s.strip() for s in str(df.iloc[n]["Partita"]).split(" - ", 1)]
-            self.at.session_state[app_mod.CHIAVE_TABELLA_PIU_PROBABILI] = {
+            chiave = app_mod.chiave_tabella_corrente(
+                app_mod.CHIAVE_TABELLA_PIU_PROBABILI, self.at.session_state)
+            self.at.session_state[chiave] = {
                 "selection": {"rows": [n], "columns": [], "cells": []}}
             self.at.run(timeout=900)
             self.eccezioni(self.at, f"clic sulla riga {n}")
