@@ -121,6 +121,7 @@ from prediction_registry import (
     righe_visibili,
     upsert_prediction_entries,
     ORIGIN_TOP_MIX,
+    ORIGIN_MERCATO_OU,
     ORIGIN_ANALISI_RAPIDA,
     ORIGIN_BILLY,
     build_calculation_id,
@@ -3910,12 +3911,15 @@ def riga_pronostico_da_mercato(riga, adesso=None, stato_confronto=None,
         **celle_totals(riga.get("totals") or {}),
         "Quando": _quando_breve(riferimento, lontana),
         "Partita": f"{riga.get('home') or '?'} - {riga.get('away') or '?'}",
-        "Pronostico": str(riga.get("esito") or "").strip(),
-        "Quote %": percento_decimale(probabilita),
+        "Pronostico": "—" if riga.get("solo_ou") else str(riga.get("esito") or "").strip(),
+        "Quote %": "" if riga.get("solo_ou") else percento_decimale(probabilita),
         "Modello %": ("n/d" if riga.get("solo_ou") else percentuale_in_colonna(
             numero_modello_percento(riga, stato_confronto, mappa_modello_1x2))),
-        "Quota": quota_in_colonna(
+        "Quota": "" if riga.get("solo_ou") else quota_in_colonna(
             quota_b365_stimata(probabilita, riga.get("league") or riga.get("lega"))),
+        "solo_ou": bool(riga.get("solo_ou")),
+        "_prob_ou": max((riga.get("totals") or {}).get("p_over", 0),
+                        (riga.get("totals") or {}).get("p_under", 0)) if riga.get("solo_ou") else 0,
         "provvisoria": bool(lontana),
         "scheda": _righe_partita_da_giocata(riga),
     }
@@ -3971,7 +3975,17 @@ def tabella_pronostici_visibile(righe):
         df[colonna] = df[colonna].map(cella_di_testo)
     if df.empty:
         return df, []
-    df = df.sort_values("Quote %", ascending=False, na_position="last", kind="mergesort")
+    # Chiavi numeriche solo interne: 1X2 prima, poi solo-O/U per P O/U.
+    # Non ordinare sulla stringa "Gol", arrotondata alla percentuale intera.
+    df["_prob_ou"] = [r.get("_prob_ou", 0) for r in sorgente]
+    df = df.sort_values(["Quote %", "_prob_ou"], ascending=False,
+                        na_position="last", kind="mergesort").drop(columns="_prob_ou")
+    solo_ou = [bool(sorgente[i].get("solo_ou")) for i in df.index]
+    if any(solo_ou):
+        # Arrow non supporta una colonna mista float/stringa: conserva la
+        # stessa cifra decimale delle righe 1X2, senza NaN o coercizioni UI.
+        df["Quote %"] = ["" if solo else f"{value:.1f}"
+                         for solo, value in zip(solo_ou, df["Quote %"])]
     return df.reset_index(drop=True), [sorgente[i] for i in df.index]
 
 
@@ -4093,10 +4107,13 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     # PRIMA del disegno: la selezione pendente diventa richiesta di scheda e la
     # tabella si disegna con la chiave nuova, senza spunte (chiave_tabella_pulita).
     chiave_corrente = chiave_tabella_pulita(chiave_widget, righe_ordinate)
+    config_colonne = _config_colonne_pronostici()
+    if any(r.get("solo_ou") for r in righe_ordinate):
+        config_colonne["Quote %"] = st.column_config.TextColumn("Quote %")
     st.dataframe(df, width="stretch", height=altezza, hide_index=True,
                  on_select="rerun", selection_mode="single-row",
                  key=chiave_corrente,
-                 column_config=_config_colonne_pronostici())
+                 column_config=config_colonne)
     if any(r.get("provvisoria") for r in righe_ordinate):
         st.caption(FRASE_QUOTE_ANCORA_PROVVISORIE)
 
@@ -4247,7 +4264,7 @@ def entry_registro_totals(riga, snapshot_sha, salvato_il):
         riga["match_id"], riga["home"], riga["away"], riga["league"], None,
         format_date_italy(riga["utcDate"], "%d/%m/%Y %H:%M"),
         f"{side} 2,5", [], p * 100, "",
-        mercato_standard=f"{side.upper()}_2.5", origin=ORIGIN_TOP_MIX,
+        mercato_standard=f"{side.upper()}_2.5", origin=ORIGIN_MERCATO_OU,
         kickoff_utc=riga["utcDate"], selector_version=TOTALS_VERSION,
         prob_mercato=p, mercato_fonte=t["fonte"],
         quote_live_istante=riga.get("quote_live_istante"),
@@ -4515,7 +4532,7 @@ def _parse_salvato_il(testo):
         return None
 
 
-def ultima_registrazione_mercato(righe_registro=None):
+def ultima_registrazione_mercato(righe_registro=None, *, origine=ORIGIN_TOP_MIX):
     """Frase "Ultima registrazione: ...", letta dal Registro (famiglia Mercato).
 
     Legge il ``salvato_il`` piu' recente fra le righe della famiglia Mercato:
@@ -4525,7 +4542,9 @@ def ultima_registrazione_mercato(righe_registro=None):
     righe = righe_registro if righe_registro is not None else righe_visibili(load_predictions())
     istanti = []
     for r in righe or []:
-        if not isinstance(r, dict) or famiglia_selettore(r) != FAMIGLIA_SELETTORE_MERCATO:
+        if not isinstance(r, dict) or origin_of(r) != origine:
+            continue
+        if origine == ORIGIN_TOP_MIX and famiglia_selettore(r) != FAMIGLIA_SELETTORE_MERCATO:
             continue
         dt = _parse_salvato_il(r.get("salvato_il"))
         if dt is not None:
@@ -4536,6 +4555,11 @@ def ultima_registrazione_mercato(righe_registro=None):
     giorno = lg.GIORNI_SETTIMANA_IT[dt.weekday()]
     return (f"Ultima registrazione: {giorno} {dt.strftime('%d/%m/%Y')}, "
             f"ore {dt.strftime('%H:%M')}")
+
+
+def ultima_registrazione_ou(righe_registro=None):
+    """Stesso formato del Registro 1X2, solo origine dedicata mercato_ou."""
+    return "Gol · " + ultima_registrazione_mercato(righe_registro, origine=ORIGIN_MERCATO_OU)
 
 
 def registra_giocate_della_giornata():
@@ -5251,7 +5275,9 @@ def _scheda_pronostici():
     if st.button("📝 Calcola i pronostici della giornata", type="primary",
                  key="btn_calcola_pronostici"):
         calcola_pronostici_giornata()
-    st.caption(ultima_registrazione_mercato())
+    registrate = righe_visibili(load_predictions())
+    st.caption(ultima_registrazione_mercato(registrate))
+    st.caption(ultima_registrazione_ou(registrate))
     risultato = pronostici_in_sessione()
     if risultato is None:
         st.info("Premi il pulsante per calcolare i pronostici della giornata.")

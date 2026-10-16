@@ -944,7 +944,7 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
     """Lo stesso fixture eseguito su ``app.py`` di adesso e su quello di ``main``.
 
     Il file di main viene materializzato accanto all'originale
-    (``_app_pulsante_vecchio.py``, cancellato a fine classe) perche' ha bisogno
+    (``_app_pulsante_vecchio.py`` in tempfile, cancellato a fine classe) perche' ha bisogno
     degli stessi moduli fratelli; le due esecuzioni usano due cartelle
     temporanee separate e li confronta campo per campo. Tolti i campi che
     registrano il momento dell'esecuzione — ``salvato_il`` (``VOLATILI``) e le
@@ -958,7 +958,7 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
             from streamlit.testing.v1 import AppTest  # noqa: F401
         except ImportError:                                     # pragma: no cover
             raise unittest.SkipTest("streamlit.testing.v1 non disponibile")
-        # Il file di main, con il pulsante vecchio: scritto qui e cancellato in
+        # Il file di main, con il pulsante vecchio: scritto in tempfile e cancellato in
         # tearDownClass.
         try:
             src = subprocess.check_output(
@@ -970,7 +970,8 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
         import lista_giocate as lg
         assert ETICHETTA_VECCHIO in src, "il file di main non e' quello atteso"
         assert "def _scheda_pronostici" not in src, "il file di main ha gia' le schede nuove"
-        cls.vecchio = Path(HERE) / "_app_pulsante_vecchio.py"
+        cls._vecchio_tmp = tempfile.TemporaryDirectory(prefix="sm_app_vecchio_")
+        cls.vecchio = Path(cls._vecchio_tmp.name) / "_app_pulsante_vecchio.py"
         cls.vecchio.write_text(src, encoding="utf-8")
 
         # Un orologio solo per TUTTE le esecuzioni della classe: le due passate
@@ -983,8 +984,8 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        if getattr(cls, "vecchio", None) is not None and cls.vecchio.exists():
-            cls.vecchio.unlink()
+        if getattr(cls, "_vecchio_tmp", None) is not None:
+            cls._vecchio_tmp.cleanup()
 
     @staticmethod
     def _normalizza(righe):

@@ -83,7 +83,7 @@ FUNZIONI_OU = tuple((TOTALS, n.name) for n in ast.parse(open(TOTALS, encoding="u
 COSTANTI_OU = tuple((TOTALS, name) for name in (
     "TOTALS_VERSION", "SOGLIA_OU", "K", "N", "GOALS", "I", "J", "_H", "_D", "_A", "_FLAT_H", "_FLAT_D", "_FLAT_A", "RHO_BOUNDS", "LOG_LAM_BOUNDS",
     "T_MAX", "_GOALS_T", "_STARTS_RHO", "_STARTS_POI"))
-IMPRONTE_OU = {"totals_mercato_v1": "899c0eb482fb24a97e1e094c6f8313a34d6788f35a117f97ba7ef326b1739b3f"}
+IMPRONTE_OU = {"totals_mercato_v1": "fbb0cb99c42e589c3296a8bc4185c7f5b284bc3d1a67b7e621dabc7517431d8c"}
 
 
 def impronta_ou_attuale():

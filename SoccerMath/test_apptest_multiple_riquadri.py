@@ -36,6 +36,7 @@ import os
 import re
 import sys
 import unittest
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_PATH = os.path.join(HERE, "app.py")
@@ -96,6 +97,10 @@ class TestMultipleRiquadri(_BaseAppTest):
         cls.at.run(timeout=900)
         cls.eccezioni(cls.at, "apertura della pagina")
         cls.render_out = os.environ.get("MULTIPLE_RENDER_OUT")
+        # Le evidenze facoltative non possono sovrascrivere file del checkout,
+        # nemmeno se una variabile d'ambiente punta a un referto tracciato.
+        if cls.render_out and Path(cls.render_out).resolve().is_relative_to(Path(REPO_ROOT).resolve()):
+            cls.render_out = str(cls.tmp / "render-opzionale.txt")
 
     # -- attese dallo snapshot (stessi numeri dei riquadri) -----------------
     @classmethod

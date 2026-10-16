@@ -55,6 +55,7 @@ from season_calendar import season_label, season_start_year_of  # noqa: E402
 
 # Origini etichettate come le mostra la UI (``prediction_registry.tipo_for_origin``).
 ORIGINI_NOTE = {
+    "mercato_ou": "Gol (mercato)",
     "top_mix": "Top Mix",
     "analisi_rapida": "Analisi Rapida",
     "billy": "Billy",

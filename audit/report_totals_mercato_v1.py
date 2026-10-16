@@ -62,7 +62,30 @@ def markdown_table(rows):
     return '\n'.join(out)
 
 
+def tabella_apptest(out):
+    """Evidenza manuale soltanto: il test non scrive piu' alcun referto."""
+    from test_apptest_totals_mercato import TestAppTotals, ETICHETTA_CALCOLA, SCHEDA_PRONOSTICI
+    harness = TestAppTotals
+    try:
+        harness.setUpClass()
+        harness._premi_click(harness.at, ETICHETTA_CALCOLA)
+        df = harness._df(harness.at, SCHEDA_PRONOSTICI)
+        text = "\n".join(line.rstrip() for line in df.to_string(index=False).splitlines()) + "\n"
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(text)
+        print(text, end="")
+    finally:
+        harness.tearDownClass()
+
+
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--apptest-out', help='Genera manualmente la tabella resa da AppTest')
+    args = parser.parse_args()
+    if args.apptest_out:
+        tabella_apptest(args.apptest_out)
+        raise SystemExit(0)
     start, end, rows = righe_snapshot()
     window = [r for r in rows if r['nella_finestra']]
     shown = [r for r in window if max(r['p_over'], r['p_under']) >= .67]
