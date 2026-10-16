@@ -12,16 +12,16 @@ Cosa verifica, in parole povere:
   il RIQUADRO della partita giusta (i due nomi della riga sono quelli del
   titolo) con i blocchi in parole: probabilità dalle quote, classifica e
   obiettivi, forma, gol, precedenti — nessun pulsante «Scheda» nella scheda;
-* dalla giornata — il pezzo in fondo a «🔧 Strumenti avanzati», che i test
-  accendono perche' senza quell'interruttore la quinta scheda non esiste — le
-  partite sono elencate in parole (data e ora
-  italiane, 1/X/2 quando le quote ci sono, «Quote non ancora disponibili»
-  quando non ci sono) e il pulsante «Scheda» della riga apre la stessa scheda
-  della partita giusta;
+* dalla scheda «🏟️ Partite» — la PRIMA scheda, sempre in vista — la giornata si
+  sceglie con i due selettori in testa (campionato e giornata) e la tabella
+  elenca TUTTE le partite di quella giornata di quel campionato: quando si
+  giocano, le probabilità 1/X/2 delle quote, l'esito più probabile e, per le
+  partite già giocate, il risultato al posto delle probabilità. Selezionare la
+  riga N apre la scheda della partita N (i pulsanti «Scheda» non esistono più);
 * l'analisi odierna (Analisi Rapida e card del modello) sta DENTRO il riquadro
-  chiuso «🔎 Dettagli»: fuori non compaiono ne' quelle voci ne' le parole
-  vietate del punto 6 della PR #64 (elenco unico in
-  ``test_apptest_topmix_presentazione``);
+  chiuso «🔎 Dettagli» in fondo alla scheda: fuori non compaiono ne' quelle
+  voci ne' le parole vietate del punto 6 della PR #64 (elenco unico in
+  ``test_apptest_topmix_presentazione``), e nessuna cella scrive "None" o "nan";
 * [facoltativo] con la variabile d'ambiente ``SCHEDA_RENDER_OUT`` impostata, il
   test SCRIVE nel file indicato il testo reso di due partite reali del prossimo
   turno (una di vertice e una di bassa classifica), preso dal riquadro aperto
@@ -37,6 +37,7 @@ import os
 import re
 import sys
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -52,11 +53,11 @@ for _p in (HERE, REPO_ROOT):
 from test_apptest_navigazione import _BaseAppTest, _iso  # noqa: E402
 from test_apptest_topmix_presentazione import (  # noqa: E402
     PAROLE_VIETATE,
-    SCHEDA_STRUMENTI,
+    SCHEDA_PARTITE,
+    _elementi_della_tab,
     _testi_della_tab,
 )
 
-import scheda_partita as sp  # noqa: E402
 from display_names import display_name  # noqa: E402
 from team_names import resolve_team_name  # noqa: E402
 
@@ -64,6 +65,27 @@ from team_names import resolve_team_name  # noqa: E402
 #: vertice (Serie A) e una di bassa classifica (Ligue 1).
 RENDER_VERTICE = ("Serie A", "Bologna", "Inter")
 RENDER_BASSA = ("Ligue 1", "Le Havre", "Auxerre")
+
+
+# ---------------------------------------------------------------------------
+# Partite aggiunte al calendario della fixture (non sono nello snapshot, quindi
+# la fonte delle quote non le copre: servono proprio a questo).
+# ---------------------------------------------------------------------------
+def _partita(casa, trasferta, utc, giornata, stato="SCHEDULED", gol=(None, None)):
+    """Una riga di calendario nel formato della fonte (football-data)."""
+    return {"utcDate": utc, "homeTeam": {"name": casa}, "awayTeam": {"name": trasferta},
+            "matchday": giornata, "score": {"fullTime": {"home": gol[0], "away": gol[1]}},
+            "status": stato}
+
+
+#: Da giocare, senza quote: le tre celle 1/X/2 restano vuote.
+EXTRA_SENZA_QUOTE = _partita("Bologna", "Monza", "2027-05-01T15:00:00Z", 8)
+#: Gia' giocata: la tabella mostra il risultato al posto delle probabilita'.
+EXTRA_GIA_GIOCATA = _partita("Inter", "Monza", "2027-05-02T15:00:00Z", 8,
+                             stato="FINISHED", gol=(2, 1))
+#: Una seconda giornata: per cambiare la tabella col selettore della giornata.
+EXTRA_GIORNATA_9 = [_partita("Bologna", "Inter", "2027-05-08T15:00:00Z", 9),
+                    _partita("Monza", "Bologna", "2027-05-09T15:00:00Z", 9)]
 
 
 def _nomi_mostrati(nome: str) -> str:
@@ -107,35 +129,69 @@ class _BaseScheda(_BaseAppTest):
         return fuori
 
     @classmethod
-    def _carica_giornata(cls, at, lega: str, extra=None):
-        """Mette in ``session_state`` la giornata e sceglie il campionato.
+    def _carica_giornata(cls, at, lega: str, extra=None, giornata=None):
+        """Mette in ``session_state`` il calendario e sceglie la scheda.
 
-        L'elenco della giornata non e' piu' una scheda: e' il pezzo in fondo a
-        «🔧 Strumenti avanzati», che qui viene acceso — senza quell'interruttore
-        quel contenuto non esiste proprio."""
+        La giornata e' la PRIMA scheda («🏟️ Partite»), sempre in vista: non
+        serve nessun interruttore. Campionato e giornata si scelgono con i due
+        selettori in testa alla scheda, presi per CHIAVE (in pagina c'e' anche il
+        selettore del campionato della barra laterale: l'etichetta da sola non
+        basta a distinguerli)."""
+        import app as app_mod
         at.session_state["live_data"] = cls._live_data(lega, extra)
         at.session_state["live_camp"] = lega
-        cls._toggle(at, "strumenti_avanzati").set_value(True)
+        chiavi = {app_mod.CHIAVE_CAMPIONATO_PARTITE: lega,
+                  app_mod.CHIAVE_GIORNATA_PARTITE: giornata}
         for sb in at.selectbox:
-            if "CAMPIONATO" in str(getattr(sb, "label", "")):
-                sb.set_value(lega)
+            if (sb.key or "") in chiavi and chiavi[sb.key] is not None:
+                sb.set_value(chiavi[sb.key])
         at.run(timeout=900)
         cls.eccezioni(at, f"giornata di {lega}")
 
     @staticmethod
     def _testo_giornata(at):
-        """(fuori, dentro) LIMITATI alla sezione della giornata.
+        """(fuori, dentro) della scheda «🏟️ Partite».
 
-        La quinta scheda contiene anche Elo e Backtest, che hanno il loro gergo
-        tecnico: le parole vietate si cercano solo da qui in poi, perche' il
-        punto 6 della PR #64 riguarda la giornata in vista, non quelli degli
-        strumenti avanzati."""
-        fuori, dentro = _testi_della_tab(at, SCHEDA_STRUMENTI)
-        for i, riga in enumerate(fuori):
-            if "GIORNATA" in riga:
-                return fuori[i:], dentro
-        raise AssertionError("la sezione della giornata non e' in vista: "
-                             + " | ".join(fuori)[:400])
+        Nella scheda non c'e' altro che la giornata: i selettori in testa, la
+        tabella e il riquadro chiuso «Dettagli». Elo e Backtest stanno in
+        «🔧 Strumenti avanzati», che qui non viene nemmeno acceso."""
+        fuori, dentro = _testi_della_tab(at, SCHEDA_PARTITE)
+        if not fuori:
+            raise AssertionError("la scheda «🏟️ Partite» non rende niente")
+        return fuori, dentro
+
+    @classmethod
+    def _tabella_giornata(cls, at):
+        """Il DataFrame della giornata: l'unica tabella della scheda Partite."""
+        import app as app_mod
+        tabelle = [e for e in _elementi_della_tab(at, SCHEDA_PARTITE, "dataframe")
+                   if str(getattr(e, "key", "") or "") == app_mod.CHIAVE_TABELLA_PARTITE]
+        if len(tabelle) != 1:
+            raise AssertionError(f"una sola tabella nella scheda Partite, "
+                                 f"trovate {len(tabelle)}")
+        df = tabelle[0].value
+        if hasattr(df, "data"):
+            df = df.data
+        return df
+
+    @classmethod
+    def _indice_riga(cls, at, casa: str, trasferta: str) -> int:
+        """L'indice della riga della partita casa-trasferta nella tabella."""
+        df = cls._tabella_giornata(at)
+        atteso = _titolo_atteso(casa, trasferta)
+        for i in range(len(df)):
+            if str(df.iloc[i]["Partita"]) == atteso:
+                return i
+        raise AssertionError(f"nessuna riga {atteso!r} in {list(df['Partita'])}")
+
+    @classmethod
+    def _seleziona_riga(cls, at, indice: int):
+        """Il clic sulla riga: la selezione della tabella (come nelle altre schede)."""
+        import app as app_mod
+        at.session_state[app_mod.CHIAVE_TABELLA_PARTITE] = {
+            "selection": {"rows": [indice], "columns": [], "cells": []}}
+        at.run(timeout=900)
+        cls.eccezioni(at, f"selezione della riga {indice}")
 
     @staticmethod
     def _testo_riquadro(at, titolo: str = None) -> str:
@@ -156,22 +212,10 @@ class _BaseScheda(_BaseAppTest):
                              f"{[v[:40] for v in valori if v.startswith('###')]}")
 
     @staticmethod
-    def _pulsante(at, chiave):
-        for b in at.button:
-            if b.key == chiave:
-                return b
-        raise AssertionError(f"pulsante {chiave} non trovato")
-
-    @classmethod
-    def _indice_riga(cls, at, chiave_prefisso: str, casa: str, trasferta: str) -> int:
-        """L'indice del pulsante «Scheda» della partita casa-trasferta."""
-        atteso = _titolo_atteso(casa, trasferta)
-        for b in at.button:
-            if (b.key or "").startswith(chiave_prefisso) and (b.help or "") == atteso:
-                return int(b.key.rsplit("_", 1)[1])
-        disponibili = [(b.key, b.help) for b in at.button
-                       if (b.key or "").startswith(chiave_prefisso)]
-        raise AssertionError(f"nessuna riga {atteso!r} fra {disponibili}")
+    def _valori_colonna(df, colonna):
+        """I valori di una colonna come li legge la tabella (NaN -> ``None``)."""
+        import pandas as pd
+        return [None if pd.isna(v) else v for v in df[colonna].tolist()]
 
 
 class TestSchedaPartitaAppTest(_BaseScheda):
@@ -242,32 +286,92 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                 self.assertIsNone(re.search(parola, testo, re.IGNORECASE),
                                   f"parola vietata nella scheda: {parola!r}")
 
-    # -- 2. la scheda Partite: giornata in parole ---------------------------
-    def test_02_la_giornata_e_elencata_in_parole(self):
-        extra = [{"utcDate": "2027-05-01T15:00:00Z",
-                  "homeTeam": {"name": "Bologna"}, "awayTeam": {"name": "Monza"},
-                  "matchday": 8, "score": {"fullTime": {"home": None, "away": None}},
-                  "status": "SCHEDULED"}]
-        self._carica_giornata(self.at, "Serie A", extra=extra)
+    # -- 2. la scheda Partite: la tabella della giornata --------------------
+    def test_02_la_giornata_e_in_tabella(self):
+        """Una riga per partita della giornata scelta, nel campionato scelto.
+
+        Il conteggio atteso e' quello del CALENDARIO della fixture (le partite
+        della giornata 8 di Serie A), contato qui e non riletto dall'app: se la
+        tabella ne mostra di piu' o di meno, il test lo dice.
+        """
+        import app as app_mod
+        self._carica_giornata(self.at, "Serie A",
+                              extra=[EXTRA_SENZA_QUOTE, EXTRA_GIA_GIOCATA])
+        df = self._tabella_giornata(self.at)
+        calendario = [m for m in self.at.session_state["live_data"]
+                      if int(m["matchday"]) == 8]
+        self.assertEqual(len(calendario), len(df),
+                         "una riga per ogni partita della giornata del calendario")
+        self.assertEqual(list(app_mod.COLONNE_PARTITE), list(df.columns),
+                         "le colonne della tabella, in quest'ordine")
+        self.assertEqual({_titolo_atteso(m["homeTeam"]["name"], m["awayTeam"]["name"])
+                          for m in calendario},
+                         {str(p) for p in df["Partita"].tolist()},
+                         "le righe sono le partite del calendario, «Casa - Trasferta»")
+        # I pulsanti «Scheda» non esistono piu': si clicca la riga.
+        self.assertEqual([], [b for b in self.at.button
+                              if (b.key or "").startswith("partite_scheda_")])
+        # «Quando»: lo stesso formato delle altre schede, con il marcatore ⏳
+        # sulle partite che giocano fra piu' di tre giorni.
+        for quando in df["Quando"].tolist():
+            with self.subTest(quando=quando):
+                self.assertRegex(str(quando),
+                                 r"^(lun|mar|mer|gio|ven|sab|dom) \d{2}/\d{2}, "
+                                 r"\d{2}:\d{2}( ⏳)?$")
+        # 1, X, 2 sono NUMERI con una cifra decimale, e «Pronostico» e' la sigla
+        # dell'esito piu' probabile della stessa riga.
+        p1, px, p2 = (self._valori_colonna(df, c) for c in ("1", "X", "2"))
+        pronostici = [str(x) for x in df["Pronostico"].tolist()]
+        for i in range(len(df)):
+            terna = {"1": p1[i], "X": px[i], "2": p2[i]}
+            with self.subTest(riga=int(i), partita=str(df.iloc[i]["Partita"])):
+                if any(v is None for v in terna.values()):
+                    self.assertEqual("", pronostici[i],
+                                     "senza numeri nessun pronostico inventato")
+                    continue
+                for esito, v in terna.items():
+                    self.assertEqual(round(float(v), 1), float(v),
+                                     f"{esito}: una cifra decimale")
+                    self.assertTrue(0.0 < float(v) < 100.0, f"{esito}: {v}")
+                self.assertEqual(max(("1", "X", "2"), key=lambda e: terna[e]),
+                                 pronostici[i], "il pronostico e' l'esito piu' alto")
+        self.assertTrue(any(v is not None for v in p1),
+                        "lo snapshot ha le quote: almeno una riga deve mostrarle")
+        self.assertTrue(any(v is None for v in p1),
+                        "la partita senza quote deve avere le celle vuote")
+
+    def test_02b_senza_quote_celle_vuote_e_partita_giocata_col_risultato(self):
+        """Le due righe speciali: senza quote (celle vuote) e gia' giocata.
+
+        Di una partita conclusa la tabella mostra il RISULTATO al posto delle
+        probabilita': le quote di una partita gia' giocata non dicono niente.
+        """
+        df = self._tabella_giornata(self.at)
+        p1, px, p2 = (self._valori_colonna(df, c) for c in ("1", "X", "2"))
+        i_senza = self._indice_riga(self.at, EXTRA_SENZA_QUOTE["homeTeam"]["name"],
+                                    EXTRA_SENZA_QUOTE["awayTeam"]["name"])
+        self.assertEqual((None, None, None), (p1[i_senza], px[i_senza], p2[i_senza]),
+                         "senza quote le tre celle restano vuote")
+        self.assertEqual("", str(df.iloc[i_senza]["Risultato"]),
+                         "una partita da giocare non ha un risultato")
+        i_giocata = self._indice_riga(self.at, EXTRA_GIA_GIOCATA["homeTeam"]["name"],
+                                      EXTRA_GIA_GIOCATA["awayTeam"]["name"])
+        self.assertEqual("2-1", str(df.iloc[i_giocata]["Risultato"]),
+                         "la partita giocata mostra il risultato finale")
+        self.assertEqual((None, None, None), (p1[i_giocata], px[i_giocata], p2[i_giocata]),
+                         "il risultato prende il posto delle probabilita'")
+        self.assertEqual("", str(df.iloc[i_giocata]["Pronostico"]),
+                         "su una partita conclusa nessun pronostico")
+
+    def test_02c_nel_testo_reso_nessun_none_e_nessuna_parola_vietata(self):
+        """Il testo reso della scheda: pulito, e tecnico solo nei Dettagli."""
         fuori, dentro = self._testo_giornata(self.at)
         testo = "\n".join(fuori)
-        righe = self.at.session_state["live_data"]
-        for m in righe:
-            casa, trasferta = m["homeTeam"]["name"], m["awayTeam"]["name"]
-            with self.subTest(partita=f"{casa} - {trasferta}"):
-                self.assertIn(_titolo_atteso(casa, trasferta), testo)
-        # 1, X, 2 in parole dove le quote ci sono; la riga senza quote lo dice.
-        prima = righe[0]
-        self.assertIn("Vince " + _nomi_mostrati(prima["homeTeam"]["name"]), testo)
-        self.assertIn("Pareggio", testo)
-        self.assertIn("Vince " + _nomi_mostrati(prima["awayTeam"]["name"]), testo)
-        self.assertIn(sp.FRASE_QUOTE_ASSENTI, testo)
-        # Data e ora italiane: "sabato 17/10, ore 18:00" e simili.
-        self.assertRegex(testo, r"(luned|marted|mercoled|gioved|venerd|sabato|domenica) \d{2}/\d{2}, ore \d{2}:\d{2}")
-        pulsanti = [b for b in self.at.button
-                    if (b.key or "").startswith("partite_scheda_")]
-        self.assertEqual(len(pulsanti), len(righe),
-                         "una riga della giornata = un pulsante «Scheda»")
+        for riga_testo in fuori + dentro:
+            for brutta in (r"\bNone\b", r"\bnan\b"):
+                with self.subTest(testo=riga_testo[:40], brutta=brutta):
+                    self.assertIsNone(re.search(brutta, riga_testo, re.IGNORECASE),
+                                      "nessuna cella scrive None o nan")
         # L'analisi odierna sta DENTRO «Dettagli» (riquadro chiuso), non in vista.
         self.assertIn("Analisi Rapida", "\n".join(dentro))
         self.assertNotIn("Analisi Rapida", testo)
@@ -278,30 +382,78 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                 self.assertIsNone(re.search(parola, testo, re.IGNORECASE),
                                   f"parola vietata fuori dai Dettagli: {parola!r}")
 
-    # -- 3. il pulsante «Scheda» della giornata -----------------------------
-    def test_03_la_giornata_apre_la_scheda_della_partita_giusta(self):
-        i = self._indice_riga(self.at, "partite_scheda_", *RENDER_VERTICE[1:])
-        self._pulsante(self.at, f"partite_scheda_{i}").click()
-        self.at.run(timeout=900)
-        self.eccezioni(self.at, "apertura della scheda dalla scheda Partite")
-        testo = self._testo_riquadro(self.at, _titolo_atteso(*RENDER_VERTICE[1:]))
-        self.assertIn(f"### {_titolo_atteso(*RENDER_VERTICE[1:])}", testo)
-        # La lega e la data stanno nella riga sotto il titolo (caption).
-        didascalie = "\n".join(str(getattr(el, "value", "") or "") for el in self.at.caption)
-        self.assertIn(RENDER_VERTICE[0], didascalie)
-        self.assertIn("Quote %", testo)
-        self.assertIn("Al comando della classifica", testo)  # Inter e' prima
-        self._scrivi_render("vertice", testo, RENDER_VERTICE)
+    def test_02d_cambiare_campionato_cambia_le_partite(self):
+        """Il selettore del campionato decide di quale campionato e' la tabella."""
+        self._carica_giornata(self.at, RENDER_BASSA[0])
+        df = self._tabella_giornata(self.at)
+        calendario = [m for m in self.at.session_state["live_data"]
+                      if int(m["matchday"]) == 8]
+        self.assertEqual(len(calendario), len(df),
+                         "il conteggio e' quello del calendario di questo campionato")
+        self.assertIn(_titolo_atteso(*RENDER_BASSA[1:]),
+                      {str(p) for p in df["Partita"].tolist()})
+        fuori, _ = self._testo_giornata(self.at)
+        self.assertIn(f"{RENDER_BASSA[0].upper()} - GIORNATA 8", "\n".join(fuori))
+
+    def test_02e_cambiare_giornata_cambia_la_tabella(self):
+        """Il selettore della giornata: le giornate del calendario, e una tabella
+        diversa per ciascuna."""
+        import app as app_mod
+        self._carica_giornata(self.at, "Serie A", extra=EXTRA_GIORNATA_9, giornata=8)
+        df8 = self._tabella_giornata(self.at)
+        selettori = [s for s in self.at.selectbox
+                     if (s.key or "") == app_mod.CHIAVE_GIORNATA_PARTITE]
+        self.assertEqual(1, len(selettori), "un selettore della giornata nella scheda")
+        self.assertEqual([8, 9], [int(x) for x in selettori[0].options],
+                         "le giornate sono quelle del calendario")
+        self._carica_giornata(self.at, "Serie A", extra=EXTRA_GIORNATA_9, giornata=9)
+        df9 = self._tabella_giornata(self.at)
+        self.assertEqual(len(EXTRA_GIORNATA_9), len(df9),
+                         "la giornata 9 ha solo le sue partite")
+        self.assertNotEqual([str(x) for x in df8["Partita"].tolist()],
+                            [str(x) for x in df9["Partita"].tolist()],
+                            "cambiare giornata cambia la tabella")
+        self.assertEqual({_titolo_atteso(m["homeTeam"]["name"], m["awayTeam"]["name"])
+                          for m in EXTRA_GIORNATA_9},
+                         {str(p) for p in df9["Partita"].tolist()})
+        fuori, _ = self._testo_giornata(self.at)
+        self.assertIn("SERIE A - GIORNATA 9", "\n".join(fuori))
+
+    # -- 3. il clic sulla riga della giornata -------------------------------
+    def test_03_la_riga_apre_la_scheda_della_partita_giusta(self):
+        """Selezionare la riga N apre la scheda della partita della riga N."""
+        self._carica_giornata(self.at, RENDER_VERTICE[0])
+        df = self._tabella_giornata(self.at)
+        self.assertGreaterEqual(len(df), 4, "la giornata ha abbastanza partite")
+        i = self._indice_riga(self.at, *RENDER_VERTICE[1:])
+        self.assertEqual(_titolo_atteso(*RENDER_VERTICE[1:]), str(df.iloc[i]["Partita"]))
+        # Tre righe diverse (la prima, quella cercata e l'ultima): per ciascuna,
+        # il riquadro che si apre e' quello della partita di QUELLA riga. Della
+        # partita di vertice si controlla anche il contesto (lega, quote,
+        # classifica): e' la stessa scheda che apre la scheda Multiple.
+        for indice in sorted({0, i, len(df) - 1}):
+            with self.subTest(riga=int(indice)):
+                self._seleziona_riga(self.at, int(indice))
+                atteso = str(df.iloc[indice]["Partita"])
+                testo = self._testo_riquadro(self.at, atteso)
+                self.assertIn(f"### {atteso}", testo,
+                              "il riquadro e' quello della partita della riga")
+                if int(indice) != i:
+                    continue
+                # La lega e la data stanno nella riga sotto il titolo (caption).
+                didascalie = "\n".join(str(getattr(el, "value", "") or "")
+                                       for el in self.at.caption)
+                self.assertIn(RENDER_VERTICE[0], didascalie)
+                self.assertIn("Quote %", testo)
+                self.assertIn("Al comando della classifica", testo)  # Inter e' prima
+                self._scrivi_render("vertice", testo, RENDER_VERTICE)
 
     # -- 4. [facoltativo] il secondo render, dalla stessa strada ------------
     def test_04_render_della_partita_di_bassa_classifica(self):
         if not self.render_out:
             self.skipTest("SCHEDA_RENDER_OUT non impostata: nessun file da scrivere")
         self._carica_giornata(self.at, RENDER_BASSA[0])
-        i = self._indice_riga(self.at, "partite_scheda_", *RENDER_BASSA[1:])
-        self._pulsante(self.at, f"partite_scheda_{i}").click()
-        self.at.run(timeout=900)
-        self.eccezioni(self.at, "apertura della scheda della partita di bassa")
+        self._seleziona_riga(self.at, self._indice_riga(self.at, *RENDER_BASSA[1:]))
         testo = self._testo_riquadro(self.at, _titolo_atteso(*RENDER_BASSA[1:]))
         self.assertIn(f"### {_titolo_atteso(*RENDER_BASSA[1:])}", testo)
         self.assertIn("Classifica e obiettivi", testo)
@@ -314,6 +466,58 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                   "```", testo.rstrip(), "```", ""]
         with open(self.render_out, "a", encoding="utf-8") as fh:
             fh.write("\n".join(blocco) + "\n")
+
+
+class TestSelettoreGiornata(unittest.TestCase):
+    """Le due funzioni del selettore della giornata, senza AppTest.
+
+    Sono le funzioni estratte dalla barra laterale: qui si legge il criterio
+    (la prossima giornata e' la prima con almeno una partita da giocare,
+    l'ultima quando sono tutte giocate) anche nei casi che il calendario della
+    fixture non produce.
+    """
+
+    ADESSO = datetime(2026, 10, 16, 16, 0, tzinfo=timezone.utc)
+
+    @staticmethod
+    def _calendario():
+        return [
+            {"matchday": 7, "utcDate": "2026-10-03T13:00:00Z"},   # tutta giocata
+            {"matchday": 7, "utcDate": "2026-10-04T13:00:00Z"},
+            {"matchday": 8, "utcDate": "2026-10-17T13:00:00Z"},   # da giocare
+            {"matchday": 9, "utcDate": "2026-10-24T13:00:00Z"},   # da giocare
+            {"matchday": "non leggibile"},                        # nessuna giornata
+            {"utcDate": "2026-10-25T13:00:00Z"},                  # nessuna giornata
+        ]
+
+    def test_le_giornate_sono_quelle_del_calendario(self):
+        import app as app_mod
+        self.assertEqual([7, 8, 9], app_mod.giornate_del_calendario(self._calendario()),
+                         "in ordine, senza doppioni e senza giornate inventate")
+        self.assertEqual([], app_mod.giornate_del_calendario([]))
+        self.assertEqual([], app_mod.giornate_del_calendario(None))
+
+    def test_la_prossima_giornata_e_la_prima_da_giocare(self):
+        import app as app_mod
+        giornate = app_mod.giornate_del_calendario(self._calendario())
+        indice = app_mod.indice_prossima_giornata(giornate, self._calendario(), self.ADESSO)
+        self.assertEqual(1, indice, "la 7 e' tutta giocata: la prossima e' la 8")
+        self.assertEqual(8, giornate[indice])
+
+    def test_tutte_giocate_resta_l_ultima_giornata(self):
+        import app as app_mod
+        dopo = datetime(2026, 11, 1, tzinfo=timezone.utc)
+        giornate = app_mod.giornate_del_calendario(self._calendario())
+        indice = app_mod.indice_prossima_giornata(giornate, self._calendario(), dopo)
+        self.assertEqual(len(giornate) - 1, indice)
+        self.assertEqual(9, giornate[indice], "si resta sull'ultima, coi suoi risultati")
+
+    def test_senza_date_leggibili_nessuna_giornata_si_inventa(self):
+        import app as app_mod
+        righe = [{"matchday": 5, "utcDate": "non una data"}]
+        giornate = app_mod.giornate_del_calendario(righe)
+        self.assertEqual([5], giornate)
+        self.assertEqual(0, app_mod.indice_prossima_giornata(giornate, righe, self.ADESSO))
 
 
 if __name__ == "__main__":

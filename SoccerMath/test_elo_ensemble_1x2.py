@@ -581,9 +581,9 @@ class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
         self.assertIn("m = blend_elo_into_1x2(", helper,
                       "il loop card giornata (tab1, via dati_card_partita) deve "
                       "restare come da d21f5c3: 1X2 mostrato blendato")
-        # Il corpo della vecchia scheda «🏟️ Partite» sta nella funzione chiamata
-        # dalla quinta scheda (Strumenti avanzati): la fetta e' quella, e il
-        # contenuto e' lo stesso di quando il blocco stava in ``with tab_partite:``.
+        # Il corpo della scheda «🏟️ Partite» sta nella funzione chiamata dalla
+        # prima scheda: la fetta e' quella, e il contenuto e' lo stesso di quando
+        # il blocco stava in ``with tab_partite:``.
         i = src.index("def _mostra_scheda_partite(")
         tab1 = src[i:src.index("\n\ndef ", i + 10)]
         self.assertIn("dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)",
@@ -597,9 +597,9 @@ class TestWiringNeiPuntiDiEmissione(unittest.TestCase):
         self.assertLess(i_poisson, i_blend,
                         "il Poisson puro va calcolato PRIMA del blend "
                         "(anche nella card della scheda PARTITE)")
-        # Il corpo della vecchia scheda «🏟️ Partite» sta nella funzione chiamata
-        # dalla quinta scheda (Strumenti avanzati): la fetta e' quella, e il
-        # contenuto e' lo stesso di quando il blocco stava in ``with tab_partite:``.
+        # Il corpo della scheda «🏟️ Partite» sta nella funzione chiamata dalla
+        # prima scheda: la fetta e' quella, e il contenuto e' lo stesso di quando
+        # il blocco stava in ``with tab_partite:``.
         i = src.index("def _mostra_scheda_partite(")
         tab1 = src[i:src.index("\n\ndef ", i + 10)]
         self.assertIn(

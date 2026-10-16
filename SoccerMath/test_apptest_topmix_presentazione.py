@@ -136,12 +136,13 @@ def _testo_blocco(el, dentro_expander):
 
 
 # ---------------------------------------------------------------------------
-# Le schede, da questa PR in poi: ⚽ Pronostici, 🟰 Pareggi, 🎯 Multiple,
+# Le schede: 🏟️ Partite (la prima), ⚽ Pronostici, 🟰 Pareggi, 🎯 Multiple,
 # 📒 Registro e — solo con l'interruttore acceso — 🔧 Strumenti avanzati.
 # L'INDICE dell'ultima dipende da quell'interruttore, quindi la scheda si
 # chiede per TITOLO: cosi' i test non rincorrono l'ordine a mano.
 # ---------------------------------------------------------------------------
 
+SCHEDA_PARTITE = "🏟️ Partite"
 SCHEDA_PRONOSTICI = "⚽ Pronostici"
 SCHEDA_PAREGGI = "🟰 Pareggi"
 SCHEDA_MULTIPLE = "🎯 Multiple"
