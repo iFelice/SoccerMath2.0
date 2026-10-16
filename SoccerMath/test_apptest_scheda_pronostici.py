@@ -638,12 +638,17 @@ class TestSchedaPronostici(_BaseQuoteFinte):
 
     # -- 5. il clic su una riga apre la scheda, senza scrivere -------------
     def test_05_cliccare_una_riga_apre_la_scheda_di_quella_partita(self):
+        import app as app_mod
         self.scritture.clear()
         self.registro.chiamate.clear()
         self.chiamate.clear()
         # La selezione di ``st.dataframe`` si pilota da ``session_state``: sono
         # POSIZIONI nella tabella mostrata (1 = Genoa - Fiorentina, la seconda).
-        self.at.session_state["pronostici_tabella_periodo"] = {
+        # La chiave e' quella con cui la tabella e' disegnata ORA: ogni riga
+        # cliccata alza la versione della chiave (chiave_tabella_corrente).
+        chiave = app_mod.chiave_tabella_corrente("pronostici_tabella_periodo",
+                                                 self.at.session_state)
+        self.at.session_state[chiave] = {
             "selection": {"rows": [1], "columns": [], "cells": []}}
         self.at.run(timeout=900)
         self.eccezioni(self.at, "clic sulla riga della tabella")
@@ -663,7 +668,10 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertEqual(3, len(self._df(self.at, SCHEDA_PRONOSTICI)))
 
     def test_06_un_altra_riga_apre_un_altra_partita(self):
-        self.at.session_state["pronostici_tabella_periodo"] = {
+        import app as app_mod
+        chiave = app_mod.chiave_tabella_corrente("pronostici_tabella_periodo",
+                                                 self.at.session_state)
+        self.at.session_state[chiave] = {
             "selection": {"rows": [0], "columns": [], "cells": []}}
         self.at.run(timeout=900)
         self.eccezioni(self.at, "clic sulla prima riga")
@@ -679,7 +687,10 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertEqual("Napoli - Venezia", f"{casa} - {trasferta}")
         self.scritture.clear()
         self.registro.chiamate.clear()
-        self.at.session_state["pareggi_tabella_periodo"] = {
+        import app as app_mod
+        chiave = app_mod.chiave_tabella_corrente("pareggi_tabella_periodo",
+                                                 self.at.session_state)
+        self.at.session_state[chiave] = {
             "selection": {"rows": [2], "columns": [], "cells": []}}
         self.at.run(timeout=900)
         self.eccezioni(self.at, "clic sulla terza riga dei pareggi")

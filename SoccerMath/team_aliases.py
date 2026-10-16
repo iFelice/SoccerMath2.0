@@ -153,6 +153,44 @@ TEAM_NAME_MAP = {
     # in "FMainz 05" (effetto collaterale gia' segnalato in PR #50 §3).
     # clean_name applica TEAM_NAME_MAP per prima, quindi l'alias vince.
     "FSV Mainz 05": "Mainz",                         # Bundesliga
+
+    # ---------------------------------------------------------------
+    # Nomi dei CALENDARI football-data.org (``homeTeam.name``/``awayTeam.name``)
+    # ---------------------------------------------------------------
+    # La scheda «Partite» legge i nomi LUNGHI dell'API (``name``), non gli
+    # ``shortName``: senza queste voci ``resolve_team_name`` non aggancia la
+    # fonte quote e le celle 1/X/2 restano vuote anche con la quota presente
+    # (nomi del bug: «US Sassuolo Calcio», «Bologna FC 1909», «US Lecce»).
+    # Elenco COMPLETO dei nomi non abbinati delle 5 leghe (27 su 96 squadre,
+    # snapshot audit/data/allenatori/2026-10-13_02.json): la copertura e'
+    # chiesta da test_alias_quote_live.TestCoperturaCalendariFootballData.
+    "US Sassuolo Calcio": "Sassuolo",                 # Serie A
+    "Bologna FC 1909": "Bologna",                    # Serie A
+    "US Lecce": "Lecce",                             # Serie A
+    "Sunderland AFC": "Sunderland",                  # Premier League
+    "Hull City AFC": "Hull City",                    # Premier League
+    "Brighton & Hove Albion FC": "Brighton",         # Premier League
+    "Club Atlético de Madrid": "Ath Madrid",         # La Liga
+    "RCD Espanyol de Barcelona": "Espanol",         # La Liga
+    "Getafe CF": "Getafe",                           # La Liga
+    "Málaga CF": "Málaga",                           # La Liga
+    "Real Madrid CF": "Real Madrid",                 # La Liga
+    "Rayo Vallecano de Madrid": "Vallecano",         # La Liga
+    "Levante UD": "Levante",                         # La Liga
+    "Real Betis Balompié": "Betis",                  # La Liga
+    "Real Sociedad de Fútbol": "Sociedad",          # La Liga
+    "Villarreal CF": "Villarreal",                   # La Liga
+    "Valencia CF": "Valencia",                       # La Liga
+    "Deportivo Alavés": "Alaves",                    # La Liga
+    "RC Celta de Vigo": "Celta",                     # La Liga
+    "RC Deportivo La Coruña": "Deportivo",          # La Liga
+    "TSG 1899 Hoffenheim": "Hoffenheim",             # Bundesliga
+    "FC Bayern München": "Bayern",                   # Bundesliga
+    "SC Paderborn 07": "SC Paderborn",               # Bundesliga
+    "SV 07 Elversberg": "Elversberg",                # Bundesliga (come FSV Mainz 05)
+    "Stade Rennais FC 1901": "Rennes",               # Ligue 1
+    "ES Troyes AC": "Troyes",                        # Ligue 1
+    "Racing Club de Lens": "Lens",                   # Ligue 1
 }
 
 

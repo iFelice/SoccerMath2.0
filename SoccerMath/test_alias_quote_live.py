@@ -357,5 +357,98 @@ class TestCoperturaFileLive(unittest.TestCase):
         self.assertEqual(dati["n_eventi"], dati["n_indicizzati"])
 
 
+# ---------------------------------------------------------------------------
+# Copertura dei CALENDARI football-data (i nomi LUNGHI dell'API)
+# ---------------------------------------------------------------------------
+#: Snapshot committato dei nomi football-data.org delle 5 leghe: la sonda
+#: (audit/sonda_allenatori.py) ha letto ``/teams`` il 2026-10-13, e i ``name``
+#: di lì sono le stesse stringhe che i calendari ``/matches`` mettono in
+#: ``homeTeam.name``/``awayTeam.name`` — quelle che la scheda «Partite» legge
+#: da ``st.session_state.live_data``. E' l'unica copia in repo di quei nomi:
+#: la cache dell'app vive solo in sessione.
+PERCORSO_NOMI_FOOTBALL_DATA = os.path.join(
+    REPO_ROOT, "audit", "data", "allenatori", "2026-10-13_02.json")
+
+#: I nomi del bug della scheda «Partite»: le quote c'erano, l'abbinamento no.
+NOMI_DEL_BUG = {"US Sassuolo Calcio": "Sassuolo",
+                "Bologna FC 1909": "Bologna",
+                "US Lecce": "Lecce"}
+
+
+class TestCoperturaCalendariFootballData(unittest.TestCase):
+    """OGNI nome squadra dei calendari football-data delle 5 leghe risolve.
+
+    Regola: ``resolve_team_name(nome).mapped`` per ogni nome delle 5 leghe —
+    sia quelli LUNGHI dell'API (snapshot in
+    ``audit/data/allenatori/2026-10-13_02.json``) sia quelli dei calendari
+    della stagione in cache su disco (``*_Live.csv``). Nessun fallback
+    silenzioso: i nomi non abbinati vengono elencati nel messaggio, uno per
+    riga, e vanno dichiarati in ``team_aliases.py`` (l'unico posto degli
+    alias).
+
+    Prima della modifica i non abbinati erano 27 (non solo i tre del bug):
+    l'elenco sta nel referto della PR.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        if not os.path.exists(PERCORSO_NOMI_FOOTBALL_DATA):
+            raise unittest.SkipTest("snapshot dei nomi football-data non in repo")
+        with open(PERCORSO_NOMI_FOOTBALL_DATA, encoding="utf-8") as fh:
+            snapshot = json.load(fh)
+        cls.nomi_api = []
+        for lega, voci in (snapshot.get("squadre_per_lega") or {}).items():
+            for voce in voci or []:
+                if voce.get("nome"):
+                    cls.nomi_api.append((lega, voce["nome"]))
+
+    def test_lo_snapshot_dei_nomi_ci_sta_e_copre_le_cinque_leghe(self):
+        self.assertGreaterEqual(len(self.nomi_api), 96,
+                                "snapshot dei nomi football-data incompleto")
+        self.assertEqual(set(LEAGUES_CONFIG), {lega for lega, _ in self.nomi_api})
+
+    def test_ogni_nome_dei_calendari_football_data_e_riconosciuto(self):
+        sconosciuti = []
+        for lega, nome in self.nomi_api:
+            res = resolve_team_name(nome)
+            if not res.mapped:
+                sconosciuti.append(f"{lega}: {nome!r} -> pulito {res.canonical!r}")
+        self.assertEqual([], sconosciuti,
+                         "nomi dei calendari football-data NON riconosciuti "
+                         "(vanno dichiarati in team_aliases.py):\n  "
+                         + "\n  ".join(sconosciuti))
+
+    def test_ogni_nome_dei_calendari_in_cache_su_disco_e_riconosciuto(self):
+        """``*_Live.csv``: i calendari della stagione che il workflow aggiorna."""
+        sconosciuti = []
+        for lega, path in LIVE_CSV.items():
+            if not os.path.exists(path):
+                continue
+            import csv
+            with open(path, encoding="utf-8", newline="") as fh:
+                for riga in csv.DictReader(fh):
+                    for col in ("HomeTeam", "AwayTeam"):
+                        nome = (riga.get(col) or "").strip()
+                        if nome and not resolve_team_name(nome).mapped:
+                            sconosciuti.append(f"{lega}: {nome!r}")
+        self.assertEqual([], sorted(set(sconosciuti)),
+                         "nomi dei calendari su disco NON riconosciuti:\n  "
+                         + "\n  ".join(sorted(set(sconosciuti))))
+
+    def test_i_nomi_del_bug_risolvono_ai_canonici_giusti(self):
+        """Le tre cause note del «None» nella scheda Partite, una per una."""
+        for grezzo, canonico in NOMI_DEL_BUG.items():
+            with self.subTest(nome=grezzo):
+                res = resolve_team_name(grezzo)
+                self.assertTrue(res.mapped, f"{grezzo!r} non riconosciuto")
+                self.assertEqual(canonico, res.canonical)
+                self.assertEqual(canonico, clean_name(grezzo),
+                                 "anche il nome mostrato viene dal canonico")
+
+    def test_clean_name_resta_idempotente_sui_nuovi_alias(self):
+        for _lega, nome in self.nomi_api:
+            self.assertEqual(clean_name(nome), clean_name(clean_name(nome)), nome)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

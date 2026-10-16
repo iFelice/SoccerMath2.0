@@ -164,11 +164,13 @@ class _BaseScheda(_BaseAppTest):
     def _tabella_giornata(cls, at):
         """Il DataFrame della giornata: l'unica tabella della scheda Partite."""
         import app as app_mod
+        chiave = app_mod.chiave_tabella_corrente(app_mod.CHIAVE_TABELLA_PARTITE,
+                                                 at.session_state)
         tabelle = [e for e in _elementi_della_tab(at, SCHEDA_PARTITE, "dataframe")
-                   if str(getattr(e, "key", "") or "") == app_mod.CHIAVE_TABELLA_PARTITE]
+                   if str(getattr(e, "key", "") or "") == chiave]
         if len(tabelle) != 1:
             raise AssertionError(f"una sola tabella nella scheda Partite, "
-                                 f"trovate {len(tabelle)}")
+                                 f"trovate {len(tabelle)} (chiave {chiave})")
         df = tabelle[0].value
         if hasattr(df, "data"):
             df = df.data
@@ -186,9 +188,16 @@ class _BaseScheda(_BaseAppTest):
 
     @classmethod
     def _seleziona_riga(cls, at, indice: int):
-        """Il clic sulla riga: la selezione della tabella (come nelle altre schede)."""
+        """Il clic sulla riga: la selezione della tabella (come nelle altre schede).
+
+        La selezione va impostata sulla chiave con cui la tabella e' disegnata
+        in questo momento (``chiave_tabella_corrente``): ogni riga cliccata alza
+        la versione della chiave, e il clic successivo usa la chiave nuova.
+        """
         import app as app_mod
-        at.session_state[app_mod.CHIAVE_TABELLA_PARTITE] = {
+        chiave = app_mod.chiave_tabella_corrente(app_mod.CHIAVE_TABELLA_PARTITE,
+                                                 at.session_state)
+        at.session_state[chiave] = {
             "selection": {"rows": [indice], "columns": [], "cells": []}}
         at.run(timeout=900)
         cls.eccezioni(at, f"selezione della riga {indice}")
@@ -241,8 +250,10 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                                                            "scheda_raddoppio_"))])
         self.assertEqual([], [b for b in _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "button")
                               if (b.label or "").strip() == "Scheda"])
+        chiave_piu_probabili = app_mod.chiave_tabella_corrente(
+            app_mod.CHIAVE_TABELLA_PIU_PROBABILI, self.at.session_state)
         tabelle = [e for e in _elementi_della_tab(self.at, SCHEDA_MULTIPLE, "dataframe")
-                   if str(getattr(e, "key", "") or "") == app_mod.CHIAVE_TABELLA_PIU_PROBABILI]
+                   if str(getattr(e, "key", "") or "") == chiave_piu_probabili]
         self.assertEqual(1, len(tabelle), "«Le più probabili» e' una tabella sola")
         df = tabelle[0].value
         if hasattr(df, "data"):
@@ -253,7 +264,7 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         # stessa risoluzione dei due lati.
         casa, trasferta = [x.strip() for x in str(df.iloc[1]["Partita"]).split(" - ", 1)]
         atteso = _titolo_atteso(casa, trasferta)
-        self.at.session_state[app_mod.CHIAVE_TABELLA_PIU_PROBABILI] = {
+        self.at.session_state[chiave_piu_probabili] = {
             "selection": {"rows": [1], "columns": [], "cells": []}}
         self.at.run(timeout=900)
         self.eccezioni(self.at, "apertura della scheda dalla riga di «Le più probabili»")

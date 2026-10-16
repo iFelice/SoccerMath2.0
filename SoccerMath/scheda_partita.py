@@ -475,11 +475,18 @@ def frase_obiettivi(p: Optional[Dict[str, Any]], giornate_giocate: int,
          retrocessione diretta);
        - altrimenti -> "Lotta per non retrocedere: N punti dentro la zona
          retrocessione";
-    5. entro ``SOGLIA_SALVEZZA`` punti sopra la zona -> "Lotta per non
-       retrocedere: N punti sopra la zona" (a 0 punti: "appaiata alla zona");
-    6. sesto posto raggiunto o superato -> "In zona Europa: ...";
-       entro ``SOGLIA_EUROPA`` punti dal sesto -> "In corsa per l'Europa: N
-       punti dal sesto posto";
+    5-6. salvezza ed Europa: fuori dalla zona retrocessione, entro
+       ``SOGLIA_SALVEZZA`` punti sopra la zona -> "Lotta per non retrocedere:
+       N punti sopra la zona" (a 0 punti: "appaiata alla zona"); sesto posto
+       raggiunto o superato -> "In zona Europa: ..."; entro ``SOGLIA_EUROPA``
+       punti dal sesto -> "In corsa per l'Europa: N punti dal sesto posto".
+       Se la squadra rientra in ENTRAMBE le soglie (fuori dalla zona ma ancora
+       vicina sia alla salvezza sia all'Europa) vince l'obiettivo PIU' VICINO:
+       l'Europa se il distacco dal sesto e' minore dei punti sopra la zona
+       (``dal_sesto < dalla_zona``), la salvezza altrimenti (anche a parita').
+       Cosi' una squadra a 1 punto dal sesto e a 5 dalla zona non diventa piu'
+       "Lotta per non retrocedere", e una a 1 punto dalla zona e 5 dal sesto
+       non diventa "In corsa per l'Europa";
     7. altrimenti -> "Zona tranquilla: N punti dal sesto posto, M sopra la zona
        retrocessione".
     """
@@ -524,15 +531,27 @@ def frase_obiettivi(p: Optional[Dict[str, Any]], giornate_giocate: int,
             return "Lotta per non retrocedere: appaiata alla zona retrocessione."
         return ("Lotta per non retrocedere: " + _punti(abs(dalla_zona))
                 + " dentro la zona retrocessione.")
-    if dalla_zona is not None and dalla_zona <= SOGLIA_SALVEZZA:
+    # --- regole 5-6: salvezza ed Europa ---------------------------------
+    # Se la squadra rientra in ENTRAMBE le soglie vince l'obiettivo PIU'
+    # VICINO: l'Europa se il distacco dal sesto e' minore dei punti sopra la
+    # zona (``dal_sesto < dalla_zona``), la salvezza altrimenti (anche a
+    # parita'). Con una sola soglia vale la regola di quella.
+    in_soglia_salvezza = dalla_zona is not None and dalla_zona <= SOGLIA_SALVEZZA
+    in_soglia_europa = d_sesto is not None and d_sesto <= SOGLIA_EUROPA
+    if in_soglia_salvezza and in_soglia_europa:
+        if d_sesto < dalla_zona:
+            in_soglia_salvezza = False
+        else:
+            in_soglia_europa = False
+    if in_soglia_salvezza:
         if dalla_zona <= 0:
             return "Lotta per non retrocedere: appaiata alla zona retrocessione."
         return f"Lotta per non retrocedere: {_punti(dalla_zona)} sopra la zona."
-    if d_sesto is not None and d_sesto <= 0:
-        if d_sesto == 0:
-            return "In zona Europa: al sesto posto."
-        return f"In zona Europa: {_punti(-d_sesto)} sopra il sesto posto."
-    if d_sesto is not None and d_sesto <= SOGLIA_EUROPA:
+    if in_soglia_europa:
+        if d_sesto <= 0:
+            if d_sesto == 0:
+                return "In zona Europa: al sesto posto."
+            return f"In zona Europa: {_punti(-d_sesto)} sopra il sesto posto."
         return f"In corsa per l'Europa: {_punti(d_sesto)} dal sesto posto."
     return (f"Zona tranquilla: {_punti(d_sesto)} dal sesto posto, "
             f"{_punti(dalla_zona)} sopra la zona retrocessione."
