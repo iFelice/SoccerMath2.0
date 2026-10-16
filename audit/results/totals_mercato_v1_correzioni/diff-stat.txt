@@ -1,0 +1,14 @@
+ .github/workflows/live_odds.yml                    |  44 +++++++++
+ SoccerMath/app.py                                  |  44 +++++++--
+ SoccerMath/prediction_registry.py                  |  31 +++++-
+ SoccerMath/registry_composizione.py                |   1 +
+ SoccerMath/test_apptest_multiple_riquadri.py       |   5 +
+ SoccerMath/test_apptest_scheda_partita.py          |   4 +
+ SoccerMath/test_apptest_scheda_pronostici.py       |  11 ++-
+ SoccerMath/test_apptest_totals_mercato.py          |  76 +++++++++++++-
+ SoccerMath/test_totals_correzioni.py               | 110 +++++++++++++++++++++
+ SoccerMath/test_versione_selettore.py              |   2 +-
+ audit/report_totals_mercato_v1.py                  |  23 +++++
+ .../totals_mercato_v1_correzioni/apptest-table.txt |   5 +
+ audit/verifica_quote_legacy.py                     |  53 ++++++++++
+ 13 files changed, 385 insertions(+), 24 deletions(-)

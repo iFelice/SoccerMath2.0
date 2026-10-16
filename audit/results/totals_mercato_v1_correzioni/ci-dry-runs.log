@@ -1,0 +1,88 @@
+--- - name: Risposte reali della sonda in forma grezza (0 crediti) ---
+--- - name: Dry-run sulle risposte reali grezze (nessuna rete, nessuna scrittura) ---
+INFO soccer_italy_serie_a: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=398 (distinti=24), mercati grezzi: h2h=398, totals=398 - OK
+INFO soccer_epl: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=429 (distinti=25), mercati grezzi: h2h=429, totals=429 - OK
+INFO soccer_spain_la_liga: eventi=21, eventi con almeno un libro=21, eventi con Pinnacle=21, bookmaker nella risposta grezza=381 (distinti=21), mercati grezzi: h2h=381, totals=381 - OK
+INFO soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=341 (distinti=22), mercati grezzi: h2h=341, totals=341 - OK
+INFO soccer_france_ligue_one: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=333 (distinti=22), mercati grezzi: h2h=333, totals=333 - OK
+INFO Giro completo: 5/5 leghe con eventi, 5/5 leghe con quote, 97 eventi totali, 97 eventi con almeno un libro, 97 con Pinnacle, 1882 libri in tutto.
+INFO Crediti: usati None, residui None, costo ultima chiamata None (quota 500/mese).
+INFO dry-run: /tmp/live_odds_dryrun.json NON scritto (97 eventi sarebbero stati scritti).
+--- - name: Risposte legacy in forma grezza (0 crediti) ---
+/tmp/odds_grezze_legacy/odds_api_soccer_italy_serie_a.json
+/tmp/odds_grezze_legacy/odds_api_soccer_epl.json
+/tmp/odds_grezze_legacy/odds_api_soccer_spain_la_liga.json
+/tmp/odds_grezze_legacy/odds_api_soccer_germany_bundesliga.json
+/tmp/odds_grezze_legacy/odds_api_soccer_france_ligue_one.json
+/tmp/odds_vuote_legacy/odds_api_soccer_italy_serie_a.json
+/tmp/odds_vuote_legacy/odds_api_soccer_epl.json
+/tmp/odds_vuote_legacy/odds_api_soccer_spain_la_liga.json
+/tmp/odds_vuote_legacy/odds_api_soccer_germany_bundesliga.json
+/tmp/odds_vuote_legacy/odds_api_soccer_france_ligue_one.json
+--- - name: Dry-run legacy grezzo e verifica probabilità 1X2 ---
+INFO soccer_italy_serie_a: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=679 (distinti=40), mercati grezzi: h2h=679 - OK
+INFO soccer_epl: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=717 (distinti=41), mercati grezzi: h2h=717 - OK
+INFO soccer_spain_la_liga: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=18, bookmaker nella risposta grezza=630 (distinti=37), mercati grezzi: h2h=630 - OK
+INFO soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=17, bookmaker nella risposta grezza=625 (distinti=39), mercati grezzi: h2h=625 - OK
+INFO soccer_france_ligue_one: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=576 (distinti=37), mercati grezzi: h2h=576 - OK
+INFO Giro completo: 5/5 leghe con eventi, 5/5 leghe con quote, 96 eventi totali, 96 eventi con almeno un libro, 93 con Pinnacle, 3227 libri in tutto.
+INFO Crediti: usati None, residui None, costo ultima chiamata None (quota 500/mese).
+INFO dry-run: /tmp/live_odds_dryrun_legacy.json NON scritto (96 eventi sarebbero stati scritti).
+INFO soccer_italy_serie_a: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=679 (distinti=40), mercati grezzi: h2h=679 - OK
+INFO soccer_epl: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=717 (distinti=41), mercati grezzi: h2h=717 - OK
+INFO soccer_spain_la_liga: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=18, bookmaker nella risposta grezza=630 (distinti=37), mercati grezzi: h2h=630 - OK
+INFO soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=17, bookmaker nella risposta grezza=625 (distinti=39), mercati grezzi: h2h=625 - OK
+INFO soccer_france_ligue_one: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=576 (distinti=37), mercati grezzi: h2h=576 - OK
+INFO Giro completo: 5/5 leghe con eventi, 5/5 leghe con quote, 96 eventi totali, 96 eventi con almeno un libro, 93 con Pinnacle, 3227 libri in tutto.
+INFO Crediti: usati None, residui None, costo ultima chiamata None (quota 500/mese).
+INFO Scritto /tmp/live_odds_legacy.json (96 eventi, 96 con almeno un libro, 93 con Pinnacle, 5/5 leghe).
+Legacy: leghe=5; eventi=96; P 1X2 identiche a b837823 (differenza=0); nessun dato O/U
+--- - name: Dry-run sugli snapshot compattati della sonda ---
+INFO soccer_italy_serie_a: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=679 (distinti=40), mercati grezzi: h2h=679 - OK
+INFO soccer_epl: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=717 (distinti=41), mercati grezzi: h2h=717 - OK
+INFO soccer_spain_la_liga: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=18, bookmaker nella risposta grezza=630 (distinti=37), mercati grezzi: h2h=630 - OK
+INFO soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=17, bookmaker nella risposta grezza=625 (distinti=39), mercati grezzi: h2h=625 - OK
+INFO soccer_france_ligue_one: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=576 (distinti=37), mercati grezzi: h2h=576 - OK
+INFO Giro completo: 5/5 leghe con eventi, 5/5 leghe con quote, 96 eventi totali, 96 eventi con almeno un libro, 93 con Pinnacle, 3227 libri in tutto.
+INFO Crediti: usati 41, residui 459, costo ultima chiamata 2 (quota 500/mese).
+INFO dry-run: /tmp/live_odds_dryrun_compattato.json NON scritto (96 eventi sarebbero stati scritti).
+INFO soccer_italy_serie_a: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=679 (distinti=40), mercati grezzi: h2h=679 - OK
+INFO soccer_epl: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=20, bookmaker nella risposta grezza=717 (distinti=41), mercati grezzi: h2h=717 - OK
+INFO soccer_spain_la_liga: eventi=20, eventi con almeno un libro=20, eventi con Pinnacle=18, bookmaker nella risposta grezza=630 (distinti=37), mercati grezzi: h2h=630 - OK
+INFO soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=17, bookmaker nella risposta grezza=625 (distinti=39), mercati grezzi: h2h=625 - OK
+INFO soccer_france_ligue_one: eventi=18, eventi con almeno un libro=18, eventi con Pinnacle=18, bookmaker nella risposta grezza=576 (distinti=37), mercati grezzi: h2h=576 - OK
+INFO Giro completo: 5/5 leghe con eventi, 5/5 leghe con quote, 96 eventi totali, 96 eventi con almeno un libro, 93 con Pinnacle, 3227 libri in tutto.
+INFO Crediti: usati 41, residui 459, costo ultima chiamata 2 (quota 500/mese).
+INFO Scritto /tmp/live_odds_compattato.json (96 eventi, 96 con almeno un libro, 93 con Pinnacle, 5/5 leghe).
+Legacy: leghe=5; eventi=96; P 1X2 identiche a b837823 (differenza=0); nessun dato O/U
+--- - name: Legacy senza bookmaker non sovrascrive il file precedente ---
+ERROR soccer_italy_serie_a: eventi=20, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_epl: eventi=20, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_spain_la_liga: eventi=20, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_france_ligue_one: eventi=18, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+INFO Giro completo: 5/5 leghe con eventi, 0/5 leghe con quote, 96 eventi totali, 0 eventi con almeno un libro, 0 con Pinnacle, 0 libri in tutto.
+INFO Crediti: usati None, residui None, costo ultima chiamata None (quota 500/mese).
+ERROR Lega Serie A (soccer_italy_serie_a): 20 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega Premier League (soccer_epl): 20 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega La Liga (soccer_spain_la_liga): 20 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega Bundesliga (soccer_germany_bundesliga): 18 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega Ligue 1 (soccer_france_ligue_one): 18 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Leghe con eventi e zero libri: Serie A, Premier League, La Liga, Bundesliga, Ligue 1. Il file precedente (/tmp/live_odds_vuote_legacy.json) NON viene sovrascritto: senza quote il Top Mix di mercato sarebbe vuoto.
+--- - name: Risposta con bookmakers vuoti -> errore e file precedente intatto ---
+ERROR soccer_italy_serie_a: eventi=20, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_epl: eventi=20, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_spain_la_liga: eventi=21, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_germany_bundesliga: eventi=18, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+ERROR soccer_france_ligue_one: eventi=18, eventi con almeno un libro=0, eventi con Pinnacle=0, bookmaker nella risposta grezza=0 (distinti=0), mercati grezzi: nessuno - SENZA QUOTE (eventi presenti, zero libri dopo la conversione)
+INFO Giro completo: 5/5 leghe con eventi, 0/5 leghe con quote, 97 eventi totali, 0 eventi con almeno un libro, 0 con Pinnacle, 0 libri in tutto.
+INFO Crediti: usati None, residui None, costo ultima chiamata None (quota 500/mese).
+ERROR Lega Serie A (soccer_italy_serie_a): 20 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega Premier League (soccer_epl): 20 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega La Liga (soccer_spain_la_liga): 21 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega Bundesliga (soccer_germany_bundesliga): 18 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Lega Ligue 1 (soccer_france_ligue_one): 18 eventi e ZERO libri dopo la conversione (bookmaker nella risposta grezza: 0, distinti: 0, mercati: {}, scarti: {}).
+ERROR Leghe con eventi e zero libri: Serie A, Premier League, La Liga, Bundesliga, Ligue 1. Il file precedente (/tmp/live_odds_precedente.json) NON viene sovrascritto: senza quote il Top Mix di mercato sarebbe vuoto.
+OK: exit 4 e file precedente intatto.
+--- - name: Nessuna chiave nei log del dry-run ---
+OK: dry-run completata senza scrivere e senza stampare chiavi.
