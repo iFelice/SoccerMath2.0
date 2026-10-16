@@ -1,0 +1,9 @@
+{
+  "commit_live_odds": "fff0fa525a93b519f69002d8518b4b602404d547",
+  "path_live_odds": "SoccerMath/database/live_odds.json",
+  "file_copia": "_live_odds_pinnato.json",
+  "generato_il": "2026-10-16T13:17:55Z",
+  "file_letto": "/home/runner/work/SoccerMath2.0/SoccerMath2.0/SoccerMath/database/live_odds.json",
+  "registrato_il": "2026-10-16T13:20:27Z",
+  "nota": "Pin delle quote 1X2 per questo snapshot totals: da ora la terna si rilegge SEMPRE dal blob commit_live_odds della storia git (o dalla copia qui accanto, se il blob non e' nel clone), MAI di nuovo dal file vivo, che il workflow live_odds.yml riscrive ogni giorno. Rieseguire l'analisi dopo un cambio di live_odds.json deve dare numeri identici."
+}

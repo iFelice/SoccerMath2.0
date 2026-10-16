@@ -1,0 +1,92 @@
+{
+  "generato_il": "2026-10-16T13:20:26Z",
+  "snapshot_id": "2026-10-16_1320",
+  "mercato": "totals",
+  "regioni": "eu",
+  "chiamate_previste": 5,
+  "leghe": [
+    {
+      "lega": "Serie A",
+      "sport_key": "soccer_italy_serie_a",
+      "ok": true,
+      "status": 200,
+      "eventi": 20,
+      "fetched_at_utc": "2026-10-16T13:20:26Z",
+      "headers": {
+        "x-requests-used": "99",
+        "x-requests-remaining": "401",
+        "x-requests-last": "1"
+      },
+      "error": null
+    },
+    {
+      "lega": "Premier League",
+      "sport_key": "soccer_epl",
+      "ok": true,
+      "status": 200,
+      "eventi": 20,
+      "fetched_at_utc": "2026-10-16T13:20:26Z",
+      "headers": {
+        "x-requests-used": "100",
+        "x-requests-remaining": "400",
+        "x-requests-last": "1"
+      },
+      "error": null
+    },
+    {
+      "lega": "La Liga",
+      "sport_key": "soccer_spain_la_liga",
+      "ok": true,
+      "status": 200,
+      "eventi": 21,
+      "fetched_at_utc": "2026-10-16T13:20:26Z",
+      "headers": {
+        "x-requests-used": "101",
+        "x-requests-remaining": "399",
+        "x-requests-last": "1"
+      },
+      "error": null
+    },
+    {
+      "lega": "Bundesliga",
+      "sport_key": "soccer_germany_bundesliga",
+      "ok": true,
+      "status": 200,
+      "eventi": 18,
+      "fetched_at_utc": "2026-10-16T13:20:26Z",
+      "headers": {
+        "x-requests-used": "102",
+        "x-requests-remaining": "398",
+        "x-requests-last": "1"
+      },
+      "error": null
+    },
+    {
+      "lega": "Ligue 1",
+      "sport_key": "soccer_france_ligue_one",
+      "ok": true,
+      "status": 200,
+      "eventi": 18,
+      "fetched_at_utc": "2026-10-16T13:20:26Z",
+      "headers": {
+        "x-requests-used": "103",
+        "x-requests-remaining": "397",
+        "x-requests-last": "1"
+      },
+      "error": null
+    }
+  ],
+  "crediti_ultima_chiamata": {
+    "soccer_italy_serie_a": "1",
+    "soccer_epl": "1",
+    "soccer_spain_la_liga": "1",
+    "soccer_germany_bundesliga": "1",
+    "soccer_france_ligue_one": "1"
+  },
+  "ultima_chiamata": {
+    "sport_key": "soccer_france_ligue_one",
+    "fetched_at_utc": "2026-10-16T13:20:26Z"
+  },
+  "x-requests-used_ultimo": "103",
+  "x-requests-remaining_ultimo": "397"
+}
