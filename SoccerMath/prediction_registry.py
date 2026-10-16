@@ -131,17 +131,19 @@ CURRENT_MODEL_TOOLTIP = (
 # ``selector_version`` (QUALE selettore l'ha generata).
 ORIGIN_FIELD = "origin"
 ORIGIN_TOP_MIX = "top_mix"
+ORIGIN_MERCATO_OU = "mercato_ou"
 ORIGIN_ANALISI_RAPIDA = "analisi_rapida"
 ORIGIN_BILLY = "billy"
 ORIGIN_UNKNOWN = "unknown"
 # Registro OMBRA dei Totali (vedi sotto): origine dedicata, mai mostrata in UI.
 ORIGIN_TOP_MIX_OMBRA = "top_mix_ombra"
-ORIGINI_NOTE = (ORIGIN_TOP_MIX, ORIGIN_ANALISI_RAPIDA, ORIGIN_BILLY, ORIGIN_UNKNOWN,
+ORIGINI_NOTE = (ORIGIN_MERCATO_OU, ORIGIN_TOP_MIX, ORIGIN_ANALISI_RAPIDA, ORIGIN_BILLY, ORIGIN_UNKNOWN,
                 ORIGIN_TOP_MIX_OMBRA)
 
 # Etichetta mostrata nel Registro: sostituisce il test ``"Top Mix" in pronostico``.
 TIPO_BY_ORIGIN = {
     ORIGIN_TOP_MIX: "Top Mix",
+    ORIGIN_MERCATO_OU: "Gol (mercato)",
     ORIGIN_ANALISI_RAPIDA: "Analisi Rapida",
     ORIGIN_BILLY: "Billy",
     ORIGIN_UNKNOWN: "Analisi",
@@ -1097,6 +1099,8 @@ def famiglia_selettore(entry: Any) -> str:
     Una riga senza versione (scritta prima del versionamento) e' del modello:
     il selettore di mercato non esisteva.
     """
+    if selector_version_of(entry) == "totals_mercato_v1":
+        return "totals"
     return (FAMIGLIA_SELETTORE_MERCATO if selector_version_of(entry) in VERSIONI_SELETTORE_MERCATO
             else FAMIGLIA_SELETTORE_MODELLO)
 
@@ -1133,10 +1137,11 @@ def dedup_visibili_top_mix(entries: Iterable[Dict[str, Any]]) -> List[Dict[str, 
     """Una sola riga per (tabella/modello, match_id, mercato) fra le Top Mix: la PIU' RECENTE.
 
     Filtra SOLO la vista (statistiche e tabella): non cancella, non riscrive e non
-    riordina nulla del Registro. A parita' di ``salvato_il`` vince l'ultima nella
+    riordina nulla del Registro. O/U e' una vista separata (``righe_visibili``).
+    A parita' di ``salvato_il`` vince l'ultima nella
     lista (la scrittura piu' tarda). Le righe fuori dalla regola passano invariate.
     """
-    lst = list(entries or [])
+    lst = [e for e in (entries or []) if origin_of(e) != ORIGIN_MERCATO_OU]
     migliore: Dict[Tuple[str, str, str], int] = {}
     for i, e in enumerate(lst):
         if not _e_top_mix_visibile(e):
@@ -1174,7 +1179,11 @@ def famiglia_ombra(entry: Any) -> str:
 def righe_visibili(entries: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Le righe del Registro che l'utente vede: tutto tranne l'ombra, e UNA riga per
     (tabella/modello, match_id, mercato) fra le Top Mix (vedi ``dedup_visibili_top_mix``)."""
-    return dedup_visibili_top_mix([e for e in (entries or []) if not is_ombra(e)])
+    lst = [e for e in (entries or []) if not is_ombra(e)]
+    top_mix = dedup_visibili_top_mix(lst)
+    # O/U rimane nel Registro generale, ma non nei conteggi/vista Top Mix.
+    ammessi = {id(e) for e in top_mix}
+    return [e for e in lst if id(e) in ammessi or origin_of(e) == ORIGIN_MERCATO_OU]
 
 
 def _filtra_per_famiglia(lista: List[Dict[str, Any]],
@@ -1290,6 +1299,8 @@ def origin_from_text(pronostico: Any) -> str:
     scritture nuove devono sempre passare l'origine esplicita.
     """
     t = str(pronostico or "").lower()
+    if "gol (mercato)" in t:
+        return ORIGIN_MERCATO_OU
     if "top mix" in t:
         return ORIGIN_TOP_MIX
     if "billy" in t or "fallback" in t:
@@ -1317,11 +1328,17 @@ def tipo_for_origin(origin: Any) -> str:
 def origin_of(entry: Any) -> str:
     if not is_dict(entry):
         return ORIGIN_UNKNOWN
+    # Compatibilità con le prime righe della PR #76: anche se conservano
+    # origin=top_mix, il selettore O/U non deve mai ricadere nel Top Mix.
+    if entry.get(SELECTOR_VERSION_FIELD) == "totals_mercato_v1":
+        return ORIGIN_MERCATO_OU
     o = str(entry.get(ORIGIN_FIELD) or "").strip().lower()
     if o in ORIGINI_NOTE:
         return o
     # Record scritti prima del campo origin: si risale dal tipo/ dal testo.
     tipo = str(entry.get("tipo") or "").strip().lower()
+    if tipo == "gol (mercato)":
+        return ORIGIN_MERCATO_OU
     if tipo == "top mix":
         return ORIGIN_TOP_MIX
     if tipo == "billy":
@@ -1427,7 +1444,8 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
     """Inserisce o aggiorna una previsione, senza mai toccarne una gia' giudicata.
 
     Ritorna ``(lista_aggiornata, azione)`` con azione in
-    ``{"aggiunta", "aggiornata", "gia_graduata", "senza_chiave", "gia_presente_altra_versione"}``.
+    ``{"aggiunta", "aggiornata", "gia_graduata", "senza_chiave", "gia_presente_altra_versione", "gia_presente"}``.
+    Le voci di origine ``mercato_ou`` sono immutabili dopo la prima scrittura.
 
     DOPPIONI FRA VERSIONI: una riga Top Mix NUOVA non si aggiunge se nel Registro
     c'e' gia' una riga della stessa (tabella/modello, match_id, mercato) scritta da
@@ -1453,6 +1471,8 @@ def upsert_prediction_entry(preds: Iterable[Dict[str, Any]],
             continue
         if is_dict(p) and p.get(ESITO_FIELD) in (ESITO_VINTO, ESITO_PERSO):
             return lst, "gia_graduata"
+        if origin_of(p) == ORIGIN_MERCATO_OU:
+            return lst, "gia_presente"
         aggiornato = dict(entry)
         # Conserva la prima scrittura: un ricalcolo non cancella quando la
         # previsione era stata presa.
@@ -1511,6 +1531,9 @@ def upsert_prediction_entries(preds: Iterable[Dict[str, Any]],
             p = lst[i]
             if is_dict(p) and p.get(ESITO_FIELD) in (ESITO_VINTO, ESITO_PERSO):
                 azioni["gia_graduata"] = azioni.get("gia_graduata", 0) + 1
+                continue
+            if origin_of(p) == ORIGIN_MERCATO_OU:
+                azioni["gia_presente"] = azioni.get("gia_presente", 0) + 1
                 continue
             aggiornato = dict(entry)
             # Conserva i campi della PRIMA registrazione (stessa regola

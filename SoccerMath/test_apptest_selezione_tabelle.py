@@ -208,10 +208,30 @@ class TestSpuntaNonRimane(_BaseQuoteFinte):
         vietata.
         """
         import pandas as pd
+        # Le nuove celle O/U sono testo, anche quando la fonte legacy non le ha.
+        pron = self._tabella_per_chiave(CHIAVE_PRONOSTICI, SCHEDA_PRONOSTICI)[0].value
+        for nome in ("Gol", "Insieme %"):
+            self.assertIn(nome, pron.columns)
+            self.assertTrue(all(isinstance(v, str) for v in pron[nome]))
         tabelle = list(self.at.dataframe or [])
         if hasattr(self.at, "table"):
             tabelle += list(self.at.table or [])
         self.assertGreater(len(tabelle), 3, "l'app deve avere le sue tabelle da controllare")
+        # Stesso controllo anche sulle celle NON vuote dello snapshot reale,
+        # inclusa una partita O/U senza scelta 1X2 e una sotto soglia O/U.
+        from types import SimpleNamespace
+        from datetime import datetime, timezone
+        from audit.totals_snapshot_fixture import payload_snapshot
+        import app as app_mod
+        snapshot = payload_snapshot()
+        ora = datetime(2026, 10, 16, 13, 20, 26, tzinfo=timezone.utc)
+        righe_ou, _ = app_mod.righe_pronostici_dalle_quote(snapshot, ora)
+        normalizzate = [app_mod.riga_pronostico_da_mercato(r, ora) for r in righe_ou]
+        df_ou, _ = app_mod.tabella_pronostici_visibile(normalizzate)
+        self.assertTrue(any(df_ou["Gol"]))
+        self.assertTrue(any(df_ou["Insieme %"]))
+        self.assertIn("—", df_ou["Pronostico"].tolist())
+        tabelle.append(SimpleNamespace(value=df_ou, key="snapshot_totals"))
         for el in tabelle:
             df = getattr(el, "value", None)
             if df is None:

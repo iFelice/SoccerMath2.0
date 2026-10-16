@@ -219,7 +219,7 @@ class TestChiamataRealeSimulata(RipristinaLogging, unittest.TestCase):
         self.assertEqual(len(U.LEGA_SPORT_KEY), len(self.chiamate))
         for url, params in self.chiamate:
             self.assertEqual("eu", params["regions"])
-            self.assertEqual("h2h", params["markets"])
+            self.assertEqual("h2h,totals", params["markets"])
             self.assertEqual("decimal", params["oddsFormat"])
             self.assertNotIn(CHIAVE_FINTA, url, "la chiave sta nei params, non nell'URL")
         self.assertEqual(5, riepilogo["payload"]["crediti"]["costo_giro_completo"])
@@ -768,7 +768,7 @@ class TestSchemaEAtomicita(unittest.TestCase):
         payload = U.costruisci_payload([], fixture=None, chiave_presente=False)
         self.assertEqual(mo.SCHEMA_LIVE_ODDS, payload["schema"])
         self.assertEqual("eu", payload["regioni"])
-        self.assertEqual("h2h", payload["mercato"])
+        self.assertEqual("h2h,totals", payload["mercato"])
 
     def test_le_cinque_leghe_del_progetto(self):
         self.assertEqual(["Serie A", "Premier League", "La Liga", "Bundesliga", "Ligue 1"],

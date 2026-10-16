@@ -1,0 +1,6 @@
+Python: 3.11.2
+1X2 prima: 1d2787b0f45b0f91a6ba651809b6e9ecdb2ba7dec35972dafdb40814186a4bb5
+1X2 dopo:  1d2787b0f45b0f91a6ba651809b6e9ecdb2ba7dec35972dafdb40814186a4bb5
+IMPRONTE_OU prima: {'totals_mercato_v1': '899c0eb482fb24a97e1e094c6f8313a34d6788f35a117f97ba7ef326b1739b3f'}
+IMPRONTE_OU dopo: {'totals_mercato_v1': 'fbb0cb99c42e589c3296a8bc4185c7f5b284bc3d1a67b7e621dabc7517431d8c'}
+impronta O/U dopo: fbb0cb99c42e589c3296a8bc4185c7f5b284bc3d1a67b7e621dabc7517431d8c

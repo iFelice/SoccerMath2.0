@@ -238,6 +238,10 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         cls.at.run(timeout=900)
         cls.eccezioni(cls.at, "apertura della pagina")
         cls.render_out = os.environ.get("SCHEDA_RENDER_OUT")
+        # Le evidenze facoltative non possono sovrascrivere file del checkout,
+        # nemmeno se una variabile d'ambiente punta a un referto tracciato.
+        if cls.render_out and Path(cls.render_out).resolve().is_relative_to(Path(REPO_ROOT).resolve()):
+            cls.render_out = str(cls.tmp / "render-opzionale.txt")
 
     # -- 1. dalla riga di «Le più probabili» della scheda Multiple -----------
     def test_01_la_riga_selezionata_apre_la_partita_giusta(self):

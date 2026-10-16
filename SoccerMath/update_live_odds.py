@@ -15,7 +15,7 @@ GitHub ritarda e a volte salta i cron. Prima di QUALSIASI chiamata il writer
 legge ``generato_il`` del file esistente: se ha meno di 6 ore esce 0 senza
 toccare la rete (0 crediti) loggando "quote fresche, nessuna chiamata". Cosi'
 il secondo cron (10:47) costa 0 crediti quando il primo (08:17) ha funzionato,
-e ruba il giro solo quando il primo non e' partito: consumo atteso ~5 crediti al
+e ruba il giro solo quando il primo non e' partito: consumo atteso ~10 crediti al
 giorno. ``--forza`` (input ``forza`` di workflow_dispatch, default false) salta
 la guardia. Con ``--fixture`` la guardia non serve: nessuna chiamata, 0 crediti.
 
@@ -30,11 +30,9 @@ saltati.
 
 COSTO
 -----
-Una chiamata per lega, ``regions=eu``, ``markets=h2h``: 1 credito a chiamata
-(misurato in PR #50, ``audit/results/live_odds_feasibility.md`` §4), quindi
-5 crediti per giro. Il piano gratuito ne da' 500 al mese: il giro quotidiano
-alle 08:17 UTC sta nel budget (mese peggiore ~127 crediti con due regioni;
-con una sola regione ~54).
+Una chiamata per lega, ``regions=eu``, ``markets=h2h,totals``: 2 crediti
+per chiamata, 10 per giro sulle cinque leghe (massimo 310/mese per un giro
+quotidiano; secondo cron senza costo quando la guardia trova quote fresche).
 
 SICUREZZA DELLA CHIAVE
 ----------------------
@@ -114,7 +112,7 @@ Uso
     python update_live_odds.py --dry-run       # chiamata reale, NON scrive
     python update_live_odds.py --fixture DIR   # risposte simulate da DIR (0 crediti)
     python update_live_odds.py --out PATH      # percorso di destinazione
-    python update_live_odds.py --forza         # salta la guardia di freschezza (~5 crediti)
+    python update_live_odds.py --forza         # salta la guardia di freschezza (~10 crediti)
     python update_live_odds.py --allarme-vecchie  # solo eta' del file: ::error:: se >26h
 """
 from __future__ import annotations
@@ -140,8 +138,8 @@ LOG = logging.getLogger("update_live_odds")
 
 HOST = "https://api.the-odds-api.com"
 NOME_ENV_CHIAVE = "ODDS_API_KEY"
-REGIONI = "eu"            # 1 credito a chiamata (PR #50 §4)
-MERCATO = "h2h"
+REGIONI = "eu"            # 2 mercati × 1 regione = 2 crediti a chiamata
+MERCATO = "h2h,totals"
 FORMATO_QUOTE = "decimal"
 QUOTA_MENSILE = 500
 
@@ -315,7 +313,7 @@ def h2h_dal_bookmaker(libro: Any, home_team: Any, away_team: Any
     if not isinstance(mercati, list):
         return None, SCARTO_SENZA_MERCATI
     mercato = next((m for m in mercati
-                    if isinstance(m, dict) and str(m.get("key") or "").strip().lower() == MERCATO),
+                    if isinstance(m, dict) and str(m.get("key") or "").strip().lower() == "h2h"),
                    None)
     if mercato is None:
         return None, SCARTO_MERCATO_H2H_ASSENTE
@@ -354,6 +352,26 @@ def h2h_dal_bookmaker(libro: Any, home_team: Any, away_team: Any
     return h2h, None
 
 
+def totals_dal_bookmaker(libro):
+    """Tutte le linee ricevute, senza scegliere quella usata dal fit."""
+    if not isinstance(libro, dict):
+        return {}
+    out = dict(libro.get("totals") or {})
+    for mercato in libro.get("markets") or []:
+        if mercato.get("key") != "totals":
+            continue
+        for esito in mercato.get("outcomes") or []:
+            try:
+                line = float(esito.get("point"))
+            except (TypeError, ValueError):
+                continue
+            side = esito.get("name")
+            q = _prezzo(esito.get("price"))
+            if math.isfinite(line) and side in ("Over", "Under") and q is not None:
+                out.setdefault(str(line), {})[side] = q
+    return out
+
+
 def libri_dell_evento(evento: Dict[str, Any],
                       scarti: Optional[Dict[str, int]] = None) -> List[Dict[str, Any]]:
     """I bookmaker di un evento, con SOLO i campi che servono (quote grezze).
@@ -371,7 +389,7 @@ def libri_dell_evento(evento: Dict[str, Any],
     away_team = evento.get("away_team")
     for libro in evento.get("bookmakers") or []:
         h2h, motivo = h2h_dal_bookmaker(libro, home_team, away_team)
-        if h2h is None:
+        if h2h is None and not totals_dal_bookmaker(libro):
             if scarti is not None and motivo:
                 scarti[motivo] = scarti.get(motivo, 0) + 1
             continue
@@ -379,7 +397,8 @@ def libri_dell_evento(evento: Dict[str, Any],
             "key": libro.get("key"),
             "title": libro.get("title"),
             "last_update": libro.get("last_update"),
-            "h2h": h2h,
+            "h2h": h2h or {},
+            "totals": totals_dal_bookmaker(libro),
         })
     return out
 
@@ -1063,7 +1082,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="non scrivere il file")
     ap.add_argument("--forza", action="store_true",
                     help="salta la guardia di freschezza (6 ore) e scarica comunque "
-                         "(~5 crediti): usato dall'input forza di workflow_dispatch")
+                         "(~10 crediti): usato dall'input forza di workflow_dispatch")
     ap.add_argument("--allarme-vecchie", action="store_true",
                     help="SOLO controllo di eta': esce 1 con ::error:: se live_odds.json "
                          "manca o generato_il ha piu' di 26 ore, 0 altrimenti "

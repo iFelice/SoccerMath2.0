@@ -1,0 +1,7 @@
+2026-10-16 15:18:58.911 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+✅ Run 1 OK - toggle ON (segue tema sistema), nessuna eccezione
+✅ Run 2 OK - toggle OFF, CSS light forzato presente (2 blocchi <style>)
+✅ Run 3 OK - ritorno a ON, CSS forzato rimosso, nessuna eccezione
+✅ Run 4 OK - rerun generico senza crash
+
+🎉 TUTTI I TEST PASSATI: nessun crash in nessuno stato del toggle.

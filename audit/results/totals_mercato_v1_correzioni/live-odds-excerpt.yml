@@ -1,0 +1,48 @@
+      - name: Risposte reali della sonda in forma grezza (0 crediti)
+        run: |
+          python audit/totals_snapshot_fixture.py --out /tmp/odds_grezze
+          python audit/totals_snapshot_fixture.py --out /tmp/odds_senza_bookmakers \
+            --senza-bookmakers
+
+      - name: Dry-run sulle risposte reali grezze (nessuna rete, nessuna scrittura)
+        working-directory: SoccerMath
+        run: |
+          set -o pipefail
+          python update_live_odds.py \
+            --fixture /tmp/odds_grezze \
+            --out /tmp/live_odds_dryrun.json \
+            --dry-run 2>&1 | tee /tmp/live_odds_dryrun.log
+          # Le quote devono esserci: "eventi con almeno un libro=0" significa
+          # che la conversione ha perso i bookmaker (guasto del 2026-10-09).
+          if grep -q 'eventi con almeno un libro=0' /tmp/live_odds_dryrun.log; then
+            echo "::error::la conversione ha perso i bookmaker della risposta reale"
+            exit 1
+          fi
+
+      # Regressione h2h SENZA totals: entrambi i percorsi precedenti restano.
+      - name: Risposte legacy in forma grezza (0 crediti)
+        run: |
+          python audit/live_odds_raw_fixtures.py --out /tmp/odds_grezze_legacy
+          python audit/live_odds_raw_fixtures.py --out /tmp/odds_vuote_legacy --senza-bookmakers
+
+      - name: Dry-run legacy grezzo e verifica probabilità 1X2
+        working-directory: SoccerMath
+        run: |
+          set -o pipefail
+          python update_live_odds.py --fixture /tmp/odds_grezze_legacy \
+            --out /tmp/live_odds_dryrun_legacy.json --dry-run 2>&1 | tee /tmp/live_odds_legacy.log
+          # --dry-run NON scrive: seconda esecuzione sempre offline, solo /tmp,
+          # per verificare il JSON realmente prodotto, senza rete o secret.
+          python update_live_odds.py --fixture /tmp/odds_grezze_legacy --out /tmp/live_odds_legacy.json
+          python ../audit/verifica_quote_legacy.py --file /tmp/live_odds_legacy.json --fixture /tmp/odds_grezze_legacy
+
+      - name: Dry-run sugli snapshot compattati della sonda
+        working-directory: SoccerMath
+        run: |
+          set -o pipefail
+          python update_live_odds.py \
+            --fixture ../audit/data/live_odds_probe \
+            --out /tmp/live_odds_dryrun_compattato.json \
+            --dry-run 2>&1 | tee /tmp/live_odds_compattato.log
+          python update_live_odds.py --fixture ../audit/data/live_odds_probe --out /tmp/live_odds_compattato.json
+          python ../audit/verifica_quote_legacy.py --file /tmp/live_odds_compattato.json --fixture ../audit/data/live_odds_probe

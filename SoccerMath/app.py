@@ -121,6 +121,7 @@ from prediction_registry import (
     righe_visibili,
     upsert_prediction_entries,
     ORIGIN_TOP_MIX,
+    ORIGIN_MERCATO_OU,
     ORIGIN_ANALISI_RAPIDA,
     ORIGIN_BILLY,
     build_calculation_id,
@@ -3905,15 +3906,20 @@ def riga_pronostico_da_mercato(riga, adesso=None, stato_confronto=None,
     probabilita = riga.get("prob")
     if probabilita is None:
         probabilita = riga.get("prob_val")
+    from totals_mercato import celle_totals
     return {
+        **celle_totals(riga.get("totals") or {}),
         "Quando": _quando_breve(riferimento, lontana),
         "Partita": f"{riga.get('home') or '?'} - {riga.get('away') or '?'}",
-        "Pronostico": str(riga.get("esito") or "").strip(),
-        "Quote %": percento_decimale(probabilita),
-        "Modello %": percentuale_in_colonna(
-            numero_modello_percento(riga, stato_confronto, mappa_modello_1x2)),
-        "Quota": quota_in_colonna(
+        "Pronostico": "—" if riga.get("solo_ou") else str(riga.get("esito") or "").strip(),
+        "Quote %": "" if riga.get("solo_ou") else percento_decimale(probabilita),
+        "Modello %": ("n/d" if riga.get("solo_ou") else percentuale_in_colonna(
+            numero_modello_percento(riga, stato_confronto, mappa_modello_1x2))),
+        "Quota": "" if riga.get("solo_ou") else quota_in_colonna(
             quota_b365_stimata(probabilita, riga.get("league") or riga.get("lega"))),
+        "solo_ou": bool(riga.get("solo_ou")),
+        "_prob_ou": max((riga.get("totals") or {}).get("p_over", 0),
+                        (riga.get("totals") or {}).get("p_under", 0)) if riga.get("solo_ou") else 0,
         "provvisoria": bool(lontana),
         "scheda": _righe_partita_da_giocata(riga),
     }
@@ -3960,13 +3966,26 @@ def tabella_pronostici_visibile(righe):
     posizione nella tabella, non la partita.
     """
     sorgente = [r for r in (righe or []) if isinstance(r, dict)]
-    df = pd.DataFrame(sorgente, columns=COLONNE_PRONOSTICI)
+    colonne = list(COLONNE_PRONOSTICI)
+    if any("Gol" in r for r in sorgente):
+        colonne += ["Gol", "Insieme %"]
+    df = pd.DataFrame(sorgente, columns=colonne)
     df["Quote %"] = pd.to_numeric(df["Quote %"], errors="coerce")
-    for colonna in ("Quando", "Partita", "Pronostico", "Modello %", "Quota"):
+    for colonna in (c for c in colonne if c != "Quote %"):
         df[colonna] = df[colonna].map(cella_di_testo)
     if df.empty:
         return df, []
-    df = df.sort_values("Quote %", ascending=False, na_position="last", kind="mergesort")
+    # Chiavi numeriche solo interne: 1X2 prima, poi solo-O/U per P O/U.
+    # Non ordinare sulla stringa "Gol", arrotondata alla percentuale intera.
+    df["_prob_ou"] = [r.get("_prob_ou", 0) for r in sorgente]
+    df = df.sort_values(["Quote %", "_prob_ou"], ascending=False,
+                        na_position="last", kind="mergesort").drop(columns="_prob_ou")
+    solo_ou = [bool(sorgente[i].get("solo_ou")) for i in df.index]
+    if any(solo_ou):
+        # Arrow non supporta una colonna mista float/stringa: conserva la
+        # stessa cifra decimale delle righe 1X2, senza NaN o coercizioni UI.
+        df["Quote %"] = ["" if solo else f"{value:.1f}"
+                         for solo, value in zip(solo_ou, df["Quote %"])]
     return df.reset_index(drop=True), [sorgente[i] for i in df.index]
 
 
@@ -4088,10 +4107,13 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     # PRIMA del disegno: la selezione pendente diventa richiesta di scheda e la
     # tabella si disegna con la chiave nuova, senza spunte (chiave_tabella_pulita).
     chiave_corrente = chiave_tabella_pulita(chiave_widget, righe_ordinate)
+    config_colonne = _config_colonne_pronostici()
+    if any(r.get("solo_ou") for r in righe_ordinate):
+        config_colonne["Quote %"] = st.column_config.TextColumn("Quote %")
     st.dataframe(df, width="stretch", height=altezza, hide_index=True,
                  on_select="rerun", selection_mode="single-row",
                  key=chiave_corrente,
-                 column_config=_config_colonne_pronostici())
+                 column_config=config_colonne)
     if any(r.get("provvisoria") for r in righe_ordinate):
         st.caption(FRASE_QUOTE_ANCORA_PROVVISORIE)
 
@@ -4141,7 +4163,9 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
                "sbagliano meno di qualunque modello. La scelta (1/X/2) è quella con la "
                "probabilità più alta, e compare se supera il **55%**; accanto c'è la "
                "probabilità che il nostro modello dà allo stesso esito («Modello %»; per "
-               "le doppie chance è la somma delle due probabilità 1X2).")
+               "le doppie chance è la somma delle due probabilità 1X2). "
+               "Gol: O/U 2,5 dal mercato solo da 67%; Modello % per i gol: n/d "
+               "(non ancora validato). Insieme % viene dalla griglia congiunta.")
     meta = quote_meta if isinstance(quote_meta, dict) else {}
     stato = meta.get("stato")
     if stato == STATO_OK:
@@ -4200,6 +4224,58 @@ import lista_giocate as lg
 # ---------------------------------------------------------------------------
 # Scheda GIOCATE: le righe di mercato nate SOLO da live_odds.json
 # ---------------------------------------------------------------------------
+def righe_pronostici_dalle_quote(payload, adesso=None):
+    """Unione per partita, solo in Pronostici: Top Mix/Multiple non la usano."""
+    from totals_mercato import calcola_totals
+    righe, info = righe_mercato_dalle_quote(payload, adesso)
+    by_id = {r["match_id"]: r for r in righe}
+    now = adesso if adesso is not None else market_odds._adesso_utc()
+    for ev in market_odds.eventi_quote(payload or {}):
+        dt = lg.parse_commence_time(ev.get("commence_time"))
+        if dt is None or dt <= now:
+            continue
+        r = by_id.get(ev.get("id"))
+        totals = calcola_totals(ev.get("libri"), r.get("esito", "") if r else "")
+        if not totals:
+            continue
+        if r is None:
+            if not totals.get("pronostico"):
+                continue
+            p = max(totals["p_over"], totals["p_under"])
+            r = {"match_id": ev.get("id"), "home": ev.get("home_team"),
+                 "away": ev.get("away_team"), "league": ev.get("lega"),
+                 "utcDate": ev.get("commence_time"), "kickoff_utc": ev.get("commence_time"),
+                 "commence_time": ev.get("commence_time"),
+                 "quote_live_istante": (payload or {}).get("generato_il"),
+                 "esito": "—", "prob": p, "prob_val": p * 100, "solo_ou": True}
+            righe.append(r)
+        r["totals"] = totals
+    righe, _ = righe_solo_pre_partita(righe, ora=now)
+    return righe, info
+
+
+def entry_registro_totals(riga, snapshot_sha, salvato_il):
+    """Riga autonoma; la prima registrazione O/U viene congelata dal chiamante."""
+    from totals_mercato import TOTALS_VERSION
+    t = riga["totals"]
+    side = t["pronostico"]
+    p = t["p_over"] if side == "Over" else t["p_under"]
+    e = build_prediction_entry(
+        riga["match_id"], riga["home"], riga["away"], riga["league"], None,
+        format_date_italy(riga["utcDate"], "%d/%m/%Y %H:%M"),
+        f"{side} 2,5", [], p * 100, "",
+        mercato_standard=f"{side.upper()}_2.5", origin=ORIGIN_MERCATO_OU,
+        kickoff_utc=riga["utcDate"], selector_version=TOTALS_VERSION,
+        prob_mercato=p, mercato_fonte=t["fonte"],
+        quote_live_istante=riga.get("quote_live_istante"),
+        snapshot_sha=snapshot_sha, salvato_il=salvato_il)
+    e["linea_pinnacle"] = t["linea_pinnacle"]
+    if "p_congiunta" in t:
+        e["prob_congiunta"] = t["p_congiunta"]
+        e["pronostico_1x2"] = t["esito_1x2"]
+    return e
+
+
 def righe_mercato_dalle_quote(payload, adesso=None):
     """Le scelte del mercato della scheda Giocate, ricavate SOLO dalle quote.
 
@@ -4456,7 +4532,7 @@ def _parse_salvato_il(testo):
         return None
 
 
-def ultima_registrazione_mercato(righe_registro=None):
+def ultima_registrazione_mercato(righe_registro=None, *, origine=ORIGIN_TOP_MIX):
     """Frase "Ultima registrazione: ...", letta dal Registro (famiglia Mercato).
 
     Legge il ``salvato_il`` piu' recente fra le righe della famiglia Mercato:
@@ -4466,7 +4542,9 @@ def ultima_registrazione_mercato(righe_registro=None):
     righe = righe_registro if righe_registro is not None else righe_visibili(load_predictions())
     istanti = []
     for r in righe or []:
-        if not isinstance(r, dict) or famiglia_selettore(r) != FAMIGLIA_SELETTORE_MERCATO:
+        if not isinstance(r, dict) or origin_of(r) != origine:
+            continue
+        if origine == ORIGIN_TOP_MIX and famiglia_selettore(r) != FAMIGLIA_SELETTORE_MERCATO:
             continue
         dt = _parse_salvato_il(r.get("salvato_il"))
         if dt is not None:
@@ -4477,6 +4555,11 @@ def ultima_registrazione_mercato(righe_registro=None):
     giorno = lg.GIORNI_SETTIMANA_IT[dt.weekday()]
     return (f"Ultima registrazione: {giorno} {dt.strftime('%d/%m/%Y')}, "
             f"ore {dt.strftime('%H:%M')}")
+
+
+def ultima_registrazione_ou(righe_registro=None):
+    """Stesso formato del Registro 1X2, solo origine dedicata mercato_ou."""
+    return "Gol · " + ultima_registrazione_mercato(righe_registro, origine=ORIGIN_MERCATO_OU)
 
 
 def registra_giocate_della_giornata():
@@ -4572,11 +4655,20 @@ def registra_giocate_della_giornata():
     # Righe di mercato GIA' nel registro la cui partita e' ancora in attesa:
     # vengono riallineate alla lettura del turno anche se la probabilita' e'
     # ricaduta sotto soglia (era il buco chiuso da questa rifinitura).
+    righe_ou, _ = righe_pronostici_dalle_quote(market_odds.carica_quote_live())
+    righe_ou = lg.righe_mercato_nel_periodo(righe_ou, market_odds._adesso_utc(),
+                                          periodo_selezionato()[0])
+    gia_ou = {str(p.get("match_id")) for p in preds
+              if p.get("selector_version") == "totals_mercato_v1"}
+    nuove_ou = [entry_registro_totals(r, sha, ora) for r in righe_ou
+                if r.get("match_id") and (r.get("totals") or {}).get("pronostico")
+                and str(r["match_id"]) not in gia_ou]
+    preds, azioni_ou = upsert_prediction_entries(preds, nuove_ou)
     preds, azioni_refresh = aggiorna_righe_mercato_in_attesa(preds, letture, salvato_il=ora)
     n_rinf = azioni_refresh.get("aggiornata", 0)
     n_sotto = azioni_refresh.get("sotto_soglia", 0)
     if (azioni_upsert.get("aggiunta") or azioni_upsert.get("aggiornata")
-            or azioni_upsert.get("senza_chiave") or n_rinf):
+            or azioni_upsert.get("senza_chiave") or n_rinf or nuove_ou):
         esito_save = save_predictions(preds)
     else:
         # Ne' le righe ammesse ne' quelle in attesa sono cambiate: il file non
@@ -4603,6 +4695,13 @@ def registra_giocate_della_giornata():
     else:
         esito["riga_esito"] = "ℹ️ Niente di nuovo da registrare"
     esito["scritto"] = bool(not salvataggio_fallito and (n_nuove or n_agg or n_rinf))
+    if salvataggio_fallito and nuove_ou:
+        esito["riga_esito_ou"] = "⚠️ Gol: Non è stato possibile salvare: riprova"
+    elif azioni_ou.get("aggiunta"):
+        esito["riga_esito_ou"] = f"✅ Gol: Registrate {azioni_ou['aggiunta']} giocate nuove"
+    else:
+        esito["riga_esito_ou"] = "ℹ️ Gol: Niente di nuovo da registrare"
+
 
     dettaglio = (f"Famiglia Mercato: {n_nuove} nuove, {n_agg} aggiornate, "
                  f"{n_gia} gia' giudicate (non toccate)")
@@ -5145,7 +5244,7 @@ def calcola_pronostici_giornata():
     esito = registra_giocate_della_giornata()
     adesso = market_odds._adesso_utc()
     _periodo_val, periodo_lbl = periodo_selezionato()
-    righe, _info = righe_mercato_dalle_quote(market_odds.carica_quote_live(), adesso)
+    righe, _info = righe_pronostici_dalle_quote(market_odds.carica_quote_live(), adesso)
     st.session_state[CHIAVE_PRONOSTICI] = {"periodo": periodo_lbl, "righe": righe,
                                            "esito": esito}
 
@@ -5176,7 +5275,9 @@ def _scheda_pronostici():
     if st.button("📝 Calcola i pronostici della giornata", type="primary",
                  key="btn_calcola_pronostici"):
         calcola_pronostici_giornata()
-    st.caption(ultima_registrazione_mercato())
+    registrate = righe_visibili(load_predictions())
+    st.caption(ultima_registrazione_mercato(registrate))
+    st.caption(ultima_registrazione_ou(registrate))
     risultato = pronostici_in_sessione()
     if risultato is None:
         st.info("Premi il pulsante per calcolare i pronostici della giornata.")
@@ -5184,6 +5285,8 @@ def _scheda_pronostici():
     esito = risultato.get("esito") or {}
     if esito.get("riga_esito"):
         st.markdown(f"**{esito['riga_esito']}**")
+    if esito.get("riga_esito_ou"):
+        st.markdown(f"**{esito['riga_esito_ou']}**")
     stato_confronto, mappa_modello_1x2 = stato_confronto_in_lettura()
     _mostra_tabella_top_mix_mercato(risultato.get("righe") or [],
                                     carica_indice_quote_live(),
@@ -5196,7 +5299,7 @@ def _scheda_pronostici():
         else:
             st.caption("Nessuna registrazione in questa sessione: il Registro non è stato "
                        "tocciato.")
-        _mostra_vista_tecnica_top_mix(risultato.get("righe") or [],
+        _mostra_vista_tecnica_top_mix([r for r in risultato.get("righe") or [] if not r.get("solo_ou")],
                                       carica_indice_quote_live())
 
 
@@ -6451,7 +6554,24 @@ with tab_registro:
         # l'intestazione della famiglia).
         maschera_mercato = df_display.apply(
             lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
-        maschera_modello = ~maschera_mercato
+        maschera_totals = df_display.apply(
+            lambda r: famiglia_selettore(r.to_dict()) == "totals", axis=1)
+        maschera_modello = ~(maschera_mercato | maschera_totals)
+        if maschera_totals.any():
+            st.markdown("### ⚽ Gol — mercato")
+            st.caption("totals_mercato_v1 · prima registrazione · Modello %: n/d")
+            colonne_gol = ["Partita", "Pronostico", "Quote %", "Modello %", "Fonte", "Linea Pinnacle", "Insieme %"]
+            righe_gol = []
+            for r in df_display[maschera_totals].to_dict("records"):
+                righe_gol.append({
+                    "Partita": f"{r.get('home') or '?'} - {r.get('away') or '?'}",
+                    "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
+                    "Quote %": percentuale_in_colonna(r.get("prob_mercato_prima")),
+                    "Modello %": "n/d", "Fonte": cella_di_testo(r.get("mercato_fonte")),
+                    "Linea Pinnacle": cella_di_testo(r.get("linea_pinnacle")),
+                    "Insieme %": percentuale_in_colonna(r.get("prob_congiunta"))})
+            st.dataframe(pd.DataFrame(righe_gol, columns=colonne_gol), hide_index=True)
+
         # Variante letta fuori dai due motori, DENTRO il modello storico: e' il
         # materiale della terza tabella di controllo. Le righe del mercato non
         # entrano qui per costruzione: stanno gia' tutte nella loro tabella,

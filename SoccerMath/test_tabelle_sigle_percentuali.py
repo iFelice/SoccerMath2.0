@@ -102,7 +102,7 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
                                                                     home="Milan", away="Lazio")]
         df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2={})
         self.assertEqual(["Quando", "Partita", "Pronostico", "Quote %", "Modello %",
-                          "Quota"], list(df.columns))
+                          "Quota", "Gol", "Insieme %"], list(df.columns))
         self.assertNotIn("Riesce circa", df.columns)
         self.assertNotIn("Campionato", df.columns,
                          "il campionato non e' una colonna: la vista e' asciutta")

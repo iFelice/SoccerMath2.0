@@ -1,0 +1,21 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.2, pytest-9.1.1, pluggy-1.7.0 -- /home/user/.venv/bin/python
+rootdir: /home/user/SoccerMath2.0
+plugins: anyio-4.15.1
+collecting ... collected 13 items
+
+SoccerMath/test_totals_correzioni.py::TestOrigineMercatoOU::test_backend_chiave_e_roundtrip_origine_ou PASSED [  7%]
+SoccerMath/test_totals_correzioni.py::TestOrigineMercatoOU::test_coverage_dedup_conteggi_topmix_invariati PASSED [ 15%]
+SoccerMath/test_totals_correzioni.py::TestOrigineMercatoOU::test_replay_indice_match_variante_non_sovrascrive_1x2 PASSED [ 23%]
+SoccerMath/test_totals_correzioni.py::TestOrigineMercatoOU::test_risoluzione_origine_esplicita_label_e_legacy_pr76 PASSED [ 30%]
+SoccerMath/test_totals_correzioni.py::TestOrigineMercatoOU::test_upsert_singolo_e_blocco_non_duplicano_ne_sovrascrivono_ou PASSED [ 38%]
+SoccerMath/test_totals_correzioni.py::TestLegacyDryRun::test_legacy_compattato_e_grezzo_senza_totals_parita_b837823 PASSED [ 46%]
+SoccerMath/test_apptest_totals_mercato.py::TestAppTotals::test_01_tabella_snapshot_e_registro_separato PASSED [ 53%]
+SoccerMath/test_apptest_totals_mercato.py::TestAppTotals::test_02_secondo_click_congela_prima_registrazione_ou PASSED [ 61%]
+SoccerMath/test_apptest_totals_mercato.py::TestAppTotals::test_03_scheda_partita_sopra_e_sotto_soglia PASSED [ 69%]
+SoccerMath/test_apptest_totals_mercato.py::TestAppTotals::test_04_solo_ou_in_fondo_per_probabilita_non_percentuale_arrotondata PASSED [ 76%]
+SoccerMath/test_apptest_totals_mercato.py::TestAppTotals::test_05_righe_1x2_identiche_alla_presentazione_b837823 PASSED [ 84%]
+SoccerMath/test_apptest_totals_mercato.py::TestAppTotals::test_06_frasi_topmix_e_ou_filtrate_per_origine PASSED [ 92%]
+SoccerMath/test_apptest_totals_mercato.py::TestAppTotals::test_07_multiple_liste_conteggi_e_riquadri_invariati_con_ou_nel_registro PASSED [100%]
+
+======================== 13 passed in 110.45s (0:01:50) ========================

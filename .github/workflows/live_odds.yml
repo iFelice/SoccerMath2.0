@@ -6,8 +6,8 @@ name: Quote live (The Odds API)
 # e non viene mai stampata (update_live_odds.py maschera ogni URL e passa ogni
 # messaggio di errore da un filtro che sostituisce la chiave con ***).
 #
-# COSTO: una chiamata per lega, regions=eu, markets=h2h = 1 credito a chiamata,
-# 5 crediti a giro (misurato in PR #50, audit/results/live_odds_feasibility.md
+# COSTO: una chiamata per lega, regions=eu, markets=h2h,totals = 2 crediti a chiamata,
+# 10 crediti a giro (due mercati; costo h2h misurato in PR #50, audit/results/live_odds_feasibility.md
 # §4). Un giro al giorno sta nel piano gratuito da 500 crediti/mese.
 #
 # GUARDIA DI FRESCHEZZA (secondo tentativo, 2026-10-10): GitHub ritarda e a
@@ -16,11 +16,11 @@ name: Quote live (The Odds API)
 # di qualunque chiamata update_live_odds.py legge generato_il del file
 # esistente: se ha meno di 6 ore esce 0 senza chiamare l'API (0 crediti,
 # log "quote fresche, nessuna chiamata"). Quindi:
-#   - primo cron parte      -> giro da 5 crediti, il secondo costa 0;
-#   - primo cron salta       -> il secondo fa il giro (5 crediti);
+#   - primo cron parte      -> giro da 10 crediti, il secondo costa 0;
+#   - primo cron salta       -> il secondo fa il giro (10 crediti);
 #   - entrambi i cron saltano -> il job allarme di update_database.yml
 #     (soglia 26 ore) fa fallire quel workflow e GitHub notifica.
-# Consumo atteso: ~5 crediti al giorno. workflow_dispatch ha l'input booleano
+# Consumo atteso: ~10 crediti al giorno. workflow_dispatch ha l'input booleano
 # `forza` (default false) che salta la guardia e scarica comunque.
 #
 # ROBUSTEZZA: se la quota crediti e' esaurita, se la chiave e' rifiutata, se
@@ -53,7 +53,7 @@ on:
   workflow_dispatch:
     inputs:
       forza:
-        description: "Salta la guardia di freschezza e scarica comunque (~5 crediti)"
+        description: "Salta la guardia di freschezza e scarica comunque (~10 crediti)"
         type: boolean
         required: false
         default: false
@@ -63,6 +63,9 @@ on:
     paths:
       - 'SoccerMath/update_live_odds.py'
       - 'SoccerMath/market_odds.py'
+      - 'SoccerMath/totals_mercato.py'
+      - 'audit/totals_snapshot_fixture.py'
+      - 'audit/verifica_quote_legacy.py'
       - 'SoccerMath/team_aliases.py'
       - 'audit/live_odds_raw_fixtures.py'
       - 'audit/data/live_odds_probe/**'
@@ -94,6 +97,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -110,8 +115,8 @@ jobs:
       # quando la conversione buttava TUTTI i bookmaker.
       - name: Risposte reali della sonda in forma grezza (0 crediti)
         run: |
-          python audit/live_odds_raw_fixtures.py --out /tmp/odds_grezze
-          python audit/live_odds_raw_fixtures.py --out /tmp/odds_senza_bookmakers \
+          python audit/totals_snapshot_fixture.py --out /tmp/odds_grezze
+          python audit/totals_snapshot_fixture.py --out /tmp/odds_senza_bookmakers \
             --senza-bookmakers
 
       - name: Dry-run sulle risposte reali grezze (nessuna rete, nessuna scrittura)
@@ -129,6 +134,23 @@ jobs:
             exit 1
           fi
 
+      # Regressione h2h SENZA totals: entrambi i percorsi precedenti restano.
+      - name: Risposte legacy in forma grezza (0 crediti)
+        run: |
+          python audit/live_odds_raw_fixtures.py --out /tmp/odds_grezze_legacy
+          python audit/live_odds_raw_fixtures.py --out /tmp/odds_vuote_legacy --senza-bookmakers
+
+      - name: Dry-run legacy grezzo e verifica probabilità 1X2
+        working-directory: SoccerMath
+        run: |
+          set -o pipefail
+          python update_live_odds.py --fixture /tmp/odds_grezze_legacy \
+            --out /tmp/live_odds_dryrun_legacy.json --dry-run 2>&1 | tee /tmp/live_odds_legacy.log
+          # --dry-run NON scrive: seconda esecuzione sempre offline, solo /tmp,
+          # per verificare il JSON realmente prodotto, senza rete o secret.
+          python update_live_odds.py --fixture /tmp/odds_grezze_legacy --out /tmp/live_odds_legacy.json
+          python ../audit/verifica_quote_legacy.py --file /tmp/live_odds_legacy.json --fixture /tmp/odds_grezze_legacy
+
       - name: Dry-run sugli snapshot compattati della sonda
         working-directory: SoccerMath
         run: |
@@ -136,7 +158,22 @@ jobs:
           python update_live_odds.py \
             --fixture ../audit/data/live_odds_probe \
             --out /tmp/live_odds_dryrun_compattato.json \
-            --dry-run 2>&1 | tee -a /tmp/live_odds_dryrun.log
+            --dry-run 2>&1 | tee /tmp/live_odds_compattato.log
+          python update_live_odds.py --fixture ../audit/data/live_odds_probe --out /tmp/live_odds_compattato.json
+          python ../audit/verifica_quote_legacy.py --file /tmp/live_odds_compattato.json --fixture ../audit/data/live_odds_probe
+
+      - name: Legacy senza bookmaker non sovrascrive il file precedente
+        working-directory: SoccerMath
+        run: |
+          cp /tmp/live_odds_compattato.json /tmp/live_odds_vuote_legacy.json
+          PRIMA=$(sha256sum /tmp/live_odds_vuote_legacy.json | cut -d' ' -f1)
+          set +e
+          python update_live_odds.py --fixture /tmp/odds_vuote_legacy --out /tmp/live_odds_vuote_legacy.json
+          rc=$?
+          set -e
+          test "$rc" = "4"
+          DOPO=$(sha256sum /tmp/live_odds_vuote_legacy.json | cut -d' ' -f1)
+          test "$PRIMA" = "$DOPO"
 
       # Prova del guasto: stessi eventi, zero bookmaker. Il writer DEVE uscire 4
       # e non scrivere: un file senza quote non deve mai sostituire quello buono.
@@ -211,7 +248,7 @@ jobs:
           fi
           echo "ODDS_API_KEY presente (valore non letto, non stampato)."
 
-      - name: Scarica le quote (una chiamata per lega, regions=eu, markets=h2h)
+      - name: Scarica le quote (una chiamata per lega, regions=eu, markets=h2h,totals)
         working-directory: SoccerMath
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}

@@ -74,6 +74,23 @@ IMPRONTE = {
 }
 
 
+# Impronta autonoma: NON aggiungere queste funzioni a FUNZIONI/COSTANTI 1X2.
+TOTALS = os.path.join(HERE, "totals_mercato.py")
+FUNZIONI_OU = tuple((TOTALS, n.name) for n in ast.parse(open(TOTALS, encoding="utf-8").read()).body
+                    if isinstance(n, ast.FunctionDef)) + (
+    (APP, "righe_pronostici_dalle_quote"), (APP, "entry_registro_totals"),
+)
+COSTANTI_OU = tuple((TOTALS, name) for name in (
+    "TOTALS_VERSION", "SOGLIA_OU", "K", "N", "GOALS", "I", "J", "_H", "_D", "_A", "_FLAT_H", "_FLAT_D", "_FLAT_A", "RHO_BOUNDS", "LOG_LAM_BOUNDS",
+    "T_MAX", "_GOALS_T", "_STARTS_RHO", "_STARTS_POI"))
+IMPRONTE_OU = {"totals_mercato_v1": "fbb0cb99c42e589c3296a8bc4185c7f5b284bc3d1a67b7e621dabc7517431d8c"}
+
+
+def impronta_ou_attuale():
+    sorgenti = {p: open(p, encoding="utf-8").read() for p, _ in FUNZIONI_OU + COSTANTI_OU}
+    return impronta_da_sorgenti(sorgenti, FUNZIONI_OU, COSTANTI_OU)
+
+
 def _senza_docstring(nodo: ast.FunctionDef) -> ast.FunctionDef:
     corpo = nodo.body
     if corpo and isinstance(corpo[0], ast.Expr) and isinstance(getattr(corpo[0], "value", None), ast.Constant) \
@@ -117,6 +134,11 @@ IMPRONTE_STORICHE_NON_RICALCOLABILI = frozenset({"topmix_1x2_gate025_ens06_v2"})
 
 
 class TestRegolaVersioneSelettore(unittest.TestCase):
+
+    def test_impronta_ou_separata(self):
+        from totals_mercato import TOTALS_VERSION
+        self.assertEqual(IMPRONTE_OU[TOTALS_VERSION], impronta_ou_attuale())
+
 
     def test_la_versione_in_prova_ha_la_sua_impronta(self):
         self.assertIn(R.SELECTOR_VERSION_CURRENT, IMPRONTE,
