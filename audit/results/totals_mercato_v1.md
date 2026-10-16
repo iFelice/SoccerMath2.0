@@ -235,6 +235,60 @@ Output di `git diff --cached --stat` sui file di implementazione, test e generat
 
 ## CI e PR
 
-La singola osservazione CI sarà acquisita dopo il push e l’apertura della PR, senza attese o polling.
+PR aperta: [#76](https://github.com/iFelice/SoccerMath2.0/pull/76). Unica chiamata eseguita:
+
+```bash
+gh run list --branch arena/a1597864-soccermath2-0 --limit 20 --json databaseId,workflowName,status,conclusion,headSha,event,url,createdAt
+```
+
+Output reale (commit di implementazione `1f67d126256e54359941927b0b83c1ede45270e4`):
+
+```json
+[
+  {
+    "conclusion": "",
+    "createdAt": "2026-10-16T14:16:58Z",
+    "databaseId": 38914501012,
+    "event": "pull_request",
+    "headSha": "1f67d126256e54359941927b0b83c1ede45270e4",
+    "status": "queued",
+    "url": "https://github.com/iFelice/SoccerMath2.0/actions/runs/38914501012",
+    "workflowName": "Replay Top Mix legacy (walk-forward, no-leakage)"
+  },
+  {
+    "conclusion": "",
+    "createdAt": "2026-10-16T14:16:58Z",
+    "databaseId": 38914500923,
+    "event": "pull_request",
+    "headSha": "1f67d126256e54359941927b0b83c1ede45270e4",
+    "status": "queued",
+    "url": "https://github.com/iFelice/SoccerMath2.0/actions/runs/38914500923",
+    "workflowName": "Suite test completa"
+  },
+  {
+    "conclusion": "",
+    "createdAt": "2026-10-16T14:16:58Z",
+    "databaseId": 38914501383,
+    "event": "pull_request",
+    "headSha": "1f67d126256e54359941927b0b83c1ede45270e4",
+    "status": "queued",
+    "url": "https://github.com/iFelice/SoccerMath2.0/actions/runs/38914501383",
+    "workflowName": "Quote live (The Odds API)"
+  },
+  {
+    "conclusion": "",
+    "createdAt": "2026-10-16T14:16:58Z",
+    "databaseId": 38914501814,
+    "event": "pull_request",
+    "headSha": "1f67d126256e54359941927b0b83c1ede45270e4",
+    "status": "queued",
+    "url": "https://github.com/iFelice/SoccerMath2.0/actions/runs/38914501814",
+    "workflowName": "Audit Top Mix (sola lettura)"
+  }
+]
+```
+
+**Alla singola osservazione i quattro run risultavano `queued`, non verdi.** Nessuna attesa, polling o secondo controllo. Il job Quote live su `pull_request` esegue soltanto il dry-run offline: il job `scarica` a crediti è escluso dall'`if`. Replay e audit avviati automaticamente dalla PR sono di sola lettura; non è stato lanciato alcun workflow manuale. L'ultimo commit aggiunge solo questa evidenza CI al referto, non cambia codice o test; nessuna affermazione sull'esito CI successivo all'osservazione.
+
 
 Nessun merge eseguito o richiesto.
