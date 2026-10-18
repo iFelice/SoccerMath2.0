@@ -289,6 +289,19 @@ class _BaseQuoteFinte(unittest.TestCase):
     APP = APP_PATH
     FIXTURE = FixtureQuoteFinte
 
+    #: Risposte di football-data per codice lega. Le sottoclassi che giocano su
+    #: piu' campionati la sostituiscono (stessa forma: ``{"SA": {...}}``).
+    @classmethod
+    def risposte_calendario(cls):
+        return {"SA": cls.FIXTURE.calendario(cls.ADESSO)}
+
+    #: Codici lega che devono rispondere con un errore HTTP (es. 429).
+    ERRORI_CALENDARIO = {}
+
+    #: Risultati finti per (codice, giornata): servono al pulsante «Controlla i
+    #: risultati», che chiama football-data con ``params={"matchday": n}``.
+    RISULTATI_FINTI = {}
+
     @classmethod
     def setUpClass(cls):
         try:
@@ -330,6 +343,10 @@ class _BaseQuoteFinte(unittest.TestCase):
 
         patch(config, "DATABASE_DIR", cls.tmp)
         patch(config, "PREDICTIONS_FILE", str(cls.prediction_file))
+        # Chiave FINTA: la scheda Partite scarica ora il calendario della lega
+        # scelta (calendario_campionato) e senza chiave non disegnerebbe la
+        # tabella. Non e' un segreto: la rete e' comunque finta.
+        patch(config, "FOOTBALL_DATA_API_KEY", "chiave-finta-fixture")
         patch(market_odds, "_adesso_utc", lambda: cls.ADESSO)
 
         cls.registro = _RegistroFinto([cls.riga_seed])
@@ -348,11 +365,19 @@ class _BaseQuoteFinte(unittest.TestCase):
 
         # --- rete finta: il calendario del fixture, nessun metodo di scrittura ---
         cls.chiamate = []
-        risposte = {"SA": cls.FIXTURE.calendario(cls.ADESSO)}
+        risposte = cls.risposte_calendario()
 
         def fake_get(url, **kw):
             cls.chiamate.append(("GET", url))
             code = url.rstrip("/").split("/")[-2] if "/matches" in url else ""
+            if code in cls.ERRORI_CALENDARIO:
+                return _Resp({"message": "errore simulato"},
+                             code=cls.ERRORI_CALENDARIO[code])
+            params = kw.get("params") or {}
+            if params.get("matchday") is not None:
+                giornata = int(params["matchday"])
+                return _Resp({"matches": list(
+                    cls.RISULTATI_FINTI.get((code, giornata), []))})
             return _Resp(risposte.get(code, {"matches": []}))
 
         def niente_rete(metodo):
@@ -1051,6 +1076,7 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
 
         patch(config, "DATABASE_DIR", tmp)
         patch(config, "PREDICTIONS_FILE", str(prediction_file))
+        patch(config, "FOOTBALL_DATA_API_KEY", "chiave-finta-fixture")
         patch(market_odds, "_adesso_utc", lambda: adesso)
         patch(pr, "backup_prediction_file", conta_backup)
         patch(requests, "get", fake_get)

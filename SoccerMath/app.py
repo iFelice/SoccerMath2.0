@@ -1581,7 +1581,19 @@ def calcola_segnali(risultati, infraset_giocate, infraset_programmate, stand, *a
     return max(0.78, min(1.22, mult_att)), max(0.78, min(1.22, mult_def)), ""
 
 def get_team_fd_id(team_name, camp_sel):
-    for match in st.session_state.get("live_data", []):
+    """L'id football-data della squadra NEL campionato ``camp_sel``.
+
+    Il calendario si legge con ``calendario_campionato(camp_sel)``, non con
+    ``st.session_state["live_data"]``: quello e' il campionato della barra
+    laterale, e abbinare gli id di Serie A a una partita di Bundesliga darebbe
+    il contesto sbagliato (o nessun contesto).
+    """
+    partite, errore = calendario_campionato(camp_sel)
+    if errore:
+        logging.warning("Contesto partita %s: calendario non disponibile (%s)",
+                        camp_sel, errore)
+        partite = []
+    for match in partite:
         for team in [match["homeTeam"], match["awayTeam"]]:
             if clean_name(team.get("shortName", "") or team.get("name", "")).lower() == clean_name(team_name).lower(): return team["id"]
     return None
@@ -1655,7 +1667,10 @@ def get_contesto_partita(h, a, camp_sel):
     match_date = datetime.now(timezone.utc)
     match_id_found = None
     h_clean = clean_name(h)
-    for mx in st.session_state.get("live_data", []):
+    # Il calendario della STESSA lega della partita: la barra laterale non
+    # c'entra (puo' essere su un altro campionato).
+    partite_lega, _errore_cal = calendario_campionato(camp_sel)
+    for mx in partite_lega or []:
         api_home = mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name", "")
         if _match_team_name(h_clean, api_home):
             try:
@@ -2750,7 +2765,10 @@ def analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classif
 @st.dialog("STRATEGIC ANALYSIS", width="large")
 def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
     match_id, match_date_str, match_utc = None, "", None
-    for mx in st.session_state.get("live_data", []):
+    # Il calendario della lega della PARTITA (quello della scheda), non quello
+    # della barra laterale: l'id e la data devono essere della partita giusta.
+    partite_lega, _errore_cal = calendario_campionato(camp_sel)
+    for mx in partite_lega or []:
         if clean_name(h) in clean_name(mx["homeTeam"].get("shortName", "") or mx["homeTeam"].get("name","")):
             match_id = mx.get("id"); match_date_str = format_date_italy(mx["utcDate"], "%d/%m/%Y %H:%M"); match_utc = mx.get("utcDate"); break
     # Selezione (argmax) sui 7 mercati POISSON PURO (m_poisson calcolato in
@@ -2777,8 +2795,12 @@ def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
     with st.spinner("Billy sta analizzando..."):
         try:
             contesto, _ = get_contesto_partita(h, a, camp_sel)
-            h_mult_att, h_mult_def, _ = calcola_segnali(contesto.get("h_risultati", []), contesto.get("h_infraset", []), contesto.get("h_infraset_prog", []), st.session_state.get("classifica", {}).get(clean_name(h), {}))
-            a_mult_att, a_mult_def, _ = calcola_segnali(contesto.get("a_risultati", []), contesto.get("a_infraset", []), contesto.get("a_infraset_prog", []), st.session_state.get("classifica", {}).get(clean_name(a), {}))
+            # La classifica della lega della PARTITA, non quella della barra
+            # laterale: con la barra su Serie A e la scheda su Bundesliga, la
+            # posizione in classifica deve restare quella tedesca.
+            classifica_lega = classifica_campionato(camp_sel)
+            h_mult_att, h_mult_def, _ = calcola_segnali(contesto.get("h_risultati", []), contesto.get("h_infraset", []), contesto.get("h_infraset_prog", []), classifica_lega.get(clean_name(h), {}))
+            a_mult_att, a_mult_def, _ = calcola_segnali(contesto.get("a_risultati", []), contesto.get("a_infraset", []), contesto.get("a_infraset_prog", []), classifica_lega.get(clean_name(a), {}))
             engine_data = get_league_engine(camp_sel)
             if engine_data:
                 ts, ah, aa, _ = engine_data
@@ -2820,7 +2842,7 @@ def show_details(h, a, m, m_poisson, camp_sel="Serie A", giornata_n=0):
                 elo_p = None
                 elo_disponibile = False
                 st.warning(elo_non_disponibile)
-            classifica = st.session_state.get("classifica", {}) or {}
+            classifica = classifica_lega or {}
             h_pos = classifica.get(clean_name(h), {}).get("pos", "N/D")
             a_pos = classifica.get(clean_name(a), {}).get("pos", "N/D")
             h_ris = contesto.get("h_risultati", [])
@@ -3369,21 +3391,37 @@ def riga_tabella_partita(riga, match, adesso=None):
     }
 
 
+def percentuale_con_simbolo(valore) -> str:
+    """«56,3%»: percentuale a UNA cifra decimale, virgola italiana.
+
+    Stringa vuota quando il numero non c'e': e' il formato delle colonne
+    1/X/2 della scheda Partite, che sono ``TextColumn`` proprio perche' una
+    ``NumberColumn`` con un valore mancante (NaN) finisce a schermo come
+    «None». Nessuno zero inventato al posto di un dato assente.
+    """
+    v = percento_decimale(valore)
+    if v is None:
+        return ""
+    return f"{v:.1f}%".replace(".", ",")
+
+
 def tabella_partite_giornata(righe):
     """Il DataFrame della giornata e le righe nello STESSO ordine.
 
-    Sette colonne nell'ordine ``COLONNE_PARTITE``. «1», «X» e «2» restano NUMERI
-    (una cifra decimale, come «Quote %» nelle altre schede) perche' la colonna
-    si possa ordinare al clic sull'intestazione; le altre quattro sono TESTO
-    gia' formattato, con stringa vuota dove il dato manca: nessuna cella di
-    questa tabella puo' rendere un "None" o un "nan". L'ordine e' quello del
-    calendario (per orario), non una graduatoria: la giornata si legge in
-    sequenza, e l'indice della riga cliccata e' quello della tabella.
+    Sette colonne nell'ordine ``COLONNE_PARTITE``. «1», «X» e «2» sono TESTO
+    gia' formattato («56,3%», una cifra decimale, virgola italiana; stringa
+    vuota se la quota manca) e le altre quattro sono TESTO con stringa vuota
+    dove il dato manca: nessuna cella di questa tabella puo' rendere un
+    "None", un "nan" o un "NaT". Le tre colonne NON sono numeriche di
+    proposito: le partite gia' giocate non hanno 1/X/2, e una ``NumberColumn``
+    con il valore mancante scriverebbe «None»; il prezzo e' che l'ordinamento
+    al clic e' alfabetico, ma la tabella e' gia' in ordine di calendario (per
+    orario) e l'indice della riga cliccata resta quello della tabella.
     """
     sorgente = [r for r in (righe or []) if isinstance(r, dict)]
     df = pd.DataFrame(sorgente, columns=COLONNE_PARTITE)
     for colonna in ESITI_PARTITE:
-        df[colonna] = pd.to_numeric(df[colonna], errors="coerce")
+        df[colonna] = df[colonna].map(percentuale_con_simbolo)
     for colonna in ("Quando", "Partita", "Pronostico", "Risultato"):
         df[colonna] = df[colonna].map(cella_di_testo)
     return df, sorgente
@@ -3398,15 +3436,16 @@ def _config_colonne_partite():
                  "partita gioca fra più di 3 giorni."),
         "Partita": st.column_config.TextColumn(
             "Partita", help="Squadra di casa e squadra in trasferta."),
-        "1": st.column_config.NumberColumn(
-            "1", format="%.1f%%", help="Vittoria della squadra di casa: "
-            "probabilità secondo le quote dei bookmaker. Vuota senza quote."),
-        "X": st.column_config.NumberColumn(
-            "X", format="%.1f%%", help="Pareggio: probabilità secondo le quote "
-            "dei bookmaker. Vuota senza quote."),
-        "2": st.column_config.NumberColumn(
-            "2", format="%.1f%%", help="Vittoria della squadra in trasferta: "
-            "probabilità secondo le quote dei bookmaker. Vuota senza quote."),
+        "1": st.column_config.TextColumn(
+            "1", help="Vittoria della squadra di casa: probabilità secondo le "
+            "quote dei bookmaker, una cifra decimale. Vuota senza quote."),
+        "X": st.column_config.TextColumn(
+            "X", help="Pareggio: probabilità secondo le quote dei bookmaker, "
+            "una cifra decimale. Vuota senza quote."),
+        "2": st.column_config.TextColumn(
+            "2", help="Vittoria della squadra in trasferta: probabilità "
+            "secondo le quote dei bookmaker, una cifra decimale. Vuota senza "
+            "quote."),
         "Pronostico": st.column_config.TextColumn(
             "Pronostico",
             help="L'esito con la probabilità più alta secondo le quote: "
@@ -3418,6 +3457,82 @@ def _config_colonne_partite():
     }
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def calendario_campionato(lega):
+    """Il calendario di UNA lega da football-data: ``(partite, errore)``.
+
+    E' la SOLA fonte del calendario della scheda «🏟️ Partite»: la scheda non
+    legge mai ``st.session_state["live_data"]``, che e' il calendario caricato
+    dalla barra laterale con «SINCRONIZZA» e puo' essere quello di un'altra
+    lega. La cache (15 minuti) e' per lega, quindi cambiare il selettore non
+    mostra il calendario della lega precedente.
+
+    ``errore`` e' un messaggio leggibile (401, 429, timeout, rete, risposta
+    non valida) oppure la stringa vuota. Senza chiave della fonte non parte
+    nessuna chiamata: il messaggio lo dice e la scheda non disegna tabelle.
+    """
+    codice = LEAGUE_CODE_MAP.get(lega)
+    if not codice:
+        return [], (f"⚠️ Campionato «{lega}» senza codice football-data: "
+                    "il calendario non si può scaricare.")
+    if not API_KEY_DATA:
+        return [], ("🔑 Chiave della fonte football-data non configurata: il "
+                    f"calendario di {lega} non si può scaricare. Aggiungila nei "
+                    "Secrets e premi SINCRONIZZA.")
+    url = f"https://api.football-data.org/v4/competitions/{codice}/matches"
+    try:
+        risposta = requests.get(url, headers={'X-Auth-Token': API_KEY_DATA},
+                                timeout=15)
+    except requests.exceptions.Timeout:
+        return [], (f"⏱️ Timeout: football-data non ha risposto entro 15 secondi "
+                    f"per il calendario di {lega}. Riprova tra qualche istante.")
+    except Exception as e:  # reti diverse da ``requests`` (proxy, test, runtime)
+        # Non solo ``RequestException``: qualunque guasto del livello di rete
+        # deve diventare un messaggio in scheda, mai un'eccezione che spegne la
+        # pagina (le altre schede devono restare in piedi).
+        return [], (f"⚠️ Errore di rete scaricando il calendario di {lega}: "
+                    f"{type(e).__name__}: {e}")
+    if risposta.status_code == 401:
+        return [], ("🔴 Errore 401: API Key football-data non valida o scaduta. "
+                    "Verificala su football-data.org.")
+    if risposta.status_code == 429:
+        return [], ("🟠 Errore 429: troppe richieste a football-data. "
+                    "Aspetta 1 minuto e riprova.")
+    if risposta.status_code != 200:
+        return [], (f"⚠️ Errore football-data ({risposta.status_code}) per il "
+                    f"calendario di {lega}: {str(risposta.text)[:200]}")
+    try:
+        partite = risposta.json().get("matches", [])
+    except (ValueError, AttributeError):
+        return [], (f"⚠️ Risposta football-data non leggibile per il calendario "
+                    f"di {lega}: il file non è JSON valido.")
+    if not isinstance(partite, list):
+        return [], (f"⚠️ Risposta football-data inattesa per il calendario di "
+                    f"{lega}: 'matches' non è una lista.")
+    return partite, ""
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def classifica_campionato(lega):
+    """La classifica della lega, nella forma letta dal resto dell'app.
+
+    La scheda «🏟️ Partite» e i suoi Dettagli non usano piu'
+    ``st.session_state["classifica"]``, che e' la classifica scaricata con
+    «SINCRONIZZA» per il campionato della barra laterale: con la scheda su
+    un'altra lega sarebbe quella sbagliata. Qui la classifica si ricava dai
+    risultati archiviati della STESSA lega (``scheda_partita``, nessuna rete) e
+    ha le chiavi che l'app si aspetta: ``pos``, ``punti``, ``pg``, ``gf``, ``gs``.
+    """
+    try:
+        righe = sp.classifica(sp.carica_risultati_stagione(lega))
+    except Exception as e:                      # un CSV mancante non deve rompere
+        logging.warning("Classifica di %s non leggibile: %s", lega, e)
+        return {}
+    return {r["squadra"]: {"pos": r["pos"], "punti": r["punti"],
+                           "pg": r["giocate"], "gf": r["gf"], "gs": r["gs"]}
+            for r in righe}
+
+
 def _mostra_scheda_partite(camp_barra, engine_barra):
     """La scheda «🏟️ Partite»: campionato e giornata, la tabella, i Dettagli.
 
@@ -3426,6 +3541,11 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
     (``st.session_state[partite_campionato]``). ``engine_barra`` e' il motore del
     campionato della barra laterale, gia' calcolato: se la scheda ne sceglie un
     altro prende quello, dalla stessa cache.
+
+    Il calendario e' SEMPRE e SOLO ``calendario_campionato(camp_sel)``: la
+    barra laterale puo' essere su un'altra lega e la scheda non la guarda. Se il
+    download non riesce la scheda lo dice e non disegna nessuna tabella, cosi'
+    non si leggono mai le partite di un campionato diverso da quello scelto.
     """
     # --- LA TESTA: campionato e giornata sulla stessa riga -----------------
     col_camp, col_gior = st.columns(2)
@@ -3436,7 +3556,7 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
             "CAMPIONATO", list(LEAGUES_CONFIG.keys()), key=CHIAVE_CAMPIONATO_PARTITE,
             help="Il campionato della giornata in tabella. All'apertura e' "
                  "quello della barra laterale.")
-    righe_calendario = list(st.session_state.get("live_data") or [])
+    righe_calendario, errore_calendario = calendario_campionato(camp_sel)
     giornate = giornate_del_calendario(righe_calendario)
     with col_gior:
         g_sel = None
@@ -3452,6 +3572,16 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
                      "giocare.")
         else:
             st.caption("GIORNATA: nessuna, finché il calendario non è caricato.")
+
+    if errore_calendario:
+        # Nessuna tabella e nessun ripiego sul calendario della barra laterale:
+        # le partite di un'altra lega sarebbero peggio di nessuna partita.
+        st.error(errore_calendario)
+        return
+    if not righe_calendario:
+        st.info(f"Il calendario di {camp_sel} non contiene partite: "
+                "la fonte non ha ancora pubblicato il turno.")
+        return
     engine = engine_barra if camp_sel == camp_barra else get_league_engine(camp_sel)
 
     if righe_calendario and g_sel is not None and engine:
@@ -3505,7 +3635,10 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
                 st.caption("L'analisi del modello: Analisi Rapida e dettaglio per partita.")
             with col_btn:
                 if st.button("⚡ Analisi Rapida"):
-                    with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, st.session_state.get("classifica", {}), g_sel)
+                    # La classifica e' quella del campionato della SCHEDA, non
+                    # quella della barra laterale (che puo' essere su un'altra
+                    # lega): la scheda non legge piu' st.session_state.classifica.
+                    with st.spinner("Calcolo..."): n = analisi_rapida_giornata(matches, team_stats, avg_h, avg_a, camp_sel, classifica_campionato(camp_sel), g_sel)
                     st.success(f"✅ {n} righe salvate ({len(matches)} partite x 2 motori: attuale e legacy)!")
             for idx, match in enumerate(matches):
                 h_api, a_api, m_poisson, m, sconosciuti, senza_stats = dati_card_partita(match, team_stats, avg_h, avg_a, camp_sel)
@@ -3550,10 +3683,9 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
     else:
         if not engine:
             st.warning("⚠️ Database locale non trovato. Verifica che i file CSV siano presenti in `database/`.")
-        elif not API_KEY_DATA:
-            st.info("🔑 Inserisci l'API Key Football-Data nei Secrets e premi SINCRONIZZA.")
         else:
-            st.info("👋 Premi SINCRONIZZA per caricare le partite del campionato selezionato.")
+            st.info(f"Il calendario di {camp_sel} non ha giornate leggibili: "
+                    "la tabella non si può costruire.")
 
 def _mostra_blocco_modello(records, titolo, sottotitolo):
     """Blocco statistiche di UN motore: le STESSE righe della sua tabella.
@@ -3680,15 +3812,17 @@ def tabella_top_mix_mercato(righe):
     """
     return pd.DataFrame([
         {
-            "Partita": f"{p['home']} vs {p['away']}",
-            "Lega": p["league"],
-            "Inizio": format_date_italy(p["utcDate"], "%d/%m %H:%M"),
-            "Esito": p["esito"],
-            "P mercato %": p["prob_val"],
-            "Quota mercato": p["quota"],
-            "P modello Drago %": p["prob_modello_val"],
+            "Partita": f"{cella_di_testo(p.get('home'))} vs "
+                       f"{cella_di_testo(p.get('away'))}",
+            "Lega": cella_di_testo(p.get("league")),
+            "Inizio": (format_date_italy(p["utcDate"], "%d/%m %H:%M")
+                       if p.get("utcDate") else ""),
+            "Esito": cella_di_testo(p.get("esito")),
+            "P mercato %": p.get("prob_val"),
+            "Quota mercato": p.get("quota"),
+            "P modello Drago %": p.get("prob_modello_val"),
             "D'accordo": "sì" if p.get("accordo") else "no",
-            "Fonte": _etichetta_fonte_mercato(p),
+            "Fonte": cella_di_testo(_etichetta_fonte_mercato(p)),
             # Eta' delle quote riga per riga: la probabilita' di mercato vale
             # all'istante in cui il workflow l'ha scaricata, e l'utente deve
             # poterlo leggere sulla riga, non solo nell'intestazione.
@@ -3837,6 +3971,25 @@ def cella_di_testo(valore) -> str:
     return str(valore)
 
 
+def numero_in_colonna(valore, decimali=2) -> str:
+    """Un numero come TESTO con la virgola italiana, o ``""`` se non c'e'.
+
+    E' la formattazione delle tabelle tecniche (lista giocate, probabilita' e
+    quote): ``f"{valore:.2f}"`` su un NaN scriverebbe «nan», e un ``None``
+    arrivato in una cella diventerebbe «None». Qui il dato mancante e' una
+    stringa vuota e nessun numero viene inventato.
+    """
+    if valore is None or isinstance(valore, bool):
+        return ""
+    try:
+        v = float(valore)
+    except (TypeError, ValueError):
+        return ""
+    if not math.isfinite(v):
+        return ""
+    return f"{v:.{decimali}f}".replace(".", ",")
+
+
 def _quota_in_colonna(valore):
     """«Quota» come numero finito con due decimali, ``None`` se non c'e'.
 
@@ -3953,13 +4106,15 @@ def riga_pronostico_da_giocata(giocata, adesso=None, stato_confronto=None,
 def tabella_pronostici_visibile(righe):
     """Il DataFrame delle tabelle «del periodo» e le righe nello stesso ordine.
 
-    Sei colonne nell'ordine ``COLONNE_PRONOSTICI``. Sola «Quote %» resta NUMERO
-    (``pd.to_numeric``), perche' e' quella per cui la tabella e' ordinata e il
-    clic sulla sua intestazione deve ordinare per valore; «Modello %» e «Quota»
-    sono TESTO gia' formattato (virgola italiana, stringa vuota dove il numero
-    manca) perche' nessuna cella di nessuna tabella possa rendere un "NaN" o un
-    "None". Ordine predefinito: «Quote %» decrescente, stabile (a parita' resta
-    l'ordine della fonte).
+    Sei colonne nell'ordine ``COLONNE_PRONOSTICI``. «Quote %» resta NUMERO
+    (``pd.to_numeric``) finche' OGNI riga ha un numero: e' quella per cui la
+    tabella e' ordinata e il clic sulla sua intestazione deve ordinare per
+    valore. Se c'e' anche una sola riga senza 1X2 (solo O/U) o una quota
+    mancante, l'intera colonna diventa TESTO (una cifra decimale, virgola
+    italiana, stringa vuota dove il numero manca): cosi' nessuna cella di
+    nessuna tabella puo' rendere un "NaN" o un "None". «Modello %» e «Quota»
+    sono sempre TESTO gia' formattato. Ordine predefinito: «Quote %»
+    decrescente, stabile (a parita' resta l'ordine della fonte).
 
     Ritorna ``(df, righe_ordinate)``: la seconda lista e' quella normalizzata
     nello STESSO ordine del DataFrame, e serve al clic sulla riga - che indica la
@@ -3981,11 +4136,15 @@ def tabella_pronostici_visibile(righe):
     df = df.sort_values(["Quote %", "_prob_ou"], ascending=False,
                         na_position="last", kind="mergesort").drop(columns="_prob_ou")
     solo_ou = [bool(sorgente[i].get("solo_ou")) for i in df.index]
-    if any(solo_ou):
-        # Arrow non supporta una colonna mista float/stringa: conserva la
-        # stessa cifra decimale delle righe 1X2, senza NaN o coercizioni UI.
-        df["Quote %"] = ["" if solo else f"{value:.1f}"
-                         for solo, value in zip(solo_ou, df["Quote %"])]
+    mancanti = df["Quote %"].isna().any()
+    if any(solo_ou) or mancanti:
+        # Arrow non supporta una colonna mista float/stringa: quando c'e' una
+        # riga senza 1X2 (solo O/U) o una quota mancante, TUTTA la colonna
+        # diventa testo. Una cella senza numero e' una stringa vuota — mai
+        # "nan" (che e' quello che ``f"{float('nan'):.1f}"`` scriverebbe).
+        df["Quote %"] = [
+            "" if solo or pd.isna(value) else f"{value:.1f}".replace(".", ",")
+            for solo, value in zip(solo_ou, df["Quote %"])]
     return df.reset_index(drop=True), [sorgente[i] for i in df.index]
 
 
@@ -4108,7 +4267,11 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     # tabella si disegna con la chiave nuova, senza spunte (chiave_tabella_pulita).
     chiave_corrente = chiave_tabella_pulita(chiave_widget, righe_ordinate)
     config_colonne = _config_colonne_pronostici()
-    if any(r.get("solo_ou") for r in righe_ordinate):
+    # La colonna e' numerica solo quando tutte le righe hanno un numero; appena
+    # una cella e' vuota (solo O/U, quota mancante) e' testo, e la
+    # configurazione deve seguire il dtype VERO: una NumberColumn su celle ""
+    # riporterebbe a schermo il valore mancante come «None».
+    if not pd.api.types.is_numeric_dtype(df["Quote %"]):
         config_colonne["Quote %"] = st.column_config.TextColumn("Quote %")
     st.dataframe(df, width="stretch", height=altezza, hide_index=True,
                  on_select="rerun", selection_mode="single-row",
@@ -4773,22 +4936,24 @@ def tabella_lista_giocate(giocate):
         ])
     rows = []
     for g in giocate:
-        eta = f"{g['eta_ore']:.1f} h" if g.get("eta_ore") is not None else "n/d"
+        eta = numero_in_colonna(g.get("eta_ore"), 1)
+        probabilita = numero_in_colonna(g.get("prob_percentuale"), 2)
         rows.append({
-            "Data": g.get("data", ""),
-            "Lega": g.get("lega", ""),
-            "Partita": g.get("partita", ""),
-            "Giocata": g.get("giocata", ""),
-            "Probabilita'": f"{g.get('prob_percentuale', 0.0):.2f}%",
-            "Quota equa": f"{g.get('quota_equa', 0.0):.2f}",
-            "Quota bet365 stimata": f"{g.get('quota_b365_stimata'):.2f}" if g.get("quota_b365_stimata") is not None else "n/d",
+            "Data": cella_di_testo(g.get("data")),
+            "Lega": cella_di_testo(g.get("lega")),
+            "Partita": cella_di_testo(g.get("partita")),
+            "Giocata": cella_di_testo(g.get("giocata")),
+            "Probabilita'": f"{probabilita}%" if probabilita else "",
+            "Quota equa": numero_in_colonna(g.get("quota_equa"), 2),
+            "Quota bet365 stimata": (numero_in_colonna(g.get("quota_b365_stimata"), 2)
+                                     or "n/d"),
             # Marcatore "non giocabile" (punto 4): vive in `stato_quota` e qui
             # diventa leggibile, insieme alla "Nota stima" con il marcatore
             # "stima non verificata" delle doppie chance.
-            "Stato quota": g.get("stato_quota", ""),
-            "Nota stima": g.get("nota_stima", ""),
-            "Fonte quote": g.get("fonte", ""),
-            "Eta' quote": eta,
+            "Stato quota": cella_di_testo(g.get("stato_quota")),
+            "Nota stima": cella_di_testo(g.get("nota_stima")),
+            "Fonte quote": cella_di_testo(g.get("fonte")),
+            "Eta' quote": f"{eta} h" if eta else "n/d",
         })
     return pd.DataFrame(rows)
 
@@ -4826,7 +4991,9 @@ def tabella_per_raddoppiare_visibile(righe, best_by_k):
                                  for g in item.get("giocate", [])),
             "Quote %": percento_decimale(r.get("probabilita")),
             "Paga circa": r.get("paga"),
-            "Su 100 € giocati tornano in media": f"{r['ritorno_100']} €",
+            "Su 100 € giocati tornano in media": (
+                f"{cella_di_testo(r.get('ritorno_100'))} €"
+                if cella_di_testo(r.get("ritorno_100")) else ""),
         })
     df = pd.DataFrame(rows, columns=colonne)
     if not df.empty:
@@ -5438,12 +5605,17 @@ def _mostra_scheda_proposta(prop_item, top_mercato=None, key_pfx="p"):
             override_happened = True
         new_q_list.append(val_ins)
         new_p_list.append(g["probabilita"])
+        try:
+            _prob = float(g.get("probabilita")) * 100
+        except (TypeError, ValueError):
+            _prob = None
+        probabilita_testo = numero_in_colonna(_prob, 2)
         rows.append({
-            "Partita": g["partita"],
-            "Lega": g["lega"],
-            "Giocata": g["giocata"],
-            "Probabilità": f"{g['probabilita'] * 100:.2f}%",
-            "Quota": f"{val_ins:.2f}",
+            "Partita": cella_di_testo(g.get("partita")),
+            "Lega": cella_di_testo(g.get("lega")),
+            "Giocata": cella_di_testo(g.get("giocata")),
+            "Probabilità": f"{probabilita_testo}%" if probabilita_testo else "",
+            "Quota": f"{val_ins:.2f}".replace(".", ","),
             "Stato quota": "inserita" if is_override else ("stima non verificata" if g.get("is_dc") else "stimata")
         })
 
@@ -5615,6 +5787,48 @@ REGISTRO_COLONNE = ["data", "stagione", "campionato", "home", "away", "mercato_s
                     "prob_sicuro", "risultato_reale", "esito", "origine"]
 
 
+def tabella_registro_senza_mancanti(df, colonne):
+    """Le colonne del Registro come TESTO, senza None/NaN/NaT.
+
+    Il Registro contiene righe scritte in momenti diversi: possono mancare la
+    data, la probabilita' dichiarata, il mercato, l'esito o il risultato. Una
+    ``DatetimeColumn`` con un NaT o una ``NumberColumn`` con un NaN finiscono a
+    schermo come «NaT»/«None», quindi qui OGNI colonna diventa testo:
+    la data in formato italiano, la probabilita' con la virgola e il simbolo %,
+    tutto il resto con :func:`cella_di_testo` (stringa vuota dove manca).
+    L'ordinamento cronologico resta quello applicato PRIMA di questa
+    conversione, con ``sort_values(by="data", na_position="last")``.
+    """
+    fuori = {}
+    for colonna in colonne:
+        if colonna not in df.columns:
+            fuori[colonna] = [""] * len(df)
+        elif colonna == "data":
+            fuori[colonna] = [_testo_data_registro(v) for v in df[colonna].tolist()]
+        elif colonna == "prob_sicuro":
+            valori = []
+            for v in df[colonna].tolist():
+                testo = percentuale_in_colonna(percento_decimale(v))
+                valori.append(f"{testo}%" if testo else "")
+            fuori[colonna] = valori
+        else:
+            fuori[colonna] = [cella_di_testo(v) for v in df[colonna].tolist()]
+    return pd.DataFrame(fuori, columns=list(colonne))
+
+
+def _testo_data_registro(valore):
+    """La data del Registro come «DD/MM/YYYY HH:mm»; ``""`` se manca o e' NaT."""
+    if valore is None:
+        return ""
+    try:
+        if pd.isna(valore):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return (valore.strftime("%d/%m/%Y %H:%M")
+            if hasattr(valore, "strftime") else str(valore))
+
+
 def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420):
     """Una delle DUE tabelle del Registro storico: le righe di UN motore.
 
@@ -5636,27 +5850,24 @@ def _mostra_registro_modello(righe, titolo, sottotitolo, css_class, altezza=420)
     campo: e' solo fuori dalla vista delle due tabelle.
 
     La conversione della data e' quella condivisa (``build_registry_datetime``)
-    fatta a monte in tab5, e la colonna resta datetime64: l'ordinamento
-    cliccando l'intestazione e' cronologico, il formato italiano lo da' la
-    ``DatetimeColumn`` (nessuna stringa riconvertita dopo il sort).
+    fatta a monte in tab5; qui la si ordina da datetime64 e poi la si mostra
+    come TESTO («DD/MM/YYYY HH:mm», stringa vuota se manca) perche' un NaT in
+    una ``DatetimeColumn`` finirebbe a schermo come «NaT». Nessuna cella
+    numerica con valore mancante: ``prob_sicuro`` e' testo con la virgola.
     """
     st.markdown(f"<div class='top-mix-model {css_class}'><b>{titolo}</b> — {len(righe)} righe"
                 f"<br><small>{sottotitolo}</small></div>", unsafe_allow_html=True)
     if righe.empty:
         st.info("Nessuna riga di questo motore con i filtri attivi.")
         return
+    ordinata = righe.sort_values(by="data", ascending=False, na_position="last")
+    # La data e' testo: una riga senza data porterebbe un NaT che la
+    # DatetimeColumn renderebbe come «NaT»/«None». L'ordine cronologico e'
+    # quello appena applicato (la colonna non si riordina al clic).
     st.dataframe(
-        righe[REGISTRO_COLONNE].sort_values(by="data", ascending=False, na_position="last"),
+        tabella_registro_senza_mancanti(ordinata, REGISTRO_COLONNE),
         width="stretch",
         height=altezza,
-        column_config={
-            # Colonna davvero datetime64 (non una stringa riconvertita dopo il
-            # sort): il formato momentJS tiene la vista italiana identica.
-            "data": st.column_config.DatetimeColumn(
-                None,
-                format="DD/MM/YYYY HH:mm",
-            ),
-        },
     )
 
 
@@ -5855,22 +6066,37 @@ def _tabella_registro_mercato_visibile(df):
     SOLA sigla (1, X, 2, 1X, X2, 12), "Quote %" e "Modello %" sono quelle
     della PRIMA registrazione (i campi ``prob_mercato_prima``/
     ``prob_modello_prima`` della riga: e' quello che si aveva in mano quando
-    la giocata e' entrata in tabella). «Quote %» e' un numero con una cifra
-    decimale, per l'ordinamento al clic; «Modello %» e' testo con la virgola
-    italiana e stringa vuota dove il campo manca — come nelle schede Pronostici
-    e Pareggi, nessuna cella rende "NaN" o "None". Risultato ed Esito restano
-    quelli del Registro (vuoti, non "None", le righe da giocare); il segnale
-    "d'accordo" esce dalla vista e resta nei dati e nei Dettagli.
+    la giocata e' entrata in tabella). «Quote %» e «Modello %» sono TESTO con
+    la virgola italiana e stringa vuota dove il campo manca — come nelle schede
+    Pronostici e Pareggi; «Quote %» non puo' restare numerica perche'
+    ``percento_prima_registrazione`` torna ``None`` sulle righe senza
+    probabilita' leggibile, e una ``NumberColumn`` con il valore mancante
+    scriverebbe «None». Nessuna cella rende "NaN", "None" o "NaT". Risultato ed
+    Esito restano quelli del Registro (vuoti, non "None", le righe da giocare);
+    il segnale "d'accordo" esce dalla vista e resta nei dati e nei Dettagli.
     """
+    def _quando(q):
+        # NaT (riga senza data) non deve diventare la scritta «NaT»: cella vuota.
+        if q is None or (isinstance(q, float) and not math.isfinite(q)) or pd.isna(q):
+            return ""
+        return q.strftime("%d/%m/%Y %H:%M") if hasattr(q, "strftime") else str(q)
+
     records = df.to_dict("records") if hasattr(df, "to_dict") else []
-    quando = [q.strftime("%d/%m/%Y %H:%M") if hasattr(q, "strftime") else str(q or "")
-              for q in df["data"]]
+    # TESTO, non NumberColumn: `percento_prima_registrazione` puo' tornare None
+    # (riga senza probabilita' leggibile) e una colonna numerica con il valore
+    # mancante finirebbe a schermo come «None». Il simbolo % sta nel testo,
+    # come nelle altre schede.
+    quote_percento = []
+    for r in records:
+        testo = percentuale_in_colonna(percento_prima_registrazione(r))
+        quote_percento.append(f"{testo}%" if testo else "")
     return pd.DataFrame({
-        "Quando": quando,
-        "Campionato": df["campionato"].tolist(),
-        "Partita": [f"{r.get('home')} vs {r.get('away')}" for r in records],
+        "Quando": [_quando(q) for q in df["data"]],
+        "Campionato": [cella_di_testo(v) for v in df["campionato"].tolist()],
+        "Partita": [f"{cella_di_testo(r.get('home'))} vs {cella_di_testo(r.get('away'))}"
+                    for r in records],
         "Giocata": [str(r.get("mercato_standard") or "").strip() for r in records],
-        "Quote %": [percento_prima_registrazione(r) for r in records],
+        "Quote %": quote_percento,
         "Modello %": [percentuale_in_colonna(
             percento_decimale(r.get(PROB_MODELLO_PRIMA_FIELD))) for r in records],
         "Risultato": [cella_di_testo(v) for v in df["risultato_reale"].tolist()],
@@ -6033,10 +6259,10 @@ def _mostra_registro_mercato(righe, altezza=420):
     concluse = righe[righe["esito"].isin(["✅", "❌"])]
     in_attesa = righe[~righe["esito"].isin(["✅", "❌"])]
     colonne_percento = {
-        "Quote %": st.column_config.NumberColumn(
+        "Quote %": st.column_config.TextColumn(
             "Quote %",
-            format="%.1f%%",
-            help="Probabilità della scelta alla PRIMA registrazione, dalle quote."),
+            help="Probabilità della scelta alla PRIMA registrazione, dalle quote. "
+                 "Vuota dove il Registro non ha una probabilità leggibile."),
         "Modello %": st.column_config.TextColumn(
             "Modello %",
             help="Probabilità del nostro modello (Drago) per lo stesso esito, "
@@ -6081,13 +6307,27 @@ def _mostra_dettagli_mercato(righe, altezza=420):
     # Prepara le colonne per il modello e l'accordo
     df = righe.copy()
     if "prob_modello" in df.columns:
-        df["prob_modello_col"] = df["prob_modello"].apply(
-            lambda x: f"{x:.1f}%" if x is not None else "n/d")
+        # ``numero_in_colonna`` (non un f-string): un NaN diventerebbe "nan%".
+        modello_col = []
+        for x in df["prob_modello"].tolist():
+            testo = numero_in_colonna(percento_decimale(x), 1)
+            modello_col.append(f"{testo}%" if testo else "n/d")
+        df["prob_modello_col"] = modello_col
     else:
         df["prob_modello_col"] = "non registrato"
     if "accordo_modello" in df.columns:
-        df["accordo_col"] = df["accordo_modello"].apply(
-            lambda x: "✅" if x else "—" if x is not None else "non registrato")
+        def _accordo_testo(x):
+            # NaN e' "verita'" per Python: senza questo controllo una riga
+            # senza segnale finirebbe con un ✅ inventato.
+            if x is None:
+                return "non registrato"
+            try:
+                if pd.isna(x):
+                    return "non registrato"
+            except (TypeError, ValueError):
+                pass
+            return "✅" if x else "—"
+        df["accordo_col"] = [_accordo_testo(x) for x in df["accordo_modello"].tolist()]
     else:
         df["accordo_col"] = "non registrato"
     if SOTTO_SOGLIA_ORA_FIELD in df.columns:
@@ -6106,9 +6346,14 @@ def _mostra_dettagli_mercato(righe, altezza=420):
                "Δ dalla prima, Prima registrazione, Stato, origine, stagione.")
     colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
     tabella = df[colonne].sort_values(by="data", ascending=False, na_position="last")
+    # TUTTE le colonne in TESTO (data compresa): la famiglia mercato ha righe
+    # senza data, senza prob_sicuro o senza esito, e DatetimeColumn/NumberColumn
+    # renderebbero NaT/NaN come «NaT»/«None». L'ordine cronologico e' quello
+    # appena applicato.
+    tabella_vis = tabella_registro_senza_mancanti(tabella, colonne)
     # Streamlit conserva il DataFrame sottostante (quindi ordinamento e copia
     # restano normali) ma applica il colore al testo della freccia.
-    tabella_stile = tabella.style.apply(
+    tabella_stile = tabella_vis.style.apply(
         lambda colonna: [_stile_delta_dalla_prima(v) for v in colonna],
         axis=0, subset=["Δ dalla prima"])
     st.dataframe(
@@ -6116,8 +6361,8 @@ def _mostra_dettagli_mercato(righe, altezza=420):
         width="stretch",
         height=altezza,
         column_config={
-            "data": st.column_config.DatetimeColumn(None, format="DD/MM/YYYY HH:mm"),
-            "prob_sicuro": st.column_config.NumberColumn("P mercato %", format="%.1f%%"),
+            "data": st.column_config.TextColumn("Data"),
+            "prob_sicuro": st.column_config.TextColumn("P mercato %"),
             "Δ dalla prima": st.column_config.TextColumn(
                 "Δ dalla prima",
                 help="Probabilita' di mercato dell'ultima registrazione meno la prima, "
@@ -6298,7 +6543,14 @@ def _mostra_backtest_storico(camp_sel):
 
             with st.expander("Vedi ultimi 20 risultati"):
                 df_show = df_back[['date', 'home', 'away', 'real_1x2', 'poisson_1x2', 'elo_1x2', 'real_uo', 'poisson_uo', 'real_gg', 'poisson_gg']].tail(20).copy()
-                df_show['date'] = pd.to_datetime(df_show['date']).dt.strftime('%d/%m/%Y')
+                # ``dt.strftime`` su NaT torna NaN, che la tabella renderebbe
+                # «None»: la data si formatta cella per cella (vuota se il
+                # backtest non ha una data) e TUTTE le celle diventano testo.
+                date_parse = pd.to_datetime(df_show['date'], errors='coerce')
+                df_show['date'] = [q.strftime('%d/%m/%Y') if hasattr(q, 'strftime') and not pd.isna(q) else ""
+                                   for q in date_parse]
+                df_show = df_show.apply(
+                    lambda colonna: colonna.map(cella_di_testo))
                 st.dataframe(df_show, width="stretch", hide_index=True)
 
 
@@ -6339,19 +6591,33 @@ def _mostra_affidabilita(record_cal, etichetta=None):
     if cal_by:
         st.caption("Affidabilita' per mercato e per origine (solo i tagli con almeno 5 partite decise). "
                    "Il gap positivo e' il costo di esporre il massimo fra 7 mercati.")
+        # ``hit_rate``/``prob_media``/``gap``/``brier`` possono essere None (un
+        # taglio con partite decise ma senza una probabilita' dichiarata):
+        # NumberColumn li renderebbe «None». Le misure sono quindi TESTO, con
+        # la stringa vuota al posto del valore mancante; «Decise» resta un
+        # intero (viene dal filtro ``min_decise`` e non puo' mancare).
+        def _perc_testo(v):
+            t = numero_in_colonna(v, 1)
+            return f"{t}%" if t else ""
+
+        def _gap_testo(v):
+            t = numero_in_colonna(v, 1)
+            return f"{t} pp" if t else ""
+
+        def _brier_testo(v):
+            return numero_in_colonna(v, 4)
+
         st.dataframe(
             pd.DataFrame([{
-                "Mercato": r["mercato"], "Origine": tipo_for_origin(r["origine"]),
-                "Decise": r["decise"], "Prob. media": r["prob_media"],
-                "Hit": r["hit_rate"], "Gap (pp)": r["gap"], "Brier": r["brier"],
+                "Mercato": cella_di_testo(r["mercato"]),
+                "Origine": cella_di_testo(tipo_for_origin(r["origine"])),
+                "Decise": int(r["decise"]),
+                "Prob. media": _perc_testo(r["prob_media"]),
+                "Hit": _perc_testo(r["hit_rate"]),
+                "Gap (pp)": _gap_testo(r["gap"]),
+                "Brier": _brier_testo(r["brier"]),
             } for r in cal_by]),
             width="stretch", hide_index=True,
-            column_config={
-                "Prob. media": st.column_config.NumberColumn(format="%.1f%%"),
-                "Hit": st.column_config.NumberColumn("Hit", format="%.1f%%"),
-                "Gap (pp)": st.column_config.NumberColumn("Gap (pp)", format="%+.1f"),
-                "Brier": st.column_config.NumberColumn("Brier", format="%.4f"),
-            },
         )
     avvertenza = overall_reliability_transfer_warning(cal_stat)
     if avvertenza:
@@ -6464,14 +6730,29 @@ def _mostra_testa_andata(df_mercato):
 # invariato: qui cambia il nome della scheda, non che cosa mostra.
 with tab_registro:
     st.subheader("📒 Com'è andata")
+    # --- «🔄 Controlla i risultati»: PRIMO comando della scheda ---------------
+    # Prima stava dentro «🔎 Dettagli» e girava DOPO il disegno delle tabelle:
+    # dopo il clic si continuavano a vedere i dati vecchi. Qui il pulsante sta
+    # subito sotto il titolo, PRIMA di load_predictions(): se aggiorna righe, il
+    # registro si rilegge prima del disegno e la tabella mostra l'esito nuovo
+    # nello stesso run. Il messaggio di esito appare sotto il pulsante.
+    if st.button("🔄 Controlla i risultati", key="btn_ricontrolla_risultati"):
+        if API_KEY_DATA:
+            with st.spinner("Controllo dei risultati…"):
+                agg, tot = aggiorna_risultati_reali(API_KEY_DATA)
+            if agg > 0:
+                st.success(f"✅ Aggiornate {agg} partite!")
+            else:
+                st.info(f"ℹ️ Nessun nuovo risultato ({tot} in attesa).")
+        else:
+            st.info("Chiave della fonte risultati non configurata: il controllo "
+                    "non parte e le righe restano in attesa.")
     preds = righe_visibili(load_predictions())
     # --- Controllo dei risultati AUTOMATICO (una volta per sessione) ---
-    # Niente pulsante da premere per vedere i risultati: se ci sono righe in
+    # Resta com'era: parte da solo all'apertura della scheda se ci sono righe in
     # attesa con il calcio d'inizio passato da piu' di tre ore e la chiave della
-    # fonte c'e', il controllo parte da solo all'apertura della scheda. Senza
-    # righe scadute non parte; senza chiave non compare nessun errore in vista
-    # (la nota sta nei Dettagli). Il pulsante resta, nei Dettagli, per chi vuole
-    # ricontrollare subito.
+    # fonte c'e'. Senza righe scadute non parte; senza chiave non compare
+    # nessun errore in vista (la nota sta nei Dettagli).
     _esito_auto = aggiorna_risultati_automatico(preds)
     if isinstance(_esito_auto, dict) and _esito_auto.get("aggiornate"):
         preds = righe_visibili(load_predictions())
@@ -6564,7 +6845,10 @@ with tab_registro:
             righe_gol = []
             for r in df_display[maschera_totals].to_dict("records"):
                 righe_gol.append({
-                    "Partita": f"{r.get('home') or '?'} - {r.get('away') or '?'}",
+                    # Un nome mancante arriva come NaN, che e' "verita'" per
+                    # Python: senza cella_di_testo la cella scriverebbe "nan".
+                    "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
+                               f"{cella_di_testo(r.get('away')) or '?'}",
                     "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
                     "Quote %": percentuale_in_colonna(r.get("prob_mercato_prima")),
                     "Modello %": "n/d", "Fonte": cella_di_testo(r.get("mercato_fonte")),
@@ -6614,18 +6898,10 @@ with tab_registro:
         # diagnostico che la scheda mostrava. Chiuso di default: in apertura la
         # scheda dice solo com'e' andata.
         with st.expander("🔎 Dettagli", expanded=False):
-            # Il controllo dei risultati e' automatico (una volta per sessione):
-            # qui resta il pulsante per ricontrollare subito, e la nota quando
-            # la chiave della fonte manca (nessun errore in vista).
-            if st.button("Controlla di nuovo i risultati", key="btn_ricontrolla_risultati"):
-                if API_KEY_DATA:
-                    with st.spinner("Controllo dei risultati…"):
-                        agg, tot = aggiorna_risultati_reali(API_KEY_DATA)
-                    st.success(f"✅ Aggiornate {agg} partite!" if agg > 0
-                               else f"ℹ️ Nessun nuovo risultato ({tot} in attesa).")
-                else:
-                    st.info("Chiave della fonte risultati non configurata: il controllo "
-                            "automatico non parte e le righe restano in attesa.")
+            # Il pulsante «🔄 Controlla i risultati» sta in CIMA alla scheda,
+            # prima di load_predictions(): qui resta solo la nota sulla chiave
+            # mancante. Il controllo automatico (una volta per sessione) e'
+            # invariato.
             if not API_KEY_DATA:
                 st.caption("Nota: senza la chiave della fonte risultati il controllo "
                            "automatico non parte. Le giocate restano in attesa finché la "
@@ -6726,7 +7002,8 @@ with tab_registro:
             if len(resto):
                 st.warning(f"⚠️ {len(resto)} righe con variante non riconosciuta (ne' attuale ne' legacy): "
                            f"mostrate a parte, non nascoste.")
-                st.dataframe(resto[REGISTRO_COLONNE + ["variante"]], width="stretch", height=200)
+                st.dataframe(tabella_registro_senza_mancanti(
+                    resto, REGISTRO_COLONNE + ["variante"]), width="stretch", height=200)
 
 
             # --- REGISTRO OMBRA: statistiche read-only ---

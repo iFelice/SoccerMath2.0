@@ -128,7 +128,14 @@ class TestAppTotals(_BaseQuoteFinte):
         import ast
         import subprocess
         import app as A
-        src = subprocess.check_output(['git', 'show', 'b837823:SoccerMath/app.py'], text=True)
+        try:
+            src = subprocess.check_output(
+                ['git', 'show', 'b837823:SoccerMath/app.py'], text=True,
+                stderr=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            # Clone shallow: il commit di riferimento non c'e'. Stessa regola
+            # di ``snap_test``: il test si salta, non fallisce.
+            self.skipTest('commit b837823 non raggiungibile (clone shallow)')
         node = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef)
                     and n.name == 'riga_pronostico_da_mercato')
         ns = dict(A.__dict__)

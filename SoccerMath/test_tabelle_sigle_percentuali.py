@@ -455,8 +455,10 @@ class TestTabellaMercatoComEAndata(unittest.TestCase):
         # prob_modello_prima della riga), non il valore attuale. La terza riga
         # senza *_prima ha la prima ricostruita dall'attuale (64,0, la cella
         # mostra quel numero); «Modello %» senza campo resta vuota.
-        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
-        self.assertEqual([62.5, 58.0, 64.0], df["Quote %"].tolist())
+        # «Quote %» e' TESTO (virgola italiana, simbolo %): la colonna puo'
+        # avere una cella vuota e una NumberColumn la renderebbe «None».
+        self.assertFalse(pd.api.types.is_numeric_dtype(df["Quote %"]))
+        self.assertEqual(["62,5%", "58,0%", "64,0%"], df["Quote %"].tolist())
         self.assertEqual(["63,0", "51,0", ""], df["Modello %"].tolist(),
                          "virgola italiana come nelle altre tabelle; senza campo "
                          "*_prima la cella resta vuota, nessun numero inventato")
@@ -473,7 +475,7 @@ class TestTabellaMercatoComEAndata(unittest.TestCase):
                    "prob_sicuro": 57.0, "risultato_reale": "0-0", "esito": "❌"}
         df = pd.DataFrame([vecchia])
         out = app._tabella_registro_mercato_visibile(df)
-        self.assertEqual(57.0, out["Quote %"].iloc[0])
+        self.assertEqual("57,0%", out["Quote %"].iloc[0])
         self.assertEqual("", out["Modello %"].iloc[0])
 
     def test_concluse_per_data_decrescente(self):

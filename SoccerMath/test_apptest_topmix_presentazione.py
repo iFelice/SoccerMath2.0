@@ -716,13 +716,12 @@ class TestPresentazioneTopMix(unittest.TestCase):
         # registrazione sulla STESSA riga (inter-riga il confronto e' alla pari).
         riga_inter = next(t for t in sezione if "Inter vs Roma" in t)
         riga_como = next(t for t in sezione if "Como vs Torino" in t)
-        # Nella tabella Mercato di Com'è andata «Quote %» resta numerica (il
-        # clic sull'intestazione ordina per valore: la cella resa e' il numero
-        # puro "62.5"), mentre «Modello %» e' TESTO con la virgola italiana — la
-        # stessa scelta delle schede Pronostici e Pareggi, dove la cella di una
-        # riga senza lettura del modello deve restare vuota e non "nan"/"None".
-        for riga, sigla, quote, modello in ((riga_inter, " 1 ", "62.5", "63,0"),
-                                            (riga_como, " 2 ", "58.0", "51,0")):
+        # Nella tabella Mercato di Com'è andata «Quote %» e «Modello %» sono
+        # TESTO con la virgola italiana e il simbolo %: una NumberColumn con
+        # una riga senza probabilita' scriverebbe «None» (stessa scelta delle
+        # schede Pronostici e Pareggi).
+        for riga, sigla, quote, modello in ((riga_inter, " 1 ", "62,5%", "63,0"),
+                                            (riga_como, " 2 ", "58,0%", "51,0")):
             celle = f" {riga} "
             self.assertIn(sigla, celle, f"sigla secca nella riga: {riga!r}")
             self.assertIn(quote, celle, f"«Quote %» della prima registrazione: {riga!r}")

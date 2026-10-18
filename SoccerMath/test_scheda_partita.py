@@ -903,22 +903,26 @@ class TestRighePartiteCalendariFootballData(unittest.TestCase):
         tabella, _ordinate = app_mod.tabella_partite_giornata(
             [app_mod.riga_tabella_partita(r, match, ADESSO) for r in righe])
         self.assertGreaterEqual(len(tabella), 91)
-        # La partita senza evento: tre celle numeriche vuote (NaN = vuoto della
-        # colonna numerica, che la tabella mostra vuota), mai la stringa.
+        # La partita senza evento: tre celle di TESTO vuote (mai NaN/None, che
+        # una NumberColumn renderebbe come «None»).
         ultima = tabella.iloc[-1]
         for esito in ("1", "X", "2"):
-            self.assertTrue(pd.isna(ultima[esito]),
-                            f"senza quota la cella e' vuota: {ultima[esito]!r}")
+            self.assertEqual("", ultima[esito],
+                             f"senza quota la cella e' vuota: {ultima[esito]!r}")
         for colonna in tabella.columns:
-            numerica = pd.api.types.is_numeric_dtype(tabella[colonna])
             for cella in tabella[colonna].tolist():
-                if pd.isna(cella):
-                    self.assertTrue(numerica,
-                                    f"colonna {colonna!r}: cella di testo non-numero {cella!r}")
-                    continue
+                self.assertFalse(pd.isna(cella),
+                                 f"colonna {colonna!r}: cella mancante {cella!r}")
                 testo = str(cella)
                 self.assertNotIn(testo.strip().lower(), ("nan", "none", "nat"),
                                  f"colonna {colonna!r}: cella {testo!r} rende un non-numero")
+        # Le righe con le quote hanno la percentuale formattata all'italiana.
+        import re as _re
+        for esito in ("1", "X", "2"):
+            piene = [v for v in tabella[esito].tolist() if v]
+            self.assertTrue(piene)
+            for v in piene:
+                self.assertRegex(str(v), r"^\d{1,2},\d%$")
 
 
 class TestSchedaCompleta(unittest.TestCase):
