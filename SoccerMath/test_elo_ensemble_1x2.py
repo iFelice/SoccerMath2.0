@@ -364,10 +364,17 @@ class TestShowDetailsSelezionePuraProbabilitaBlendata(unittest.TestCase):
         puo' aprire il dialog, quindi si esegue la funzione di produzione
         vera e propria tramite inspect.unwrap (il corpo testato e' quello
         spedito; il wrapper e' solo UI)."""
+        # Il calendario e la classifica della scheda NON vengono piu' da
+        # ``st.session_state`` (live_data/classifica erano quelli della barra
+        # laterale): show_details legge il calendario della lega della partita.
         prod_app.st.session_state["live_data"] = [dict(self.LIVE_MATCH)]
         saved = []
         patches = [mock.patch.object(prod_app, "save_prediction_entry",
-                                     side_effect=lambda *a, **k: saved.append((a, k)))]
+                                     side_effect=lambda *a, **k: saved.append((a, k))),
+                   mock.patch.object(prod_app, "calendario_campionato",
+                                     return_value=([dict(self.LIVE_MATCH)], "")),
+                   mock.patch.object(prod_app, "classifica_campionato",
+                                     return_value={})]
         if percorso == "fallback":
             patches.append(mock.patch.object(prod_app, "groq_client", None))
         else:
@@ -375,8 +382,9 @@ class TestShowDetailsSelezionePuraProbabilitaBlendata(unittest.TestCase):
             patches.append(mock.patch.object(prod_app, "get_contesto_partita",
                                              side_effect=Exception("boom")))
         fn = inspect.unwrap(prod_app.show_details)
-        with patches[0], patches[1], (patches[2] if len(patches) > 2
-                                      else contextlib.nullcontext()):
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
             fn("TeamH", "TeamA", m_blend, dict(m_pure), "Serie A", 5)
         self.assertEqual(len(saved), 1)
         args, kwargs = saved[0]
@@ -488,6 +496,12 @@ class TestPromptAnalisiRapidaElo(unittest.TestCase):
                 prod_app.clean_name(a): {"pos": caso["a_pos"]},
             },
         }
+        # La classifica usata dal prompt e' quella della lega della partita
+        # (classifica_campionato), non piu' st.session_state["classifica"].
+        classifica_finta = {
+            prod_app.clean_name(h): {"pos": caso["h_pos"]},
+            prod_app.clean_name(a): {"pos": caso["a_pos"]},
+        }
         contesto = {
             "h_risultati": list(caso["h_ris"]),
             "a_risultati": list(caso["a_ris"]),
@@ -506,6 +520,15 @@ class TestPromptAnalisiRapidaElo(unittest.TestCase):
             stack.enter_context(mock.patch.object(prod_app, "groq_client", groq))
             stack.enter_context(mock.patch.object(
                 prod_app, "get_contesto_partita", return_value=(contesto, None)))
+            stack.enter_context(mock.patch.object(
+                prod_app, "classifica_campionato", return_value=classifica_finta))
+            stack.enter_context(mock.patch.object(
+                prod_app, "calendario_campionato",
+                return_value=([{
+                    "id": 99001, "utcDate": caso["utc"],
+                    "homeTeam": {"shortName": h, "name": h},
+                    "awayTeam": {"shortName": a, "name": a},
+                }], "")))
             stack.enter_context(mock.patch.object(
                 prod_app, "calcola_segnali", return_value=(1.0, 1.0, None)))
             stack.enter_context(mock.patch.object(

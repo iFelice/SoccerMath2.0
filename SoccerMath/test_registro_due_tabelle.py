@@ -264,7 +264,12 @@ class TestTabellaRegistroPerMotore(unittest.TestCase):
     def test_ordine_per_data_decrescente(self):
         finto = self._mostra(MODEL_VARIANT_LEGACY)
         mostrate = finto.dataframe.call_args[0][0]
-        date = list(mostrate["data"])
+        # La data e' TESTO («DD/MM/YYYY HH:mm») perche' una DatetimeColumn con
+        # un NaT scriverebbe «NaT»: l'ordine cronologico si verifica sui valori
+        # interpretati, non sull'ordine alfabetico della stringa.
+        from datetime import datetime
+        date = [datetime.strptime(str(v), "%d/%m/%Y %H:%M")
+                for v in mostrate["data"]]
         self.assertEqual(date, sorted(date, reverse=True))
 
     def test_nessun_tetto_di_righe(self):

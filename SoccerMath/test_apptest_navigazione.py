@@ -179,6 +179,9 @@ class _BaseAppTest(unittest.TestCase):
 
         patch(config, "DATABASE_DIR", cls.tmp)
         patch(config, "PREDICTIONS_FILE", str(cls.tmp / "predictions.json"))
+        # Chiave FINTA per il calendario della scheda Partite (rete finta):
+        # senza chiave la scheda mostra il messaggio e non la tabella.
+        patch(config, "FOOTBALL_DATA_API_KEY", "chiave-finta-fixture")
         patch(market_odds, "_adesso_utc", lambda: cls.ADESSO)
 
         # --- Storage del Registro in memoria, con registro delle chiamate ---
@@ -234,6 +237,9 @@ class _BaseAppTest(unittest.TestCase):
             } for j, ev in enumerate(eventi)]
 
         cls.get_http = []
+        #: Partite aggiunte al calendario finto di una lega (per i test della
+        #: giornata: partita senza quote, gia' giocata, seconda giornata).
+        cls._extra_calendario = {}
 
         def fake_get(url, **kw):
             cls.get_http.append(url)
@@ -242,7 +248,12 @@ class _BaseAppTest(unittest.TestCase):
             code = url.rstrip("/").split("/")[-2] if "/matches" in url else ""
             for lega, code_league in cls._league_code.items():
                 if code == code_league and lega in cls._match_by_league:
-                    return _Resp({"matches": cls._match_by_league[lega]})
+                    # Una classe puo' sostituire l'intero calendario di una
+                    # lega (``_extra_calendario``): le partite extra della
+                    # giornata devono essere le STESSE che il test conta.
+                    partite = cls._extra_calendario.get(lega,
+                                                        cls._match_by_league[lega])
+                    return _Resp({"matches": partite})
             return _Resp({"matches": []})
 
         def niente_scrittura(metodo):
@@ -466,12 +477,12 @@ class TestSchedeLettura(_BaseAppTest):
         testo = " \n".join(fuori)
         self.assertIn("Elo", testo)
         self.assertIn("Backtest", testo)
-        # La giornata NON sta piu' in questa scheda: qui restano Elo e Backtest,
-        # e l'invito a premere SINCRONIZZA (il calendario, in questa istanza, non
-        # e' stato caricato) si legge nella scheda «🏟️ Partite», che verifica
-        # test_apptest_scheda_partita.
-        self.assertIn("SINCRONIZZA",
-                      " \n".join(_testi_della_tab(self.at, SCHEDA_PARTITE)[0]))
+        # La giornata NON sta piu' in questa scheda: qui restano Elo e Backtest.
+        # La scheda «🏟️ Partite» ha il suo calendario (football-data finto):
+        # mostra la giornata della lega scelta, non l'invito a sincronizzare.
+        testo_partite = " \n".join(_testi_della_tab(self.at, SCHEDA_PARTITE)[0])
+        self.assertIn("SERIE A - GIORNATA", testo_partite)
+        self.assertNotIn("SINCRONIZZA", testo_partite)
         self.assertFalse([b for b in self.at.button
                           if (b.key or "").startswith("partite_scheda_")],
                          "i pulsanti «Scheda» non esistono piu': si clicca la riga")

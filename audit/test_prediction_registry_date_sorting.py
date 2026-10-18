@@ -254,14 +254,27 @@ class TestUiColumnContract(unittest.TestCase):
         funzione = ast.get_source_segment(_APP_SOURCE, fn)
         self.assertIn('sort_values(by="data", ascending=False, na_position="last")', funzione,
                       "il sort del Registro non usa na_position='last'")
-        self.assertIn('format="DD/MM/YYYY HH:mm"', funzione,
-                      "manca il formato italiano DD/MM/YYYY HH:mm in DatetimeColumn")
-        self.assertIn("DatetimeColumn", funzione)
+        # La data e' TESTO («DD/MM/YYYY HH:mm»), non una DatetimeColumn: un
+        # NaT in una DatetimeColumn finirebbe a schermo come «NaT». La
+        # conversione vive nell'helper condiviso, DOPO il sort.
+        self.assertIn("tabella_registro_senza_mancanti", funzione,
+                      "la tabella del Registro non passa dall'helper senza-mancanti")
+        self.assertNotIn("column_config.DatetimeColumn", funzione,
+                         "una DatetimeColumn renderebbe il NaT come «NaT»")
         self.assertNotIn("data_dt", funzione + block,
                          "una colonna helper data_dt non deve essere esposta in UI")
-        # La data non deve essere ri-formattata a stringa dopo il sort.
+        helper = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                      and n.name == "tabella_registro_senza_mancanti")
+        sorgente_helper = ast.get_source_segment(_APP_SOURCE, helper)
+        self.assertIn('colonna == "data"', sorgente_helper,
+                      "l'helper non tratta la colonna data come testo")
+        testo_data = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                          and n.name == "_testo_data_registro")
+        self.assertIn('strftime("%d/%m/%Y %H:%M")',
+                      ast.get_source_segment(_APP_SOURCE, testo_data),
+                      "manca il formato italiano DD/MM/YYYY HH:mm")
         self.assertNotIn("strftime", funzione,
-                         "la colonna data non deve essere riconvertita in stringa per la UI")
+                         "la data non deve essere ri-formattata dentro la UI")
 
 
 class TestPersistedDataUntouched(unittest.TestCase):

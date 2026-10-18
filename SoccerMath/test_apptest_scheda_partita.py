@@ -138,13 +138,25 @@ class _BaseScheda(_BaseAppTest):
         selettore del campionato della barra laterale: l'etichetta da sola non
         basta a distinguerli)."""
         import app as app_mod
-        at.session_state["live_data"] = cls._live_data(lega, extra)
+        # La scheda Partite NON legge piu' ``live_data``: il suo calendario
+        # arriva da ``calendario_campionato`` (football-data finto). Le partite
+        # extra entrano nella risposta della lega; ``live_data`` resta in
+        # sessione solo come calendario della barra laterale e come atteso del
+        # test (nomi e conteggi).
+        calendario = cls._live_data(lega, extra)
+        cls._extra_calendario[lega] = calendario
+        at.session_state["live_data"] = calendario
         at.session_state["live_camp"] = lega
         chiavi = {app_mod.CHIAVE_CAMPIONATO_PARTITE: lega,
                   app_mod.CHIAVE_GIORNATA_PARTITE: giornata}
         for sb in at.selectbox:
             if (sb.key or "") in chiavi and chiavi[sb.key] is not None:
                 sb.set_value(chiavi[sb.key])
+        # ``calendario_campionato`` e' in cache (ttl 900): il calendario finto
+        # e' appena cambiato, quindi la cache va svuotata o la scheda
+        # ridisegnerebbe il turno precedente.
+        import streamlit as st
+        st.cache_data.clear()
         at.run(timeout=900)
         cls.eccezioni(at, f"giornata di {lega}")
 
@@ -225,6 +237,18 @@ class _BaseScheda(_BaseAppTest):
         """I valori di una colonna come li legge la tabella (NaN -> ``None``)."""
         import pandas as pd
         return [None if pd.isna(v) else v for v in df[colonna].tolist()]
+
+    @classmethod
+    def _percentuali_colonna(cls, df, colonna):
+        """Le celle «56,3%» di 1/X/2 come numeri (``None`` se la cella e' vuota)."""
+        fuori = []
+        for v in df[colonna].tolist():
+            testo = str(v).strip()
+            if not testo:
+                fuori.append(None)
+            else:
+                fuori.append(float(testo.replace("%", "").replace(",", ".")))
+        return fuori
 
 
 class TestSchedaPartitaAppTest(_BaseScheda):
@@ -333,9 +357,11 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                 self.assertRegex(str(quando),
                                  r"^(lun|mar|mer|gio|ven|sab|dom) \d{2}/\d{2}, "
                                  r"\d{2}:\d{2}( ⏳)?$")
-        # 1, X, 2 sono NUMERI con una cifra decimale, e «Pronostico» e' la sigla
-        # dell'esito piu' probabile della stessa riga.
-        p1, px, p2 = (self._valori_colonna(df, c) for c in ("1", "X", "2"))
+        # 1, X, 2 sono TESTO con una cifra decimale e la virgola italiana
+        # («56,3%»), perche' le partite giocate e quelle senza quote hanno la
+        # cella vuota e una NumberColumn scriverebbe «None»; «Pronostico» e' la
+        # sigla dell'esito piu' probabile della stessa riga.
+        p1, px, p2 = (self._percentuali_colonna(df, c) for c in ("1", "X", "2"))
         pronostici = [str(x) for x in df["Pronostico"].tolist()]
         for i in range(len(df)):
             terna = {"1": p1[i], "X": px[i], "2": p2[i]}
@@ -365,7 +391,7 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         p1, px, p2 = (self._valori_colonna(df, c) for c in ("1", "X", "2"))
         i_senza = self._indice_riga(self.at, EXTRA_SENZA_QUOTE["homeTeam"]["name"],
                                     EXTRA_SENZA_QUOTE["awayTeam"]["name"])
-        self.assertEqual((None, None, None), (p1[i_senza], px[i_senza], p2[i_senza]),
+        self.assertEqual(("", "", ""), (p1[i_senza], px[i_senza], p2[i_senza]),
                          "senza quote le tre celle restano vuote")
         self.assertEqual("", str(df.iloc[i_senza]["Risultato"]),
                          "una partita da giocare non ha un risultato")
@@ -373,7 +399,7 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                                       EXTRA_GIA_GIOCATA["awayTeam"]["name"])
         self.assertEqual("2-1", str(df.iloc[i_giocata]["Risultato"]),
                          "la partita giocata mostra il risultato finale")
-        self.assertEqual((None, None, None), (p1[i_giocata], px[i_giocata], p2[i_giocata]),
+        self.assertEqual(("", "", ""), (p1[i_giocata], px[i_giocata], p2[i_giocata]),
                          "il risultato prende il posto delle probabilita'")
         self.assertEqual("", str(df.iloc[i_giocata]["Pronostico"]),
                          "su una partita conclusa nessun pronostico")
