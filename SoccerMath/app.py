@@ -96,6 +96,7 @@ from prediction_registry import (
     stats_all,
     backup_prediction_file,
     build_registry_datetime_column,
+    parse_registry_display_datetime,
     # --- tracciamento Top Mix (audit/margini_migliorabili_topmix.md §7) ---
     SELECTOR_VERSION_CURRENT,
     SELECTOR_VERSION_PRE_1X2,
@@ -6299,6 +6300,91 @@ def ordina_righe_mercato_concluse(df):
                           kind="mergesort")
 
 
+COLONNE_GOL_MERCATO = [
+    "Quando", "Partita", "Pronostico", "Quote %", "Insieme %", "Risultato", "Esito",
+]
+COLONNE_GOL_MERCATO_TECNICA = [
+    "Partita", "Pronostico", "Modello %", "Fonte", "Linea Pinnacle",
+]
+
+
+def _orario_inizio_gol(riga):
+    """Orario di inizio (datetime naive Europe/Rome) di una riga Gol - mercato."""
+    for chiave in ("data", "kickoff_utc", "commence_time", "utcDate"):
+        dt = parse_registry_display_datetime(riga.get(chiave))
+        if dt is not None:
+            return dt
+    return None
+
+
+def ordina_righe_gol_mercato(righe):
+    """Ordina le righe Gol - mercato: prima in attesa per inizio, poi concluse dalla piu' recente."""
+    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
+    in_attesa = []
+    concluse = []
+    for r in records:
+        esito = cella_di_testo(r.get("esito")) or "⏳"
+        if esito in ("✅", "❌"):
+            concluse.append(r)
+        else:
+            in_attesa.append(r)
+    in_attesa_ord = sorted(
+        in_attesa,
+        key=lambda r: (
+            _orario_inizio_gol(r) is None,
+            _orario_inizio_gol(r) or datetime.max,
+        ),
+    )
+    concluse_ord = sorted(
+        concluse,
+        key=lambda r: (
+            _orario_inizio_gol(r) is None,
+            -(_orario_inizio_gol(r).timestamp()) if _orario_inizio_gol(r) is not None else 0.0,
+        ),
+    )
+    return in_attesa_ord + concluse_ord
+
+
+def tabella_gol_mercato(righe):
+    """Tabella in vista di «⚽ Gol — mercato» nel Registro."""
+    ordinate = ordina_righe_gol_mercato(righe)
+    righe_gol = []
+    for r in ordinate:
+        dt = _orario_inizio_gol(r)
+        quando = (dt.strftime("%d/%m/%Y %H:%M")
+                  if dt is not None else _testo_data_registro(r.get("data")))
+        esito = cella_di_testo(r.get("esito")) or "⏳"
+        righe_gol.append({
+            # Un nome mancante arriva come NaN, che e' "verita'" per
+            # Python: senza cella_di_testo la cella scriverebbe "nan".
+            "Quando": quando,
+            "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
+                       f"{cella_di_testo(r.get('away')) or '?'}",
+            "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
+            "Quote %": percentuale_in_colonna(percento_decimale(r.get("prob_mercato_prima"))),
+            "Insieme %": percentuale_in_colonna(percento_decimale(r.get("prob_congiunta"))),
+            "Risultato": cella_di_testo(r.get("risultato_reale")),
+            "Esito": esito,
+        })
+    return pd.DataFrame(righe_gol, columns=COLONNE_GOL_MERCATO)
+
+
+def tabella_gol_mercato_tecnica(righe):
+    """Tabella tecnica di «⚽ Gol — mercato» dentro i Dettagli del Registro."""
+    ordinate = ordina_righe_gol_mercato(righe)
+    righe_tec = []
+    for r in ordinate:
+        righe_tec.append({
+            "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
+                       f"{cella_di_testo(r.get('away')) or '?'}",
+            "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
+            "Modello %": "n/d",
+            "Fonte": cella_di_testo(r.get("mercato_fonte")),
+            "Linea Pinnacle": cella_di_testo(r.get("linea_pinnacle")),
+        })
+    return pd.DataFrame(righe_tec, columns=COLONNE_GOL_MERCATO_TECNICA)
+
+
 def _sintesi_registro_mercato(righe) -> tuple:
     """Il riepilogo in parole della scheda Com'è andata, da valori GIA' nel
     Registro (niente ricalcoli sulle probabilita': si leggono solo le colonne
@@ -7003,23 +7089,10 @@ with tab_registro:
         maschera_totals = df_display.apply(
             lambda r: famiglia_selettore(r.to_dict()) == "totals", axis=1)
         maschera_modello = ~(maschera_mercato | maschera_totals)
+        totals_records = df_display[maschera_totals].to_dict("records")
         if maschera_totals.any():
             st.markdown("### ⚽ Gol — mercato")
-            st.caption("totals_mercato_v1 · prima registrazione · Modello %: n/d")
-            colonne_gol = ["Partita", "Pronostico", "Quote %", "Modello %", "Fonte", "Linea Pinnacle", "Insieme %"]
-            righe_gol = []
-            for r in df_display[maschera_totals].to_dict("records"):
-                righe_gol.append({
-                    # Un nome mancante arriva come NaN, che e' "verita'" per
-                    # Python: senza cella_di_testo la cella scriverebbe "nan".
-                    "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
-                               f"{cella_di_testo(r.get('away')) or '?'}",
-                    "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
-                    "Quote %": percentuale_in_colonna(percento_decimale(r.get("prob_mercato_prima"))),
-                    "Modello %": "n/d", "Fonte": cella_di_testo(r.get("mercato_fonte")),
-                    "Linea Pinnacle": cella_di_testo(r.get("linea_pinnacle")),
-                    "Insieme %": percentuale_in_colonna(percento_decimale(r.get("prob_congiunta")))})
-            st.dataframe(pd.DataFrame(righe_gol, columns=colonne_gol), hide_index=True)
+            st.dataframe(tabella_gol_mercato(totals_records), hide_index=True)
 
         # Variante letta fuori dai due motori, DENTRO il modello storico: e' il
         # materiale della terza tabella di controllo. Le righe del mercato non
@@ -7078,6 +7151,10 @@ with tab_registro:
                     "quello che e' successo dopo, non il nome delle formule."):
                 _mostra_statistiche_registrazione(all_records)
             _mostra_dettagli_mercato(df_mercato)
+            if totals_records:
+                st.markdown("#### ⚽ Gol — mercato (dettagli tecnici)")
+                st.caption("totals_mercato_v1 · prima registrazione · Modello %: n/d")
+                st.dataframe(tabella_gol_mercato_tecnica(totals_records), hide_index=True)
             st.divider()
 
             # La SCHEDA del record (con quale versione di pipeline la riga e' stata
