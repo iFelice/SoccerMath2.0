@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve().parent.parent)]
 from test_apptest_scheda_pronostici import (
-    FixtureQuoteFinte, _BaseQuoteFinte, ETICHETTA_CALCOLA, SCHEDA_PRONOSTICI,
+    FixtureQuoteFinte, _BaseQuoteFinte, ETICHETTA_CALCOLA, SCHEDA_PRONOSTICI, SCHEDA_REGISTRO,
 )
 from audit.totals_snapshot_fixture import payload_snapshot
 import market_odds as M
@@ -177,3 +177,18 @@ class TestAppTotals(_BaseQuoteFinte):
         self.assertEqual(old['n_partite_ammesse'], new['n_partite_ammesse'])
         self.assertEqual(A.riquadri_multiple(L.cerca_proposta_multipla(old['giocate']), self.ADESSO),
                          A.riquadri_multiple(L.cerca_proposta_multipla(new['giocate']), self.ADESSO))
+
+    def test_08_tabella_gol_mercato_registro_scala_percentuale(self):
+        df_gol = self._df(self.at, SCHEDA_REGISTRO, 0)
+        self.assertEqual(
+            ['Partita', 'Pronostico', 'Quote %', 'Modello %', 'Fonte', 'Linea Pinnacle', 'Insieme %'],
+            list(df_gol.columns),
+        )
+        per_partita = df_gol.set_index('Partita')
+        self.assertEqual('85,1', per_partita.loc['Bayern Munich - RB Leipzig', 'Quote %'])
+        self.assertEqual('70,4', per_partita.loc['Bayern Munich - RB Leipzig', 'Insieme %'])
+        self.assertEqual('68,2', per_partita.loc['Real Madrid - Sevilla', 'Quote %'])
+        self.assertEqual('59,0', per_partita.loc['Real Madrid - Sevilla', 'Insieme %'])
+        self.assertEqual('69,3', per_partita.loc['Hamburger SV - VfB Stuttgart', 'Quote %'])
+        self.assertEqual('', per_partita.loc['Hamburger SV - VfB Stuttgart', 'Insieme %'])
+

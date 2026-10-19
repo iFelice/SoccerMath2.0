@@ -7015,10 +7015,10 @@ with tab_registro:
                     "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
                                f"{cella_di_testo(r.get('away')) or '?'}",
                     "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
-                    "Quote %": percentuale_in_colonna(r.get("prob_mercato_prima")),
+                    "Quote %": percentuale_in_colonna(percento_decimale(r.get("prob_mercato_prima"))),
                     "Modello %": "n/d", "Fonte": cella_di_testo(r.get("mercato_fonte")),
                     "Linea Pinnacle": cella_di_testo(r.get("linea_pinnacle")),
-                    "Insieme %": percentuale_in_colonna(r.get("prob_congiunta"))})
+                    "Insieme %": percentuale_in_colonna(percento_decimale(r.get("prob_congiunta")))})
             st.dataframe(pd.DataFrame(righe_gol, columns=colonne_gol), hide_index=True)
 
         # Variante letta fuori dai due motori, DENTRO il modello storico: e' il
