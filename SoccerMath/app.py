@@ -96,6 +96,7 @@ from prediction_registry import (
     stats_all,
     backup_prediction_file,
     build_registry_datetime_column,
+    parse_registry_display_datetime,
     # --- tracciamento Top Mix (audit/margini_migliorabili_topmix.md §7) ---
     SELECTOR_VERSION_CURRENT,
     SELECTOR_VERSION_PRE_1X2,
@@ -6299,6 +6300,106 @@ def ordina_righe_mercato_concluse(df):
                           kind="mergesort")
 
 
+COLONNE_GOL_MERCATO = [
+    "Quando", "Partita", "Pronostico", "Quote %", "Insieme %", "Risultato", "Esito",
+]
+COLONNE_GOL_MERCATO_TECNICA = [
+    "Partita", "Pronostico", "Modello %", "Fonte", "Linea Pinnacle",
+]
+
+
+def _orario_inizio_gol(riga):
+    """Orario di inizio (datetime naive Europe/Rome) di una riga Gol - mercato."""
+    return parse_registry_display_datetime(riga.get("data"))
+
+
+def ordina_righe_gol_mercato(righe):
+    """Ordina le righe Gol - mercato: prima in attesa per inizio, poi concluse dalla piu' recente."""
+    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
+    in_attesa = []
+    concluse = []
+    for r in records:
+        esito = cella_di_testo(r.get("esito")) or "⏳"
+        if esito in ("✅", "❌"):
+            concluse.append(r)
+        else:
+            in_attesa.append(r)
+    in_attesa_ord = sorted(
+        in_attesa,
+        key=lambda r: (
+            _orario_inizio_gol(r) is None,
+            _orario_inizio_gol(r) or datetime.max,
+        ),
+    )
+    concluse_ord = sorted(
+        concluse,
+        key=lambda r: (
+            _orario_inizio_gol(r) is None,
+            -(_orario_inizio_gol(r).timestamp()) if _orario_inizio_gol(r) is not None else 0.0,
+        ),
+    )
+    return in_attesa_ord + concluse_ord
+
+
+def tabella_gol_mercato(righe):
+    """Tabella in vista di «⚽ Gol — mercato» nel Registro."""
+    ordinate = ordina_righe_gol_mercato(righe)
+    righe_gol = []
+    for r in ordinate:
+        dt = _orario_inizio_gol(r)
+        quando = (dt.strftime("%d/%m/%Y %H:%M")
+                  if dt is not None else _testo_data_registro(r.get("data")))
+        esito = cella_di_testo(r.get("esito")) or "⏳"
+        righe_gol.append({
+            # Un nome mancante arriva come NaN, che e' "verita'" per
+            # Python: senza cella_di_testo la cella scriverebbe "nan".
+            "Quando": quando,
+            "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
+                       f"{cella_di_testo(r.get('away')) or '?'}",
+            "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
+            "Quote %": percentuale_in_colonna(percento_decimale(r.get("prob_mercato_prima"))),
+            "Insieme %": percentuale_in_colonna(percento_decimale(r.get("prob_congiunta"))),
+            "Risultato": cella_di_testo(r.get("risultato_reale")),
+            "Esito": esito,
+        })
+    return pd.DataFrame(righe_gol, columns=COLONNE_GOL_MERCATO)
+
+
+def tabella_gol_mercato_tecnica(righe):
+    """Tabella tecnica di «⚽ Gol — mercato» dentro i Dettagli del Registro."""
+    ordinate = ordina_righe_gol_mercato(righe)
+    righe_tec = []
+    for r in ordinate:
+        righe_tec.append({
+            "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
+                       f"{cella_di_testo(r.get('away')) or '?'}",
+            "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
+            "Modello %": "n/d",
+            "Fonte": cella_di_testo(r.get("mercato_fonte")),
+            "Linea Pinnacle": cella_di_testo(r.get("linea_pinnacle")),
+        })
+    return pd.DataFrame(righe_tec, columns=COLONNE_GOL_MERCATO_TECNICA)
+
+
+def sintesi_gol_mercato(righe) -> str:
+    """Riga di riepilogo sopra la tabella «⚽ Gol — mercato» nel Registro."""
+    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
+    concluse = [r for r in records if cella_di_testo(r.get("esito")) in ("✅", "❌")]
+    n = len(concluse)
+    if n == 0:
+        return "Gol: nessuna giocata conclusa finora."
+    m = sum(1 for r in concluse if cella_di_testo(r.get("esito")) == "✅")
+    x_cento = int(round(100.0 * m / n))
+    prime = []
+    for r in concluse:
+        p, _ricostruita = prob_di_registrazione(r, REGISTRAZIONE_PRIMA)
+        if p is not None:
+            prime.append(float(p))
+    testo_quote = (f"Quote: {int(round(100.0 * sum(prime) / len(prime)))}%"
+                   if prime else "Quote: n/d")
+    return f"Gol: finora {n} giocate concluse, {m} riuscite ({x_cento}%). {testo_quote}."
+
+
 def _sintesi_registro_mercato(righe) -> tuple:
     """Il riepilogo in parole della scheda Com'è andata, da valori GIA' nel
     Registro (niente ricalcoli sulle probabilita': si leggono solo le colonne
@@ -6952,6 +7053,7 @@ with tab_registro:
         # migrati. Date ISO timezone-aware vengono convertite in Europe/Rome;
         # valori mancanti/non validi diventano NaT e finiscono in fondo.
         df_preds['data'] = build_registry_datetime_column(df_preds['data'])
+        ha_totals_in_preds = any(famiglia_selettore(p) == "totals" for p in preds)
 
         # NIENTE filtro "Modello": le due tabelle dell'archivio del modello
         # storico (Attuale / Legacy) sono gia' una per motore, e stanno nel
@@ -6967,14 +7069,15 @@ with tab_registro:
             # Senza questo filtro il win rate del Top Mix non e' separabile da
             # quello di Analisi Rapida/Billy (problema `origin_collapsed`).
             # Le etichette esistono gia' nei dati: nessuna lista hardcoded.
-            filter_origine = st.selectbox("Origine", ["Tutti"] + sorted(set(df_preds["origine"].tolist())), index=0)
+            origini_opzioni = sorted(set(df_preds["origine"].tolist()) | {tipo_for_origin(ORIGIN_MERCATO_OU)})
+            filter_origine = st.selectbox("Origine", ["Tutti"] + origini_opzioni, index=0)
         with f_col4:
             stagioni_reali = sorted(df_preds['stagione'].unique().tolist(), reverse=True)
             default_stagione_idx = 1 if len(stagioni_reali) > 0 else 0
             filter_stagione = st.selectbox("Stagione", ["Tutti"] + stagioni_reali, index=default_stagione_idx)
             
         if filter_camp != "Tutti": df_preds = df_preds[df_preds["campionato"] == filter_camp]
-        if filter_status == "In Attesa (⏳)": df_preds = df_preds[df_preds["esito"].isin(["⏳", None])]
+        if filter_status == "In Attesa (⏳)": df_preds = df_preds[df_preds["esito"].isin(["⏳", None, ""])]
         elif filter_status == "Vinte (✅)": df_preds = df_preds[df_preds["esito"] == "✅"]
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
@@ -6999,27 +7102,20 @@ with tab_registro:
         # contiene davvero solo l'archivio (e i suoi totali tornano con
         # l'intestazione della famiglia).
         maschera_mercato = df_display.apply(
-            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
+            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1).astype(bool)
         maschera_totals = df_display.apply(
-            lambda r: famiglia_selettore(r.to_dict()) == "totals", axis=1)
+            lambda r: famiglia_selettore(r.to_dict()) == "totals", axis=1).astype(bool)
         maschera_modello = ~(maschera_mercato | maschera_totals)
-        if maschera_totals.any():
+        totals_records = df_display[maschera_totals].to_dict("records")
+        mostra_sezione_gol = (
+            maschera_totals.any()
+            or filter_origine == tipo_for_origin(ORIGIN_MERCATO_OU)
+            or (ha_totals_in_preds and filter_origine == "Tutti")
+        )
+        if mostra_sezione_gol:
             st.markdown("### ⚽ Gol — mercato")
-            st.caption("totals_mercato_v1 · prima registrazione · Modello %: n/d")
-            colonne_gol = ["Partita", "Pronostico", "Quote %", "Modello %", "Fonte", "Linea Pinnacle", "Insieme %"]
-            righe_gol = []
-            for r in df_display[maschera_totals].to_dict("records"):
-                righe_gol.append({
-                    # Un nome mancante arriva come NaN, che e' "verita'" per
-                    # Python: senza cella_di_testo la cella scriverebbe "nan".
-                    "Partita": f"{cella_di_testo(r.get('home')) or '?'} - "
-                               f"{cella_di_testo(r.get('away')) or '?'}",
-                    "Pronostico": cella_di_testo(r.get("pronostico_sicuro")),
-                    "Quote %": percentuale_in_colonna(r.get("prob_mercato_prima")),
-                    "Modello %": "n/d", "Fonte": cella_di_testo(r.get("mercato_fonte")),
-                    "Linea Pinnacle": cella_di_testo(r.get("linea_pinnacle")),
-                    "Insieme %": percentuale_in_colonna(r.get("prob_congiunta"))})
-            st.dataframe(pd.DataFrame(righe_gol, columns=colonne_gol), hide_index=True)
+            st.markdown(f"**{sintesi_gol_mercato(totals_records)}**")
+            st.dataframe(tabella_gol_mercato(totals_records), hide_index=True)
 
         # Variante letta fuori dai due motori, DENTRO il modello storico: e' il
         # materiale della terza tabella di controllo. Le righe del mercato non
@@ -7078,6 +7174,10 @@ with tab_registro:
                     "quello che e' successo dopo, non il nome delle formule."):
                 _mostra_statistiche_registrazione(all_records)
             _mostra_dettagli_mercato(df_mercato)
+            if totals_records:
+                st.markdown("#### ⚽ Gol — mercato (dettagli tecnici)")
+                st.caption("totals_mercato_v1 · prima registrazione · Modello %: n/d")
+                st.dataframe(tabella_gol_mercato_tecnica(totals_records), hide_index=True)
             st.divider()
 
             # La SCHEDA del record (con quale versione di pipeline la riga e' stata

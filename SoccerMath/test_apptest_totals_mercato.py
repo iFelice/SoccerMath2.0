@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve().parent.parent)]
 from test_apptest_scheda_pronostici import (
-    FixtureQuoteFinte, _BaseQuoteFinte, ETICHETTA_CALCOLA, SCHEDA_PRONOSTICI,
+    FixtureQuoteFinte, _BaseQuoteFinte, ETICHETTA_CALCOLA, SCHEDA_PRONOSTICI, SCHEDA_REGISTRO,
 )
 from audit.totals_snapshot_fixture import payload_snapshot
 import market_odds as M
@@ -177,3 +177,203 @@ class TestAppTotals(_BaseQuoteFinte):
         self.assertEqual(old['n_partite_ammesse'], new['n_partite_ammesse'])
         self.assertEqual(A.riquadri_multiple(L.cerca_proposta_multipla(old['giocate']), self.ADESSO),
                          A.riquadri_multiple(L.cerca_proposta_multipla(new['giocate']), self.ADESSO))
+
+    def test_08_tabella_gol_mercato_registro_scala_percentuale(self):
+        from test_apptest_topmix_presentazione import _elementi_della_tab, _testi_della_tab
+        df_gol = self._df(self.at, SCHEDA_REGISTRO, 0)
+        self.assertEqual(
+            ['Quando', 'Partita', 'Pronostico', 'Quote %', 'Insieme %', 'Risultato', 'Esito'],
+            list(df_gol.columns),
+        )
+        self.assertEqual(
+            ['Real Madrid - Sevilla', 'Bayern Munich - RB Leipzig',
+             'Manchester City - Ipswich Town', 'Hamburger SV - VfB Stuttgart'],
+            df_gol['Partita'].tolist(),
+        )
+        self.assertEqual(['⏳'] * 4, df_gol['Esito'].tolist())
+        per_partita = df_gol.set_index('Partita')
+        self.assertEqual('85,1', per_partita.loc['Bayern Munich - RB Leipzig', 'Quote %'])
+        self.assertEqual('70,4', per_partita.loc['Bayern Munich - RB Leipzig', 'Insieme %'])
+        self.assertEqual('68,2', per_partita.loc['Real Madrid - Sevilla', 'Quote %'])
+        self.assertEqual('59,0', per_partita.loc['Real Madrid - Sevilla', 'Insieme %'])
+        self.assertEqual('69,3', per_partita.loc['Hamburger SV - VfB Stuttgart', 'Quote %'])
+        self.assertEqual('', per_partita.loc['Hamburger SV - VfB Stuttgart', 'Insieme %'])
+        # Modello %, Fonte e Linea Pinnacle stanno nella tabella tecnica dentro i Dettagli.
+        dettagli = next(e for e in _elementi_della_tab(self.at, SCHEDA_REGISTRO, 'expander')
+                        if 'Dettagli' in str(e.label or ''))
+        tabelle_dettagli = []
+        for el in _elementi_della_tab(self.at, SCHEDA_REGISTRO, 'dataframe')[1:]:
+            val = getattr(el, 'value', None)
+            if val is not None and hasattr(val, 'data'):
+                val = val.data
+            if hasattr(val, 'columns') and list(val.columns) == ['Partita', 'Pronostico', 'Modello %', 'Fonte', 'Linea Pinnacle']:
+                tabelle_dettagli.append(val)
+        self.assertEqual(1, len(tabelle_dettagli))
+        df_tec = tabelle_dettagli[0]
+        self.assertEqual(df_gol['Partita'].tolist(), df_tec['Partita'].tolist())
+        self.assertEqual(['n/d'] * 4, df_tec['Modello %'].tolist())
+        self.assertTrue(all(str(v).startswith('pinnacle_linea_') for v in df_tec['Fonte']))
+        _, dentro = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+        self.assertIn('Linea Pinnacle', ' \n'.join(dentro))
+
+    def test_09_ordine_tabella_gol_mercato_in_attesa_e_concluse_mescolate(self):
+        import app as A
+        from test_totals_correzioni import campione
+        _, base_ou = campione()
+        righe_mescolate = [
+            dict(base_ou, match_id='m1', home='Casa C2', away='Ospite C2',
+                 data='15/10/2026 18:30', kickoff_utc='2026-10-15T16:30:00Z',
+                 risultato_reale='2-1', esito='✅'),
+            dict(base_ou, match_id='m2', home='Casa A2', away='Ospite A2',
+                 data='18/10/2026 20:45', kickoff_utc='2026-10-18T18:45:00Z',
+                 risultato_reale=None, esito='⏳'),
+            dict(base_ou, match_id='m3', home='Casa C1', away='Ospite C1',
+                 data='16/10/2026 20:45', kickoff_utc='2026-10-16T18:45:00Z',
+                 risultato_reale='1-0', esito='❌'),
+            dict(base_ou, match_id='m4', home='Casa A1', away='Ospite A1',
+                 data='18/10/2026 15:00', kickoff_utc='2026-10-18T13:00:00Z',
+                 risultato_reale=None, esito=None),
+            dict(base_ou, match_id='m5', home='Casa C3', away='Ospite C3',
+                 data='14/10/2026 20:45', kickoff_utc='2026-10-14T18:45:00Z',
+                 risultato_reale='3-1', esito='✅'),
+        ]
+        df = A.tabella_gol_mercato(righe_mescolate)
+        self.assertEqual(
+            ['Quando', 'Partita', 'Pronostico', 'Quote %', 'Insieme %', 'Risultato', 'Esito'],
+            list(df.columns),
+        )
+        self.assertEqual(
+            ['Casa A1 - Ospite A1', 'Casa A2 - Ospite A2',
+             'Casa C1 - Ospite C1', 'Casa C2 - Ospite C2', 'Casa C3 - Ospite C3'],
+            df['Partita'].tolist(),
+        )
+        self.assertEqual(
+            ['18/10/2026 15:00', '18/10/2026 20:45',
+             '16/10/2026 20:45', '15/10/2026 18:30', '14/10/2026 20:45'],
+            df['Quando'].tolist(),
+        )
+        self.assertEqual(['⏳', '⏳', '❌', '✅', '✅'], df['Esito'].tolist())
+        self.assertEqual(['', '', '1-0', '2-1', '3-1'], df['Risultato'].tolist())
+        df_tec = A.tabella_gol_mercato_tecnica(righe_mescolate)
+        self.assertEqual(
+            ['Partita', 'Pronostico', 'Modello %', 'Fonte', 'Linea Pinnacle'],
+            list(df_tec.columns),
+        )
+        self.assertEqual(df['Partita'].tolist(), df_tec['Partita'].tolist())
+
+    def test_10_riepilogo_gol_mercato_dieci_concluse_otto_riuscite(self):
+        import app as A
+        from test_totals_correzioni import campione
+        from test_apptest_topmix_presentazione import _testi_della_tab
+        _, base_ou = campione()
+        # Senza voci concluse nello snapshot iniziale:
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+        self.assertIn('Gol: nessuna giocata conclusa finora.', ' \n'.join(fuori))
+        self.assertEqual('Gol: nessuna giocata conclusa finora.', A.sintesi_gol_mercato([]))
+        # Registro di prova con 10 voci O/U: 8 riuscite e 2 fallite.
+        dieci_voci = [
+            dict(
+                base_ou,
+                match_id=f'ou_{i}',
+                home=f'Squadra Casa {i}',
+                away=f'Squadra Ospite {i}',
+                campionato='Serie A',
+                stagione='2026/2027',
+                data=f'{10 + i:02d}/10/2026 18:00',
+                kickoff_utc=f'2026-10-{10 + i:02d}T16:00:00Z',
+                prob_mercato_prima=0.72,
+                prob_sicuro=72.0,
+                risultato_reale='2-1' if i < 8 else '1-0',
+                esito='✅' if i < 8 else '❌',
+            )
+            for i in range(10)
+        ]
+        frase = A.sintesi_gol_mercato(dieci_voci)
+        self.assertEqual('Gol: finora 10 giocate concluse, 8 riuscite (80%). Quote: 72%.', frase)
+        self.assertIn('10 giocate concluse, 8 riuscite (80%)', frase)
+        precedenti = copy.deepcopy(self.registro.vivo)
+        try:
+            self.registro.vivo[:] = [r for r in precedenti if r.get('selector_version') != T.TOTALS_VERSION] + dieci_voci
+            self.at.run(timeout=900)
+            self.eccezioni(self.at, 'riepilogo 10 voci O/U')
+            fuori_dopo, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+            self.assertIn('Gol: finora 10 giocate concluse, 8 riuscite (80%). Quote: 72%.',
+                          ' \n'.join(fuori_dopo))
+            df_gol = self._df(self.at, SCHEDA_REGISTRO, 0)
+            self.assertEqual(10, len(df_gol))
+        finally:
+            self.registro.vivo[:] = precedenti
+            self.at.run(timeout=900)
+
+    def test_11_filtri_esito_e_origine_su_tabella_gol_mercato(self):
+        from test_totals_correzioni import campione
+        from test_apptest_topmix_presentazione import _testi_della_tab
+        base_1x2, base_ou = campione()
+        riga_1x2 = dict(
+            base_1x2,
+            match_id='1x2_1',
+            home='Inter',
+            away='Roma',
+            campionato='Serie A',
+            stagione='2026/2027',
+            data='15/10/2026 20:45',
+            kickoff_utc='2026-10-15T18:45:00Z',
+            prob_mercato_prima=0.65,
+            risultato_reale='2-0',
+            esito='✅',
+        )
+        voci_ou = [
+            dict(
+                base_ou,
+                match_id=f'ou_f_{i}',
+                home=f'Casa {i}',
+                away=f'Ospite {i}',
+                campionato='Serie A' if i < 5 else 'La Liga',
+                stagione='2026/2027',
+                data=f'{10 + i:02d}/10/2026 18:00',
+                kickoff_utc=f'2026-10-{10 + i:02d}T16:00:00Z',
+                prob_mercato_prima=0.70,
+                prob_sicuro=70.0,
+                risultato_reale='2-1' if i < 8 else ('1-0' if i < 10 else None),
+                esito='✅' if i < 8 else ('❌' if i < 10 else '⏳'),
+            )
+            for i in range(11)
+        ]
+        tutti = [riga_1x2] + voci_ou
+        precedenti = copy.deepcopy(self.registro.vivo)
+        try:
+            self.registro.vivo[:] = tutti
+            self.at.run(timeout=900)
+            sel_esito = next(s for s in self.at.selectbox if s.label == 'Esito')
+            sel_origine = next(s for s in self.at.selectbox if s.label == 'Origine')
+            self.assertIn('Gol (mercato)', list(sel_origine.options))
+            # Filtro Origine = Gol (mercato), Esito = Vinte (✅)
+            sel_origine.set_value('Gol (mercato)')
+            sel_esito.set_value('Vinte (✅)')
+            self.at.run(timeout=900)
+            self.eccezioni(self.at, 'filtro Gol (mercato) + Vinte')
+            df_vinte = self._df(self.at, SCHEDA_REGISTRO, 0)
+            self.assertEqual(8, len(df_vinte))
+            self.assertEqual(['✅'] * 8, df_vinte['Esito'].tolist())
+            fuori_vinte, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+            self.assertIn('Nessuna riga della famiglia mercato con i filtri attivi.', ' \n'.join(fuori_vinte))
+            # Filtro Esito = Perse (❌)
+            next(s for s in self.at.selectbox if s.label == 'Esito').set_value('Perse (❌)')
+            self.at.run(timeout=900)
+            df_perse = self._df(self.at, SCHEDA_REGISTRO, 0)
+            self.assertEqual(2, len(df_perse))
+            self.assertEqual(['❌'] * 2, df_perse['Esito'].tolist())
+            # Filtro Origine = Top Mix: la tabella Gol - mercato viene filtrata via
+            next(s for s in self.at.selectbox if s.label == 'Esito').set_value('Tutti')
+            next(s for s in self.at.selectbox if s.label == 'Origine').set_value('Top Mix')
+            self.at.run(timeout=900)
+            fuori_topmix, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+            self.assertNotIn('Gol — mercato', ' \n'.join(fuori_topmix))
+        finally:
+            self.registro.vivo[:] = precedenti
+            next(s for s in self.at.selectbox if s.label == 'Esito').set_value('Tutti')
+            next(s for s in self.at.selectbox if s.label == 'Origine').set_value('Tutti')
+            self.at.run(timeout=900)
+
+
+
