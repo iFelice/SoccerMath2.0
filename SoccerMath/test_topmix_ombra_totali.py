@@ -591,15 +591,21 @@ class TestVersioni(unittest.TestCase):
     def test_costanti_di_versione(self):
         self.assertEqual("topmix_gate025_ens06_v1", R.SELECTOR_VERSION_PRE_1X2)
         self.assertEqual("topmix_1x2_gate025_ens06_v2", R.SELECTOR_VERSION_MODELLO_1X2)
-        self.assertEqual("topmix_mercato_v3", R.SELECTOR_VERSION_CURRENT)
+        # v4: stessa scelta di mercato con la soglia di ammissione a 0,57
+        # (v3 era 0,55). v3 resta una versione leggibile: le righe gia'
+        # registrate con v3 non si toccano.
+        self.assertEqual("topmix_mercato_v4", R.SELECTOR_VERSION_CURRENT)
+        self.assertEqual("topmix_mercato_v3", R.SELECTOR_VERSION_MERCATO_V3)
         self.assertEqual("topmix_ombra_ou25_v1", R.SELECTOR_VERSION_OMBRA_OU25)
         self.assertEqual("topmix_ombra_ggng_v1", R.SELECTOR_VERSION_OMBRA_GGNG)
         self.assertEqual({R.OMBRA_FAMIGLIA_OU25: R.SELECTOR_VERSION_OMBRA_OU25,
                           R.OMBRA_FAMIGLIA_GGNG: R.SELECTOR_VERSION_OMBRA_GGNG,
                           R.OMBRA_FAMIGLIA_1X2: R.SELECTOR_VERSION_OMBRA_1X2},
                          R.SELECTOR_VERSION_OMBRA_BY_FAMIGLIA)
-        # cinque versioni distinte: v1, v2 (modello), v3 (mercato, corrente) e
-        # le tre famiglie di ombra... di cui la 1X2 nuova.
+        # cinque versioni distinte CONTATE SULLE CORRENTI: v1, v2 (modello),
+        # v4 (mercato, corrente) e le tre famiglie di ombra... di cui la 1X2
+        # nuova. v3 (mercato, 0,55) non si conta qui perche' non e' piu'
+        # quella in prova: resta letta dalle righe gia' registrate.
         self.assertEqual(5, len({R.SELECTOR_VERSION_PRE_1X2, R.SELECTOR_VERSION_CURRENT,
                                  R.SELECTOR_VERSION_OMBRA_OU25, R.SELECTOR_VERSION_OMBRA_GGNG,
                                  R.SELECTOR_VERSION_OMBRA_1X2}))

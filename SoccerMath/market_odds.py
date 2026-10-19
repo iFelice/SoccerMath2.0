@@ -75,10 +75,15 @@ FONTE_MEDIA_LIBRI = "media_libri"
 FONTE_ASSENTE = "nessuna_quota"
 FONTI_NOTE = (FONTE_PINNACLE, FONTE_MEDIA_LIBRI, FONTE_ASSENTE)
 
-# Soglie del selettore di mercato. 0,55 e' la soglia di produzione del Top Mix
-# (``app.seleziona_riga_top_mix`` con Elo) ed e' la soglia usata dalla PR #49
-# per le scelte di mercato: cambiarla cambia i numeri del replay.
-SOGLIA_TOPMIX_MERCATO = 0.55
+# Soglie del selettore di mercato. 0,57 e' la soglia di ammissione del
+# pronostico di mercato (era 0,55 fino a ``topmix_mercato_v3``): la leggono
+# TUTTI i punti che devono decidere, cosi' non puo' divergere —
+# ``app.seleziona_riga_top_mix_mercato`` (Top Mix e scheda Pronostici),
+# ``scheda_partita`` (il pronostico Gol della scheda partita) e
+# ``letture_registrazione`` (il flag ``sotto_soglia_ora`` del Registro).
+# Cambiarla cambia i numeri del replay e richiede una versione nuova del
+# selettore (``topmix_mercato_v4``).
+SOGLIA_TOPMIX_MERCATO = 0.57
 # "D'accordo": modello e mercato sullo STESSO esito, entrambi >= 0,55
 # (definizione della PR #49 §4d, tabella B).
 SOGLIA_ACCORDO = 0.55

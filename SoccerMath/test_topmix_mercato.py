@@ -81,16 +81,56 @@ class TestSelettoreDiMercato(unittest.TestCase):
 
     def test_spareggio_sul_primo_massimo(self):
         """Due esiti uguali: vince il primo nell'ordine 1, X, 2 (come np.argmax)."""
-        riga = app.seleziona_riga_top_mix_mercato({"1": 0.55, "X": 0.55, "2": 0.0})
+        riga = app.seleziona_riga_top_mix_mercato({"1": 0.60, "X": 0.60, "2": 0.0})
         self.assertEqual("1", riga["esito"])
-        riga2 = app.seleziona_riga_top_mix_mercato({"1": 0.20, "X": 0.55, "2": 0.55})
+        riga2 = app.seleziona_riga_top_mix_mercato({"1": 0.20, "X": 0.60, "2": 0.60})
         self.assertEqual("X", riga2["esito"])
 
-    def test_soglia_055(self):
-        self.assertIsNotNone(app.seleziona_riga_top_mix_mercato(
-            {"1": 0.55, "X": 0.25, "2": 0.20}, home="Inter", away="Roma"))
+    def test_soglia_057(self):
+        """Sotto 0,57 nessun pronostico; a 0,57 la partita entra (il 56% no)."""
+        self.assertEqual(0.57, mo.SOGLIA_TOPMIX_MERCATO)
+        # il 56% NON ha pronostico: e' la soglia nuova, prima (0,55) entrava.
         self.assertIsNone(app.seleziona_riga_top_mix_mercato(
-            {"1": 0.5499, "X": 0.25, "2": 0.20}, home="Inter", away="Roma"))
+            {"1": 0.56, "X": 0.25, "2": 0.19}, home="Inter", away="Roma"))
+        self.assertIsNone(app.seleziona_riga_top_mix_mercato(
+            {"1": 0.5699, "X": 0.25, "2": 0.1801}, home="Inter", away="Roma"))
+        # il 57% ce l'ha: il confine e' >=, quindi 0,57 e' dentro.
+        riga = app.seleziona_riga_top_mix_mercato(
+            {"1": 0.57, "X": 0.25, "2": 0.18}, home="Inter", away="Roma")
+        self.assertIsNotNone(riga)
+        self.assertEqual("1", riga["esito"])
+        self.assertAlmostEqual(0.57, riga["prob"], places=12)
+        # La soglia d'accordo NON si muove: resta 0,55.
+        self.assertEqual(0.55, mo.SOGLIA_ACCORDO)
+
+    def test_il_56_per_cento_non_ha_pronostico_il_57_si(self):
+        """La commessa: 56% niente pronostico, 57% pronostico. Sulle TRE soglie.
+
+        Non solo il selettore: la stessa soglia decide il flag
+        ``sotto_soglia_ora`` del Registro (``market_odds.letture_registrazione``)
+        e il pronostico Gol della scheda partita (``scheda_partita``), perche'
+        leggono tutti ``SOGLIA_TOPMIX_MERCATO``.
+        """
+        for prob in (0.56, 0.5699):
+            with self.subTest(prob=prob):
+                self.assertIsNone(app.seleziona_riga_top_mix_mercato(
+                    {"1": prob, "X": round((1 - prob) * 0.6, 4),
+                     "2": round((1 - prob) * 0.4, 4)}, home="Inter", away="Roma"),
+                    f"a {prob:.4f} NON c'e' pronostico")
+                self.assertTrue(mo.letture_registrazione(
+                    {"1": prob, "X": round((1 - prob) * 0.6, 4),
+                     "2": round((1 - prob) * 0.4, 4)})["1"]["sotto_soglia_ora"])
+        for prob in (0.57, 0.5701, 0.58):
+            with self.subTest(prob=prob):
+                riga = app.seleziona_riga_top_mix_mercato(
+                    {"1": prob, "X": round((1 - prob) * 0.6, 4),
+                     "2": round((1 - prob) * 0.4, 4)}, home="Inter", away="Roma")
+                self.assertIsNotNone(riga, f"a {prob:.4f} il pronostico c'e'")
+                self.assertEqual("1", riga["esito"])
+                self.assertAlmostEqual(prob, riga["prob"], places=12)
+                self.assertFalse(mo.letture_registrazione(
+                    {"1": prob, "X": round((1 - prob) * 0.6, 4),
+                     "2": round((1 - prob) * 0.4, 4)})["1"]["sotto_soglia_ora"])
 
     def test_etichette_dell_esito(self):
         riga = app.seleziona_riga_top_mix_mercato({"1": 0.7, "X": 0.2, "2": 0.1},
@@ -221,9 +261,13 @@ class TestCalcoloPerPartita(RipristinaLogging, unittest.TestCase):
             return app.calcola_righe_top_mix("Serie A", matches, _engine(self.STATS), quote=quote)
 
     def test_righe_di_mercato_con_pinnacle(self):
+        # 1,7 sul 2 dava il 55,47% de-vigato: SOPRA la vecchia soglia 0,55 e
+        # SOTTO quella di v4 (0,57). La quota si abbassa a 1,6 (58,79%) perche'
+        # qui si prova che DUE righe pinnacle entrano, non il confine: il
+        # confine lo prova ``test_soglia_057``.
         quote = mo.indice_partite(_payload_quote([
             ("Inter", "Roma", (1.62, 4.1, 6.0)),
-            ("Milan", "Napoli", (4.5, 4.0, 1.7)),
+            ("Milan", "Napoli", (5.0, 4.2, 1.6)),
         ]))
         quote["generato_il"] = "2026-10-09T08:17:00Z"
         righe = self._calcola(quote)
@@ -472,8 +516,9 @@ class TestRegistro(unittest.TestCase):
 
     def test_la_riga_di_mercato_usa_la_versione_nuova(self):
         args, kwargs = app.argomenti_registro_top_mix_mercato(self.RIGA_MERCATO)
-        self.assertEqual(R.SELECTOR_VERSION_MERCATO_V3, kwargs["selector_version"])
+        self.assertEqual(R.SELECTOR_VERSION_MERCATO_V4, kwargs["selector_version"])
         self.assertEqual(R.SELECTOR_VERSION_CURRENT, kwargs["selector_version"])
+        self.assertEqual("topmix_mercato_v4", kwargs["selector_version"])
         self.assertEqual(R.ORIGIN_TOP_MIX, kwargs["origin"])
         self.assertEqual(1.62, kwargs["quota_mercato"])
         self.assertEqual(mo.FONTE_PINNACLE, kwargs["mercato_fonte"])

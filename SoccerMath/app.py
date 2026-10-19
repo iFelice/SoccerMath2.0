@@ -103,7 +103,7 @@ from prediction_registry import (
     SELECTOR_VERSION_OMBRA_BY_FAMIGLIA, OMBRA_FAMIGLIA_FIELD, OMBRA_FAMIGLIA_OU25, OMBRA_FAMIGLIA_GGNG,
     OMBRA_FAMIGLIA_1X2, SELECTOR_VERSION_OMBRA_1X2,
     ORIGIN_TOP_MIX_OMBRA,
-    # --- Top Mix di mercato (topmix_mercato_v3): campi della riga visibile ---
+    # --- Top Mix di mercato (topmix_mercato_v4): campi della riga visibile ---
     MERCATO_FONTE_FIELD, MERCATO_N_LIBRI_FIELD, PROB_MERCATO_FIELD,
     QUOTA_MERCATO_FIELD, ACCORDO_MODELLO_FIELD, PROB_MODELLO_FIELD,
     QUOTE_LIVE_ISTANTE_FIELD,
@@ -636,7 +636,7 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
     if gate_off_confidence is not None:
         entry[GATE_OFF_CONFIDENCE_FIELD] = gate_off_confidence
         entry[GATE_OFF_AMMESSA_FIELD] = bool(gate_off_ammessa)
-    # --- Top Mix di mercato (``topmix_mercato_v3``): campi OPZIONALI della riga
+    # --- Top Mix di mercato (``topmix_mercato_v4``): campi OPZIONALI della riga
     # visibile. Una riga scritta da una versione precedente non li ha e resta
     # leggibile come prima: nessun campo esistente viene toccato.
     if mercato_fonte is not None:
@@ -2024,7 +2024,7 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
 
 def seleziona_riga_top_mix_mercato(prob_mercato, odds_mercato=None, prob_modello=None,
                                    fonte=None, n_libri=None, home=None, away=None):
-    """Riga Top Mix di UNA partita decisa dal MERCATO (selettore ``topmix_mercato_v3``).
+    """Riga Top Mix di UNA partita decisa dal MERCATO (selettore ``topmix_mercato_v4``).
 
     Funzione PURA (stessi divieti di ``seleziona_riga_top_mix``: niente HTTP,
     cache, logging o scritture): riceve probabilita' e quote gia' calcolate e
@@ -2035,7 +2035,7 @@ def seleziona_riga_top_mix_mercato(prob_mercato, odds_mercato=None, prob_modello
     * esito = argmax delle tre probabilita' di mercato, nell'ordine 1, X, 2
       (primo massimo: lo stesso spareggio di ``max()`` su dict e di
       ``np.argmax`` usato dall'audit, cosi' i numeri del replay coincidono);
-    * ammissione: probabilita' di mercato >= ``SOGLIA_TOPMIX_MERCATO`` (0,55).
+    * ammissione: probabilita' di mercato >= ``SOGLIA_TOPMIX_MERCATO`` (0,57).
       E' l'unica soglia della riga: il veto di produzione |Poisson-Elo| < 0,25
       NON si applica, perche' la scelta e' del mercato, che non ha Elo;
     * ``accordo`` (colonna "d'accordo"): modello e mercato sullo STESSO esito
@@ -2374,7 +2374,7 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None,
     MODELLO e non ha quote live. Quando e' dato, per ogni partita si aggiunge:
 
     * una riga in ``"mercato"`` se il mercato ha una terna valida e la sua
-      probabilita' massima supera 0,55 (``seleziona_riga_top_mix_mercato``);
+      probabilita' massima supera 0,57 (``seleziona_riga_top_mix_mercato``);
     * una voce in ``"senza_quote"`` se la partita NON ha quote (nessuna terna
       valida o coppia di nomi assente dalla fonte): la partita e' esclusa dal
       Top Mix e viene SEGNALATA, mai inventata.
@@ -2532,7 +2532,7 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None,
                 continue
             # Lettura di mercato per il rinfresco del Registro: la si costruisce
             # PRIMA del gate di soglia e con gli STESSI oggetti di riga_mkt, cosi'
-            # una partita che scende sotto 0,55 continua ad avere un "adesso" con
+            # una partita che scende sotto 0,57 continua ad avere un "adesso" con
             # cui confrontare l'"allora" scritto nella riga.
             righe["letture"].append({
                 "match_id": match.get("id"),
@@ -2567,7 +2567,7 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None,
                 # `righe_solo_pre_partita` al click. Va aggiunto QUI dal
                 # chiamante per non toccare `_riga_top_mix_mercato`, che e' sotto
                 # impronta di versione: il campo non cambia selezione ne'
-                # probabilita', quindi l'impronta di `topmix_mercato_v3` resta.
+                # probabilita', quindi l'impronta di `topmix_mercato_v4` resta.
                 riga["commence_time"] = (evento or {}).get("commence_time")
                 righe["mercato"].append(riga)
     return righe
@@ -2708,7 +2708,7 @@ def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
     Dalla PR delle quote live queste righe NON sono piu' il Top Mix visibile:
     il Registro visibile ospita le scelte del mercato
     (``argomenti_registro_top_mix_mercato``, ``SELECTOR_VERSION_CURRENT`` =
-    ``topmix_mercato_v3``). Le righe del modello vanno nel registro OMBRA con
+    ``topmix_mercato_v4``). Le righe del modello vanno nel registro OMBRA con
     ``SELECTOR_VERSION_OMBRA_1X2`` e la loro ``model_variant``: Drago e Legacy
     restano due righe distinte della stessa partita (stesse regole
     anti-doppione di prima, chiavi di dedup diverse, nessuna sovrascrittura).
@@ -2755,7 +2755,7 @@ def argomenti_registro_top_mix_mercato(p):
     """Argomenti di registro per la riga del Top Mix di MERCATO ``p``.
 
     Speculare a ``argomenti_registro_top_mix`` ma per la tabella visibile:
-    ``selector_version`` = ``SELECTOR_VERSION_CURRENT`` (``topmix_mercato_v3``),
+    ``selector_version`` = ``SELECTOR_VERSION_CURRENT`` (``topmix_mercato_v4``),
     ``model_variant`` = ``current`` (la scelta non dipende dal motore: il
     modello entra solo come probabilita' di confronto e come segnale di
     accordo), e i campi di mercato (fonte, numero di libri, quota, probabilita'
@@ -4077,7 +4077,7 @@ def percento_decimale(valore):
 # ---------------------------------------------------------------------------
 # Stesse sei colonne per tutte e due (commessa presentazione, punto 2): Quando,
 # Partita, Pronostico, Quote %, Modello %, Quota. Le righe arrivano da due fonti
-# diverse - le scelte del selettore ``topmix_mercato_v3`` per i pronostici, la
+# diverse - le scelte del selettore ``topmix_mercato_v4`` per i pronostici, la
 # lista dei pareggi per i pareggi - e qui vengono lette e allineate: nessun
 # numero viene ricalcolato e nessun testo si aggiunge dentro la colonna Partita.
 COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"]
@@ -4517,7 +4517,7 @@ def caption_scelte_secondo_le_quote(n_righe, nascoste=0):
 def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
                                     stato_confronto=None, mappa_modello_1x2=None,
                                     chiave_widget="pronostici_tabella_periodo"):
-    """La tabella delle scelte del mercato (``topmix_mercato_v3``) nel periodo.
+    """La tabella delle scelte del mercato (``topmix_mercato_v4``) nel periodo.
 
     Sta nella scheda «⚽ Pronostici», dopo il clic: le righe sono quelle del giro
     che il pulsante ha appena registrato, mostrate con le sei colonne comuni alla
@@ -4661,8 +4661,8 @@ def righe_mercato_dalle_quote(payload, adesso=None):
     aspettare il giro del modello (calendario football-data + Elo + Poisson):
     nascono dal file ``live_odds.json`` scritto dal workflow, con le STESSE
     funzioni di sempre -- ``market_odds.probabilita_mercato`` per la de-vig e
-    ``seleziona_riga_top_mix_mercato`` (selettore ``topmix_mercato_v3``, sotto
-    impronta di versione) per la scelta e per l'ammissione sopra 0,55. Nessun
+    ``seleziona_riga_top_mix_mercato`` (selettore ``topmix_mercato_v4``, sotto
+    impronta di versione) per la scelta e per l'ammissione sopra 0,57. Nessun
     numero viene ricalcolato qui: probabilita', esito e quota sono quelli del
     selettore.
 
@@ -5989,7 +5989,8 @@ NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", MODEL_VARIANT_LEGACY: 
 
 # Confine fra le due FAMIGLIE di selettore nel Registro visibile: prima di questa
 # data le righe Top Mix visibili sono scelte del MODELLO (v1/v2), da questa data
-# sono scelte del MERCATO (``topmix_mercato_v3``). Il confine NON e' dedotto dai
+# sono scelte del MERCATO (``topmix_mercato_v3``, poi ``topmix_mercato_v4``).
+# Il confine NON e' dedotto dai
 # dati: e' la data in cui il selettore visibile e' cambiato, e dichiararlo evita
 # che un filtro per stagione o per data faccia credere che una famiglia sia
 # vuota perche' i dati mancano.
@@ -6142,7 +6143,9 @@ def _didascalia_rinfresco_righe_in_attesa(records, n_sotto=None):
         "in attesa per cui e' disponibile una quota pre-partita valida, anche "
         "quando la probabilita' e' sotto soglia. Il flag ``sotto_soglia_ora`` "
         "riguarda SOLO le righe la cui ultima probabilita' di mercato e' scesa "
-        "sotto 0,55. "
+        # La soglia e' quella del selettore (``SOGLIA_TOPMIX_MERCATO``): scritta
+        # a mano sarebbe un numero che puo' dimenticarsi di essere aggiornato.
+        f"sotto {SOGLIA_TOPMIX_MERCATO:.2f}".replace(".", ",") + ". "
     )
     conteggio = len(elenco) if n_sotto is None else int(n_sotto)
     if not elenco:
@@ -6656,7 +6659,7 @@ def _mostra_dettagli_mercato(righe, altezza=420):
     df["Prima registrazione"] = [stato for _valore, stato in delta_e_stato_prima]
 
     st.caption(f"Vista tecnica completa della famiglia mercato "
-               f"(topmix_mercato_v3): scelte del mercato con de-vig proporzionale, "
+               f"(topmix_mercato_v4): scelte del mercato con de-vig proporzionale, "
                f"soglia di ammissione {SOGLIA_TOPMIX_MERCATO:.2f}. Colonne: P modello Drago, "
                "Δ dalla prima, Prima registrazione, Stato, origine, stagione.")
     colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
