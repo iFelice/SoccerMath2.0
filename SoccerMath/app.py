@@ -6385,6 +6385,51 @@ def tabella_gol_mercato_tecnica(righe):
     return pd.DataFrame(righe_tec, columns=COLONNE_GOL_MERCATO_TECNICA)
 
 
+def sintesi_gol_mercato(righe) -> str:
+    """Riga di riepilogo sopra la tabella «⚽ Gol — mercato» nel Registro."""
+    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
+    concluse = [r for r in records if cella_di_testo(r.get("esito")) in ("✅", "❌")]
+    n = len(concluse)
+    if n == 0:
+        return "Gol: nessuna giocata conclusa finora."
+    m = sum(1 for r in concluse if cella_di_testo(r.get("esito")) == "✅")
+    x_cento = int(round(100.0 * m / n))
+    prime = []
+    for r in concluse:
+        p, _ricostruita = prob_di_registrazione(r, REGISTRAZIONE_PRIMA)
+        if p is not None:
+            prime.append(float(p))
+    testo_quote = (f"Quote: {int(round(100.0 * sum(prime) / len(prime)))}%"
+                   if prime else "Quote: n/d")
+    return f"Gol: finora {n} giocate concluse, {m} riuscite ({x_cento}%). {testo_quote}."
+
+
+def filtra_righe_registro(righe, campionato="Tutti", esito="Tutti",
+                          origine="Tutti", stagione="Tutti"):
+    """Applica i quattro filtri della scheda Registro (Campionato, Esito, Origine, Stagione)."""
+    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
+    filtrate = []
+    for r in records:
+        if campionato != "Tutti" and r.get("campionato") != campionato:
+            continue
+        esito_val = r.get("esito")
+        if esito == "In Attesa (⏳)" and esito_val not in ("⏳", None, ""):
+            continue
+        if esito == "Vinte (✅)" and esito_val != "✅":
+            continue
+        if esito == "Perse (❌)" and esito_val != "❌":
+            continue
+        data_ref = r.get("data") if r.get("data") is not None else r.get("kickoff_utc")
+        stag_val = r.get("stagione") or calcola_stagione_calcolo(data_ref)
+        if stagione != "Tutti" and stag_val != stagione:
+            continue
+        orig_val = r.get("origine") or tipo_for_origin(origin_of(r))
+        if origine != "Tutti" and orig_val != origine:
+            continue
+        filtrate.append(r)
+    return filtrate
+
+
 def _sintesi_registro_mercato(righe) -> tuple:
     """Il riepilogo in parole della scheda Com'è andata, da valori GIA' nel
     Registro (niente ricalcoli sulle probabilita': si leggono solo le colonne
@@ -7010,7 +7055,19 @@ with tab_registro:
     if not preds: st.warning("Nessuna predizione.")
     else:
         df_preds = pd.DataFrame(preds)
-        df_preds['stagione'] = df_preds['data'].apply(calcola_stagione_calcolo)
+        if "data" not in df_preds.columns:
+            df_preds["data"] = [p.get("kickoff_utc") for p in preds]
+        else:
+            df_preds["data"] = [
+                p.get("data") if p.get("data") is not None else p.get("kickoff_utc")
+                for p in preds
+            ]
+        df_preds['stagione'] = [
+            calcola_stagione_calcolo(d)
+            if calcola_stagione_calcolo(d) != "Sconosciuta" or not p.get("stagione")
+            else str(p.get("stagione"))
+            for p, d in zip(preds, df_preds["data"].tolist())
+        ]
         # Classificazione esplicita: i record senza model_version restano
         # "Legacy" e NON vengono considerati automaticamente post-fix.
         df_preds['modello'] = [model_label(p) for p in preds]
@@ -7038,6 +7095,7 @@ with tab_registro:
         # migrati. Date ISO timezone-aware vengono convertite in Europe/Rome;
         # valori mancanti/non validi diventano NaT e finiscono in fondo.
         df_preds['data'] = build_registry_datetime_column(df_preds['data'])
+        ha_totals_in_preds = any(famiglia_selettore(p) == "totals" for p in preds)
 
         # NIENTE filtro "Modello": le due tabelle dell'archivio del modello
         # storico (Attuale / Legacy) sono gia' una per motore, e stanno nel
@@ -7053,14 +7111,15 @@ with tab_registro:
             # Senza questo filtro il win rate del Top Mix non e' separabile da
             # quello di Analisi Rapida/Billy (problema `origin_collapsed`).
             # Le etichette esistono gia' nei dati: nessuna lista hardcoded.
-            filter_origine = st.selectbox("Origine", ["Tutti"] + sorted(set(df_preds["origine"].tolist())), index=0)
+            origini_opzioni = sorted(set(df_preds["origine"].tolist()) | {tipo_for_origin(ORIGIN_MERCATO_OU)})
+            filter_origine = st.selectbox("Origine", ["Tutti"] + origini_opzioni, index=0)
         with f_col4:
             stagioni_reali = sorted(df_preds['stagione'].unique().tolist(), reverse=True)
             default_stagione_idx = 1 if len(stagioni_reali) > 0 else 0
             filter_stagione = st.selectbox("Stagione", ["Tutti"] + stagioni_reali, index=default_stagione_idx)
             
         if filter_camp != "Tutti": df_preds = df_preds[df_preds["campionato"] == filter_camp]
-        if filter_status == "In Attesa (⏳)": df_preds = df_preds[df_preds["esito"].isin(["⏳", None])]
+        if filter_status == "In Attesa (⏳)": df_preds = df_preds[df_preds["esito"].isin(["⏳", None, ""])]
         elif filter_status == "Vinte (✅)": df_preds = df_preds[df_preds["esito"] == "✅"]
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
         if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
@@ -7085,13 +7144,19 @@ with tab_registro:
         # contiene davvero solo l'archivio (e i suoi totali tornano con
         # l'intestazione della famiglia).
         maschera_mercato = df_display.apply(
-            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1)
+            lambda r: famiglia_selettore(r.to_dict()) == FAMIGLIA_SELETTORE_MERCATO, axis=1).astype(bool)
         maschera_totals = df_display.apply(
-            lambda r: famiglia_selettore(r.to_dict()) == "totals", axis=1)
+            lambda r: famiglia_selettore(r.to_dict()) == "totals", axis=1).astype(bool)
         maschera_modello = ~(maschera_mercato | maschera_totals)
         totals_records = df_display[maschera_totals].to_dict("records")
-        if maschera_totals.any():
+        mostra_sezione_gol = (
+            maschera_totals.any()
+            or filter_origine == tipo_for_origin(ORIGIN_MERCATO_OU)
+            or (ha_totals_in_preds and filter_origine == "Tutti")
+        )
+        if mostra_sezione_gol:
             st.markdown("### ⚽ Gol — mercato")
+            st.markdown(f"**{sintesi_gol_mercato(totals_records)}**")
             st.dataframe(tabella_gol_mercato(totals_records), hide_index=True)
 
         # Variante letta fuori dai due motori, DENTRO il modello storico: e' il

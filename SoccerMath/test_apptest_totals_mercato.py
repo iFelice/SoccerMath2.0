@@ -261,4 +261,126 @@ class TestAppTotals(_BaseQuoteFinte):
         )
         self.assertEqual(df['Partita'].tolist(), df_tec['Partita'].tolist())
 
+    def test_10_riepilogo_gol_mercato_dieci_concluse_otto_riuscite(self):
+        import app as A
+        from test_totals_correzioni import campione
+        from test_apptest_topmix_presentazione import _testi_della_tab
+        _, base_ou = campione()
+        # Senza voci concluse nello snapshot iniziale:
+        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+        self.assertIn('Gol: nessuna giocata conclusa finora.', ' \n'.join(fuori))
+        self.assertEqual('Gol: nessuna giocata conclusa finora.', A.sintesi_gol_mercato([]))
+        # Registro di prova con 10 voci O/U: 8 riuscite e 2 fallite.
+        dieci_voci = [
+            dict(
+                base_ou,
+                match_id=f'ou_{i}',
+                home=f'Squadra Casa {i}',
+                away=f'Squadra Ospite {i}',
+                campionato='Serie A',
+                stagione='2026/2027',
+                data=f'{10 + i:02d}/10/2026 18:00',
+                kickoff_utc=f'2026-10-{10 + i:02d}T16:00:00Z',
+                prob_mercato_prima=0.72,
+                prob_sicuro=72.0,
+                risultato_reale='2-1' if i < 8 else '1-0',
+                esito='✅' if i < 8 else '❌',
+            )
+            for i in range(10)
+        ]
+        frase = A.sintesi_gol_mercato(dieci_voci)
+        self.assertEqual('Gol: finora 10 giocate concluse, 8 riuscite (80%). Quote: 72%.', frase)
+        self.assertIn('10 giocate concluse, 8 riuscite (80%)', frase)
+        precedenti = copy.deepcopy(self.registro.vivo)
+        try:
+            self.registro.vivo[:] = [r for r in precedenti if r.get('selector_version') != T.TOTALS_VERSION] + dieci_voci
+            self.at.run(timeout=900)
+            self.eccezioni(self.at, 'riepilogo 10 voci O/U')
+            fuori_dopo, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+            self.assertIn('Gol: finora 10 giocate concluse, 8 riuscite (80%). Quote: 72%.',
+                          ' \n'.join(fuori_dopo))
+            df_gol = self._df(self.at, SCHEDA_REGISTRO, 0)
+            self.assertEqual(10, len(df_gol))
+        finally:
+            self.registro.vivo[:] = precedenti
+            self.at.run(timeout=900)
+
+    def test_11_filtri_esito_e_origine_su_tabella_gol_mercato(self):
+        import app as A
+        from test_totals_correzioni import campione
+        from test_apptest_topmix_presentazione import _testi_della_tab
+        base_1x2, base_ou = campione()
+        riga_1x2 = dict(
+            base_1x2,
+            match_id='1x2_1',
+            home='Inter',
+            away='Roma',
+            campionato='Serie A',
+            stagione='2026/2027',
+            data='15/10/2026 20:45',
+            kickoff_utc='2026-10-15T18:45:00Z',
+            prob_mercato_prima=0.65,
+            risultato_reale='2-0',
+            esito='✅',
+        )
+        voci_ou = [
+            dict(
+                base_ou,
+                match_id=f'ou_f_{i}',
+                home=f'Casa {i}',
+                away=f'Ospite {i}',
+                campionato='Serie A' if i < 5 else 'La Liga',
+                stagione='2026/2027',
+                data=f'{10 + i:02d}/10/2026 18:00',
+                kickoff_utc=f'2026-10-{10 + i:02d}T16:00:00Z',
+                prob_mercato_prima=0.70,
+                prob_sicuro=70.0,
+                risultato_reale='2-1' if i < 8 else ('1-0' if i < 10 else None),
+                esito='✅' if i < 8 else ('❌' if i < 10 else '⏳'),
+            )
+            for i in range(11)
+        ]
+        tutti = [riga_1x2] + voci_ou
+        self.assertEqual(8, len(A.filtra_righe_registro(tutti, esito='Vinte (✅)', origine='Gol (mercato)')))
+        self.assertEqual(2, len(A.filtra_righe_registro(tutti, esito='Perse (❌)', origine='Gol (mercato)')))
+        self.assertEqual(1, len(A.filtra_righe_registro(tutti, esito='In Attesa (⏳)', origine='Gol (mercato)')))
+        self.assertEqual(5, len(A.filtra_righe_registro(tutti, campionato='Serie A', origine='Gol (mercato)')))
+        precedenti = copy.deepcopy(self.registro.vivo)
+        sel_esito = next(s for s in self.at.selectbox if s.label == 'Esito')
+        sel_origine = next(s for s in self.at.selectbox if s.label == 'Origine')
+        try:
+            self.registro.vivo[:] = tutti
+            self.at.run(timeout=900)
+            sel_esito = next(s for s in self.at.selectbox if s.label == 'Esito')
+            sel_origine = next(s for s in self.at.selectbox if s.label == 'Origine')
+            self.assertIn('Gol (mercato)', list(sel_origine.options))
+            # Filtro Origine = Gol (mercato), Esito = Vinte (✅)
+            sel_origine.set_value('Gol (mercato)')
+            sel_esito.set_value('Vinte (✅)')
+            self.at.run(timeout=900)
+            self.eccezioni(self.at, 'filtro Gol (mercato) + Vinte')
+            df_vinte = self._df(self.at, SCHEDA_REGISTRO, 0)
+            self.assertEqual(8, len(df_vinte))
+            self.assertEqual(['✅'] * 8, df_vinte['Esito'].tolist())
+            fuori_vinte, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+            self.assertIn('Nessuna riga della famiglia mercato con i filtri attivi.', ' \n'.join(fuori_vinte))
+            # Filtro Esito = Perse (❌)
+            next(s for s in self.at.selectbox if s.label == 'Esito').set_value('Perse (❌)')
+            self.at.run(timeout=900)
+            df_perse = self._df(self.at, SCHEDA_REGISTRO, 0)
+            self.assertEqual(2, len(df_perse))
+            self.assertEqual(['❌'] * 2, df_perse['Esito'].tolist())
+            # Filtro Origine = Top Mix: la tabella Gol - mercato viene filtrata via
+            next(s for s in self.at.selectbox if s.label == 'Esito').set_value('Tutti')
+            next(s for s in self.at.selectbox if s.label == 'Origine').set_value('Top Mix')
+            self.at.run(timeout=900)
+            fuori_topmix, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+            self.assertNotIn('Gol — mercato', ' \n'.join(fuori_topmix))
+        finally:
+            self.registro.vivo[:] = precedenti
+            next(s for s in self.at.selectbox if s.label == 'Esito').set_value('Tutti')
+            next(s for s in self.at.selectbox if s.label == 'Origine').set_value('Tutti')
+            self.at.run(timeout=900)
+
+
 
