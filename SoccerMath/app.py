@@ -3623,19 +3623,23 @@ def _config_colonne_partite():
     }
 
 
-@st.cache_data(ttl=900, show_spinner=False)
-def calendario_campionato(lega):
-    """Il calendario di UNA lega da football-data: ``(partite, errore)``.
+class _ErroreCalendario(Exception):
+    """Un calendario NON scaricato: serve a tenerlo FUORI dalla cache.
 
-    E' la SOLA fonte del calendario della scheda «🏟️ Partite»: la scheda non
-    legge mai ``st.session_state["live_data"]``, che e' il calendario caricato
-    dalla barra laterale con «SINCRONIZZA» e puo' essere quello di un'altra
-    lega. La cache (15 minuti) e' per lega, quindi cambiare il selettore non
-    mostra il calendario della lega precedente.
+    ``@st.cache_data`` mette in cache solo i valori restituiti, non le
+    eccezioni: se il download fallisce, la funzione in cache solleva questa
+    eccezione e Streamlit non memorizza niente. Cosi' un 429, un timeout o una
+    risposta non valida si RIPROVANO al rerun successivo invece di restare
+    appesi in scheda per 15 minuti.
+    """
 
-    ``errore`` e' un messaggio leggibile (401, 429, timeout, rete, risposta
-    non valida) oppure la stringa vuota. Senza chiave della fonte non parte
-    nessuna chiamata: il messaggio lo dice e la scheda non disegna tabelle.
+
+def _scarica_calendario_campionato(lega):
+    """Il download del calendario di UNA lega: ``(partite, errore)``.
+
+    Nessuna cache qui: la memoria e' di ``_calendario_in_cache``, che tiene
+    SOLO le risposte riuscite. Il corpo e' quello che prima stava dentro
+    ``calendario_campionato``.
     """
     codice = LEAGUE_CODE_MAP.get(lega)
     if not codice:
@@ -3676,6 +3680,51 @@ def calendario_campionato(lega):
         return [], (f"⚠️ Risposta football-data inattesa per il calendario di "
                     f"{lega}: 'matches' non è una lista.")
     return partite, ""
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _calendario_in_cache(lega):
+    """Le partite del calendario di ``lega``: in cache SOLO se riescono.
+
+    Restituisce la lista delle partite; se il download fallisce solleva
+    ``_ErroreCalendario`` con il messaggio per la scheda, e Streamlit NON
+    memorizza niente (le eccezioni non finiscono in cache). Da chiamare
+    tramite ``calendario_campionato``, che e' l'unica porta di ingresso.
+    """
+    partite, errore = _scarica_calendario_campionato(lega)
+    if errore:
+        raise _ErroreCalendario(errore)
+    return partite
+
+
+def calendario_campionato(lega):
+    """Il calendario di UNA lega da football-data: ``(partite, errore)``.
+
+    E' la SOLA fonte del calendario della scheda «🏟️ Partite»: la scheda non
+    legge mai ``st.session_state["live_data"]``, che e' il calendario caricato
+    dalla barra laterale con «SINCRONIZZA» e puo' essere quello di un'altra
+    lega. La cache (15 minuti) e' per lega, quindi cambiare il selettore non
+    mostra il calendario della lega precedente.
+
+    In cache restano SOLO le risposte riuscite: un errore (401, 429, timeout,
+    rete, risposta non valida, chiave mancante) NON si memorizza e viene
+    riprovato al rerun successivo, senza aspettare i 15 minuti del ttl
+    (prima, con ``([], errore)`` in cache, il messaggio d'errore restava in
+    scheda per tutto il ttl anche se la fonte era tornata viva dopo un
+    minuto). Il prezzo e' che, finche' la fonte non risponde, ogni punto
+    dell'app che chiede il calendario (la scheda, il dialogo, il contesto
+    partita) fa la sua chiamata nello stesso run: e' il ritentativo, non un
+    errore.
+
+    ``errore`` e' un messaggio leggibile oppure la stringa vuota. Senza chiave
+    della fonte non parte nessuna chiamata: il messaggio lo dice e la scheda
+    non disegna tabelle.
+    """
+    try:
+        return _calendario_in_cache(lega), ""
+    except _ErroreCalendario as e:
+        # Niente cache dell'errore: al prossimo rerun si riprova da capo.
+        return [], str(e)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
