@@ -3477,8 +3477,9 @@ tab_strumenti = _schede[5] if len(_schede) > 5 else None
 # quello della barra laterale) e la giornata (predefinita la prossima da
 # giocare: le stesse due funzioni che popolavano il selettore della barra
 # laterale). Sotto, UNA tabella con tutte le partite della giornata: quando si
-# giocano, le probabilita' 1/X/2 delle quote e l'esito piu' probabile; per le
-# partite gia' giocate il risultato prende il posto delle probabilita'. Il clic
+# giocano, le probabilita' 1/X/2 delle quote e il pronostico (lo stesso del Top
+# Mix: l'esito piu' probabile, ma solo se arriva al 57%); per le partite gia'
+# giocate il risultato prende il posto delle probabilita'. Il clic
 # sulla riga apre la scheda della partita, come nelle altre schede: la fila di
 # pulsanti «Scheda» non c'e' piu' (le key partite_scheda_* spariscono con lei).
 # In fondo, chiuso, il riquadro «Dettagli» con l'Analisi Rapida e le card del
@@ -3511,18 +3512,21 @@ def risultato_in_colonna(match):
         return ""
 
 
-def esito_piu_probabile(quote):
-    """La sigla dell'esito con la probabilita' piu' alta: «1», «X» o «2».
+def pronostico_dalle_quote(quote):
+    """La sigla del pronostico della riga: «1», «X», «2», il trattino o il vuoto.
 
-    Lettura, non calcolo: i numeri sono quelli delle quote, gia' passati da
-    :func:`percento_decimale`. Se anche uno solo dei tre manca la cella resta
-    vuota (nessuna classifica parziale spacciata per un pronostico); a parita'
-    di probabilita' vince la sigla che viene prima nell'ordine 1, X, 2.
+    E' la STESSA regola del Top Mix, non l'esito con la probabilita' piu' alta:
+    l'esito piu' probabile del mercato conta solo se arriva a
+    ``SOGLIA_TOPMIX_MERCATO`` (0,57); sotto, la colonna mostra «—», perche' un
+    39,9% non e' un pronostico. La regola sta in
+    ``market_odds.esito_ammesso``, unica per la scheda Partite e per la scheda
+    della singola partita: qui non si riscrive, si chiama.
+
+    Lettura, non calcolo: i numeri sono quelli delle quote. Se anche uno solo
+    dei tre manca la cella resta VUOTA (nessun pronostico inventato e nessuna
+    classifica parziale spacciata per una scelta).
     """
-    valori = {e: percento_decimale((quote or {}).get(e)) for e in ESITI_PARTITE}
-    if any(v is None for v in valori.values()):
-        return ""
-    return max(ESITI_PARTITE, key=lambda e: valori[e])
+    return market_odds.esito_ammesso(quote)
 
 
 def riga_tabella_partita(riga, match, adesso=None):
@@ -3548,7 +3552,7 @@ def riga_tabella_partita(riga, match, adesso=None):
         "1": percento_decimale((quote or {}).get("1")),
         "X": percento_decimale((quote or {}).get("X")),
         "2": percento_decimale((quote or {}).get("2")),
-        "Pronostico": esito_piu_probabile(quote),
+        "Pronostico": pronostico_dalle_quote(quote),
         "Risultato": risultato,
         "provvisoria": bool(lontana),
         "scheda": {"lega": riga.get("lega"), "casa": riga.get("casa"),
@@ -3614,8 +3618,11 @@ def _config_colonne_partite():
             "quote."),
         "Pronostico": st.column_config.TextColumn(
             "Pronostico",
-            help="L'esito con la probabilità più alta secondo le quote: "
-                 "1 in casa, X pareggio, 2 in trasferta."),
+            help="Lo stesso pronostico del Top Mix: l'esito più probabile "
+                 "secondo le quote (1 in casa, X pareggio, 2 in trasferta), "
+                 "ma solo quando la sua probabilità arriva al "
+                 f"{SOGLIA_TOPMIX_MERCATO:.0%}; sotto quella soglia la cella "
+                 "mostra «—» e la colonna resta vuota senza quote."),
         "Risultato": st.column_config.TextColumn(
             "Risultato",
             help="Il risultato finale delle partite già giocate: al posto delle "
@@ -3807,7 +3814,9 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
                          key=lambda m: str((m or {}).get("utcDate") or "9999"))
         st.subheader(f"🏟️ {camp_sel.upper()} - GIORNATA {g_sel}")
         st.caption("Tutte le partite della giornata: quando si giocano, le "
-                   "probabilità 1, X, 2 delle quote e l'esito più probabile. "
+                   "probabilità 1, X, 2 delle quote e il pronostico — lo stesso "
+                   "del Top Mix, che compare solo quando l'esito arriva al "
+                   f"{market_odds.SOGLIA_TOPMIX_MERCATO:.0%} (altrimenti un trattino). "
                    "Delle partite già giocate si legge il risultato. "
                    "Clic sulla riga: la scheda della partita.")
         # --- LA TABELLA DELLA GIORNATA (la scheda si apre dal clic) ---------

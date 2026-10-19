@@ -88,6 +88,45 @@ SOGLIA_TOPMIX_MERCATO = 0.57
 # (definizione della PR #49 §4d, tabella B).
 SOGLIA_ACCORDO = 0.55
 
+#: Cosa si mostra quando il mercato ha i suoi numeri ma NESSUN esito arriva
+#: alla soglia: un trattino, non l'esito piu' alto (che non e' un pronostico).
+#: La stringa vuota resta il «dato che non c'e'» (partita senza quote, o gia'
+#: giocata: li' la colonna e' proprio vuota, non «senza pronostico»).
+TRATTINO_PRONOSTICO = "—"
+
+
+def esito_ammesso(prob_mercato: Optional[Dict[str, Any]],
+                  soglia: float = SOGLIA_TOPMIX_MERCATO) -> str:
+    """La sigla del pronostico: «1», «X», «2» — oppure il trattino, oppure "".
+
+    E' la STESSA regola del Top Mix
+    (``app.seleziona_riga_top_mix_mercato``: argmax delle tre probabilita' di
+    mercato con spareggio sul PRIMO massimo nell'ordine 1, X, 2, ammesso solo
+    se la sua probabilita' e' >= ``soglia``) letta senza il resto della riga.
+    La usano la scheda Partite e la scheda della singola partita, che devono
+    mostrare LO STESSO pronostico del Top Mix: una regola sola, non due copie
+    che possono divergere.
+
+    * ``""`` (stringa vuota) quando manca un numero: nessun pronostico
+      inventato, la cella resta vuota come le probabilita' 1/X/2;
+    * ``TRATTINO_PRONOSTICO`` («—») quando la terna c'e' ma l'esito piu'
+      probabile NON arriva alla soglia: un 39,9% non e' un pronostico;
+    * «1»/«X»/«2» altrimenti: la sigla dell'esito ammesso.
+    """
+    if not isinstance(prob_mercato, dict):
+        return ""
+    valori: List[float] = []
+    for esito in ESITI:
+        v = _probabilita_num(prob_mercato.get(esito))
+        if v is None:
+            return ""
+        valori.append(v)
+    k = 0
+    for i in range(1, len(valori)):                 # spareggio: il PRIMO massimo
+        if valori[i] > valori[k]:
+            k = i
+    return ESITI[k] if valori[k] >= soglia else TRATTINO_PRONOSTICO
+
 # Calcolatore di multipla: al massimo 5 righe (vincolo della commessa).
 MASSIMO_RIGHE_MULTIPLA = 5
 MINIMO_RIGHE_MULTIPLA = 1

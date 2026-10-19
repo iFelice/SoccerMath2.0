@@ -15,7 +15,8 @@ Cosa verifica, in parole povere:
 * dalla scheda «🏟️ Partite» — la PRIMA scheda, sempre in vista — la giornata si
   sceglie con i due selettori in testa (campionato e giornata) e la tabella
   elenca TUTTE le partite di quella giornata di quel campionato: quando si
-  giocano, le probabilità 1/X/2 delle quote, l'esito più probabile e, per le
+  giocano, le probabilità 1/X/2 delle quote, il pronostico (lo stesso del Top
+  Mix, sotto il 57% un trattino) e, per le
   partite già giocate, il risultato al posto delle probabilità. Selezionare la
   riga N apre la scheda della partita N (i pulsanti «Scheda» non esistono più);
 * l'analisi odierna (Analisi Rapida e card del modello) sta DENTRO il riquadro
@@ -60,6 +61,8 @@ from test_apptest_topmix_presentazione import (  # noqa: E402
 
 from display_names import display_name  # noqa: E402
 from team_names import resolve_team_name  # noqa: E402
+
+import market_odds as mo  # noqa: E402
 
 #: Le due partite del prossimo turno di cui si stampa il testo reso: una di
 #: vertice (Serie A) e una di bassa classifica (Ligue 1).
@@ -359,8 +362,9 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                                  r"\d{2}:\d{2}( ⏳)?$")
         # 1, X, 2 sono TESTO con una cifra decimale e la virgola italiana
         # («56,3%»), perche' le partite giocate e quelle senza quote hanno la
-        # cella vuota e una NumberColumn scriverebbe «None»; «Pronostico» e' la
-        # sigla dell'esito piu' probabile della stessa riga.
+        # cella vuota e una NumberColumn scriverebbe «None»; «Pronostico» e' lo
+        # STESSO pronostico del Top Mix: l'esito piu' alto della riga, ma solo
+        # se arriva a SOGLIA_TOPMIX_MERCATO (sotto, un trattino).
         p1, px, p2 = (self._percentuali_colonna(df, c) for c in ("1", "X", "2"))
         pronostici = [str(x) for x in df["Pronostico"].tolist()]
         for i in range(len(df)):
@@ -374,8 +378,18 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                     self.assertEqual(round(float(v), 1), float(v),
                                      f"{esito}: una cifra decimale")
                     self.assertTrue(0.0 < float(v) < 100.0, f"{esito}: {v}")
-                self.assertEqual(max(("1", "X", "2"), key=lambda e: terna[e]),
-                                 pronostici[i], "il pronostico e' l'esito piu' alto")
+                # Lo stesso pronostico del Top Mix: l'esito piu' alto solo se
+                # arriva al 57%, altrimenti il trattino. Le celle sono
+                # arrotondate a una cifra: chi sfiora la soglia vale il massimo.
+                migliore = max(("1", "X", "2"), key=lambda e: terna[e])
+                atteso = mo.esito_ammesso(
+                    {e: float(terna[e]) / 100.0 for e in terna})
+                if atteso == mo.TRATTINO_PRONOSTICO and (
+                        float(terna[migliore]) / 100.0
+                        >= mo.SOGLIA_TOPMIX_MERCATO - 0.0005):
+                    atteso = migliore
+                self.assertEqual(atteso, pronostici[i],
+                                 "il pronostico e' quello del Top Mix")
         self.assertTrue(any(v is not None for v in p1),
                         "lo snapshot ha le quote: almeno una riga deve mostrarle")
         self.assertTrue(any(v is None for v in p1),

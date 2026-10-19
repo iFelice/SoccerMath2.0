@@ -1056,6 +1056,12 @@ def costruisci_scheda(camp_key: str, casa: Any, trasferta: Any, *,
         "modello_disponibile": any(v is not None for v in terna_modello.values()),
         "in_parole": probabilita_in_parole(prob.get("quote"), casa_nome, trasferta_nome),
     }
+    # Il PRONOSTICO della partita: la stessa regola del Top Mix (esito piu'
+    # probabile ammesso solo da SOGLIA_TOPMIX_MERCATO in su), non l'esito con
+    # la probabilita' piu' alta e basta. Una regola sola, in market_odds,
+    # per la scheda della partita e per la colonna della scheda Partite:
+    # le due non possono divergere. Vuoto se mancano le quote.
+    scheda["pronostico"] = mo.esito_ammesso(prob.get("quote"))
 
     # --- (b) classifica e obiettivi ---------------------------------------
     cl = classifica(risultati)
@@ -1138,6 +1144,11 @@ def blocchi_scheda(scheda: Dict[str, Any]) -> List[Tuple[str, List[str]]]:
             righe.append(f"{esito} · Quote % {valore} · Modello % {modello_txt}")
     else:
         righe.append(FRASE_QUOTE_ASSENTI)
+    # Il pronostico della partita: LO STESSO del Top Mix. Sotto soglia si
+    # legge il trattino, non l'esito piu' alto: un 39,9% non e' un pronostico.
+    if prob.get("disponibile"):
+        righe.append("Pronostico: "
+                     + (scheda.get("pronostico") or mo.TRATTINO_PRONOSTICO))
     from totals_mercato import frase_totals
     frase_gol = frase_totals(scheda.get("totals") or {})
     if frase_gol:
@@ -1288,5 +1299,9 @@ def righe_partite_giornata(matches: Sequence[Dict[str, Any]],
             "quando": lg.quando_italiano(m.get("utcDate")) if m.get("utcDate") else "data n/d",
             "probabilita": prob,
             "in_parole": probabilita_in_parole(prob.get("quote"), casa_disp, trasferta_disp),
+            # Lo STESSO pronostico della scheda della singola partita e del
+            # Top Mix: la regola e' una (market_odds.esito_ammesso) e qui si
+            # legge, non si riscrive.
+            "pronostico": mo.esito_ammesso(prob.get("quote")),
         })
     return fuori
