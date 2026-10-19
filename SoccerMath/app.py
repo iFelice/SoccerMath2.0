@@ -893,7 +893,7 @@ def _coppia_canonica_partita(match):
     """(casa, trasferta) canonici di una partita football-data; ``None`` se non risolti."""
     casa = match.get("homeTeam") or {}
     trasferta = match.get("awayTeam") or {}
-        return _coppia_canonica(casa.get("name") or casa.get("shortName"),
+    return _coppia_canonica(casa.get("name") or casa.get("shortName"),
                             trasferta.get("name") or trasferta.get("shortName"))
 
 
