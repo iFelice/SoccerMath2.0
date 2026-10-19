@@ -60,6 +60,7 @@ import tempfile
 import time
 import unittest
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from unittest import mock
 
@@ -97,7 +98,7 @@ ETICHETTA_VECCHIO = "Registra le giocate della giornata"
 #: confronto del punto 5 li toglie dal paragone.
 VOLATILI = ("salvato_il",)
 
-ITALIA = timezone(timedelta(hours=2))  # l'ora in cui l'app mostra le date
+ITALIA = ZoneInfo("Europe/Rome")  # ora italiana con il cambio legale/solare, come l'app
 
 
 def _id(riga):

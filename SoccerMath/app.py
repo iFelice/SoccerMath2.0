@@ -137,6 +137,12 @@ from prediction_registry import (
     upsert_prediction_entry,
     overall_reliability_transfer_warning,
     # --- gate shadow (referto §11quater, piano §9 punto 4) ---
+    # Grading delle voci O/U (match_id The Odds API, nessuna giornata): la
+    # partita si cerca su football-data per (lega, giorno) e si abbina per
+    # squadre e data. ``FD_MATCH_ID_FIELD`` e' l'id football-data trovato.
+    FD_MATCH_ID_FIELD,
+    KICKOFF_UTC_FIELD,
+    parse_kickoff,
     GATE_SHADOW_CONFIDENCE_FIELD,
     GATE_SHADOW_AMMESSA_FIELD,
     GATE_OFF_CONFIDENCE_FIELD,
@@ -847,23 +853,182 @@ def salva_registro_ombra(righe_ombra, righe_modello=None):
     return esito
 
 
+def _match_id_numerico(valore) -> bool:
+    """True se ``valore`` e' un id football-data (intero o stringa di cifre).
+
+    Le voci O/U del registro portano l'id dell'evento The Odds API (una stringa
+    esadecimale come ``7d3160040958fe21778fd5ee485666c3``): un id che
+    football-data non conosce, quindi la GET per giornata non puo' trovarle
+    MAI. Insieme alle righe senza giornata, sono il ramo nuovo del grading.
+    """
+    if valore is None or isinstance(valore, bool):
+        return False
+    if isinstance(valore, int):
+        return True
+    return isinstance(valore, str) and valore.strip().isdigit()
+
+
+def _giorno_kickoff_riga(riga):
+    """Giorno UTC (``YYYY-MM-DD``) della partita di una riga; ``None`` se illeggibile."""
+    quando = parse_kickoff(riga.get(KICKOFF_UTC_FIELD))
+    return None if quando is None else quando.strftime("%Y-%m-%d")
+
+
+def _coppia_canonica(home, away):
+    """(casa, trasferta) canonici di una coppia di nomi; ``None`` se non riconosciuti.
+
+    Passa dal resolver di produzione (``team_names.resolve_team_name``), come
+    ``_chiave_partita_canonica``: le due fonti dicono la stessa squadra in modi
+    diversi. Un nome non risolto (``mapped`` False) NON viene indovinato: senza
+    la coppia non si abbina niente.
+    """
+    h = resolve_team_name(home)
+    a = resolve_team_name(away)
+    if not (h.mapped and a.mapped):
+        return None
+    return (h.canonical, a.canonical)
+
+
+def _coppia_canonica_partita(match):
+    """(casa, trasferta) canonici di una partita football-data; ``None`` se non risolti."""
+    casa = match.get("homeTeam") or {}
+    trasferta = match.get("awayTeam") or {}
+    return _coppia_canonica(casa.get("name") or casa.get("shortName"),
+                            trasferta.get("name") or trasferta.get("shortName"))
+
+
+def _partite_finite(comp, giorno, api_key, timeout=15):
+    """Partite FINISHED di ``comp`` nella finestra [``giorno``, ``giorno`` + 1].
+
+    Ritorna la lista (anche vuota) o ``None`` se la chiamata non e' andata a
+    buon fine. ``None`` NON significa "partita assente": il motivo e' gia' nel
+    log e il chiamante non deve scrivere nessun esito su una risposta mancata.
+    """
+    try:
+        dal = datetime.strptime(giorno, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return None
+    al = dal + timedelta(days=1)
+    try:
+        r = requests.get(
+            f"https://api.football-data.org/v4/competitions/{comp}/matches",
+            headers={"X-Auth-Token": api_key},
+            params={"dateFrom": dal.strftime("%Y-%m-%d"),
+                    "dateTo": al.strftime("%Y-%m-%d"),
+                    "status": "FINISHED"},
+            timeout=timeout,
+        )
+    except Exception as e:
+        logging.warning(f"Partite {comp} del {giorno} non scaricate: {e}")
+        return None
+    if r.status_code != 200:
+        logging.warning(f"Partite {comp} del {giorno}: HTTP {r.status_code}")
+        return None
+    try:
+        return list(r.json().get("matches") or [])
+    except Exception as e:
+        logging.warning(f"Partite {comp} del {giorno}: risposta non leggibile ({e})")
+        return None
+
+
+def _esiti_senza_giornata(preds, api_key, cache):
+    """Grading delle righe in attesa che football-data NON sa cercare per giornata.
+
+    Sono le voci O/U: ``entry_registro_totals`` salva ``giornata=None`` e, come
+    ``match_id``, l'id dell'evento The Odds API. La partita si cerca quindi
+    nella finestra che va dal giorno del kickoff al giorno dopo, con
+    ``status=FINISHED``, e si abbina per coppia di nomi canonici e stessa data.
+
+    Abbinamento univoco o niente: con zero partite (o piu' di una) la riga
+    resta ``⏳`` e il motivo finisce nel log, perche' un risultato preso dalla
+    partita sbagliata e' peggio di un risultato mancante. Una chiamata per
+    (lega, giorno), in cache nello stesso giro (Registro vivo e ombra insieme).
+    """
+    aggiornate = 0
+    if not preds:
+        return 0
+    from collections import defaultdict
+    raggruppate = defaultdict(list)
+    for p in preds:
+        comp = LEAGUE_CODE_MAP.get(p.get("campionato"))
+        giorno = _giorno_kickoff_riga(p)
+        coppia = _coppia_canonica(p.get("home"), p.get("away"))
+        if not comp or giorno is None or coppia is None:
+            logging.warning(
+                f"Grading O/U senza estremi: {p.get('home')}-{p.get('away')} "
+                f"({p.get('mercato_standard')}, campionato={p.get('campionato')!r}, "
+                f"kickoff={p.get(KICKOFF_UTC_FIELD)!r}): resta ⏳")
+            p["esito"] = "⏳"
+            continue
+        raggruppate[(comp, giorno)].append((p, coppia))
+    for (comp, giorno), righe in raggruppate.items():
+        chiave_cache = ("ou_giorno", comp, giorno)
+        if chiave_cache not in cache:
+            cache[chiave_cache] = _partite_finite(comp, giorno, api_key)
+        partite = cache[chiave_cache]
+        if partite is None:
+            continue        # chiamata fallita: motivo gia' nel log, nessun esito scritto
+        for p, coppia in righe:
+            trovate = [m for m in partite
+                       if str(m.get("utcDate") or "")[:10] == giorno
+                       and _coppia_canonica_partita(m) == coppia]
+            if len(trovate) != 1:
+                motivo = ("nessuna partita finita" if not trovate
+                          else f"{len(trovate)} partite corrispondenti")
+                logging.warning(f"Grading O/U {p.get('home')}-{p.get('away')} del {giorno} "
+                                f"({p.get('mercato_standard')}): {motivo}, resta ⏳")
+                p["esito"] = "⏳"
+                continue
+            match = trovate[0]
+            gol = (match.get("score") or {}).get("fullTime") or {}
+            gh, ga = gol.get("home"), gol.get("away")
+            if gh is None or ga is None:
+                continue
+            p["risultato_reale"] = f"{gh}-{ga}"
+            # Stessa tabella degli altri rami: nessun mercato "non graduato
+            # perche' salvato da un altro percorso".
+            p["esito"] = esito_mercato(p.get("mercato_standard", ""), gh, ga) or "⏳"
+            # L'id di football-data NON sostituisce ``match_id``: quello e' la
+            # chiave anti-doppioni della riga e resta quello di sempre.
+            p[FD_MATCH_ID_FIELD] = match.get("id")
+            aggiornate += 1
+    return aggiornate
+
+
 def _applica_esiti(preds, api_key, cache=None):
     """Grading delle righe ancora in attesa: UNA logica per il Registro vivo e per l'ombra.
 
+    Due percorsi, una sola tabella di grading (``esito_mercato``):
+
+    * righe CON giornata e ``match_id`` football-data (1X2 visibili e ombra):
+      la GET per giornata di sempre;
+    * righe SENZA giornata o con ``match_id`` NON numerico: le voci O/U, il cui
+      ``match_id`` e' l'id dell'evento The Odds API. Si cercano su
+      football-data per (lega, giorno) e si abbinano per squadre e data
+      (``_esiti_senza_giornata``).
+
     Modifica ``preds`` sul posto e ritorna ``(aggiornate, pending)``. ``cache`` e'
-    il dizionario delle risposte per giornata condiviso fra le due passate
-    (visibile e ombra): un solo giro di chiamate a football-data per giornata.
+    il dizionario delle risposte condiviso fra le due passate (visibile e
+    ombra): un solo giro di chiamate a football-data per giornata e per
+    (lega, giorno).
     """
     if cache is None:
         cache = {}
     aggiornate = 0
-    # FIX: is not None invece di truthiness, così giornata=0 non viene esclusa
-    pending = [p for p in preds if p.get("esito") in [None, "⏳"] and p.get("campionato") is not None and p.get("giornata") is not None]
+    pending = [p for p in preds if p.get("esito") in [None, "⏳"] and p.get("campionato") is not None]
     if not pending:
         return 0, 0
+    per_giornata, senza_giornata = [], []
+    for p in pending:
+        # FIX: is not None invece di truthiness, così giornata=0 non viene esclusa
+        if p.get("giornata") is not None and _match_id_numerico(p.get("match_id")):
+            per_giornata.append(p)
+        else:
+            senza_giornata.append(p)
+    aggiornate += _esiti_senza_giornata(senza_giornata, api_key, cache)
     from collections import defaultdict
     grouped = defaultdict(list)
-    for p in pending:
+    for p in per_giornata:
         grouped[(p["campionato"], p["giornata"])].append(p)
 
     # --- FIX GIORNATA 0: chiamata diretta per match_id ---

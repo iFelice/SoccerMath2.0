@@ -495,6 +495,13 @@ ESITO_VINTO = "\u2705"
 ESITO_PERSO = "\u274c"
 ESITO_ATTESA = "\u23f3"
 
+# Campo NUOVO (solo di grading): l'id football-data della partita con cui la
+# riga e' stata giudicata. Serve alle voci O/U, il cui ``match_id`` e' l'id
+# dell'evento The Odds API e resta la chiave anti-doppioni della riga: qui si
+# scrive l'id dell'ALTRA fonte, senza toccare quello. Assente sulle righe
+# graduate per giornata (il ``match_id`` e' gia' l'id football-data).
+FD_MATCH_ID_FIELD = "fd_match_id"
+
 
 # ---------------------------------------------------------------------------
 # Formula del gate shadow (funzioni pure, importabili anche senza app.py)
