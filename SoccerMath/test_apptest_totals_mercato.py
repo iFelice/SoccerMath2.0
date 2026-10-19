@@ -306,7 +306,6 @@ class TestAppTotals(_BaseQuoteFinte):
             self.at.run(timeout=900)
 
     def test_11_filtri_esito_e_origine_su_tabella_gol_mercato(self):
-        import app as A
         from test_totals_correzioni import campione
         from test_apptest_topmix_presentazione import _testi_della_tab
         base_1x2, base_ou = campione()
@@ -341,13 +340,7 @@ class TestAppTotals(_BaseQuoteFinte):
             for i in range(11)
         ]
         tutti = [riga_1x2] + voci_ou
-        self.assertEqual(8, len(A.filtra_righe_registro(tutti, esito='Vinte (✅)', origine='Gol (mercato)')))
-        self.assertEqual(2, len(A.filtra_righe_registro(tutti, esito='Perse (❌)', origine='Gol (mercato)')))
-        self.assertEqual(1, len(A.filtra_righe_registro(tutti, esito='In Attesa (⏳)', origine='Gol (mercato)')))
-        self.assertEqual(5, len(A.filtra_righe_registro(tutti, campionato='Serie A', origine='Gol (mercato)')))
         precedenti = copy.deepcopy(self.registro.vivo)
-        sel_esito = next(s for s in self.at.selectbox if s.label == 'Esito')
-        sel_origine = next(s for s in self.at.selectbox if s.label == 'Origine')
         try:
             self.registro.vivo[:] = tutti
             self.at.run(timeout=900)

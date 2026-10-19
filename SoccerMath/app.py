@@ -6310,11 +6310,7 @@ COLONNE_GOL_MERCATO_TECNICA = [
 
 def _orario_inizio_gol(riga):
     """Orario di inizio (datetime naive Europe/Rome) di una riga Gol - mercato."""
-    for chiave in ("data", "kickoff_utc", "commence_time", "utcDate"):
-        dt = parse_registry_display_datetime(riga.get(chiave))
-        if dt is not None:
-            return dt
-    return None
+    return parse_registry_display_datetime(riga.get("data"))
 
 
 def ordina_righe_gol_mercato(righe):
@@ -6402,32 +6398,6 @@ def sintesi_gol_mercato(righe) -> str:
     testo_quote = (f"Quote: {int(round(100.0 * sum(prime) / len(prime)))}%"
                    if prime else "Quote: n/d")
     return f"Gol: finora {n} giocate concluse, {m} riuscite ({x_cento}%). {testo_quote}."
-
-
-def filtra_righe_registro(righe, campionato="Tutti", esito="Tutti",
-                          origine="Tutti", stagione="Tutti"):
-    """Applica i quattro filtri della scheda Registro (Campionato, Esito, Origine, Stagione)."""
-    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
-    filtrate = []
-    for r in records:
-        if campionato != "Tutti" and r.get("campionato") != campionato:
-            continue
-        esito_val = r.get("esito")
-        if esito == "In Attesa (⏳)" and esito_val not in ("⏳", None, ""):
-            continue
-        if esito == "Vinte (✅)" and esito_val != "✅":
-            continue
-        if esito == "Perse (❌)" and esito_val != "❌":
-            continue
-        data_ref = r.get("data") if r.get("data") is not None else r.get("kickoff_utc")
-        stag_val = r.get("stagione") or calcola_stagione_calcolo(data_ref)
-        if stagione != "Tutti" and stag_val != stagione:
-            continue
-        orig_val = r.get("origine") or tipo_for_origin(origin_of(r))
-        if origine != "Tutti" and orig_val != origine:
-            continue
-        filtrate.append(r)
-    return filtrate
 
 
 def _sintesi_registro_mercato(righe) -> tuple:
@@ -7055,19 +7025,7 @@ with tab_registro:
     if not preds: st.warning("Nessuna predizione.")
     else:
         df_preds = pd.DataFrame(preds)
-        if "data" not in df_preds.columns:
-            df_preds["data"] = [p.get("kickoff_utc") for p in preds]
-        else:
-            df_preds["data"] = [
-                p.get("data") if p.get("data") is not None else p.get("kickoff_utc")
-                for p in preds
-            ]
-        df_preds['stagione'] = [
-            calcola_stagione_calcolo(d)
-            if calcola_stagione_calcolo(d) != "Sconosciuta" or not p.get("stagione")
-            else str(p.get("stagione"))
-            for p, d in zip(preds, df_preds["data"].tolist())
-        ]
+        df_preds['stagione'] = df_preds['data'].apply(calcola_stagione_calcolo)
         # Classificazione esplicita: i record senza model_version restano
         # "Legacy" e NON vengono considerati automaticamente post-fix.
         df_preds['modello'] = [model_label(p) for p in preds]
