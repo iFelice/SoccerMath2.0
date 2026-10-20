@@ -198,6 +198,66 @@ class TestClassificaRiconataAMano(unittest.TestCase):
         self.assertEqual(chiavi, sorted(chiavi))
 
 
+class TestPosizioneGiornataPrecedente(unittest.TestCase):
+    """``pos_prec``: la posizione alla giornata precedente, stessa classifica.
+
+    Sui risultati archiviati di Serie A (ultima giornata giocata: la 7ª)
+    Napoli e' 9ª adesso e 8ª senza le partite della 7ª giornata, Roma e'
+    3ª in entrambi i casi. Con una sola giornata giocata una giornata
+    precedente non c'e': ``pos_prec`` vale ``None`` per tutte.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.risultati = sp.carica_risultati_stagione(CAMP)
+        if cls.risultati.empty:
+            raise unittest.SkipTest("nessun risultato della stagione in corso")
+        cls.classifica = sp.classifica(cls.risultati)
+
+    def _riga(self, squadra: str) -> dict:
+        riga = sp.riga_classifica(self.classifica, squadra)
+        self.assertIsNotNone(riga, f"{squadra} non e' in classifica")
+        return riga
+
+    def test_napoli_e_roma_sui_risultati_archiviati(self):
+        Napoli = self._riga("Napoli")
+        self.assertEqual(Napoli["pos"], 9)
+        self.assertEqual(Napoli["pos_prec"], 8)
+        Roma = self._riga("Roma")
+        self.assertEqual(Roma["pos"], 3)
+        self.assertEqual(Roma["pos_prec"], 3)
+        # Ogni squadra presente alla giornata precedente ha la sua posizione.
+        for riga in self.classifica:
+            with self.subTest(squadra=riga["squadra"]):
+                self.assertIn("pos_prec", riga)
+                self.assertIsInstance(riga["pos_prec"], int)
+
+    def test_pos_prec_nella_scheda_della_partita(self):
+        scheda = sp.costruisci_scheda(CAMP, "Napoli", "Roma",
+                                      risultati=self.risultati, storico_elo={})
+        casa = scheda["classifica"]["casa"]
+        trasferta = scheda["classifica"]["trasferta"]
+        self.assertIsNotNone(casa)
+        self.assertIsNotNone(trasferta)
+        self.assertEqual((casa["pos"], casa["pos_prec"]), (9, 8))
+        self.assertEqual((trasferta["pos"], trasferta["pos_prec"]), (3, 3))
+
+    def test_una_sola_giornata_giocata_pos_prec_none(self):
+        prima_giornata = self.risultati["giornata"].min()
+        una_giornata = self.risultati[self.risultati["giornata"] == prima_giornata]
+        self.assertEqual(una_giornata["giornata"].nunique(), 1)
+        cl = sp.classifica(una_giornata)
+        self.assertTrue(cl)
+        for riga in cl:
+            with self.subTest(squadra=riga["squadra"]):
+                self.assertIsNone(riga["pos_prec"])
+        riga = una_giornata.iloc[0]
+        scheda = sp.costruisci_scheda(CAMP, riga["casa"], riga["trasferta"],
+                                      risultati=una_giornata, storico_elo={})
+        self.assertIsNone(scheda["classifica"]["casa"]["pos_prec"])
+        self.assertIsNone(scheda["classifica"]["trasferta"]["pos_prec"])
+
+
 class TestGiornateEDistanze(unittest.TestCase):
     """Giornate rimaste (38 o 34) e distanze in punti dalle posizioni."""
 
