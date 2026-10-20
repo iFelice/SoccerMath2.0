@@ -704,8 +704,16 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertIn(atteso, titoli,
                       "il riquadro dev'essere la scheda della partita di quella riga")
         blocco = "\n".join(titoli[titoli.index(atteso):])
-        self.assertIn("Probabilità (dalle quote dei bookmaker)", blocco)
-        self.assertRegex(blocco, r"Quote % \d+,\d")
+        # La scheda è quella grafica (``scheda_grafica``): cinque sezioni
+        # HTML, coi titoli nuovi e la barra con la sua percentuale.
+        self.assertEqual(5, blocco.count('class="sg sg-sezione"'),
+                         "la scheda aperta deve avere le cinque sezioni HTML")
+        for titolo_sezione in ("Probabilità", "Classifica",
+                               "Forma: ultime 5 partite di campionato", "Gol",
+                               "Precedenti in stagione"):
+            self.assertIn(titolo_sezione, blocco)
+        self.assertRegex(blocco, r'sg-valore">\d+,\d%</span>',
+                         "almeno una percentuale delle barre 1/X/2")
         # Una lettura non e' una scrittura: nessun salvataggio, nessuna PUT/POST.
         self.assertEqual([], self.scritture, "il clic su una riga non scrive il Registro")
         self.assertEqual([], self.registro.scritture,

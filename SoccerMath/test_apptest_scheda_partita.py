@@ -10,8 +10,8 @@ Cosa verifica, in parole povere:
 
 * dalla scheda «🎯 Multiple», selezionare una riga di «Le più probabili» apre
   il RIQUADRO della partita giusta (i due nomi della riga sono quelli del
-  titolo) con i blocchi in parole: probabilità dalle quote, classifica e
-  obiettivi, forma, gol, precedenti — nessun pulsante «Scheda» nella scheda;
+  titolo) con le cinque sezioni HTML di ``scheda_grafica``: probabilità,
+  classifica, forma, gol, precedenti — nessun pulsante «Scheda» nella scheda;
 * dalla scheda «🏟️ Partite» — la PRIMA scheda, sempre in vista — la giornata si
   sceglie con i due selettori in testa (campionato e giornata) e la tabella
   elenca TUTTE le partite di quella giornata di quel campionato: quando si
@@ -300,29 +300,25 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         self.at.run(timeout=900)
         self.eccezioni(self.at, "apertura della scheda dalla riga di «Le più probabili»")
         testo = self._testo_riquadro(self.at, atteso)
-        for titolo in ("Probabilità (dalle quote dei bookmaker)",
-                       "Classifica e obiettivi",
+        # Le CINQUE sezioni HTML di scheda_grafica (probabilita',
+        # classifica, forma, gol, precedenti): i blocchi di testo di
+        # scheda_partita restano per test e referti, qui si disegna HTML.
+        self.assertEqual(5, testo.count('class="sg sg-sezione"'))
+        for titolo in ("Probabilità", "Classifica",
                        "Forma: ultime 5 partite di campionato",
-                       "Gol", "Precedenti stagionali"):
+                       "Gol", "Precedenti in stagione"):
             with self.subTest(blocco=titolo):
                 self.assertIn(titolo, testo)
         self.assertIn(f"### {atteso}", testo,
                       "il riquadro deve essere quello della partita della riga")
         self.assertIn(_nomi_mostrati(trasferta), testo,
                       "nel riquadro ci sono i nomi delle due squadre della riga")
-        self.assertIn("Quote %", testo)
-        self.assertIn("Modello %", testo)
-        # In vista, in chiaro: le percentuali delle quote e i punti delle due
-        # squadre. Nessun punteggio o indice inventato dalla scheda.
-        self.assertRegex(testo, r"Quote % \d+,\d")
-        # La riga delle probabilita' e' quella delle tabelle di «Giocate»: la
-        # sigla dell'esito e i due NUMERI, senza parentesi e senza il simbolo %.
+        # Le barre 1/X/2 con la percentuale a destra, col simbolo.
         for esito in ("1", "X", "2"):
             with self.subTest(esito=esito):
-                self.assertRegex(testo, rf"(?m)^{esito} · Quote % \d+,\d · Modello % ")
-        self.assertIsNone(re.search(r"\d+,\d\s*%", testo),
-                          "nella scheda la percentuale resta un numero, senza simbolo")
-        self.assertRegex(testo, r"\d+° posto")
+                self.assertIn(f'<span class="sg-esito">{esito}</span>', testo)
+        self.assertRegex(testo, r"\d+,\d%")
+        self.assertRegex(testo, r"\d+°")
         for parola in PAROLE_VIETATE:
             with self.subTest(parola=parola):
                 self.assertIsNone(re.search(parola, testo, re.IGNORECASE),
@@ -499,7 +495,8 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                 didascalie = "\n".join(str(getattr(el, "value", "") or "")
                                        for el in self.at.caption)
                 self.assertIn(RENDER_VERTICE[0], didascalie)
-                self.assertIn("Quote %", testo)
+                self.assertIn("Giornata 8", didascalie)
+                self.assertIn("Probabilità", testo)
                 self.assertIn("Al comando della classifica", testo)  # Inter e' prima
                 self._scrivi_render("vertice", testo, RENDER_VERTICE)
 
@@ -511,7 +508,7 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         self._seleziona_riga(self.at, self._indice_riga(self.at, *RENDER_BASSA[1:]))
         testo = self._testo_riquadro(self.at, _titolo_atteso(*RENDER_BASSA[1:]))
         self.assertIn(f"### {_titolo_atteso(*RENDER_BASSA[1:])}", testo)
-        self.assertIn("Classifica e obiettivi", testo)
+        self.assertIn("Classifica", testo)
         self._scrivi_render("bassa", testo, RENDER_BASSA)
 
     def _scrivi_render(self, etichetta: str, testo: str, partita):

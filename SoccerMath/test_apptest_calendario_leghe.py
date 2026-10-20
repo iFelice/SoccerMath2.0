@@ -283,9 +283,18 @@ class TestCalendarioDellaScheda(_BaseQuoteFinte):
         self.assertIn(titolo, valori)
         i = valori.index(titolo)
         testo = "\n".join(valori[i:i + 30])
-        self.assertIn("Classifica e obiettivi", testo)
+        # La scheda è quella grafica (``scheda_grafica``): cinque sezioni
+        # HTML, coi titoli nuovi e la barra con la sua percentuale.
+        self.assertEqual(5, testo.count('class="sg sg-sezione"'),
+                         "la scheda aperta deve avere le cinque sezioni HTML")
+        for titolo_sezione in ("Probabilità", "Classifica",
+                               "Forma: ultime 5 partite di campionato", "Gol",
+                               "Precedenti in stagione"):
+            self.assertIn(titolo_sezione, testo)
+        self.assertRegex(testo, r'sg-valore">\d+,\d%</span>',
+                         "almeno una percentuale delle barre 1/X/2")
         self.assertIn("Bayern", testo)
-        self.assertRegex(testo, r"\d+° posto")
+        self.assertRegex(testo, r"\d+°")
         # Se la scheda leggesse la classifica della barra laterale (Serie A),
         # per il Bayern non ci sarebbe nessuna riga di classifica.
         self.assertNotIn("Bayern: dati di classifica insufficienti", testo)

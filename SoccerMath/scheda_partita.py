@@ -35,6 +35,11 @@ REGOLE DI LETTURA (dichiarate nel referto, testate una per una)
   "N su M partite";
 * le distanze in classifica sono punti del riferimento MENO punti della
   squadra: positive = da recuperare, negative = di vantaggio;
+* ``pos_prec`` e' la posizione alla giornata precedente: la stessa
+  classifica ricalcolata senza le partite dell'ultima giornata giocata
+  (la colonna ``giornata`` dei risultati); se una giornata precedente
+  non c'e' (una sola giornata giocata, o giornata non nota nei
+  risultati), vale ``None``, mai uno zero o una posizione inventata;
 * ``SOGLIA_TITOLO = 6``: "In corsa per il titolo" si scrive **solo** per una
   squadra nelle PRIME 3 posizioni ed entro 6 punti dal primo posto. Chi e'
   entro 6 punti ma fuori dalle prime 3 non e' in corsa per il titolo e ricade
@@ -299,12 +304,15 @@ def giornate_rimaste(n_squadre: int, partite_giocate: int) -> int:
 # ---------------------------------------------------------------------------
 # 2. Classifica (dai soli risultati della stagione) e posta in palio
 # ---------------------------------------------------------------------------
-def classifica(risultati: pd.DataFrame) -> List[Dict[str, Any]]:
-    """Classifica della stagione dai risultati, una riga per squadra.
+def _conteggio_classifica(risultati: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Il conteggio della classifica, senza la posizione precedente.
 
     Ordinamento: punti, differenza reti, gol fatti, nome (crescente). E' lo
     stesso criterio di lettura della classifica reale; le squadre a pari
     merito sono ordinate per nome, cosi' il risultato e' deterministico.
+    E' l'UNICO conteggio: la classifica corrente e quella della giornata
+    precedente passano entrambe da qui (stessa funzione, nessun conteggio
+    duplicato che possa divergere).
     """
     if risultati is None or risultati.empty:
         return []
@@ -349,6 +357,46 @@ def classifica(risultati: pd.DataFrame) -> List[Dict[str, Any]]:
     return elenco
 
 
+def _risultati_senza_ultima_giornata(risultati: pd.DataFrame) -> Optional[pd.DataFrame]:
+    """I risultati senza le partite dell'ultima giornata giocata, o ``None``.
+
+    L'ultima giornata giocata e' il valore massimo della colonna
+    ``giornata`` dei risultati archiviati. Se la colonna manca, e' tutta
+    vuota o ha un solo valore distinto, una giornata precedente non e'
+    identificabile: ``None`` (il chiamante scrive ``pos_prec = None``,
+    non inventa una posizione).
+    """
+    if risultati is None or risultati.empty or "giornata" not in risultati.columns:
+        return None
+    giornate = pd.to_numeric(risultati["giornata"], errors="coerce")
+    valide = giornate.dropna()
+    if valide.empty or valide.nunique() < 2:
+        return None
+    precedenti = risultati[giornate < valide.max()]
+    return precedenti if not precedenti.empty else None
+
+
+def classifica(risultati: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Classifica della stagione dai risultati, una riga per squadra.
+
+    Ogni riga porta anche ``pos_prec``: la posizione della squadra alla
+    giornata precedente, calcolata con la stessa funzione (lo stesso
+    conteggio di questa classifica) sui risultati archiviati escluse le
+    partite dell'ultima giornata giocata. Se non c'e' una giornata
+    precedente, o la squadra non era in quella classifica, ``pos_prec``
+    vale ``None``.
+    """
+    elenco = _conteggio_classifica(risultati)
+    if not elenco:
+        return elenco
+    senza_ultima = _risultati_senza_ultima_giornata(risultati)
+    pos_prec = ({r["squadra"]: r["pos"] for r in _conteggio_classifica(senza_ultima)}
+                if senza_ultima is not None else {})
+    for r in elenco:
+        r["pos_prec"] = pos_prec.get(r["squadra"])
+    return elenco
+
+
 def riga_classifica(cl: Sequence[Dict[str, Any]], squadra: str) -> Optional[Dict[str, Any]]:
     """La riga di ``squadra`` (nome canonico) nella classifica, o ``None``."""
     for r in cl or []:
@@ -378,6 +426,9 @@ def posta_in_palio(cl: Sequence[Dict[str, Any]], camp_key: str, squadra: str,
     l'opposto per costruzione (punti della squadra meno punti della prima
     posizione della zona: positiva = sopra la zona).
 
+    * ``pos_prec``         posizione alla giornata precedente, dalla riga
+                           di classifica (``None`` se non c'e' una giornata
+                           precedente o la riga non la porta);
     * ``dal_primo``        0 per la prima in classifica;
     * ``dal_quarto``/``dal_sesto``  quarto e sesto posto;
     * ``dalla_zona``       punti SOPRA la prima posizione della zona
@@ -412,7 +463,8 @@ def posta_in_palio(cl: Sequence[Dict[str, Any]], camp_key: str, squadra: str,
     quarto = next((r for r in cl if r["pos"] == 4), None)
     sesto = next((r for r in cl if r["pos"] == 6), None)
     return {
-        "pos": riga["pos"], "punti": riga["punti"], "giocate": riga["giocate"],
+        "pos": riga["pos"], "pos_prec": riga.get("pos_prec"),
+        "punti": riga["punti"], "giocate": riga["giocate"],
         "vinte": riga["vinte"], "pari": riga["pari"], "perse": riga["perse"],
         "gf": riga["gf"], "gs": riga["gs"], "dr": riga["dr"],
         "giornate_rimaste": giornate_rimaste(n_squadre, riga["giocate"]),
