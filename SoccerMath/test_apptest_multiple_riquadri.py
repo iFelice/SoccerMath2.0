@@ -378,7 +378,18 @@ class TestMultipleRiquadri(_BaseAppTest):
             with self.subTest(riga=n):
                 self.assertIn(atteso, titoli, f"la riga {n} apre la sua partita")
                 blocco = "\n".join(titoli[titoli.index(atteso):])
-                self.assertIn("Probabilità (dalle quote dei bookmaker)", blocco)
+                # La scheda è quella grafica (``scheda_grafica``): cinque
+                # sezioni HTML, coi titoli nuovi e la barra con la sua
+                # percentuale.
+                self.assertEqual(5, blocco.count('class="sg sg-sezione"'),
+                                 "la scheda aperta deve avere le cinque "
+                                 "sezioni HTML")
+                for titolo_sezione in ("Probabilità", "Classifica",
+                                       "Forma: ultime 5 partite di campionato",
+                                       "Gol", "Precedenti in stagione"):
+                    self.assertIn(titolo_sezione, blocco)
+                self.assertRegex(blocco, r'sg-valore">\d+,\d%</span>',
+                                 "almeno una percentuale delle barre 1/X/2")
         # Il clic e' una lettura: nessuna scrittura nel registro.
         self.assertEqual([], [c for c in self.chiamate_registro
                               if c[0].startswith("save_")])
