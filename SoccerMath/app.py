@@ -3383,12 +3383,21 @@ def _righe_partita_da_giocata(g):
 
 
 def _tema_scheda_grafica():
-    """Il tema per la scheda grafica: "dark"/"light" da st.context.
+    """Il tema per la scheda grafica: "dark"/"light".
 
-    Si legge il tipo del tema di Streamlit (``st.context.theme.type``);
-    se non e' disponibile (versione senza context, o valore non
-    riconosciuto) si ricade su "dark", il tema scuro.
+    Se l'interruttore "Segui tema sistema" (``follow_system_toggle``)
+    e' SPENTO la pagina e' forzata in chiaro con
+    ``CSS_TEMA_CHIARO_FORZATO``: la scheda usa la palette chiara anche
+    se ``st.context`` dice ancora dark (l'interruttore vince sul
+    context). Altrimenti si legge il tipo del tema di Streamlit
+    (``st.context.theme.type``); se non e' disponibile (versione senza
+    context, o valore non riconosciuto) si ricade su "dark".
     """
+    try:
+        if st.session_state.get("follow_system_toggle") is False:
+            return "light"
+    except Exception:
+        pass
     try:
         tipo = st.context.theme.type
     except Exception:
@@ -3425,13 +3434,16 @@ def _contenuto_scheda_partita(richiesta):
             st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE)),
         risultati=risultati, storico_elo=storico)
     st.markdown(f"### {scheda['casa']['nome']} - {scheda['trasferta']['nome']}")
-    giornata = richiesta.get("giornata") or richiesta.get("matchday")
+    giornata = richiesta.get("giornata")
     if giornata is None:
-        # Chi chiama non l'ha portata: la giornata della partita e' la
-        # prossima rispetto alle giornate gia' giocate della classifica.
-        giocate = (scheda.get("classifica") or {}).get("giornate_giocate")
-        giornata = int(giocate) + 1 if giocate is not None else "n/d"
-    st.caption(f"{scheda['quando']} · {scheda['lega']} · Giornata {giornata}")
+        giornata = richiesta.get("matchday")
+    didascalia = f"{scheda['quando']} · {scheda['lega']}"
+    if giornata is not None:
+        # La giornata compare SOLO se nota dalla richiesta (matchday
+        # del calendario): non si stima (niente giornate giocate + 1)
+        # e non si scrive "n/d" nella didascalia.
+        didascalia += f" · Giornata {giornata}"
+    st.caption(didascalia)
     tema = _tema_scheda_grafica()
     for sezione in (sgr.html_probabilita(scheda, tema=tema),
                     sgr.html_classifica(scheda, tema=tema),

@@ -13,6 +13,14 @@ Il controllo si fa due volte: con il tema SCURO (sotto AppTest
 proprieta' del tema di Streamlit viene forzata a "light" per la durata
 del ridisegno). In entrambi i casi, e in tutto il testo del riquadro,
 non deve comparire ``None``, ``nan`` o ``NaN``.
+
+Altri due controlli: con l'interruttore «Segui tema sistema»
+(``follow_system_toggle``) SPENTO la pagina e' forzata in chiaro e la
+scheda deve usare la palette chiara anche senza context; e una scheda
+la cui richiesta non porta la giornata (come quelle aperte da
+Pronostici, che nascono dalle quote e non dal calendario) mostra nella
+didascalia solo data, ora e campionato: niente «Giornata» e niente
+«n/d».
 """
 from __future__ import annotations
 
@@ -89,7 +97,8 @@ class TestSchedaGraficaAppTest(_BaseScheda):
         from test_apptest_scheda_partita import _titolo_atteso
         return self._testo_scheda(_titolo_atteso(*RENDER_VERTICE[1:]))
 
-    def _controlla_cinque_sezioni(self, testo: str, palette: str):
+    def _controlla_cinque_sezioni(self, testo: str, palette: str,
+                                  giornata: bool = True):
         self.assertEqual(
             5, testo.count('class="sg sg-sezione"'),
             "le sezioni HTML della scheda devono essere cinque")
@@ -102,11 +111,13 @@ class TestSchedaGraficaAppTest(_BaseScheda):
             with self.subTest(brutta=brutta):
                 self.assertIsNone(re.search(brutta, testo),
                                   f"{brutta} nel testo della scheda")
-        # L'intestazione: partita, data e ora, campionato, giornata.
+        # L'intestazione: partita, data e ora, campionato (e, se nota
+        # dalla richiesta, anche la giornata).
         didascalie = "\n".join(str(getattr(el, "value", "") or "")
                                for el in self.at.caption)
         self.assertIn(RENDER_VERTICE[0], didascalie)
-        self.assertIn("Giornata 8", didascalie)
+        if giornata:
+            self.assertIn("Giornata 8", didascalie)
 
     # -- i due temi ---------------------------------------------------------
     def test_01_cinque_sezioni_tema_scuro(self):
@@ -121,6 +132,67 @@ class TestSchedaGraficaAppTest(_BaseScheda):
         """Con theme.type forzato a "light": palette chiara."""
         testo = self._apri_bologna_inter(tema_forzato="light")
         self._controlla_cinque_sezioni(testo, "chiaro")
+
+    def test_03_interruttore_spento_palette_chiara(self):
+        """«Segui tema sistema» spento: pagina forzata in chiaro.
+
+        Sotto AppTest il context non dice "light" (dice None, quindi la
+        sola regola del context darebbe il fallback dark): con
+        l'interruttore spento la scheda deve comunque disegnarsi con la
+        palette chiara, come il resto della pagina forzata.
+        """
+        self.assertEqual("dark", self._tema_atteso(),
+                         "senza interruttore varrebbe il fallback dark")
+        interruttore = self._toggle(self.at, "follow_system_toggle")
+        interruttore.set_value(False)
+        self.at.run(timeout=900)
+        self.eccezioni(self.at, "interruttore del tema spento")
+        self.assertFalse(self._toggle(self.at, "follow_system_toggle").value)
+        testo = self._apri_bologna_inter()
+        self._controlla_cinque_sezioni(testo, "chiaro")
+        self.assertNotIn(sgr.PALETTE["scuro"]["sfondo"], testo)
+
+    def test_04_scheda_da_pronostici_senza_giornata(self):
+        """Una richiesta senza giornata: didascalia senza «Giornata».
+
+        E' la richiesta che arriva dalle schede delle quote (Pronostici
+        e le altre tabelle), dove la riga nasce dalle quote e non dal
+        calendario: lega, squadre e orario, nessun matchday. La
+        didascalia deve mostrare solo data, ora e campionato: niente
+        «Giornata» (niente stima dalle giornate giocate) e niente «n/d».
+        """
+        import app as app_mod
+        from team_names import resolve_team_name
+        from test_apptest_scheda_partita import _titolo_atteso
+
+        def _can(nome):
+            return resolve_team_name(nome).canonical
+
+        evento = next(ev for ev in self.eventi_per_lega[RENDER_VERTICE[0]]
+                      if _can(ev.get("home_team")) == _can(RENDER_VERTICE[1])
+                      and _can(ev.get("away_team")) == _can(RENDER_VERTICE[2]))
+        # La richiesta come nasce dalle righe delle quote: i nomi grezzi
+        # della fonte (casa "Bologna", trasferta "Inter Milan") e
+        # l'orario, nessun matchday del calendario.
+        self.at.session_state[app_mod.SCHEDA_PARTITA_APERTA_CHIAVE] = {
+            "lega": RENDER_VERTICE[0], "casa": evento.get("home_team"),
+            "trasferta": evento.get("away_team"),
+            "kickoff_utc": evento.get("commence_time"),
+        }
+        self.at.run(timeout=900)
+        self.eccezioni(self.at, "scheda da Pronostici senza giornata")
+        testo = self._testo_scheda(_titolo_atteso(*RENDER_VERTICE[1:]))
+        self.assertEqual(5, testo.count('class="sg sg-sezione"'))
+        didascalia_scheda = next(
+            c for c in (str(getattr(el, "value", "") or "")
+                        for el in self.at.caption)
+            if RENDER_VERTICE[0] in c and "·" in c
+            and re.search(r"\d{2}/\d{2}", c))
+        self.assertNotIn("Giornata", didascalia_scheda)
+        self.assertNotIn("n/d", didascalia_scheda)
+        # Data e ora restano, il campionato pure.
+        self.assertRegex(didascalia_scheda, r"\d{2}/\d{2}")
+        self.assertRegex(didascalia_scheda, r"\d{2}:\d{2}")
 
     @staticmethod
     def _tema_atteso() -> str:
