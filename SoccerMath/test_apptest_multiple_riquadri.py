@@ -16,11 +16,14 @@ Cosa verifica, in parole povere:
   su quello che riesce più spesso) e i NUMERI — quota totale e «Riesce» —
   uguali all'output di ``lista_giocate.cerca_proposta_multipla`` sullo stesso
   snapshot e lo stesso periodo; ogni partita ha la riga «Casa - Trasferta» e
-  sotto «sigla · giorno abbreviato ora»;
+  sotto «sigla · giorno abbreviato ora», dove la sigla e' quella GIOCATA e
+  porta fra parentesi il pronostico della partita quando e' un'altra cosa
+  («12 (pronostico: 1)», regola unica in ``app``);
 * il pulsante «Prova con le quote bet365» apre «Prova la tua giocata» con
   numero di giocate e gambe precaricate (caselle bet365 vuote);
-* «Le più probabili» e' UNA tabella con le sei colonne di Pronostici/Pareggi,
-  una riga per partita, tutte le righe, ordinata per «Quote %» decrescente;
+* «Le più probabili» e' UNA tabella con le sei colonne di Pronostici/Pareggi
+  piu' «Pronostico partita» (subito dopo «Pronostico»: sette in tutto), una
+  riga per partita, tutte le righe, ordinata per «Quote %» decrescente;
   selezionare la riga N apre la scheda della partita N;
 * nel testo reso della scheda — Dettagli compresi — non compare mai "None",
   "nan" o "NaN"; fuori dai Dettagli non compaiono le parole vietate (PR #64).
@@ -246,25 +249,37 @@ class TestMultipleRiquadri(_BaseAppTest):
                 self.assertEqual(f"{int(round(item['probabilita'] * 100))}%",
                                  r["metriche"].get("Riesce"))
                 # Ogni partita: «Casa - Trasferta» e, sotto, «sigla · quando».
+                # La sigla e' quella GIOCATA e, quando non e' il pronostico
+                # della partita, porta il pronostico fra parentesi
+                # («12 (pronostico: 1)»): la stessa regola della scheda
+                # Partite, una sola volta in ``app``.
                 testo = "\n".join(r["testi"])
                 self.assertEqual(k, len(item["giocate"]))
+                pronostici = app_mod.pronostici_dalle_quote(self.snap)
                 for g in item["giocate"]:
                     self.assertIn(f"{g['home']} - {g['away']}", testo)
                     lontana = lg.e_partita_provvisoria(g, self.ADESSO)
-                    self.assertIn(f"{str(g['giocata']).strip()} · "
+                    sigla = app_mod.sigla_giocata_con_pronostico(
+                        g["giocata"], pronostici.get(str(g.get("match_id"))))
+                    self.assertIn(f"{sigla} · "
                                   f"{app_mod._quando_breve(g['commence_time'], lontana)}",
                                   testo)
                 self.assertIn(app_mod.ETICHETTA_PROVA_QUOTE_BET365, testo)
                 self.assertNotIn("Per raddoppiare", testo)
 
     # -- 3. «Le più probabili»: una tabella, tutte le righe, stesse colonne ---
-    def test_03_le_piu_probabili_una_tabella_con_le_sei_colonne(self):
+    def test_03_le_piu_probabili_una_tabella_con_le_sette_colonne(self):
         import app as app_mod
         import lista_giocate as lg
         in_periodo, _prop = self._attese()
         attese = lg.migliori_giocate_per_partita(in_periodo, 1.20)
         df = self._df_probabili(self.at)
-        self.assertEqual(app_mod.COLONNE_PRONOSTICI, list(df.columns))
+        # Le sei colonne comuni piu' «Pronostico partita», subito dopo
+        # «Pronostico»: la giocata migliore di una partita e il pronostico di
+        # quella partita possono essere due cose diverse.
+        self.assertEqual(app_mod.COLONNE_PRONOSTICI[:3]
+                         + [app_mod.COLONNA_PRONOSTICO_PARTITA]
+                         + app_mod.COLONNE_PRONOSTICI[3:], list(df.columns))
         self.assertEqual(len(attese), len(df), "tutte le righe, una per partita")
         partite = [f"{g['home']} - {g['away']}" for g in attese]
         self.assertEqual(len(partite), len(set(partite)))
@@ -398,12 +413,13 @@ class TestMultipleRiquadri(_BaseAppTest):
                     righe_out.append(f"  {t}")
             righe_out.append("")
         df = self._df_probabili(self.at)
+        colonne = list(df.columns)
         righe_out += ["## Le più probabili (prime 5 righe)",
                       "  Paga almeno: " + next(s.value for s in self.at.selectbox
                                                if (s.key or "") == "lg_paga_almeno"),
-                      "  " + " | ".join(app_mod.COLONNE_PRONOSTICI)]
+                      "  " + " | ".join(colonne)]
         for _i, riga in df.head(5).iterrows():
-            righe_out.append("  " + " | ".join(str(riga[c]) for c in app_mod.COLONNE_PRONOSTICI))
+            righe_out.append("  " + " | ".join(str(riga[c]) for c in colonne))
         righe_out.append(f"  ... {len(df)} righe in tutto")
         with open(self.render_out, "w", encoding="utf-8") as fh:
             fh.write("\n".join(righe_out) + "\n")

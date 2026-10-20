@@ -42,6 +42,7 @@ Uso: ``python audit/replay_topmix_mercato.py [--no-cache] [--reps 0]``
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import math
 import os
@@ -50,6 +51,7 @@ import sys
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -77,6 +79,16 @@ COLONNE_CACHE = ["league", "season", "date", "home", "away", "y_code",
                  "B365H", "B365D", "B365A", "has_model"]
 
 ESITO_DI_CODICE = {0: "1", 1: "X", 2: "2"}
+
+#: Soglia di ammissione della versione che questo replay RIPRODUCE
+#: (``topmix_mercato_v3``: la versione con cui la PR #49 ha misurato
+#: 1302/1144/335). NON e' ``market_odds.SOGLIA_TOPMIX_MERCATO``: quella e' la
+#: soglia di PRODUZIONE di oggi (0,57 da ``topmix_mercato_v4``) e usandola il
+#: replay misurerebbe un selettore diverso da quello del riferimento. Un replay
+#: congela la regola della versione che dice di riprodurre: per il replay di v4
+#: si cambia QUESTA costante, non la produzione.
+SOGLIA_V3 = 0.55
+VERSIONE_REPLAY = "topmix_mercato_v3"
 
 
 def _importa_produzione():
@@ -114,48 +126,70 @@ def campionatura(df: pd.DataFrame) -> pd.DataFrame:
     return df[m].reset_index(drop=True)
 
 
+@contextlib.contextmanager
+def soglia_della_versione_riprodotta():
+    """Congela la soglia di v3 (0,55) nei DUE moduli che la leggono.
+
+    ``app`` importa il nome (``from market_odds import SOGLIA_TOPMIX_MERCATO``),
+    quindi patchare il solo ``market_odds`` non basterebbe: la copia gia'
+    importata in ``app`` resterebbe quella di produzione. Fuori da questo
+    contesto la produzione viaggia con la sua soglia (0,57 da v4); dentro, il
+    replay misura esattamente la regola di v3.
+    """
+    _OMT, MO, prod_app = _importa_produzione()
+    with mock.patch.object(prod_app, "SOGLIA_TOPMIX_MERCATO", SOGLIA_V3), \
+            mock.patch.object(MO, "SOGLIA_TOPMIX_MERCATO", SOGLIA_V3):
+        yield
+
+
 def applica_selettore(campione: pd.DataFrame):
-    """Applica il selettore di PRODUZIONE riga per riga. Ritorna un DataFrame di righe."""
+    """Applica il selettore riga per riga. Ritorna un DataFrame di righe.
+
+    La funzione chiamata e' QUELLA DELL'APP, ma con la soglia della versione
+    che il replay riproduce (v3, 0,55): il confronto e' con i numeri della
+    PR #49, misurati con quella regola.
+    """
     _OMT, MO, prod_app = _importa_produzione()
     righe = []
     max_scarto_devig = 0.0
-    for r in campione.itertuples(index=False):
-        # de-vig di PRODUZIONE sulle quote grezze B365 pre-chiusura
-        quote = (r.B365H, r.B365D, r.B365A)
-        p = MO.devig_proporzionale(quote)
-        if p is None:
-            righe.append({"ammessa": False, "motivo": "terna non valida"})
-            continue
-        # verifica di identita' con le colonne de-vigate della PR #49
-        max_scarto_devig = max(max_scarto_devig,
-                               abs(p[0] - r.pre0), abs(p[1] - r.pre1), abs(p[2] - r.pre2))
-        probs = {"1": p[0], "X": p[1], "2": p[2]}
-        modello = {"1": r.m0, "X": r.m1, "2": r.m2}
-        sel = prod_app.seleziona_riga_top_mix_mercato(
-            probs, {"1": quote[0], "X": quote[1], "2": quote[2]},
-            modello, fonte=MO.FONTE_PINNACLE, n_libri=1,
-            home=r.home, away=r.away)
-        esito_reale = ESITO_DI_CODICE[int(r.y_code)]
-        argmax_modello = max(modello, key=lambda k: modello[k])
-        righe.append({
-            "league": r.league, "season": r.season, "date": str(r.date),
-            "home": r.home, "away": r.away,
-            "esito_reale": esito_reale,
-            "ammessa": sel is not None,
-            "esito": (sel or {}).get("esito"),
-            "prob_mercato": (sel or {}).get("prob"),
-            "quota": (sel or {}).get("quota"),
-            "prob_modello": (sel or {}).get("prob_modello"),
-            "accordo": bool((sel or {}).get("accordo")),
-            "vincente": (sel is not None and sel["esito"] == esito_reale),
-            # ricontrollo indipendente della regola di consenso della PR #49
-            "consenso_pr49": bool(argmax_modello == max(probs, key=lambda k: probs[k])
-                                  and modello[argmax_modello] >= MO.SOGLIA_ACCORDO
-                                  and probs[max(probs, key=lambda k: probs[k])] >= MO.SOGLIA_ACCORDO),
-            "scelta_modello_ammessa": bool(modello[argmax_modello] >= MO.SOGLIA_TOPMIX_MERCATO),
-            "esito_modello": argmax_modello,
-            "vincente_modello": argmax_modello == esito_reale,
-        })
+    with soglia_della_versione_riprodotta():
+        for r in campione.itertuples(index=False):
+            # de-vig di PRODUZIONE sulle quote grezze B365 pre-chiusura
+            quote = (r.B365H, r.B365D, r.B365A)
+            p = MO.devig_proporzionale(quote)
+            if p is None:
+                righe.append({"ammessa": False, "motivo": "terna non valida"})
+                continue
+            # verifica di identita' con le colonne de-vigate della PR #49
+            max_scarto_devig = max(max_scarto_devig,
+                                   abs(p[0] - r.pre0), abs(p[1] - r.pre1), abs(p[2] - r.pre2))
+            probs = {"1": p[0], "X": p[1], "2": p[2]}
+            modello = {"1": r.m0, "X": r.m1, "2": r.m2}
+            sel = prod_app.seleziona_riga_top_mix_mercato(
+                probs, {"1": quote[0], "X": quote[1], "2": quote[2]},
+                modello, fonte=MO.FONTE_PINNACLE, n_libri=1,
+                home=r.home, away=r.away)
+            esito_reale = ESITO_DI_CODICE[int(r.y_code)]
+            argmax_modello = max(modello, key=lambda k: modello[k])
+            righe.append({
+                "league": r.league, "season": r.season, "date": str(r.date),
+                "home": r.home, "away": r.away,
+                "esito_reale": esito_reale,
+                "ammessa": sel is not None,
+                "esito": (sel or {}).get("esito"),
+                "prob_mercato": (sel or {}).get("prob"),
+                "quota": (sel or {}).get("quota"),
+                "prob_modello": (sel or {}).get("prob_modello"),
+                "accordo": bool((sel or {}).get("accordo")),
+                "vincente": (sel is not None and sel["esito"] == esito_reale),
+                # ricontrollo indipendente della regola di consenso della PR #49
+                "consenso_pr49": bool(argmax_modello == max(probs, key=lambda k: probs[k])
+                                      and modello[argmax_modello] >= MO.SOGLIA_ACCORDO
+                                      and probs[max(probs, key=lambda k: probs[k])] >= MO.SOGLIA_ACCORDO),
+                "scelta_modello_ammessa": bool(modello[argmax_modello] >= MO.SOGLIA_TOPMIX_MERCATO),
+                "esito_modello": argmax_modello,
+                "vincente_modello": argmax_modello == esito_reale,
+            })
     return pd.DataFrame(righe), max_scarto_devig
 
 
@@ -249,7 +283,8 @@ def scrivi_referto(payload: dict) -> str:
              f"riga contro le colonne `pre*` della PR #49: scarto massimo "
              f"{payload['max_scarto_devig']:.2e} |")
     P.append("| Scelta | `app.seleziona_riga_top_mix_mercato` (PRODUZIONE): argmax delle "
-             "probabilita' di mercato, ammissione a 0,55 |")
+             f"probabilita' di mercato, ammissione a {SOGLIA_V3:.2f} (soglia di "
+             f"{VERSIONE_REPLAY}, congelata dal replay) |")
     P.append("| Segnale \"d'accordo\" | `market_odds.SOGLIA_ACCORDO` = 0,55, stesso esito "
              "(definizione PR #49 §4d) |")
     P.append("| Probabilita' del modello | colonne `m0/m1/m2` del frame PR #49 (blend 0,25 "

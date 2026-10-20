@@ -151,8 +151,9 @@ TIPO_BY_ORIGIN = {
 }
 
 # Versione del SELETTORE (non del modello): va alzata OGNI volta che cambiano
-# argmax sui mercati, soglie 0,55/0,60, peso del blend o il filtro di
-# disaccordo, perche' e' parte della chiave di dedup e dell'aggregazione.
+# argmax sui mercati, soglie del selettore (0,57 di mercato; 0,55/0,60 del
+# modello), peso del blend o il filtro di disaccordo, perche' e' parte della
+# chiave di dedup e dell'aggregazione.
 #
 # Storia:
 # * ``SELECTOR_VERSION_PRE_1X2``: selettore a 7 mercati (argmax su 1X2 E Totali).
@@ -169,16 +170,25 @@ TIPO_BY_ORIGIN = {
 #   dei book; soglia 0,55 sulla probabilita' di mercato), con la probabilita' del
 #   modello (Drago) e il segnale "d'accordo" accanto. E' una versione nuova
 #   perche' cambiano le probabilita' che decidono: la chiave di dedup cambia e
-#   nessuna riga v1/v2 viene sovrascritta.
+#   nessuna riga v1/v2 viene sovrascritta. Soglia di ammissione: 0,55.
 #   Misurato in PR #49 (``audit/results/onex2_market_test.md`` §4, §4d): scelte
 #   del mercato 1302 con hit 67,5%; scelte del modello 1479 con hit 62,6%;
 #   modello CON accordo del mercato 1144 con hit 68,2%; modello SENZA accordo
 #   335 con hit 43,6%.
+# * ``SELECTOR_VERSION_CURRENT`` = ``topmix_mercato_v4``: STESSO selettore di
+#   mercato, con la soglia di ammissione che passa da 0,55 a 0,57
+#   (``market_odds.SOGLIA_TOPMIX_MERCATO``: unica costante, vale per il Top Mix,
+#   per la scheda Pronostici, per la scheda partita e per il flag
+#   ``sotto_soglia_ora`` del Registro). Cambia QUALI partite entrano, quindi e'
+#   una versione nuova: la chiave di dedup cambia e nessuna riga v3 viene
+#   sovrascritta — le righe gia' registrate con v3 restano intatte e continuano
+#   a essere lette (``VERSIONI_SELETTORE_MERCATO`` tiene entrambe).
 SELECTOR_VERSION_FIELD = "selector_version"
 SELECTOR_VERSION_PRE_1X2 = "topmix_gate025_ens06_v1"
 SELECTOR_VERSION_MODELLO_1X2 = "topmix_1x2_gate025_ens06_v2"
 SELECTOR_VERSION_MERCATO_V3 = "topmix_mercato_v3"
-SELECTOR_VERSION_CURRENT = SELECTOR_VERSION_MERCATO_V3
+SELECTOR_VERSION_MERCATO_V4 = "topmix_mercato_v4"
+SELECTOR_VERSION_CURRENT = SELECTOR_VERSION_MERCATO_V4
 # REGOLA (verificata da SoccerMath/test_versione_selettore.py): ogni modifica che cambia le
 # probabilita' o la selezione del Top Mix ALZA questa versione e aggiunge la nuova impronta
 # in IMPRONTE. Il verificatore (audit/verifica_click_live.py) confronta solo le righe di questa
@@ -239,7 +249,7 @@ OMBRA_SOGLIA_TOTALI = 0.60
 MERCATI_TOTALI_CODICI = ("OVER_2.5", "UNDER_2.5", "GG", "NG")
 
 # ---------------------------------------------------------------------------
-# Top Mix di mercato (``SELECTOR_VERSION_MERCATO_V3``): campi della riga
+# Top Mix di mercato (v3 e v4, ``VERSIONI_SELETTORE_MERCATO``): campi della riga
 # ---------------------------------------------------------------------------
 # La riga visibile del Top Mix e' la scelta del MERCATO: oltre ai campi di
 # sempre porta la fonte della probabilita', la quota con cui la si confronta e
@@ -1090,14 +1100,15 @@ def is_ombra(entry: Any) -> bool:
 # selettore non scrivono due righe per la stessa (tabella, partita, mercato).
 # Dalla PR delle quote live esistono DUE selettori diversi, non due versioni
 # dello stesso: quello del modello (v1/v2, oggi ombra) e quello del mercato
-# (``topmix_mercato_v3``, Top Mix visibile). Sono due scelte diverse sulla stessa
+# (``topmix_mercato_v3``/``v4``, Top Mix visibile). Sono due scelte diverse sulla stessa
 # partita (PR #49 §4d: coincidono su 1144 partite e divergono sulle altre),
 # quindi devono poter coesistere -- esattamente come Drago e Legacy coesistono
 # grazie a ``model_variant``. La famiglia entra nella chiave dei doppioni; la
 # versione continua a NON entrarci.
 FAMIGLIA_SELETTORE_MODELLO = "modello"
 FAMIGLIA_SELETTORE_MERCATO = "mercato"
-VERSIONI_SELETTORE_MERCATO = frozenset({SELECTOR_VERSION_MERCATO_V3})
+VERSIONI_SELETTORE_MERCATO = frozenset({SELECTOR_VERSION_MERCATO_V3,
+                                         SELECTOR_VERSION_MERCATO_V4})
 
 
 def famiglia_selettore(entry: Any) -> str:
@@ -1199,7 +1210,7 @@ def _filtra_per_famiglia(lista: List[Dict[str, Any]],
 
     Dalla PR delle quote live il Registro visibile contiene DUE famiglie: le
     scelte storiche del MODELLO (``topmix_1x2_gate025_ens06_v2`` e precedenti) e
-    le scelte del MERCATO (``topmix_mercato_v3``). Sono due selettori diversi
+    le scelte del MERCATO (``topmix_mercato_v3``/``v4``). Sono due selettori diversi
     sulla stessa partita, quindi un totale unico le mescolerebbe: sulla stessa
     partita lo stesso esito verrebbe contato due volte, una alla probabilita'
     del modello e una a quella del mercato (PR #49 §4d: le due scelte
@@ -1558,7 +1569,7 @@ def _riga_mercato_in_attesa(entry: Any) -> bool:
     Quattro condizioni, tutte letture di campi esistenti (nessuna chiave nuova,
     nessun campo aggiunto):
 
-    * famiglia del selettore di MERCATO (``topmix_mercato_v3``): le righe del
+    * famiglia del selettore di MERCATO (``topmix_mercato_v3``/``v4``): le righe del
       modello storico non hanno i campi di mercato e non c'entrano nulla con
       questo rinfresco;
     * origine Top Mix visibile e NON ombra: Analisi Rapida, Billy e le righe

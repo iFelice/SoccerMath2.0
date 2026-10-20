@@ -60,6 +60,7 @@ from market_odds import (
     MOTIVO_TERNA_NON_VALIDA,
     SOGLIA_ACCORDO,
     SOGLIA_ORE_QUOTE,
+    SOGLIA_PAREGGI,
     STATO_ASSENTE,
     STATO_NON_LEGGIBILE,
     STATO_OK,
@@ -103,7 +104,7 @@ from prediction_registry import (
     SELECTOR_VERSION_OMBRA_BY_FAMIGLIA, OMBRA_FAMIGLIA_FIELD, OMBRA_FAMIGLIA_OU25, OMBRA_FAMIGLIA_GGNG,
     OMBRA_FAMIGLIA_1X2, SELECTOR_VERSION_OMBRA_1X2,
     ORIGIN_TOP_MIX_OMBRA,
-    # --- Top Mix di mercato (topmix_mercato_v3): campi della riga visibile ---
+    # --- Top Mix di mercato (topmix_mercato_v4): campi della riga visibile ---
     MERCATO_FONTE_FIELD, MERCATO_N_LIBRI_FIELD, PROB_MERCATO_FIELD,
     QUOTA_MERCATO_FIELD, ACCORDO_MODELLO_FIELD, PROB_MODELLO_FIELD,
     QUOTE_LIVE_ISTANTE_FIELD,
@@ -636,7 +637,7 @@ def build_prediction_entry(match_id, h, a, camp, giornata, match_date, pronostic
     if gate_off_confidence is not None:
         entry[GATE_OFF_CONFIDENCE_FIELD] = gate_off_confidence
         entry[GATE_OFF_AMMESSA_FIELD] = bool(gate_off_ammessa)
-    # --- Top Mix di mercato (``topmix_mercato_v3``): campi OPZIONALI della riga
+    # --- Top Mix di mercato (``topmix_mercato_v4``): campi OPZIONALI della riga
     # visibile. Una riga scritta da una versione precedente non li ha e resta
     # leggibile come prima: nessun campo esistente viene toccato.
     if mercato_fonte is not None:
@@ -2024,7 +2025,7 @@ def seleziona_riga_top_mix(m, elo_probs=None, elo_disponibile=True, home=None, a
 
 def seleziona_riga_top_mix_mercato(prob_mercato, odds_mercato=None, prob_modello=None,
                                    fonte=None, n_libri=None, home=None, away=None):
-    """Riga Top Mix di UNA partita decisa dal MERCATO (selettore ``topmix_mercato_v3``).
+    """Riga Top Mix di UNA partita decisa dal MERCATO (selettore ``topmix_mercato_v4``).
 
     Funzione PURA (stessi divieti di ``seleziona_riga_top_mix``: niente HTTP,
     cache, logging o scritture): riceve probabilita' e quote gia' calcolate e
@@ -2035,7 +2036,7 @@ def seleziona_riga_top_mix_mercato(prob_mercato, odds_mercato=None, prob_modello
     * esito = argmax delle tre probabilita' di mercato, nell'ordine 1, X, 2
       (primo massimo: lo stesso spareggio di ``max()`` su dict e di
       ``np.argmax`` usato dall'audit, cosi' i numeri del replay coincidono);
-    * ammissione: probabilita' di mercato >= ``SOGLIA_TOPMIX_MERCATO`` (0,55).
+    * ammissione: probabilita' di mercato >= ``SOGLIA_TOPMIX_MERCATO`` (0,57).
       E' l'unica soglia della riga: il veto di produzione |Poisson-Elo| < 0,25
       NON si applica, perche' la scelta e' del mercato, che non ha Elo;
     * ``accordo`` (colonna "d'accordo"): modello e mercato sullo STESSO esito
@@ -2374,7 +2375,7 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None,
     MODELLO e non ha quote live. Quando e' dato, per ogni partita si aggiunge:
 
     * una riga in ``"mercato"`` se il mercato ha una terna valida e la sua
-      probabilita' massima supera 0,55 (``seleziona_riga_top_mix_mercato``);
+      probabilita' massima supera 0,57 (``seleziona_riga_top_mix_mercato``);
     * una voce in ``"senza_quote"`` se la partita NON ha quote (nessuna terna
       valida o coppia di nomi assente dalla fonte): la partita e' esclusa dal
       Top Mix e viene SEGNALATA, mai inventata.
@@ -2532,7 +2533,7 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None,
                 continue
             # Lettura di mercato per il rinfresco del Registro: la si costruisce
             # PRIMA del gate di soglia e con gli STESSI oggetti di riga_mkt, cosi'
-            # una partita che scende sotto 0,55 continua ad avere un "adesso" con
+            # una partita che scende sotto 0,57 continua ad avere un "adesso" con
             # cui confrontare l'"allora" scritto nella riga.
             righe["letture"].append({
                 "match_id": match.get("id"),
@@ -2567,7 +2568,7 @@ def calcola_righe_top_mix(league, matches, engine, ombra=None, quote=None,
                 # `righe_solo_pre_partita` al click. Va aggiunto QUI dal
                 # chiamante per non toccare `_riga_top_mix_mercato`, che e' sotto
                 # impronta di versione: il campo non cambia selezione ne'
-                # probabilita', quindi l'impronta di `topmix_mercato_v3` resta.
+                # probabilita', quindi l'impronta di `topmix_mercato_v4` resta.
                 riga["commence_time"] = (evento or {}).get("commence_time")
                 righe["mercato"].append(riga)
     return righe
@@ -2708,7 +2709,7 @@ def argomenti_registro_top_mix(p, model_variant=MODEL_VARIANT_CURRENT):
     Dalla PR delle quote live queste righe NON sono piu' il Top Mix visibile:
     il Registro visibile ospita le scelte del mercato
     (``argomenti_registro_top_mix_mercato``, ``SELECTOR_VERSION_CURRENT`` =
-    ``topmix_mercato_v3``). Le righe del modello vanno nel registro OMBRA con
+    ``topmix_mercato_v4``). Le righe del modello vanno nel registro OMBRA con
     ``SELECTOR_VERSION_OMBRA_1X2`` e la loro ``model_variant``: Drago e Legacy
     restano due righe distinte della stessa partita (stesse regole
     anti-doppione di prima, chiavi di dedup diverse, nessuna sovrascrittura).
@@ -2755,7 +2756,7 @@ def argomenti_registro_top_mix_mercato(p):
     """Argomenti di registro per la riga del Top Mix di MERCATO ``p``.
 
     Speculare a ``argomenti_registro_top_mix`` ma per la tabella visibile:
-    ``selector_version`` = ``SELECTOR_VERSION_CURRENT`` (``topmix_mercato_v3``),
+    ``selector_version`` = ``SELECTOR_VERSION_CURRENT`` (``topmix_mercato_v4``),
     ``model_variant`` = ``current`` (la scelta non dipende dal motore: il
     modello entra solo come probabilita' di confronto e come segnale di
     accordo), e i campi di mercato (fonte, numero di libri, quota, probabilita'
@@ -3477,8 +3478,9 @@ tab_strumenti = _schede[5] if len(_schede) > 5 else None
 # quello della barra laterale) e la giornata (predefinita la prossima da
 # giocare: le stesse due funzioni che popolavano il selettore della barra
 # laterale). Sotto, UNA tabella con tutte le partite della giornata: quando si
-# giocano, le probabilita' 1/X/2 delle quote e l'esito piu' probabile; per le
-# partite gia' giocate il risultato prende il posto delle probabilita'. Il clic
+# giocano, le probabilita' 1/X/2 delle quote e il pronostico (lo stesso del Top
+# Mix: l'esito piu' probabile, ma solo se arriva al 57%); per le partite gia'
+# giocate il risultato prende il posto delle probabilita'. Il clic
 # sulla riga apre la scheda della partita, come nelle altre schede: la fila di
 # pulsanti «Scheda» non c'e' piu' (le key partite_scheda_* spariscono con lei).
 # In fondo, chiuso, il riquadro «Dettagli» con l'Analisi Rapida e le card del
@@ -3511,18 +3513,48 @@ def risultato_in_colonna(match):
         return ""
 
 
-def esito_piu_probabile(quote):
-    """La sigla dell'esito con la probabilita' piu' alta: «1», «X» o «2».
+def pronostico_dalle_quote(quote):
+    """La sigla del pronostico della riga: «1», «X», «2», il trattino o il vuoto.
 
-    Lettura, non calcolo: i numeri sono quelli delle quote, gia' passati da
-    :func:`percento_decimale`. Se anche uno solo dei tre manca la cella resta
-    vuota (nessuna classifica parziale spacciata per un pronostico); a parita'
-    di probabilita' vince la sigla che viene prima nell'ordine 1, X, 2.
+    E' la STESSA regola del Top Mix, non l'esito con la probabilita' piu' alta:
+    l'esito piu' probabile del mercato conta solo se arriva a
+    ``SOGLIA_TOPMIX_MERCATO`` (0,57); sotto, la colonna mostra «—», perche' un
+    39,9% non e' un pronostico. La regola sta in
+    ``market_odds.esito_ammesso``, unica per la scheda Partite e per la scheda
+    della singola partita: qui non si riscrive, si chiama.
+
+    Lettura, non calcolo: i numeri sono quelli delle quote. Se anche uno solo
+    dei tre manca la cella resta VUOTA (nessun pronostico inventato e nessuna
+    classifica parziale spacciata per una scelta).
     """
-    valori = {e: percento_decimale((quote or {}).get(e)) for e in ESITI_PARTITE}
-    if any(v is None for v in valori.values()):
-        return ""
-    return max(ESITI_PARTITE, key=lambda e: valori[e])
+    return market_odds.esito_ammesso(quote)
+
+
+def pronostici_dalle_quote(payload, adesso=None):
+    """``{match_id: pronostico}`` per TUTTE le partite del file delle quote.
+
+    Lo STESSO pronostico della scheda Partite (``market_odds.esito_ammesso``:
+    l'esito piu' probabile, ma solo se arriva a ``SOGLIA_TOPMIX_MERCATO``,
+    altrimenti il trattino), letto una volta per ogni evento del file. Serve
+    dove di una partita si gioca una COMBINAZIONE (1X, X2, 12) e si vuole
+    dire che cosa dice la partita: i riquadri e la tabella «Le più probabili»
+    della scheda «🎯 Multiple».
+
+    Le partite senza le tre probabilita' stanno nel dizionario con la stringa
+    vuota: nessun pronostico inventato e nessuna chiave mancante da indovinare.
+
+    Lettura, non calcolo: la de-vig e' ``market_odds.probabilita_mercato``, la
+    stessa del selettore. ``adesso`` non serve (il pronostico non dipende
+    dall'ora): c'e' perche' chi chiama ce l'ha gia' e le firme delle funzioni
+    di questa scheda la portano tutte.
+    """
+    fuori = {}
+    if not isinstance(payload, dict) or not payload:
+        return fuori
+    for evento in market_odds.eventi_quote(payload):
+        mkt = market_odds.probabilita_mercato(evento.get("libri") or [])
+        fuori[str(evento.get("id"))] = market_odds.esito_ammesso(mkt.get("probs"))
+    return fuori
 
 
 def riga_tabella_partita(riga, match, adesso=None):
@@ -3548,7 +3580,7 @@ def riga_tabella_partita(riga, match, adesso=None):
         "1": percento_decimale((quote or {}).get("1")),
         "X": percento_decimale((quote or {}).get("X")),
         "2": percento_decimale((quote or {}).get("2")),
-        "Pronostico": esito_piu_probabile(quote),
+        "Pronostico": pronostico_dalle_quote(quote),
         "Risultato": risultato,
         "provvisoria": bool(lontana),
         "scheda": {"lega": riga.get("lega"), "casa": riga.get("casa"),
@@ -3614,8 +3646,11 @@ def _config_colonne_partite():
             "quote."),
         "Pronostico": st.column_config.TextColumn(
             "Pronostico",
-            help="L'esito con la probabilità più alta secondo le quote: "
-                 "1 in casa, X pareggio, 2 in trasferta."),
+            help="Lo stesso pronostico del Top Mix: l'esito più probabile "
+                 "secondo le quote (1 in casa, X pareggio, 2 in trasferta), "
+                 "ma solo quando la sua probabilità arriva al "
+                 f"{SOGLIA_TOPMIX_MERCATO:.0%}; sotto quella soglia la cella "
+                 "mostra «—» e la colonna resta vuota senza quote."),
         "Risultato": st.column_config.TextColumn(
             "Risultato",
             help="Il risultato finale delle partite già giocate: al posto delle "
@@ -3623,19 +3658,23 @@ def _config_colonne_partite():
     }
 
 
-@st.cache_data(ttl=900, show_spinner=False)
-def calendario_campionato(lega):
-    """Il calendario di UNA lega da football-data: ``(partite, errore)``.
+class _ErroreCalendario(Exception):
+    """Un calendario NON scaricato: serve a tenerlo FUORI dalla cache.
 
-    E' la SOLA fonte del calendario della scheda «🏟️ Partite»: la scheda non
-    legge mai ``st.session_state["live_data"]``, che e' il calendario caricato
-    dalla barra laterale con «SINCRONIZZA» e puo' essere quello di un'altra
-    lega. La cache (15 minuti) e' per lega, quindi cambiare il selettore non
-    mostra il calendario della lega precedente.
+    ``@st.cache_data`` mette in cache solo i valori restituiti, non le
+    eccezioni: se il download fallisce, la funzione in cache solleva questa
+    eccezione e Streamlit non memorizza niente. Cosi' un 429, un timeout o una
+    risposta non valida si RIPROVANO al rerun successivo invece di restare
+    appesi in scheda per 15 minuti.
+    """
 
-    ``errore`` e' un messaggio leggibile (401, 429, timeout, rete, risposta
-    non valida) oppure la stringa vuota. Senza chiave della fonte non parte
-    nessuna chiamata: il messaggio lo dice e la scheda non disegna tabelle.
+
+def _scarica_calendario_campionato(lega):
+    """Il download del calendario di UNA lega: ``(partite, errore)``.
+
+    Nessuna cache qui: la memoria e' di ``_calendario_in_cache``, che tiene
+    SOLO le risposte riuscite. Il corpo e' quello che prima stava dentro
+    ``calendario_campionato``.
     """
     codice = LEAGUE_CODE_MAP.get(lega)
     if not codice:
@@ -3676,6 +3715,51 @@ def calendario_campionato(lega):
         return [], (f"⚠️ Risposta football-data inattesa per il calendario di "
                     f"{lega}: 'matches' non è una lista.")
     return partite, ""
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _calendario_in_cache(lega):
+    """Le partite del calendario di ``lega``: in cache SOLO se riescono.
+
+    Restituisce la lista delle partite; se il download fallisce solleva
+    ``_ErroreCalendario`` con il messaggio per la scheda, e Streamlit NON
+    memorizza niente (le eccezioni non finiscono in cache). Da chiamare
+    tramite ``calendario_campionato``, che e' l'unica porta di ingresso.
+    """
+    partite, errore = _scarica_calendario_campionato(lega)
+    if errore:
+        raise _ErroreCalendario(errore)
+    return partite
+
+
+def calendario_campionato(lega):
+    """Il calendario di UNA lega da football-data: ``(partite, errore)``.
+
+    E' la SOLA fonte del calendario della scheda «🏟️ Partite»: la scheda non
+    legge mai ``st.session_state["live_data"]``, che e' il calendario caricato
+    dalla barra laterale con «SINCRONIZZA» e puo' essere quello di un'altra
+    lega. La cache (15 minuti) e' per lega, quindi cambiare il selettore non
+    mostra il calendario della lega precedente.
+
+    In cache restano SOLO le risposte riuscite: un errore (401, 429, timeout,
+    rete, risposta non valida, chiave mancante) NON si memorizza e viene
+    riprovato al rerun successivo, senza aspettare i 15 minuti del ttl
+    (prima, con ``([], errore)`` in cache, il messaggio d'errore restava in
+    scheda per tutto il ttl anche se la fonte era tornata viva dopo un
+    minuto). Il prezzo e' che, finche' la fonte non risponde, ogni punto
+    dell'app che chiede il calendario (la scheda, il dialogo, il contesto
+    partita) fa la sua chiamata nello stesso run: e' il ritentativo, non un
+    errore.
+
+    ``errore`` e' un messaggio leggibile oppure la stringa vuota. Senza chiave
+    della fonte non parte nessuna chiamata: il messaggio lo dice e la scheda
+    non disegna tabelle.
+    """
+    try:
+        return _calendario_in_cache(lega), ""
+    except _ErroreCalendario as e:
+        # Niente cache dell'errore: al prossimo rerun si riprova da capo.
+        return [], str(e)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -3758,7 +3842,9 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
                          key=lambda m: str((m or {}).get("utcDate") or "9999"))
         st.subheader(f"🏟️ {camp_sel.upper()} - GIORNATA {g_sel}")
         st.caption("Tutte le partite della giornata: quando si giocano, le "
-                   "probabilità 1, X, 2 delle quote e l'esito più probabile. "
+                   "probabilità 1, X, 2 delle quote e il pronostico — lo stesso "
+                   "del Top Mix, che compare solo quando l'esito arriva al "
+                   f"{market_odds.SOGLIA_TOPMIX_MERCATO:.0%} (altrimenti un trattino). "
                    "Delle partite già giocate si legge il risultato. "
                    "Clic sulla riga: la scheda della partita.")
         # --- LA TABELLA DELLA GIORNATA (la scheda si apre dal clic) ---------
@@ -4028,7 +4114,7 @@ def percento_decimale(valore):
 # ---------------------------------------------------------------------------
 # Stesse sei colonne per tutte e due (commessa presentazione, punto 2): Quando,
 # Partita, Pronostico, Quote %, Modello %, Quota. Le righe arrivano da due fonti
-# diverse - le scelte del selettore ``topmix_mercato_v3`` per i pronostici, la
+# diverse - le scelte del selettore ``topmix_mercato_v4`` per i pronostici, la
 # lista dei pareggi per i pareggi - e qui vengono lette e allineate: nessun
 # numero viene ricalcolato e nessun testo si aggiunge dentro la colonna Partita.
 COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"]
@@ -4288,6 +4374,11 @@ def tabella_pronostici_visibile(righe):
     """
     sorgente = [r for r in (righe or []) if isinstance(r, dict)]
     colonne = list(COLONNE_PRONOSTICI)
+    # «Pronostico partita» sta accanto a «Pronostico»: la sigla che si gioca e
+    # quella che dice la partita, una di fianco all'altra. Nasce solo quando le
+    # righe la portano (tabella «Le più probabili»), non nelle altre tabelle.
+    if any(COLONNA_PRONOSTICO_PARTITA in r for r in sorgente):
+        colonne.insert(colonne.index("Pronostico") + 1, COLONNA_PRONOSTICO_PARTITA)
     if any("Gol" in r for r in sorgente):
         colonne += ["Gol", "Insieme %"]
     df = pd.DataFrame(sorgente, columns=colonne)
@@ -4406,6 +4497,15 @@ def _config_colonne_pronostici():
             "Partita", help="Squadra di casa e squadra in trasferta."),
         "Pronostico": st.column_config.TextColumn(
             "Pronostico", help="L'esito scelto: 1 in casa, X pareggio, 2 in trasferta."),
+        # Solo «Le più probabili»: il pronostico della PARTITA, che puo' essere
+        # un altro esito rispetto a quello giocato (o il trattino quando nessun
+        # esito e' abbastanza probabile).
+        COLONNA_PRONOSTICO_PARTITA: st.column_config.TextColumn(
+            COLONNA_PRONOSTICO_PARTITA,
+            help="Il pronostico della partita secondo le quote: 1 in casa, X "
+                 "pareggio, 2 in trasferta — lo stesso della scheda «🏟️ "
+                 "Partite». «—» quando nessun esito e' abbastanza probabile; "
+                 "vuoto senza quote."),
         "Quote %": st.column_config.NumberColumn(
             "Quote %", format="%.1f%%",
             help="Probabilità dell'esito secondo le quote dei bookmaker."),
@@ -4468,7 +4568,7 @@ def caption_scelte_secondo_le_quote(n_righe, nascoste=0):
 def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
                                     stato_confronto=None, mappa_modello_1x2=None,
                                     chiave_widget="pronostici_tabella_periodo"):
-    """La tabella delle scelte del mercato (``topmix_mercato_v3``) nel periodo.
+    """La tabella delle scelte del mercato (``topmix_mercato_v4``) nel periodo.
 
     Sta nella scheda «⚽ Pronostici», dopo il clic: le righe sono quelle del giro
     che il pulsante ha appena registrato, mostrate con le sei colonne comuni alla
@@ -4612,8 +4712,8 @@ def righe_mercato_dalle_quote(payload, adesso=None):
     aspettare il giro del modello (calendario football-data + Elo + Poisson):
     nascono dal file ``live_odds.json`` scritto dal workflow, con le STESSE
     funzioni di sempre -- ``market_odds.probabilita_mercato`` per la de-vig e
-    ``seleziona_riga_top_mix_mercato`` (selettore ``topmix_mercato_v3``, sotto
-    impronta di versione) per la scelta e per l'ammissione sopra 0,55. Nessun
+    ``seleziona_riga_top_mix_mercato`` (selettore ``topmix_mercato_v4``, sotto
+    impronta di versione) per la scelta e per l'ammissione sopra 0,57. Nessun
     numero viene ricalcolato qui: probabilita', esito e quota sono quelli del
     selettore.
 
@@ -5188,11 +5288,47 @@ ETICHETTA_PROVA_QUOTE_BET365 = "Prova con le quote bet365"
 #: Quando ``cerca_proposta_multipla`` non trova niente nel periodo scelto.
 FRASE_NESSUNA_COMBINAZIONE = "Nessuna combinazione fra quota 2 e 3 in questo periodo."
 
+#: La riga sotto il titolo, a dire cosa sono i riquadri: la combinazione piu'
+#: probabile per arrivare a quota 2-3, non la somma dei pronostici delle
+#: partite. Per arrivarci si gioca a volte un esito diverso da quello che la
+#: partita dice, e la scheda lo scrive (fra parentesi accanto alla sigla e
+#: nella colonna «Pronostico partita») invece di lasciarlo intuire.
+FRASE_RIQUADRI_MULTIPLA = ("La combinazione più probabile per arrivare a quota 2-3. "
+                           "Per arrivarci a volte si gioca un esito diverso dal "
+                           "pronostico della partita.")
+
+#: Il pronostico «vero» della partita accanto alla sigla giocata: «X2
+#: (pronostico: —)», «1X (pronostico: 1)». Si aggiunge solo quando la sigla e'
+#: un'altra cosa: se coincidono non si scrive niente.
+ETICHETTA_PRONOSTICO_PARTITA = "pronostico: "
+
+#: La colonna di «Le più probabili» con il pronostico della partita (lo stesso
+#: numero che nei riquadri sta fra parentesi).
+COLONNA_PRONOSTICO_PARTITA = "Pronostico partita"
+
+
+def sigla_giocata_con_pronostico(sigla, pronostico):
+    """La sigla giocata e, se e' un'altra cosa, il pronostico della partita.
+
+    «X2 (pronostico: 1)» dice due cose: che cosa si gioca e che cosa dice la
+    partita (la stessa regola della scheda Partite, ``esito_ammesso``: l'esito
+    piu' probabile solo se arriva a ``SOGLIA_TOPMIX_MERCATO``, altrimenti il
+    trattino). Nessuna parentesi quando la sigla e' gia' il pronostico («1» e
+    «1»), e nessuna parentesi vuota quando il pronostico non c'e' (partita
+    senza quote): il silenzio, li', e' piu' onesto di un «pronostico: » senza
+    numero.
+    """
+    sigla = str(sigla or "").strip()
+    pronostico = str(pronostico or "").strip()
+    if not pronostico or pronostico == sigla:
+        return sigla
+    return f"{sigla} ({ETICHETTA_PRONOSTICO_PARTITA}{pronostico})"
+
 #: La chiave della tabella «Le più probabili» (selezione della riga compresa).
 CHIAVE_TABELLA_PIU_PROBABILI = "multiple_tabella_probabili"
 
 
-def riquadri_multiple(prop, adesso=None):
+def riquadri_multiple(prop, adesso=None, pronostici=None):
     """I riquadri delle proposte, uno per numero di partite, dai numeri GIA'
     calcolati di ``lg.cerca_proposta_multipla`` (nessun ricalcolo).
 
@@ -5203,6 +5339,11 @@ def riquadri_multiple(prop, adesso=None):
     ``quota`` (quota totale, virgola italiana) e ``riesce`` (probabilità
     combinata in percentuale intera). Un numero di partite senza proposta non
     ha riquadro: la lista salta il buco, non lo riempie.
+
+    ``pronostici`` e' la mappa ``{match_id: pronostico}`` di
+    ``pronostici_dalle_quote``: quando la sigla giocata NON e' il pronostico
+    della partita, la sigla si allunga con «(pronostico: 1)» (o «—»). Senza la
+    mappa non si aggiunge niente: nessun pronostico inventato.
     """
     per_k = (prop or {}).get("per_k") or {}
     righe = lg.righe_riquadro_raddoppio(per_k, adesso)
@@ -5219,7 +5360,11 @@ def riquadri_multiple(prop, adesso=None):
         partite = []
         for g in item.get("giocate", []):
             lontana = lg.e_partita_provvisoria(g, adesso)
-            sigla = str(g.get("giocata") or g.get("esito") or "").strip()
+            # L'esito giocato e, se e' un altro, il pronostico della partita
+            # (stessa regola della scheda Partite): «X2 (pronostico: —)».
+            sigla = sigla_giocata_con_pronostico(
+                g.get("giocata") or g.get("esito"),
+                (pronostici or {}).get(str(g.get("match_id"))))
             partite.append((
                 f"{g.get('home') or '?'} - {g.get('away') or '?'}",
                 f"{sigla} · {_quando_breve(g.get('commence_time'), lontana)}",
@@ -5241,7 +5386,7 @@ def riquadri_multiple(prop, adesso=None):
     return riquadri
 
 
-def _mostra_riquadri_multiple(prop, adesso, top_mercato=None):
+def _mostra_riquadri_multiple(prop, adesso, top_mercato=None, pronostici=None):
     """I riquadri affiancati delle proposte (``st.columns(4)``, uno per
     numero di partite, ciascuno in un contenitore col bordo).
 
@@ -5249,11 +5394,17 @@ def _mostra_riquadri_multiple(prop, adesso, top_mercato=None):
     resta vuoto in mezzo. Il pulsante «Prova con le quote bet365» fa quello che
     faceva «Usa nel calcolatore»: carica la proposta in «Prova la tua giocata»
     e apre il riquadro.
+
+    Sotto il titolo, una riga sola a dire cosa sono: la combinazione piu'
+    probabile per arrivare a quota 2-3, dove a volte si gioca un esito diverso
+    dal pronostico della partita (che la scheda scrive fra parentesi). Senza
+    proposte non si dice: al loro posto c'e' la frase che non ce ne sono.
     """
-    riquadri = riquadri_multiple(prop, adesso)
+    riquadri = riquadri_multiple(prop, adesso, pronostici=pronostici)
     if not riquadri:
         st.info(FRASE_NESSUNA_COMBINAZIONE)
         return
+    st.caption(FRASE_RIQUADRI_MULTIPLA)
     colonne = st.columns(4)
     for posto, r in enumerate(riquadri):
         with colonne[posto]:
@@ -5272,7 +5423,7 @@ def _mostra_riquadri_multiple(prop, adesso, top_mercato=None):
 
 
 def tabella_piu_probabili(in_periodo, quota_min, adesso=None, stato_confronto=None,
-                          mappa_modello_1x2=None):
+                          mappa_modello_1x2=None, pronostici=None):
     """Le righe di «Le più probabili»: una per partita, le sei colonne comuni.
 
     La riga di ogni partita e' la giocata con la probabilità più alta fra quelle
@@ -5282,19 +5433,35 @@ def tabella_piu_probabili(in_periodo, quota_min, adesso=None, stato_confronto=No
     «Partita» senza testo aggiunto, «Pronostico» con la sola sigla, «Quote %»
     numero, «Modello %» testo (vuoto dove il modello non ha una lettura),
     «Quota» stimata. L'ordine lo mette ``tabella_pronostici_visibile``.
+
+    Con ``pronostici`` (la mappa di ``pronostici_dalle_quote``) ogni riga
+    porta anche ``COLONNA_PRONOSTICO_PARTITA``: il pronostico della partita con
+    la STESSA regola della scheda Partite, che la tabella mostra in una colonna
+    come i riquadri lo mostrano fra parentesi. Senza la mappa la colonna non
+    nasce: meglio niente che un pronostico inventato.
     """
-    return [riga_pronostico_da_giocata(g, adesso, stato_confronto, mappa_modello_1x2)
-            for g in lg.migliori_giocate_per_partita(in_periodo or [], quota_min)]
+    righe = []
+    for g in lg.migliori_giocate_per_partita(in_periodo or [], quota_min):
+        riga = riga_pronostico_da_giocata(g, adesso, stato_confronto,
+                                          mappa_modello_1x2)
+        if pronostici is not None:
+            riga[COLONNA_PRONOSTICO_PARTITA] = str(
+                (pronostici or {}).get(str(g.get("match_id"))) or "")
+        righe.append(riga)
+    return righe
 
 
 def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
-                          mappa_modello_1x2=None):
+                          mappa_modello_1x2=None, pronostici=None):
     """«Le più probabili»: il filtro «Paga almeno» e UNA tabella, tutte le
     righe (scorrevole), il clic sulla riga apre la scheda della partita.
 
     Niente filtro per campionato, niente «Mostra altre», niente fila di
     pulsanti «Scheda»: la tabella e' la stessa delle schede Pronostici e
-    Pareggi, e come li' la riga dei ⏳ compare sotto solo se serve.
+    Pareggi, e come li' la riga dei ⏳ compare sotto solo se serve. In piu' la
+    colonna «Pronostico partita» (``pronostici``): la giocata migliore di una
+    partita non e' detto che sia il pronostico di quella partita, e la
+    tabella lo dice come lo dicono i riquadri.
     """
     st.markdown("##### Le più probabili")
     col_q, _resto = st.columns([1, 3])
@@ -5303,7 +5470,7 @@ def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
                                 index=1, key="lg_paga_almeno")
     quota_min = float(paga_lbl.replace(",", "."))
     righe = tabella_piu_probabili(in_periodo, quota_min, adesso, stato_confronto,
-                                  mappa_modello_1x2)
+                                  mappa_modello_1x2, pronostici=pronostici)
     if not righe:
         st.info(f"Nessuna giocata paga almeno {paga_lbl} volte la puntata in questo "
                 "periodo: prova ad abbassare «Paga almeno».")
@@ -5660,19 +5827,85 @@ def _mostra_vista_tecnica_top_mix(top_mercato, stato_quote):
 
 
 # ---------------------------------------------------------------------------
-# 🟰  PAREGGI  —  le partite con il pronostico X, senza premere niente
+# 🟰  PAREGGI  —  i pareggi che meritano uno sguardo, senza premere niente
 # ---------------------------------------------------------------------------
+#: Nel periodo scelto non c'e' nessun pareggio, punto.
+FRASE_NESSUN_PAREGGIO_NEL_PERIODO = (
+    "Nessun pareggio in programma nel periodo scelto. "
+    f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» in alto per guardare più avanti."
+)
+#: Di pareggi ce ne sono, ma nessuno arriva a ``SOGLIA_PAREGGI``: la scheda lo
+#: dice, invece di proporre «il piu' probabile» di una terna in cui il
+#: pareggio resta un evento da una volta su cinque. (In vista non si scrive
+#: «soglia»: e' gergo, sta nell'elenco
+#: ``test_apptest_topmix_presentazione.PAROLE_VIETATE``.)
+FRASE_NESSUN_PAREGGIO_SOPRA_SOGLIA = (
+    f"Nessun pareggio con almeno il {SOGLIA_PAREGGI:.0%} di probabilità "
+    "nel periodo scelto."
+)
+
+
+def probabilita_giocata(giocata):
+    """La probabilita' di una giocata come frazione 0-1 (``None`` se non c'e').
+
+    La lista tiene lo stesso numero in due campi (``probabilita`` in frazione
+    e ``prob_percentuale`` in 0-100): qui si torna sempre alla frazione, cosi'
+    il confronto non dipende da chi ha riempito la riga.
+    """
+    giocata = giocata if isinstance(giocata, dict) else {}
+    valore = giocata.get("probabilita")
+    if valore is None:
+        valore = giocata.get("prob_percentuale")
+        if valore is None:
+            return None
+        try:
+            return float(valore) / 100.0
+        except (TypeError, ValueError):
+            return None
+    try:
+        return float(valore)
+    except (TypeError, ValueError):
+        return None
+
+
+def pareggi_da_mostrare(giocate, soglia=SOGLIA_PAREGGI):
+    """I pareggi che la scheda «🟰 Pareggi» mostra: esito X e probabilita' >= soglia.
+
+    La regola e' QUESTA e sta qui (chi la usa non la riscrive): fra le giocate
+    del periodo restano quelle con esito «X» la cui probabilita' arriva a
+    ``SOGLIA_PAREGGI`` (0,30). Un X al 20% puo' anche essere l'esito piu'
+    probabile di una partita stesa, ma non e' un pareggio su cui vale la pena
+    fermarsi: prima la scheda lo elencava lo stesso, e la graduatoria
+    presentava come «pareggio» un evento che non arriva a una volta su cinque.
+    """
+    fuori = []
+    for g in giocate or []:
+        if not isinstance(g, dict):
+            continue
+        if str(g.get("giocata") or g.get("esito") or "").strip() != "X":
+            continue
+        p = probabilita_giocata(g)
+        if p is not None and p >= soglia:
+            fuori.append(g)
+    return fuori
+
+
 def _scheda_pareggi():
-    """Tutte le partite del periodo con il pronostico X, in ordine di probabilità.
+    """I pareggi del periodo sopra il 30%, in ordine di probabilità.
 
     Nessun pulsante e nessuna scrittura: la lista viene dallo STESSO calcolo della
     scheda Multiple (``lista_giocate.calcola_lista_giocate`` sul file delle quote),
-    filtrata per periodo e ridotta ai pareggi, e «Modello %» legge il giro del
-    modello in sola lettura. La riga sopra la tabella dice quanto vale un pareggio:
-    anche il piu' probabile esce circa una volta su tre, per questo la scheda non e'
-    una promessa ma una graduatoria.
+    filtrata per periodo e poi da ``pareggi_da_mostrare``, e «Modello %» legge il
+    giro del modello in sola lettura. La riga sopra la tabella dice due cose:
+    quanto vale un pareggio (anche il piu' probabile esce circa una volta su tre,
+    per questo la scheda non e' una promessa ma una graduatoria) e da che
+    probabilita' in su una partita vi entra. Se non ne resta nessuna, la scheda
+    lo dice e basta: nessuna tabella vuota e nessun «pareggio piu' probabile»
+    tirato fuori per forza.
     """
-    st.caption("Anche il pareggio più probabile esce circa 1 volta su 3.")
+    st.caption("Anche il pareggio più probabile esce circa 1 volta su 3. "
+               f"In tabella solo i pareggi con almeno il {SOGLIA_PAREGGI:.0%} "
+               "di probabilità.")
     payload = market_odds.carica_quote_live()
     if not payload:
         st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
@@ -5681,12 +5914,14 @@ def _scheda_pareggi():
     res = lg.calcola_lista_giocate(payload, adesso_utc=adesso)
     in_periodo = lg.giocate_nel_periodo(res.get("giocate", []), adesso,
                                         periodo_selezionato()[0])
-    pareggi = [g for g in in_periodo
-               if str(g.get("giocata") or g.get("esito") or "").strip() == "X"]
+    pareggi = pareggi_da_mostrare(in_periodo)
     if not pareggi:
-        st.info(f"Nessun pareggio in programma nel periodo scelto. "
-                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» in alto per guardare "
-                "più avanti.")
+        ce_era_qualche_x = any(
+            isinstance(g, dict)
+            and str(g.get("giocata") or g.get("esito") or "").strip() == "X"
+            for g in in_periodo)
+        st.info(FRASE_NESSUN_PAREGGIO_SOPRA_SOGLIA if ce_era_qualche_x
+                else FRASE_NESSUN_PAREGGIO_NEL_PERIODO)
         return
     stato_confronto, mappa_modello_1x2 = stato_confronto_in_lettura()
     _mostra_tabella_periodo([riga_pronostico_da_giocata(g, adesso, stato_confronto,
@@ -5940,7 +6175,8 @@ NOMI_MODELLI = {MODEL_VARIANT_CURRENT: "Drago a 2 Teste", MODEL_VARIANT_LEGACY: 
 
 # Confine fra le due FAMIGLIE di selettore nel Registro visibile: prima di questa
 # data le righe Top Mix visibili sono scelte del MODELLO (v1/v2), da questa data
-# sono scelte del MERCATO (``topmix_mercato_v3``). Il confine NON e' dedotto dai
+# sono scelte del MERCATO (``topmix_mercato_v3``, poi ``topmix_mercato_v4``).
+# Il confine NON e' dedotto dai
 # dati: e' la data in cui il selettore visibile e' cambiato, e dichiararlo evita
 # che un filtro per stagione o per data faccia credere che una famiglia sia
 # vuota perche' i dati mancano.
@@ -6093,7 +6329,9 @@ def _didascalia_rinfresco_righe_in_attesa(records, n_sotto=None):
         "in attesa per cui e' disponibile una quota pre-partita valida, anche "
         "quando la probabilita' e' sotto soglia. Il flag ``sotto_soglia_ora`` "
         "riguarda SOLO le righe la cui ultima probabilita' di mercato e' scesa "
-        "sotto 0,55. "
+        # La soglia e' quella del selettore (``SOGLIA_TOPMIX_MERCATO``): scritta
+        # a mano sarebbe un numero che puo' dimenticarsi di essere aggiornato.
+        f"sotto {SOGLIA_TOPMIX_MERCATO:.2f}".replace(".", ",") + ". "
     )
     conteggio = len(elenco) if n_sotto is None else int(n_sotto)
     if not elenco:
@@ -6607,7 +6845,7 @@ def _mostra_dettagli_mercato(righe, altezza=420):
     df["Prima registrazione"] = [stato for _valore, stato in delta_e_stato_prima]
 
     st.caption(f"Vista tecnica completa della famiglia mercato "
-               f"(topmix_mercato_v3): scelte del mercato con de-vig proporzionale, "
+               f"(topmix_mercato_v4): scelte del mercato con de-vig proporzionale, "
                f"soglia di ammissione {SOGLIA_TOPMIX_MERCATO:.2f}. Colonne: P modello Drago, "
                "Δ dalla prima, Prima registrazione, Stato, origine, stagione.")
     colonne = [c for c in REGISTRO_MERCATO_COLONNE if c in df.columns]
@@ -6713,6 +6951,10 @@ with tab_multiple:
     # UNA ricerca sola (``cerca_proposta_multipla``, invariata): i riquadri in
     # vista e la tabella «Per raddoppiare» dei Dettagli leggono la stessa.
     proposta = lg.cerca_proposta_multipla(in_periodo) if in_periodo else {"per_k": {}}
+    # Il pronostico di ogni partita (stessa regola della scheda Partite), letto
+    # una volta dal file delle quote: i riquadri lo mettono fra parentesi
+    # accanto alla sigla giocata e «Le più probabili» in una colonna.
+    pronostici = pronostici_dalle_quote(payload_quote)
 
     _mostra_testa_multiple(payload_quote, adesso)
     if not payload_quote:
@@ -6721,9 +6963,11 @@ with tab_multiple:
         st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
     elif not _mostra_periodo_vuoto_multiple(res_lista.get("giocate", []), in_periodo,
                                             adesso):
-        _mostra_riquadri_multiple(proposta, adesso, righe_quote)
+        _mostra_riquadri_multiple(proposta, adesso, righe_quote,
+                                  pronostici=pronostici)
         _mostra_piu_probabili(in_periodo, adesso, stato_confronto=stato_confronto,
-                              mappa_modello_1x2=mappa_modello_1x2)
+                              mappa_modello_1x2=mappa_modello_1x2,
+                              pronostici=pronostici)
     calcolatore_multipla(righe_quote, adesso, gambe_pre=in_periodo)
     _mostra_dettagli_giocate(res_lista, in_periodo, proposta, stato_quote, adesso,
                              righe=righe_quote)

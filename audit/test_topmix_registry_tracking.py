@@ -235,10 +235,14 @@ class TestSelettoreInvariato(unittest.TestCase):
         self.assertFalse(s["has_over_35"])
         # bump intenzionale (PR Totali): il Top Mix visibile e' solo 1X2.
         # Dalla PR delle quote live la versione CORRENTE e' quella del selettore
-        # di mercato (v3); v2 resta la versione del selettore del MODELLO, le cui
-        # scelte ora vanno nel registro ombra (topmix_ombra_1x2_v1).
-        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_mercato_v3")
+        # di mercato: v3 (soglia 0,55), poi v4 con la soglia di ammissione a
+        # 0,57. v2 resta la versione del selettore del MODELLO, le cui scelte
+        # ora vanno nel registro ombra (topmix_ombra_1x2_v1). v3 resta una
+        # versione leggibile: le righe gia' registrate con v3 non si toccano.
+        self.assertEqual(R.SELECTOR_VERSION_CURRENT, "topmix_mercato_v4")
+        self.assertEqual(R.SELECTOR_VERSION_MERCATO_V4, "topmix_mercato_v4")
         self.assertEqual(R.SELECTOR_VERSION_MERCATO_V3, "topmix_mercato_v3")
+        self.assertIn(R.SELECTOR_VERSION_MERCATO_V3, R.VERSIONI_SELETTORE_MERCATO)
         self.assertEqual(R.SELECTOR_VERSION_MODELLO_1X2, "topmix_1x2_gate025_ens06_v2")
         self.assertEqual(R.SELECTOR_VERSION_OMBRA_1X2, "topmix_ombra_1x2_v1")
         self.assertEqual(R.SELECTOR_VERSION_PRE_1X2, "topmix_gate025_ens06_v1")

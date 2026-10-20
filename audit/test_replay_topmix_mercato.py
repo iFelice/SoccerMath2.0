@@ -282,17 +282,31 @@ class TestIlSelettoreEQuelloDiProduzione(unittest.TestCase):
         self.assertNotIn("def seleziona", src, "nessuna copia locale del selettore")
 
     def test_la_soglia_del_selettore_e_quella_della_pr49(self):
+        """Il replay congela la soglia di v3 (0,55), NON quella di produzione.
+
+        I 1302/1144/335 della PR #49 sono stati misurati con la soglia 0,55 di
+        ``topmix_mercato_v3``: la produzione di oggi viaggia a 0,57 (v4), quindi
+        il replay non puo' leggere la costante corrente, la congela.
+        """
         import app
-        self.assertEqual(0.55, MO.SOGLIA_TOPMIX_MERCATO)
+        self.assertEqual(0.55, RTM.SOGLIA_V3)
+        self.assertEqual("topmix_mercato_v3", RTM.VERSIONE_REPLAY)
         self.assertEqual(0.55, MO.SOGLIA_ACCORDO)
-        # sotto soglia non entra, sulla soglia entra (>= e non >)
+        # dentro il replay: sotto la 0,55 non entra, sulla 0,55 entra (>= non >)
+        with RTM.soglia_della_versione_riprodotta():
+            self.assertEqual(0.55, MO.SOGLIA_TOPMIX_MERCATO)
+            self.assertEqual(0.55, app.SOGLIA_TOPMIX_MERCATO)
+            self.assertIsNone(app.seleziona_riga_top_mix_mercato(
+                {"1": 0.549, "X": 0.30, "2": 0.151}, {"1": 1.9, "X": 3.4, "2": 6.6},
+                {"1": 0.60, "X": 0.25, "2": 0.15}, home="Inter", away="Roma"))
+            riga = app.seleziona_riga_top_mix_mercato(
+                {"1": 0.55, "X": 0.30, "2": 0.15}, {"1": 1.9, "X": 3.4, "2": 6.6},
+                {"1": 0.60, "X": 0.25, "2": 0.15}, home="Inter", away="Roma")
+            self.assertEqual("1", riga["esito"])
+        # fuori dal replay la produzione resta a 0,57 (v4): il 56% non entra.
+        self.assertEqual(0.57, MO.SOGLIA_TOPMIX_MERCATO)
         self.assertIsNone(app.seleziona_riga_top_mix_mercato(
-            {"1": 0.549, "X": 0.30, "2": 0.151}, {"1": 1.9, "X": 3.4, "2": 6.6},
-            {"1": 0.60, "X": 0.25, "2": 0.15}, home="Inter", away="Roma"))
-        riga = app.seleziona_riga_top_mix_mercato(
-            {"1": 0.55, "X": 0.30, "2": 0.15}, {"1": 1.9, "X": 3.4, "2": 6.6},
-            {"1": 0.60, "X": 0.25, "2": 0.15}, home="Inter", away="Roma")
-        self.assertEqual("1", riga["esito"])
+            {"1": 0.56, "X": 0.30, "2": 0.14}, home="Inter", away="Roma"))
 
     def test_campionatura_solo_stagioni_di_valutazione(self):
         import pandas as pd

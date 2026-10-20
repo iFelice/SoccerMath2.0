@@ -71,6 +71,11 @@ IMPRONTE = {
     # 0,55) e l'impronta copre anche ``market_odds``. Le probabilita' del modello
     # non sono cambiate: sono cambiati il selettore visibile e la sua riga.
     "topmix_mercato_v3": "1d2787b0f45b0f91a6ba651809b6e9ecdb2ba7dec35972dafdb40814186a4bb5",
+    # v4: stesso selettore di mercato, soglia di ammissione 0,55 -> 0,57
+    # (``market_odds.SOGLIA_TOPMIX_MERCATO``, unica costante per Top Mix,
+    # scheda Pronostici, scheda partita e Registro). Cambia QUALI partite
+    # entrano, non come si calcola la probabilita'.
+    "topmix_mercato_v4": "01aaa65657c38e0994986a5f75efb0b4976aa30338057faf3efd566203fd0cad",
 }
 
 
@@ -167,7 +172,7 @@ class TestRegolaVersioneSelettore(unittest.TestCase):
     def test_la_soglia_del_mercato_cambia_l_impronta(self):
         """La soglia del selettore di mercato fa parte dell'impronta."""
         base = self._sorgenti_base()
-        cambiato = base[MERCATO].replace("SOGLIA_TOPMIX_MERCATO = 0.55",
+        cambiato = base[MERCATO].replace("SOGLIA_TOPMIX_MERCATO = 0.57",
                                          "SOGLIA_TOPMIX_MERCATO = 0.60", 1)
         self.assertNotEqual(base[MERCATO], cambiato,
                             "fixture non valida: la costante non e' quella attesa")

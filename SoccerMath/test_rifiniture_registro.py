@@ -147,7 +147,8 @@ class TestDeltaMercatoDallaPrima(unittest.TestCase):
         self.assertIn("tutte le righe di mercato ancora in attesa", testo)
         self.assertIn("quota pre-partita valida", testo)
         self.assertIn("SOLO", testo)
-        self.assertIn("sotto 0,55", testo)
+        # la soglia in caption e' quella del selettore (0,57 da v4)
+        self.assertIn("sotto 0,57", testo)
         self.assertIn("Righe con il flag (1)", testo)
         self.assertIn("Roma–Como (Serie A, 1)", testo)
         self.assertNotIn("Milan–Inter", testo)
@@ -399,11 +400,11 @@ class TestRinfrescoRigheInAttesa(unittest.TestCase):
 
     def test_soglia_del_flag_e_quella_di_ammissione(self):
         """``sotto_soglia_ora`` usa la soglia del selettore, non un numero a parte."""
-        sotto = mo.letture_registrazione({"1": 0.5499, "X": 0.30, "2": 0.15})
-        sopra = mo.letture_registrazione({"1": 0.55, "X": 0.30, "2": 0.15})
+        sotto = mo.letture_registrazione({"1": 0.5699, "X": 0.30, "2": 0.1301})
+        sopra = mo.letture_registrazione({"1": 0.57, "X": 0.30, "2": 0.13})
         self.assertTrue(sotto["1"]["sotto_soglia_ora"])
         self.assertFalse(sopra["1"]["sotto_soglia_ora"])
-        self.assertEqual(0.55, mo.SOGLIA_TOPMIX_MERCATO)
+        self.assertEqual(0.57, mo.SOGLIA_TOPMIX_MERCATO)
 
     def test_accordo_modello_stessa_regola_del_selettore(self):
         """Modello e mercato entrambi >= 0,55 sullo STESSO esito (soglia di accordo)."""

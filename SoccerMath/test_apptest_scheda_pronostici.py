@@ -38,7 +38,9 @@ Cosa prova, sul VERO ``app.py``:
 * cliccare una riga apre la scheda partita di QUELLA riga e non scrive niente:
   nessun salvataggio nel Registro, nessuna chiamata di rete in uscita (punto 3);
 * «🟰 Pareggi» elenca le X del periodo in ordine di probabilita', senza
-  pulsante e senza scritture (punto 1);
+  pulsante e senza scritture (punto 1): ci stanno solo i pareggi con almeno il
+  30% di probabilita' (``app.pareggi_da_mostrare``), e se non ne resta nessuno
+  la scheda lo dice invece di proporre il meno peggio;
 * (punto 5) ``TestParitaScrittureColPulsanteVecchio`` riesegue lo stesso
   fixture contro l'``app.py`` del commit base e confronta le righe scritte: il
   pulsante nuovo non ha cambiato nessuna regola di registrazione.
@@ -146,13 +148,20 @@ class FixtureQuoteFinte:
         lunedi = lg.lunedi_gioco(adesso)
         entro = [adesso + timedelta(hours=h) for h in (8, 12, 16, 20)]
         oltre = lunedi + timedelta(hours=96)     # dopo lunedi', e oltre 3 giorni
+        # Le probabilita' fanno due cose: tengono in piedi le scelte del Top
+        # Mix (Roma 66% «1», Genoa 60% «1», Napoli 58% «2», Milan 57% «1») e
+        # danno alla scheda «Pareggi» un caso per parte — due X sopra il 30%
+        # (Genoa 33%, Torino 31%) e due sotto (Napoli 22%, Roma 20%), che e'
+        # esattamente la prova che chiede la commessa: sopra si entra, sotto
+        # no. Milan (fuori periodo) ha l'X al 31%: accendendo l'interruttore la
+        # graduatoria dei pareggi si allunga di una riga.
         return [
             # (id, casa, trasferta, (p1, pX, p2), kickoff)
-            (111, "Genoa", "Fiorentina", (0.60, 0.25, 0.15), entro[1]),
-            (112, "Torino", "Como", (0.50, 0.28, 0.22), entro[0]),
+            (111, "Genoa", "Fiorentina", (0.60, 0.33, 0.07), entro[1]),
+            (112, "Torino", "Como", (0.47, 0.31, 0.22), entro[0]),
             (113, "Roma", "Lecce", (0.66, 0.20, 0.14), entro[3]),
             (114, "Napoli", "Venezia", (0.20, 0.22, 0.58), entro[2]),
-            (115, "Milan", "Juventus", (0.57, 0.23, 0.20), oltre),
+            (115, "Milan", "Juventus", (0.57, 0.31, 0.12), oltre),
         ]
 
     @staticmethod
@@ -545,26 +554,38 @@ class TestSchedaPronostici(_BaseQuoteFinte):
 
     # -- 2. la scheda Pareggi non ha bisogno di click ----------------------
     def test_02_pareggi_elenca_le_X_del_periodo(self):
+        import app as app_mod
         import lista_giocate as lg
         res = lg.calcola_lista_giocate(self.payload, adesso_utc=self.ADESSO)
         in_periodo = lg.giocate_nel_periodo(res["giocate"], self.ADESSO,
                                             lg.PERIODO_GIORNATA)
-        attesi = [g for g in in_periodo if str(g.get("giocata") or "").strip() == "X"]
-        self.assertEqual(4, len(attesi), "il fixture ha quattro partite nel periodo")
+        x_periodo = [g for g in in_periodo if str(g.get("giocata") or "").strip() == "X"]
+        # La regola e' quella della scheda (pareggi_da_mostrare): qui non si
+        # riscrive, cosi' il test non puo' allinearsi a una regola diversa.
+        attesi = app_mod.pareggi_da_mostrare(in_periodo)
+        self.assertEqual(4, len(x_periodo), "il fixture ha quattro X nel periodo")
+        self.assertEqual(2, len(attesi), "due di quelle X arrivano al 30%")
 
         self.assertIn("Anche il pareggio più probabile esce circa 1 volta su 3.",
                       self._testo(self.at, SCHEDA_PAREGGI))
         df = self._df(self.at, SCHEDA_PAREGGI)
         self.assertEqual(COLONNE, list(df.columns), "le sei colonne promesse")
-        self.assertEqual(len(attesi), len(df), "una riga per ogni pareggio del periodo")
+        self.assertEqual(len(attesi), len(df), "una riga per ogni pareggio mostrato")
         self.assertEqual(["X"] * len(df), list(df["Pronostico"]),
                          "la scheda Pareggi non mostra altri esiti")
         self.assertEqual([round(float(g["probabilita"]) * 100.0, 1)
                           for g in sorted(attesi, key=lambda g: -g["probabilita"])],
                          [round(float(x), 1) for x in df["Quote %"]],
                          "in ordine di probabilita', come le altre tabelle")
-        self.assertEqual(["Torino - Como", "Genoa - Fiorentina", "Napoli - Venezia",
-                          "Roma - Lecce"], list(df["Partita"]))
+        # La commessa: l'X al 33% e al 31% ci sono, quelli al 22% e al 20% no.
+        self.assertEqual(["Genoa - Fiorentina", "Torino - Como"], list(df["Partita"]))
+        self.assertEqual([33.0, 31.0], [round(float(x), 1) for x in df["Quote %"]])
+        for fuori in ("Roma - Lecce", "Napoli - Venezia"):
+            with self.subTest(fuori=fuori):
+                self.assertNotIn(fuori, list(df["Partita"]),
+                                 "sotto il 30% il pareggio non si elenca")
+        self.assertNotIn(app_mod.FRASE_NESSUN_PAREGGIO_SOPRA_SOGLIA,
+                         self._testo(self.at, SCHEDA_PAREGGI))
         self.assertEqual([], self.scritture, "la scheda Pareggi legge e non scrive niente")
         self.assertEqual([], _elementi_della_tab(self.at, SCHEDA_PAREGGI, "button"),
                          "e non ha pulsanti da premere")
@@ -709,17 +730,17 @@ class TestSchedaPronostici(_BaseQuoteFinte):
 
     def test_07_il_clic_sulla_tabella_dei_pareggi_fa_lo_stesso(self):
         df_x = self._df(self.at, SCHEDA_PAREGGI)
-        casa, trasferta = [s.strip() for s in str(df_x.iloc[2]["Partita"]).split(" - ", 1)]
-        self.assertEqual("Napoli - Venezia", f"{casa} - {trasferta}")
+        casa, trasferta = [s.strip() for s in str(df_x.iloc[1]["Partita"]).split(" - ", 1)]
+        self.assertEqual("Torino - Como", f"{casa} - {trasferta}")
         self.scritture.clear()
         self.registro.chiamate.clear()
         import app as app_mod
         chiave = app_mod.chiave_tabella_corrente("pareggi_tabella_periodo",
                                                  self.at.session_state)
         self.at.session_state[chiave] = {
-            "selection": {"rows": [2], "columns": [], "cells": []}}
+            "selection": {"rows": [1], "columns": [], "cells": []}}
         self.at.run(timeout=900)
-        self.eccezioni(self.at, "clic sulla terza riga dei pareggi")
+        self.eccezioni(self.at, "clic sulla seconda riga dei pareggi")
         titoli = [str(getattr(el, "value", "") or "").strip() for el in self.at.markdown]
         self.assertIn("### " + _titolo_atteso(casa, trasferta), titoli,
                       "anche qui il clic sulla riga apre la sua partita")

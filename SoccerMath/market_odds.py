@@ -75,13 +75,63 @@ FONTE_MEDIA_LIBRI = "media_libri"
 FONTE_ASSENTE = "nessuna_quota"
 FONTI_NOTE = (FONTE_PINNACLE, FONTE_MEDIA_LIBRI, FONTE_ASSENTE)
 
-# Soglie del selettore di mercato. 0,55 e' la soglia di produzione del Top Mix
-# (``app.seleziona_riga_top_mix`` con Elo) ed e' la soglia usata dalla PR #49
-# per le scelte di mercato: cambiarla cambia i numeri del replay.
-SOGLIA_TOPMIX_MERCATO = 0.55
+# Soglie del selettore di mercato. 0,57 e' la soglia di ammissione del
+# pronostico di mercato (era 0,55 fino a ``topmix_mercato_v3``): la leggono
+# TUTTI i punti che devono decidere, cosi' non puo' divergere —
+# ``app.seleziona_riga_top_mix_mercato`` (Top Mix e scheda Pronostici),
+# ``scheda_partita`` (il pronostico Gol della scheda partita) e
+# ``letture_registrazione`` (il flag ``sotto_soglia_ora`` del Registro).
+# Cambiarla cambia i numeri del replay e richiede una versione nuova del
+# selettore (``topmix_mercato_v4``).
+SOGLIA_TOPMIX_MERCATO = 0.57
 # "D'accordo": modello e mercato sullo STESSO esito, entrambi >= 0,55
 # (definizione della PR #49 §4d, tabella B).
 SOGLIA_ACCORDO = 0.55
+# Sotto il 30% un pareggio non e' «probabile»: la scheda «🟰 Pareggi» elenca
+# solo i pareggi che arrivano fin qui (un X al 20% resta fuori). E' un filtro
+# di LETTURA della graduatoria, non la soglia di ammissione di un pronostico
+# (quella e' SOGLIA_TOPMIX_MERCATO): qui non si sceglie un esito secco, si
+# dice quali pareggi valgono uno sguardo.
+SOGLIA_PAREGGI = 0.30
+
+#: Cosa si mostra quando il mercato ha i suoi numeri ma NESSUN esito arriva
+#: alla soglia: un trattino, non l'esito piu' alto (che non e' un pronostico).
+#: La stringa vuota resta il «dato che non c'e'» (partita senza quote, o gia'
+#: giocata: li' la colonna e' proprio vuota, non «senza pronostico»).
+TRATTINO_PRONOSTICO = "—"
+
+
+def esito_ammesso(prob_mercato: Optional[Dict[str, Any]],
+                  soglia: float = SOGLIA_TOPMIX_MERCATO) -> str:
+    """La sigla del pronostico: «1», «X», «2» — oppure il trattino, oppure "".
+
+    E' la STESSA regola del Top Mix
+    (``app.seleziona_riga_top_mix_mercato``: argmax delle tre probabilita' di
+    mercato con spareggio sul PRIMO massimo nell'ordine 1, X, 2, ammesso solo
+    se la sua probabilita' e' >= ``soglia``) letta senza il resto della riga.
+    La usano la scheda Partite e la scheda della singola partita, che devono
+    mostrare LO STESSO pronostico del Top Mix: una regola sola, non due copie
+    che possono divergere.
+
+    * ``""`` (stringa vuota) quando manca un numero: nessun pronostico
+      inventato, la cella resta vuota come le probabilita' 1/X/2;
+    * ``TRATTINO_PRONOSTICO`` («—») quando la terna c'e' ma l'esito piu'
+      probabile NON arriva alla soglia: un 39,9% non e' un pronostico;
+    * «1»/«X»/«2» altrimenti: la sigla dell'esito ammesso.
+    """
+    if not isinstance(prob_mercato, dict):
+        return ""
+    valori: List[float] = []
+    for esito in ESITI:
+        v = _probabilita_num(prob_mercato.get(esito))
+        if v is None:
+            return ""
+        valori.append(v)
+    k = 0
+    for i in range(1, len(valori)):                 # spareggio: il PRIMO massimo
+        if valori[i] > valori[k]:
+            k = i
+    return ESITI[k] if valori[k] >= soglia else TRATTINO_PRONOSTICO
 
 # Calcolatore di multipla: al massimo 5 righe (vincolo della commessa).
 MASSIMO_RIGHE_MULTIPLA = 5

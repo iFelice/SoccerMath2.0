@@ -43,7 +43,7 @@ jobs:
   suite:
     name: Suite completa (pytest + test_theme_toggle)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     env:
       STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
       REPORT_DIR: ${{ github.workspace }}/suite-out

@@ -10,9 +10,10 @@ Cosa viene provato (punti 2, 3, 7 e 9 della commessa "quote live nel Top Mix"):
 * **partite senza quote**: nessuna terna valida -> ``probs is None`` e fonte
   ``nessuna_quota``; la partita e' esclusa dal Top Mix e segnalata, mai riempita
   con un valore di default;
-* **versione del selettore**: ``topmix_mercato_v3`` e' la versione in prova e
+* **versione del selettore**: ``topmix_mercato_v4`` e' la versione in prova e
   ``SELECTOR_VERSION_CURRENT`` la espone (il test di fingerprint
-  ``test_versione_selettore.py`` ne impone l'impronta);
+  ``test_versione_selettore.py`` ne impone l'impronta); ``topmix_mercato_v3``
+  resta leggibile per le righe gia' registrate con la soglia 0,55;
 * **l'app non chiama la fonte**: nessun codice di ``SoccerMath/app.py`` e
   ``market_odds.py`` fa richieste HTTP verso The Odds API (solo
   ``update_live_odds.py``, eseguito dal workflow, puo' farlo).
@@ -189,9 +190,14 @@ class TestPartiteSenzaQuote(unittest.TestCase):
 
 
 class TestVersioneSelettore(unittest.TestCase):
-    def test_la_versione_in_prova_e_topmix_mercato_v3(self):
+    def test_la_versione_in_prova_e_topmix_mercato_v4(self):
+        self.assertEqual("topmix_mercato_v4", R.SELECTOR_VERSION_MERCATO_V4)
+        self.assertEqual("topmix_mercato_v4", R.SELECTOR_VERSION_CURRENT)
+        # v3 resta: le righe gia' registrate con la soglia 0,55 si leggono ancora.
         self.assertEqual("topmix_mercato_v3", R.SELECTOR_VERSION_MERCATO_V3)
-        self.assertEqual("topmix_mercato_v3", R.SELECTOR_VERSION_CURRENT)
+        self.assertNotEqual(R.SELECTOR_VERSION_MERCATO_V3, R.SELECTOR_VERSION_CURRENT)
+        self.assertIn(R.SELECTOR_VERSION_MERCATO_V3, R.VERSIONI_SELETTORE_MERCATO)
+        self.assertIn(R.SELECTOR_VERSION_CURRENT, R.VERSIONI_SELETTORE_MERCATO)
 
     def test_le_versioni_precedenti_restanto_leggibili(self):
         self.assertEqual("topmix_gate025_ens06_v1", R.SELECTOR_VERSION_PRE_1X2)
@@ -343,15 +349,21 @@ class TestLetturaDelFile(RipristinaLogging, unittest.TestCase):
 
 class TestCostanti(unittest.TestCase):
     def test_soglie_e_limiti_della_commessa(self):
-        self.assertEqual(0.55, mo.SOGLIA_TOPMIX_MERCATO)
-        self.assertEqual(0.55, mo.SOGLIA_ACCORDO)
+        self.assertEqual(0.57, mo.SOGLIA_TOPMIX_MERCATO)
+        self.assertEqual(0.55, mo.SOGLIA_ACCORDO, "la soglia d'accordo RESTA 0,55")
         self.assertEqual(5, mo.MASSIMO_RIGHE_MULTIPLA)
         self.assertEqual(1, mo.MINIMO_RIGHE_MULTIPLA)
         self.assertEqual("pinnacle", mo.BOOKMAKER_PRIMARIO)
 
     def test_le_soglie_coincidono_con_quelle_del_registro(self):
-        """La soglia del mercato e' quella usata dalla PR #49 (0,55)."""
-        self.assertTrue(math.isclose(0.55, mo.SOGLIA_TOPMIX_MERCATO))
+        """La soglia del mercato e' 0,57 (v4; era 0,55 in v3)."""
+        self.assertTrue(math.isclose(0.57, mo.SOGLIA_TOPMIX_MERCATO))
+        # Il flag ``sotto_soglia_ora`` del Registro legge la STESSA costante:
+        # 0,56 e' sotto soglia, 0,57 no. Nessun numero a parte nel Registro.
+        self.assertTrue(mo.letture_registrazione({"1": 0.56, "X": 0.30, "2": 0.14})
+                        ["1"]["sotto_soglia_ora"])
+        self.assertFalse(mo.letture_registrazione({"1": 0.57, "X": 0.30, "2": 0.13})
+                         ["1"]["sotto_soglia_ora"])
 
 
 if __name__ == "__main__":
