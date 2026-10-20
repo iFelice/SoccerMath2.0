@@ -60,6 +60,7 @@ from market_odds import (
     MOTIVO_TERNA_NON_VALIDA,
     SOGLIA_ACCORDO,
     SOGLIA_ORE_QUOTE,
+    SOGLIA_PAREGGI,
     STATO_ASSENTE,
     STATO_NON_LEGGIBILE,
     STATO_OK,
@@ -5718,19 +5719,85 @@ def _mostra_vista_tecnica_top_mix(top_mercato, stato_quote):
 
 
 # ---------------------------------------------------------------------------
-# 🟰  PAREGGI  —  le partite con il pronostico X, senza premere niente
+# 🟰  PAREGGI  —  i pareggi che meritano uno sguardo, senza premere niente
 # ---------------------------------------------------------------------------
+#: Nel periodo scelto non c'e' nessun pareggio, punto.
+FRASE_NESSUN_PAREGGIO_NEL_PERIODO = (
+    "Nessun pareggio in programma nel periodo scelto. "
+    f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» in alto per guardare più avanti."
+)
+#: Di pareggi ce ne sono, ma nessuno arriva a ``SOGLIA_PAREGGI``: la scheda lo
+#: dice, invece di proporre «il piu' probabile» di una terna in cui il
+#: pareggio resta un evento da una volta su cinque. (In vista non si scrive
+#: «soglia»: e' gergo, sta nell'elenco
+#: ``test_apptest_topmix_presentazione.PAROLE_VIETATE``.)
+FRASE_NESSUN_PAREGGIO_SOPRA_SOGLIA = (
+    f"Nessun pareggio con almeno il {SOGLIA_PAREGGI:.0%} di probabilità "
+    "nel periodo scelto."
+)
+
+
+def probabilita_giocata(giocata):
+    """La probabilita' di una giocata come frazione 0-1 (``None`` se non c'e').
+
+    La lista tiene lo stesso numero in due campi (``probabilita`` in frazione
+    e ``prob_percentuale`` in 0-100): qui si torna sempre alla frazione, cosi'
+    il confronto non dipende da chi ha riempito la riga.
+    """
+    giocata = giocata if isinstance(giocata, dict) else {}
+    valore = giocata.get("probabilita")
+    if valore is None:
+        valore = giocata.get("prob_percentuale")
+        if valore is None:
+            return None
+        try:
+            return float(valore) / 100.0
+        except (TypeError, ValueError):
+            return None
+    try:
+        return float(valore)
+    except (TypeError, ValueError):
+        return None
+
+
+def pareggi_da_mostrare(giocate, soglia=SOGLIA_PAREGGI):
+    """I pareggi che la scheda «🟰 Pareggi» mostra: esito X e probabilita' >= soglia.
+
+    La regola e' QUESTA e sta qui (chi la usa non la riscrive): fra le giocate
+    del periodo restano quelle con esito «X» la cui probabilita' arriva a
+    ``SOGLIA_PAREGGI`` (0,30). Un X al 20% puo' anche essere l'esito piu'
+    probabile di una partita stesa, ma non e' un pareggio su cui vale la pena
+    fermarsi: prima la scheda lo elencava lo stesso, e la graduatoria
+    presentava come «pareggio» un evento che non arriva a una volta su cinque.
+    """
+    fuori = []
+    for g in giocate or []:
+        if not isinstance(g, dict):
+            continue
+        if str(g.get("giocata") or g.get("esito") or "").strip() != "X":
+            continue
+        p = probabilita_giocata(g)
+        if p is not None and p >= soglia:
+            fuori.append(g)
+    return fuori
+
+
 def _scheda_pareggi():
-    """Tutte le partite del periodo con il pronostico X, in ordine di probabilità.
+    """I pareggi del periodo sopra il 30%, in ordine di probabilità.
 
     Nessun pulsante e nessuna scrittura: la lista viene dallo STESSO calcolo della
     scheda Multiple (``lista_giocate.calcola_lista_giocate`` sul file delle quote),
-    filtrata per periodo e ridotta ai pareggi, e «Modello %» legge il giro del
-    modello in sola lettura. La riga sopra la tabella dice quanto vale un pareggio:
-    anche il piu' probabile esce circa una volta su tre, per questo la scheda non e'
-    una promessa ma una graduatoria.
+    filtrata per periodo e poi da ``pareggi_da_mostrare``, e «Modello %» legge il
+    giro del modello in sola lettura. La riga sopra la tabella dice due cose:
+    quanto vale un pareggio (anche il piu' probabile esce circa una volta su tre,
+    per questo la scheda non e' una promessa ma una graduatoria) e da che
+    probabilita' in su una partita vi entra. Se non ne resta nessuna, la scheda
+    lo dice e basta: nessuna tabella vuota e nessun «pareggio piu' probabile»
+    tirato fuori per forza.
     """
-    st.caption("Anche il pareggio più probabile esce circa 1 volta su 3.")
+    st.caption("Anche il pareggio più probabile esce circa 1 volta su 3. "
+               f"In tabella solo i pareggi con almeno il {SOGLIA_PAREGGI:.0%} "
+               "di probabilità.")
     payload = market_odds.carica_quote_live()
     if not payload:
         st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
@@ -5739,12 +5806,14 @@ def _scheda_pareggi():
     res = lg.calcola_lista_giocate(payload, adesso_utc=adesso)
     in_periodo = lg.giocate_nel_periodo(res.get("giocate", []), adesso,
                                         periodo_selezionato()[0])
-    pareggi = [g for g in in_periodo
-               if str(g.get("giocata") or g.get("esito") or "").strip() == "X"]
+    pareggi = pareggi_da_mostrare(in_periodo)
     if not pareggi:
-        st.info(f"Nessun pareggio in programma nel periodo scelto. "
-                f"Accendi «{ETICHETTA_PROSSIMI_GIORNI}» in alto per guardare "
-                "più avanti.")
+        ce_era_qualche_x = any(
+            isinstance(g, dict)
+            and str(g.get("giocata") or g.get("esito") or "").strip() == "X"
+            for g in in_periodo)
+        st.info(FRASE_NESSUN_PAREGGIO_SOPRA_SOGLIA if ce_era_qualche_x
+                else FRASE_NESSUN_PAREGGIO_NEL_PERIODO)
         return
     stato_confronto, mappa_modello_1x2 = stato_confronto_in_lettura()
     _mostra_tabella_periodo([riga_pronostico_da_giocata(g, adesso, stato_confronto,

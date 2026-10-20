@@ -178,7 +178,9 @@ class TestSpuntaNonRimane(_BaseQuoteFinte):
                               "Genoa", "Fiorentina")
 
     def test_02_pareggi_la_spunta_non_rimane(self):
-        self._verifica_spunta(CHIAVE_PAREGGI, SCHEDA_PAREGGI, "Napoli", "Venezia")
+        # La prima riga dei pareggi: la scheda mostra solo le X sopra il 30%
+        # (Genoa 33% e Torino 31%), Napoli - Venezia (22%) non c'e' piu'.
+        self._verifica_spunta(CHIAVE_PAREGGI, SCHEDA_PAREGGI, "Genoa", "Fiorentina")
 
     def test_03_multiple_la_spunta_non_rimane(self):
         import app as app_mod

@@ -87,6 +87,12 @@ SOGLIA_TOPMIX_MERCATO = 0.57
 # "D'accordo": modello e mercato sullo STESSO esito, entrambi >= 0,55
 # (definizione della PR #49 §4d, tabella B).
 SOGLIA_ACCORDO = 0.55
+# Sotto il 30% un pareggio non e' «probabile»: la scheda «🟰 Pareggi» elenca
+# solo i pareggi che arrivano fin qui (un X al 20% resta fuori). E' un filtro
+# di LETTURA della graduatoria, non la soglia di ammissione di un pronostico
+# (quella e' SOGLIA_TOPMIX_MERCATO): qui non si sceglie un esito secco, si
+# dice quali pareggi valgono uno sguardo.
+SOGLIA_PAREGGI = 0.30
 
 #: Cosa si mostra quando il mercato ha i suoi numeri ma NESSUN esito arriva
 #: alla soglia: un trattino, non l'esito piu' alto (che non e' un pronostico).
