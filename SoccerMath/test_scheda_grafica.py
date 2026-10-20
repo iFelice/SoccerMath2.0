@@ -33,6 +33,7 @@ for _p in (HERE, REPO_ROOT):
 
 import scheda_grafica as sg  # noqa: E402
 import scheda_partita as sp  # noqa: E402
+import market_odds as mo  # noqa: E402
 
 CAMP = "Serie A"
 
@@ -90,9 +91,14 @@ class TestProbabilitaGrafica(unittest.TestCase):
         self.assertNotIn("Modello:", sg.html_probabilita(scheda))
 
     def test_etichette_pronostico_e_gol(self):
-        # Il massimo delle quote (37,6%) non arriva al 57%: trattino e nota.
+        # Il massimo delle quote (37,6%) non arriva alla soglia: trattino e
+        # nota costruita dalla costante, con il simbolo di percento.
+        atteso = (f"nessun esito arriva al "
+                  f"{int(round(mo.SOGLIA_TOPMIX_MERCATO * 100))}%")
+        self.assertEqual(atteso, sg.NOTA_SOTTO_SOGLIA)
+        self.assertIn("%", sg.NOTA_SOTTO_SOGLIA)
         self.assertIn("Pronostico:", self.html)
-        self.assertIn("— (nessun esito arriva al 57 per cento)", self.html)
+        self.assertIn(f"— ({sg.NOTA_SOTTO_SOGLIA})", self.html)
         self.assertIn("Gol:", self.html)
         self.assertIn("P(Over 2,5)", self.html)
 
@@ -150,6 +156,103 @@ class TestClassificaGrafica(unittest.TestCase):
         html = sg.html_classifica(scheda)
         self.assertIn("nessuna giornata precedente", html)
         self.assertNotIn("None", html)
+
+
+class TestFormaGrafica(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scheda = _scheda_napoli_roma()
+        cls.html = sg.html_forma(cls.scheda)
+
+    def test_cerchi_da_44_pixel_colori_e_ordine(self):
+        self.assertIn("width: 44px; height: 44px", self.html)
+        # Cinque cerchi per squadra, due squadre.
+        self.assertEqual(10, self.html.count('class="sg-cerchio"'))
+        for colore in sg.COLORI_FORMA.values():
+            with self.subTest(colore=colore):
+                self.assertIn(colore, self.html)
+        for lettera in (">V<", ">N<", ">P<"):
+            with self.subTest(lettera=lettera):
+                self.assertIn(lettera, self.html)
+        # La successione dei cerchi e' quella delle partite della scheda
+        # (dalla piu' vecchia a sinistra alla piu' recente a destra): le
+        # lettere attese si contano sulle partite, non si riscrivono qui.
+        forma = self.scheda["forma"]["casa"]
+        attese = [sg.LETTERE_FORMA[p["esito"]] for p in forma["partite"]]
+        trovate = re.findall(r'class="sg-cerchio"[^>]*>([VNP])<', self.html)
+        self.assertEqual(attese, trovate[:5])
+
+    def test_conteggio_elenco_e_legenda(self):
+        forma = self.scheda["forma"]["trasferta"]
+        ultima = forma["partite"][-1]
+        for atteso in ("Legenda:", "V = vittoria", "N = pareggio", "P = sconfitta",
+                       ultima["avversario_nome"], ultima["dove"],
+                       ultima["risultato"]):
+            with self.subTest(atteso=atteso):
+                self.assertIn(atteso, self.html)
+
+
+class TestGolGrafico(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scheda = _scheda_napoli_roma()
+        cls.html = sg.html_gol(cls.scheda)
+
+    def test_casa_in_casa_trasferta_in_trasferta_scala_0_3(self):
+        self.assertIn("Napoli — in casa", self.html)
+        self.assertIn("Roma — in trasferta", self.html)
+        self.assertIn("Gol fatti a partita", self.html)
+        self.assertIn("Gol subiti a partita", self.html)
+        self.assertIn("da 0 a 3 gol a partita", self.html)
+        # La larghezza e' media/3: quella del blocco giusto della scheda.
+        blocco = self.scheda["gol"]["casa"]["casa"]
+        larghezza = blocco["media_fatti"] / sg.SCALA_GOL * 100.0
+        self.assertIn(f"width:{larghezza:.1f}%", self.html)
+
+    def test_riga_stagionale_con_percentuali(self):
+        stag = self.scheda["gol"]["trasferta"]["stagione"]
+        over = round(100.0 * stag["piu_di_2_gol"] / stag["partite"])
+        btts = round(100.0 * stag["entrambe_a_segno"] / stag["partite"])
+        self.assertIn(f"Over 2,5: {over}%", self.html)
+        self.assertIn(f"Entrambe a segno: {btts}%", self.html)
+        self.assertIn("In stagione:", self.html)
+
+
+class TestPrecedentiGrafica(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scheda = _scheda_napoli_roma()
+        cls.html = sg.html_precedenti(cls.scheda)
+
+    def test_precedenti_e_testo_piccolo(self):
+        self.assertIn("Precedenti in stagione", self.html)
+        precedenti = self.scheda["precedenti"]
+        if precedenti:
+            self.assertIn(precedenti[0]["casa_nome"], self.html)
+            self.assertIn(precedenti[0]["risultato"], self.html)
+        else:
+            self.assertIn("non si sono ancora affrontate", self.html)
+        self.assertIn("sg-piccolo", self.html)
+
+    def test_dati_mancanti_solo_se_ci_sono(self):
+        scheda = copy.deepcopy(self.scheda)
+        scheda["note_dati"] = ["Nota <di> prova"]
+        html = sg.html_precedenti(scheda)
+        self.assertIn("Dati mancanti", html)
+        self.assertIn("Nota &lt;di&gt; prova", html)
+        scheda["note_dati"] = []
+        self.assertNotIn("Dati mancanti", sg.html_precedenti(scheda))
+
+    def test_cinque_sezioni_nella_scheda_intera(self):
+        html = sg.html_scheda(self.scheda)
+        self.assertEqual(5, html.count('class="sg sg-sezione"'))
+        for titolo in ("Probabilità", "Classifica", "Forma: ultime 5",
+                       "Gol", "Precedenti in stagione"):
+            with self.subTest(titolo=titolo):
+                self.assertIn(titolo, html)
 
 
 class TestPaletteENomiEscapati(unittest.TestCase):

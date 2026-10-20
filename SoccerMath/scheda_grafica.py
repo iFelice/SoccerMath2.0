@@ -3,11 +3,13 @@
 COSA FA
 -------
 Riceve il dizionario prodotto da ``scheda_partita.costruisci_scheda`` e
-restituisce STRINGHE HTML per due sezioni della scheda: le probabilita'
-1/X/2 (barre) e la classifica delle due squadre (riquadri affiancati).
+restituisce STRINGHE HTML per le cinque sezioni della scheda: le
+probabilita' 1/X/2 (barre), la classifica delle due squadre (riquadri
+affiancati), la forma (ultime 5 partite), i gol (casa/trasferta e
+stagione) e, in fondo, precedenti in stagione e dati mancanti.
 Nessuna chiamata a Streamlit, nessuna rete, nessun calcolo nuovo: i numeri
 sono quelli che la scheda porta gia' (quote, modello, totals, distanze di
-classifica), qui diventano solo HTML.
+classifica, forma, gol), qui diventano solo HTML.
 
 REGOLE
 ------
@@ -25,20 +27,35 @@ REGOLE
   (``Modello: 1 31 X 27 2 42``), come nell'esempio della scheda.
 * Il pronostico e' quello della scheda (``scheda["pronostico"]``, la
   stessa regola del Top Mix): la sigla se c'e', altrimenti il trattino
-  con la nota che nessun esito arriva al 57 per cento (la soglia di
-  ``market_odds.SOGLIA_TOPMIX_MERCATO``).
+  con la nota che nessun esito arriva alla soglia, costruita dalla
+  costante ``market_odds.SOGLIA_TOPMIX_MERCATO`` mostrata con il
+  simbolo di percento (per esempio 57%).
 * I due riquadri di classifica stanno in una griglia CSS
   ``repeat(auto-fit, minmax(280px, 1fr))`` e sotto i 640 pixel di
   larghezza vanno uno sotto l'altro (media query esplicita).
+* La forma si disegna con cinque cerchi da 44 pixel (V verde, N
+  grigio, P rosso, dalla piu' vecchia a sinistra alla piu' recente a
+  destra), il conteggio V/N/P, l'elenco delle partite e una legenda.
+* I gol usano, per la squadra di casa, le sue partite in casa e, per
+  quella in trasferta, le sue partite fuori: due barre (fatti e subiti
+  a partita) su scala fissa 0-3, e una riga con medie stagionali,
+  Over 2,5 e entrambe a segno in percentuale (sotto le 5 partite
+  stagionali resta il conteggio "N su M", la stessa regola di
+  ``scheda_partita.conteggio_in_parole``).
 
-Il modulo importa solo la libreria standard: e' usabile da app, test e
-script senza trascinarsi dietro pandas o Streamlit.
+Il modulo non importa Streamlit: e' usabile da app, test e script.
+Importa ``market_odds`` solo per la costante della soglia del
+pronostico, cosi' la nota non puo' restare indietro rispetto alla
+regola che sceglie l'esito.
 """
 from __future__ import annotations
 
 import html
 import math
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+from market_odds import SOGLIA_TOPMIX_MERCATO
 
 # --- Palette (due varianti: chiara e scura) --------------------------------
 PALETTE: Dict[str, Dict[str, str]] = {
@@ -79,12 +96,36 @@ COLORI_ESITI = {"1": "#2563eb", "X": "#8a8f98", "2": "#e07b1f"}
 #: rosso se e' peggiorata, grigio se e' ferma.
 COLORI_FRECCIA = {"su": "#1e9e4a", "giu": "#d63a2f", "ferma": "#7a828e"}
 
+#: Forma: lettera mostrata nel cerchio e suo colore. Nella scheda gli
+#: esiti sono V (vinta), X (pareggio) e P (persa): la X si mostra N,
+#: come si dice in italiano (pareggio = nulla).
+LETTERE_FORMA = {"V": "V", "X": "N", "P": "P"}
+COLORI_FORMA = {"V": "#1e9e4a", "N": "#8a8f98", "P": "#d63a2f"}
+
+#: Gol: colori delle due barre (fatti e subiti a partita) e la scala
+#: fissa 0-3 sulla quale le barre si misurano.
+COLORI_GOL = {"fatti": "#1e9e4a", "subiti": "#d63a2f"}
+SCALA_GOL = 3.0
+
+#: Sotto questo numero di partite stagionali nessuna percentuale sui
+#: gol: resta il conteggio "N su M" (scheda_partita: MIN_PARTITE_PERCENTUALE).
+MIN_PARTITE_PERCENTUALE_GOL = 5
+
 ESITI = ("1", "X", "2")
 
-#: La soglia del pronostico mostrata nella nota (market_odds:
-#: SOGLIA_TOPMIX_MERCATO = 0.57). E' solo il testo della nota: la scelta
-#: dell'esito resta quella gia' fatta da scheda_partita.
-NOTA_SOTTO_SOGLIA = "nessun esito arriva al 57 per cento"
+def _fmt_soglia() -> str:
+    """La soglia del Top Mix come percentuale col simbolo: 0.57 -> "57%"."""
+    v = SOGLIA_TOPMIX_MERCATO * 100.0
+    if abs(v - round(v)) < 1e-9:
+        return f"{int(round(v))}%"
+    return f"{v:.1f}".replace(".", ",") + "%"
+
+
+#: La nota sotto il trattino del pronostico, costruita dalla costante
+#: ``market_odds.SOGLIA_TOPMIX_MERCATO`` (mai scritta a mano: se la
+#: soglia cambia, la nota la segue). E' solo il testo della nota: la
+#: scelta dell'esito resta quella gia' fatta da scheda_partita.
+NOTA_SOTTO_SOGLIA = f"nessun esito arriva al {_fmt_soglia()}"
 
 FRASE_QUOTE_ASSENTI = "Quote non ancora disponibili"
 
@@ -202,6 +243,22 @@ def _stile(p: Dict[str, str]) -> str:
 .sg-distanze {{ margin: 0 0 10px 0; padding-left: 18px; }}
 .sg-frase {{ background: var(--sg-frase); border-left: 4px solid var(--sg-accento);
   border-radius: 6px; padding: 8px 10px; }}
+.sg-riga-forma {{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 8px; }}
+.sg-cerchi {{ display: flex; gap: 6px; }}
+.sg-cerchio {{ width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #ffffff; font-weight: 800; font-size: 16px; }}
+.sg-conteggio {{ font-weight: 700; }}
+.sg-elenco {{ margin: 0; padding-left: 18px; font-size: 13px; }}
+.sg-legenda {{ font-size: 12px; color: var(--sg-attenuato); margin-top: 12px;
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }}
+.sg-pallino {{ width: 12px; height: 12px; border-radius: 50%;
+  display: inline-block; vertical-align: -1px; margin-right: 4px; }}
+.sg-etichetta-barra {{ flex: 0 0 132px; font-size: 13px; }}
+.sg-riga-stagione {{ margin: 10px 0 0 0; font-size: 13px; }}
+.sg-piccolo {{ font-size: 13px; }}
+.sg-piccolo h4 {{ margin: 10px 0 4px 0; font-size: 13px; }}
 .sg-attenuato {{ color: var(--sg-attenuato); }}
 </style>"""
 
@@ -252,6 +309,29 @@ def _html_probabilita(scheda: Dict[str, Any]) -> str:
         "</div>")
     righe.append("</section>")
     return "\n".join(righe)
+
+
+def _fmt_media(valore: Any) -> str:
+    """Media gol con una cifra e la virgola italiana: 1.666 -> "1,7"."""
+    v = _numero(valore)
+    if v is None:
+        return "n/d"
+    return f"{v:.1f}".replace(".", ",")
+
+
+def _data_breve(valore: Any) -> str:
+    """La data di una partita dai dati: "13/09", o "data n/d"."""
+    if valore is None:
+        return "data n/d"
+    if hasattr(valore, "strftime"):
+        return valore.strftime("%d/%m")
+    testo = str(valore).strip()
+    for formato in ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(testo[:19], formato).strftime("%d/%m")
+        except ValueError:
+            continue
+    return testo[:10] if testo else "data n/d"
 
 
 def html_probabilita(scheda: Dict[str, Any], tema: str = "chiaro") -> str:
@@ -382,12 +462,200 @@ def html_classifica(scheda: Dict[str, Any], tema: str = "chiaro") -> str:
     return _stile(palette_di(tema)) + "\n" + _html_classifica(scheda)
 
 
+# ---------------------------------------------------------------------------
+# 3. Forma: ultime 5 partite, cerchi V/N/P
+# ---------------------------------------------------------------------------
+def _forma_squadra(scheda: Dict[str, Any], ruolo: str) -> str:
+    forma = ((scheda or {}).get("forma") or {}).get(ruolo) or {}
+    nome = _esc(forma.get("nome")
+                or ((scheda or {}).get(ruolo) or {}).get("nome") or "?")
+    righe = ['<div class="sg-squadra">', f'<h4 class="sg-nome">{nome}</h4>']
+    partite = forma.get("partite") or []
+    if not partite:
+        righe.append('<p class="sg-attenuato">Dati insufficienti: nessuna partita '
+                     "di campionato giocata in questa stagione.</p>")
+        righe.append("</div>")
+        return "\n".join(righe)
+    if not forma.get("sufficiente"):
+        n = _intero(forma.get("n")) or len(partite)
+        righe.append('<p class="sg-attenuato">Dati insufficienti: solo '
+                     f"{n} {'partita giocata' if n == 1 else 'partite giocate'} "
+                     "in questo campionato.</p>")
+        righe.append("</div>")
+        return "\n".join(righe)
+
+    # Le partite della scheda sono gia' dalla piu' vecchia alla piu'
+    # recente: a sinistra la piu' vecchia, a destra la piu' recente.
+    ultime = partite[-5:]
+    cerchi, conteggio = [], {"V": 0, "N": 0, "P": 0}
+    for p in ultime:
+        lettera = LETTERE_FORMA.get(str(p.get("esito") or "").strip(), "N")
+        conteggio[lettera] += 1
+        cerchi.append(f'<span class="sg-cerchio" '
+                      f'style="background:{COLORI_FORMA[lettera]}">{lettera}</span>')
+    righe.append(
+        '<div class="sg-riga-forma"><div class="sg-cerchi">'
+        + "".join(cerchi)
+        + '</div><span class="sg-conteggio">'
+        + _esc(f"{conteggio['V']} V · {conteggio['N']} N · {conteggio['P']} P")
+        + "</span></div>")
+    voci = []
+    for p in ultime:
+        lettera = LETTERE_FORMA.get(str(p.get("esito") or "").strip(), "N")
+        voci.append(
+            f"<li>{_esc(_data_breve(p.get('data')))} · "
+            f"{_esc(p.get('avversario_nome') or p.get('avversario') or '?')} "
+            f"({_esc(p.get('dove') or '')}): "
+            f"{_esc(p.get('risultato') or 'n/d')} ({lettera})</li>")
+    righe.append('<ul class="sg-elenco">' + "".join(voci) + "</ul>")
+    righe.append("</div>")
+    return "\n".join(righe)
+
+
+def _html_forma(scheda: Dict[str, Any]) -> str:
+    legenda = (
+        '<div class="sg-legenda"><span>Legenda:</span>'
+        f'<span><span class="sg-pallino" style="background:{COLORI_FORMA["V"]}"></span>'
+        "V = vittoria</span>"
+        f'<span><span class="sg-pallino" style="background:{COLORI_FORMA["N"]}"></span>'
+        "N = pareggio</span>"
+        f'<span><span class="sg-pallino" style="background:{COLORI_FORMA["P"]}"></span>'
+        "P = sconfitta</span></div>")
+    return "\n".join([
+        '<section class="sg sg-sezione">',
+        '<h3 class="sg-titolo">Forma: ultime 5 partite di campionato</h3>',
+        '<div class="sg-griglia">',
+        _forma_squadra(scheda, "casa"),
+        _forma_squadra(scheda, "trasferta"),
+        "</div>",
+        legenda,
+        "</section>",
+    ])
+
+
+def html_forma(scheda: Dict[str, Any], tema: str = "chiaro") -> str:
+    """La sezione Forma: 5 cerchi V/N/P, conteggio, elenco, legenda."""
+    return _stile(palette_di(tema)) + "\n" + _html_forma(scheda)
+
+
+# ---------------------------------------------------------------------------
+# 4. Gol: casa in casa, trasferta in trasferta, barre su scala 0-3
+# ---------------------------------------------------------------------------
+def _quota_evento(conteggio: Any, partite: Any) -> str:
+    """Evento gol in percentuale da 5 partite, altrimenti "N su M"."""
+    n, m = _intero(conteggio), _intero(partite)
+    if n is None or m is None or m <= 0:
+        return "n/d"
+    if m >= MIN_PARTITE_PERCENTUALE_GOL:
+        return f"{round(100.0 * n / m):.0f}%"
+    return f"{n} su {m} partite"
+
+
+def _gol_squadra(scheda: Dict[str, Any], ruolo: str) -> str:
+    gol = ((scheda or {}).get("gol") or {}).get(ruolo) or {}
+    nome = _esc(gol.get("nome")
+                or ((scheda or {}).get(ruolo) or {}).get("nome") or "?")
+    luogo = "in casa" if ruolo == "casa" else "in trasferta"
+    blocco = gol.get("casa" if ruolo == "casa" else "trasferta") or {}
+    righe = ['<div class="sg-squadra">',
+             f'<h4 class="sg-nome">{nome} — {luogo}</h4>']
+    if not blocco.get("partite") or _numero(blocco.get("media_fatti")) is None:
+        righe.append('<p class="sg-attenuato">Dati insufficienti: nessuna partita '
+                     f"giocata {luogo} in questa stagione.</p>")
+        righe.append("</div>")
+        return "\n".join(righe)
+    for etichetta, chiave, colore in (
+            ("Gol fatti a partita", "media_fatti", COLORI_GOL["fatti"]),
+            ("Gol subiti a partita", "media_subiti", COLORI_GOL["subiti"])):
+        media = _numero(blocco.get(chiave))
+        larghezza = (f"{min(media, SCALA_GOL) / SCALA_GOL * 100.0:.1f}"
+                     if media is not None else "0.0")
+        righe.append(
+            '<div class="sg-riga-barra">'
+            f'<span class="sg-etichetta-barra">{etichetta}</span>'
+            f'<div class="sg-traccia"><div class="sg-riempimento" '
+            f'style="width:{larghezza}%;background:{colore}"></div></div>'
+            f'<span class="sg-valore">{_fmt_media(media)}</span></div>')
+    righe.append('<p class="sg-attenuato" style="font-size:12px">'
+                 "Scala delle barre: da 0 a 3 gol a partita.</p>")
+    stag = gol.get("stagione") or {}
+    if stag.get("partite") and _numero(stag.get("media_fatti")) is not None:
+        righe.append(
+            '<p class="sg-riga-stagione">'
+            f"In stagione: {_fmt_media(stag.get('media_fatti'))} gol fatti e "
+            f"{_fmt_media(stag.get('media_subiti'))} subiti a partita "
+            f"({_fmt_intero(stag.get('partite'))} partite) · "
+            f"Over 2,5: {_esc(_quota_evento(stag.get('piu_di_2_gol'), stag.get('partite')))} · "
+            "Entrambe a segno: "
+            f"{_esc(_quota_evento(stag.get('entrambe_a_segno'), stag.get('partite')))}</p>")
+    righe.append("</div>")
+    return "\n".join(righe)
+
+
+def _html_gol(scheda: Dict[str, Any]) -> str:
+    return "\n".join([
+        '<section class="sg sg-sezione">',
+        '<h3 class="sg-titolo">Gol</h3>',
+        '<div class="sg-griglia">',
+        _gol_squadra(scheda, "casa"),
+        _gol_squadra(scheda, "trasferta"),
+        "</div>",
+        "</section>",
+    ])
+
+
+def html_gol(scheda: Dict[str, Any], tema: str = "chiaro") -> str:
+    """La sezione Gol: barre fatti/subiti su scala 0-3 e riga stagionale."""
+    return _stile(palette_di(tema)) + "\n" + _html_gol(scheda)
+
+
+# ---------------------------------------------------------------------------
+# 5. Precedenti in stagione e dati mancanti (testo piccolo, in fondo)
+# ---------------------------------------------------------------------------
+def _html_precedenti(scheda: Dict[str, Any]) -> str:
+    righe = ['<section class="sg sg-sezione">',
+             '<h3 class="sg-titolo">Precedenti in stagione</h3>',
+             '<div class="sg-piccolo">']
+    precedenti = (scheda or {}).get("precedenti") or []
+    if precedenti:
+        voci = []
+        for p in precedenti:
+            giornata = _intero(p.get("giornata"))
+            nota = f" (giornata {giornata})" if giornata is not None else ""
+            voci.append(
+                f"<li>{_esc(p.get('casa_nome') or '?')} - "
+                f"{_esc(p.get('trasferta_nome') or '?')} "
+                f"{_esc(p.get('risultato') or 'n/d')} il "
+                f"{_esc(_data_breve(p.get('data')))}{_esc(nota)}</li>")
+        righe.append('<ul class="sg-elenco">' + "".join(voci) + "</ul>")
+    else:
+        righe.append("<p>Le due squadre non si sono ancora affrontate "
+                     "in questa stagione.</p>")
+    note = (scheda or {}).get("note_dati") or []
+    if note:
+        righe.append("<h4>Dati mancanti</h4>")
+        righe.append('<ul class="sg-elenco">'
+                     + "".join(f"<li>{_esc(n)}</li>" for n in note)
+                     + "</ul>")
+    righe.append("</div>")
+    righe.append("</section>")
+    return "\n".join(righe)
+
+
+def html_precedenti(scheda: Dict[str, Any], tema: str = "chiaro") -> str:
+    """Precedenti in stagione e dati mancanti, in testo piccolo."""
+    return _stile(palette_di(tema)) + "\n" + _html_precedenti(scheda)
+
+
 def html_scheda(scheda: Dict[str, Any], tema: str = "chiaro") -> str:
-    """Le due sezioni grafiche della scheda (probabilita' e classifica)."""
+    """Le cinque sezioni grafiche della scheda, in un unico HTML."""
     return "\n".join([
         _stile(palette_di(tema)),
         '<div class="sg">',
         _html_probabilita(scheda),
         _html_classifica(scheda),
+        _html_forma(scheda),
+        _html_gol(scheda),
+        _html_precedenti(scheda),
         "</div>",
     ])

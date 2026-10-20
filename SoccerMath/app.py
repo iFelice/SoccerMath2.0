@@ -45,6 +45,10 @@ from team_names import resolve_team_name
 # ricalcolato: le probabilita' sono quelle delle quote, il resto sono i fatti
 # dei risultati archiviati.
 import scheda_partita as sp
+# La scheda partita in HTML: modulo PURO (nessuno Streamlit dentro) che
+# riceve il dizionario di scheda_partita.costruisci_scheda e restituisce
+# le cinque sezioni gia' pronte; qui si sceglie il tema e si disegna.
+import scheda_grafica as sgr
 # Quote 1X2 dal vivo: l'app LEGGE il file scritto dal workflow live_odds.yml,
 # non chiama mai The Odds API (vincolo della commessa, verificato da
 # test_quote_live.py::TestLAppNonChiamaLaFonte).
@@ -3355,11 +3359,11 @@ engine = get_league_engine(camp_sel)
 SCHEDA_PARTITA_APERTA_CHIAVE = "scheda_partita_aperta"
 
 
-def apri_scheda_partita(lega, casa, trasferta, kickoff_utc=None):
+def apri_scheda_partita(lega, casa, trasferta, kickoff_utc=None, giornata=None):
     """Chiede l'apertura della scheda di una partita (nessuna scrittura)."""
     st.session_state[SCHEDA_PARTITA_APERTA_CHIAVE] = {
         "lega": lega, "casa": casa, "trasferta": trasferta,
-        "kickoff_utc": kickoff_utc,
+        "kickoff_utc": kickoff_utc, "giornata": giornata,
     }
 
 
@@ -3374,11 +3378,32 @@ def _righe_partita_da_giocata(g):
     lega = g.get("lega") or g.get("league") or g.get("campionato")
     return {"lega": lega, "casa": g.get("home"), "trasferta": g.get("away"),
             "kickoff_utc": g.get("commence_time") or g.get("utcDate"),
+            "giornata": g.get("giornata") or g.get("matchday"),
             "nome": f"{g.get('home')} - {g.get('away')}"}
 
 
+def _tema_scheda_grafica():
+    """Il tema per la scheda grafica: "dark"/"light" da st.context.
+
+    Si legge il tipo del tema di Streamlit (``st.context.theme.type``);
+    se non e' disponibile (versione senza context, o valore non
+    riconosciuto) si ricade su "dark", il tema scuro.
+    """
+    try:
+        tipo = st.context.theme.type
+    except Exception:
+        tipo = None
+    return "light" if str(tipo or "").strip().lower() == "light" else "dark"
+
+
 def _contenuto_scheda_partita(richiesta):
-    """Il contenuto della scheda: solo i blocchi prodotti dal modulo puro."""
+    """Il contenuto della scheda: intestazione e le cinque sezioni HTML.
+
+    I dati li produce il modulo puro (``costruisci_scheda``), l'HTML lo
+    produce ``scheda_grafica``: qui si sceglie il tema e si disegna con
+    ``st.markdown(..., unsafe_allow_html=True)``, sezione per sezione.
+    ``blocchi_scheda``/``testo_scheda`` restano per test e referti.
+    """
     lega = richiesta.get("lega")
     casa, trasferta = richiesta.get("casa"), richiesta.get("trasferta")
     if not lega or not casa or not trasferta:
@@ -3400,11 +3425,20 @@ def _contenuto_scheda_partita(richiesta):
             st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE)),
         risultati=risultati, storico_elo=storico)
     st.markdown(f"### {scheda['casa']['nome']} - {scheda['trasferta']['nome']}")
-    st.caption(f"{scheda['quando']} · {scheda['lega']}")
-    for titolo, righe in sp.blocchi_scheda(scheda):
-        st.markdown(f"##### {titolo}")
-        for riga in righe:
-            st.markdown(riga)
+    giornata = richiesta.get("giornata") or richiesta.get("matchday")
+    if giornata is None:
+        # Chi chiama non l'ha portata: la giornata della partita e' la
+        # prossima rispetto alle giornate gia' giocate della classifica.
+        giocate = (scheda.get("classifica") or {}).get("giornate_giocate")
+        giornata = int(giocate) + 1 if giocate is not None else "n/d"
+    st.caption(f"{scheda['quando']} · {scheda['lega']} · Giornata {giornata}")
+    tema = _tema_scheda_grafica()
+    for sezione in (sgr.html_probabilita(scheda, tema=tema),
+                    sgr.html_classifica(scheda, tema=tema),
+                    sgr.html_forma(scheda, tema=tema),
+                    sgr.html_gol(scheda, tema=tema),
+                    sgr.html_precedenti(scheda, tema=tema)):
+        st.markdown(sezione, unsafe_allow_html=True)
 
 
 # Il RIQUADRO: `st.dialog` quando c'e' (Streamlit >= 1.50, il minimo di
@@ -3585,7 +3619,8 @@ def riga_tabella_partita(riga, match, adesso=None):
         "provvisoria": bool(lontana),
         "scheda": {"lega": riga.get("lega"), "casa": riga.get("casa"),
                    "trasferta": riga.get("trasferta"),
-                   "kickoff_utc": riferimento},
+                   "kickoff_utc": riferimento,
+                   "giornata": (match or {}).get("matchday")},
     }
 
 
@@ -4468,7 +4503,8 @@ def chiave_tabella_pulita(chiave_base, righe_ordinate):
     if 0 <= indice < len(righe_ordinate or []):
         richiesta = (righe_ordinate[indice] or {}).get("scheda") or {}
         apri_scheda_partita(richiesta.get("lega"), richiesta.get("casa"),
-                            richiesta.get("trasferta"), richiesta.get("kickoff_utc"))
+                            richiesta.get("trasferta"), richiesta.get("kickoff_utc"),
+                            richiesta.get("giornata"))
     # La selezione si consuma anche quando la riga non c'e' piu' (tabella piu'
     # corta di quando si e' cliccato): la sua spunta non deve restare.
     versioni = st.session_state.get(CHIAVE_VERSIONI_TABELLE)
