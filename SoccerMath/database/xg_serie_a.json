@@ -1,102 +1,102 @@
 {
   "Atalanta": {
-    "xG_avg": 1.127,
-    "xGA_avg": 2.232,
-    "matches": 6
+    "xG_avg": 1.24,
+    "xGA_avg": 2.287,
+    "matches": 7
   },
   "Bologna": {
-    "xG_avg": 1.528,
-    "xGA_avg": 1.207,
-    "matches": 6
+    "xG_avg": 1.562,
+    "xGA_avg": 1.548,
+    "matches": 7
   },
   "Cagliari": {
-    "xG_avg": 1.043,
-    "xGA_avg": 1.858,
-    "matches": 6
+    "xG_avg": 1.284,
+    "xGA_avg": 1.855,
+    "matches": 7
   },
   "Como": {
-    "xG_avg": 2.233,
-    "xGA_avg": 1.504,
-    "matches": 6
+    "xG_avg": 2.216,
+    "xGA_avg": 1.683,
+    "matches": 7
   },
   "Fiorentina": {
-    "xG_avg": 1.407,
-    "xGA_avg": 1.83,
-    "matches": 6
+    "xG_avg": 1.6,
+    "xGA_avg": 1.871,
+    "matches": 7
   },
   "Frosinone": {
-    "xG_avg": 1.483,
-    "xGA_avg": 2.421,
-    "matches": 6
+    "xG_avg": 1.692,
+    "xGA_avg": 2.336,
+    "matches": 7
   },
   "Genoa": {
-    "xG_avg": 1.032,
-    "xGA_avg": 1.445,
-    "matches": 6
+    "xG_avg": 0.957,
+    "xGA_avg": 1.441,
+    "matches": 7
   },
   "Inter": {
-    "xG_avg": 3.078,
-    "xGA_avg": 1.313,
-    "matches": 6
+    "xG_avg": 3.152,
+    "xGA_avg": 1.377,
+    "matches": 7
   },
   "Juventus": {
-    "xG_avg": 1.935,
-    "xGA_avg": 0.486,
-    "matches": 6
+    "xG_avg": 1.744,
+    "xGA_avg": 0.533,
+    "matches": 7
   },
   "Lazio": {
-    "xG_avg": 1.876,
-    "xGA_avg": 1.486,
-    "matches": 6
+    "xG_avg": 1.725,
+    "xGA_avg": 1.359,
+    "matches": 7
   },
   "Lecce": {
-    "xG_avg": 1.246,
-    "xGA_avg": 2.802,
-    "matches": 6
+    "xG_avg": 1.691,
+    "xGA_avg": 2.486,
+    "matches": 7
   },
   "Milan": {
-    "xG_avg": 1.926,
-    "xGA_avg": 1.21,
-    "matches": 6
+    "xG_avg": 2.025,
+    "xGA_avg": 1.312,
+    "matches": 7
   },
   "Monza": {
-    "xG_avg": 1.87,
-    "xGA_avg": 1.604,
-    "matches": 6
+    "xG_avg": 1.865,
+    "xGA_avg": 1.765,
+    "matches": 7
   },
   "Napoli": {
-    "xG_avg": 2.07,
-    "xGA_avg": 1.233,
-    "matches": 6
+    "xG_avg": 2.139,
+    "xGA_avg": 1.154,
+    "matches": 7
   },
   "Parma": {
-    "xG_avg": 0.778,
-    "xGA_avg": 2.12,
-    "matches": 6
+    "xG_avg": 0.848,
+    "xGA_avg": 2.007,
+    "matches": 7
   },
   "Roma": {
-    "xG_avg": 2.873,
-    "xGA_avg": 1.235,
-    "matches": 6
+    "xG_avg": 2.664,
+    "xGA_avg": 1.131,
+    "matches": 7
   },
   "Sassuolo": {
-    "xG_avg": 1.775,
-    "xGA_avg": 1.683,
-    "matches": 6
+    "xG_avg": 1.782,
+    "xGA_avg": 1.863,
+    "matches": 7
   },
   "Torino": {
-    "xG_avg": 1.242,
-    "xGA_avg": 1.375,
-    "matches": 6
+    "xG_avg": 1.254,
+    "xGA_avg": 1.36,
+    "matches": 7
   },
   "Udinese": {
-    "xG_avg": 1.276,
-    "xGA_avg": 2.161,
-    "matches": 6
+    "xG_avg": 1.179,
+    "xGA_avg": 2.475,
+    "matches": 7
   },
   "Venezia": {
-    "xG_avg": 1.954,
-    "xGA_avg": 2.548,
-    "matches": 6
+    "xG_avg": 1.772,
+    "xGA_avg": 2.549,
+    "matches": 7
   }
 }
