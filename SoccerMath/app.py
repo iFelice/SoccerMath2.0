@@ -3530,6 +3530,33 @@ def pronostico_dalle_quote(quote):
     return market_odds.esito_ammesso(quote)
 
 
+def pronostici_dalle_quote(payload, adesso=None):
+    """``{match_id: pronostico}`` per TUTTE le partite del file delle quote.
+
+    Lo STESSO pronostico della scheda Partite (``market_odds.esito_ammesso``:
+    l'esito piu' probabile, ma solo se arriva a ``SOGLIA_TOPMIX_MERCATO``,
+    altrimenti il trattino), letto una volta per ogni evento del file. Serve
+    dove di una partita si gioca una COMBINAZIONE (1X, X2, 12) e si vuole
+    dire che cosa dice la partita: i riquadri e la tabella «Le più probabili»
+    della scheda «🎯 Multiple».
+
+    Le partite senza le tre probabilita' stanno nel dizionario con la stringa
+    vuota: nessun pronostico inventato e nessuna chiave mancante da indovinare.
+
+    Lettura, non calcolo: la de-vig e' ``market_odds.probabilita_mercato``, la
+    stessa del selettore. ``adesso`` non serve (il pronostico non dipende
+    dall'ora): c'e' perche' chi chiama ce l'ha gia' e le firme delle funzioni
+    di questa scheda la portano tutte.
+    """
+    fuori = {}
+    if not isinstance(payload, dict) or not payload:
+        return fuori
+    for evento in market_odds.eventi_quote(payload):
+        mkt = market_odds.probabilita_mercato(evento.get("libri") or [])
+        fuori[str(evento.get("id"))] = market_odds.esito_ammesso(mkt.get("probs"))
+    return fuori
+
+
 def riga_tabella_partita(riga, match, adesso=None):
     """Una riga della tabella della giornata, da una riga di ``scheda_partita``.
 
@@ -4347,6 +4374,11 @@ def tabella_pronostici_visibile(righe):
     """
     sorgente = [r for r in (righe or []) if isinstance(r, dict)]
     colonne = list(COLONNE_PRONOSTICI)
+    # «Pronostico partita» sta accanto a «Pronostico»: la sigla che si gioca e
+    # quella che dice la partita, una di fianco all'altra. Nasce solo quando le
+    # righe la portano (tabella «Le più probabili»), non nelle altre tabelle.
+    if any(COLONNA_PRONOSTICO_PARTITA in r for r in sorgente):
+        colonne.insert(colonne.index("Pronostico") + 1, COLONNA_PRONOSTICO_PARTITA)
     if any("Gol" in r for r in sorgente):
         colonne += ["Gol", "Insieme %"]
     df = pd.DataFrame(sorgente, columns=colonne)
@@ -4465,6 +4497,15 @@ def _config_colonne_pronostici():
             "Partita", help="Squadra di casa e squadra in trasferta."),
         "Pronostico": st.column_config.TextColumn(
             "Pronostico", help="L'esito scelto: 1 in casa, X pareggio, 2 in trasferta."),
+        # Solo «Le più probabili»: il pronostico della PARTITA, che puo' essere
+        # un altro esito rispetto a quello giocato (o il trattino quando nessun
+        # esito e' abbastanza probabile).
+        COLONNA_PRONOSTICO_PARTITA: st.column_config.TextColumn(
+            COLONNA_PRONOSTICO_PARTITA,
+            help="Il pronostico della partita secondo le quote: 1 in casa, X "
+                 "pareggio, 2 in trasferta — lo stesso della scheda «🏟️ "
+                 "Partite». «—» quando nessun esito e' abbastanza probabile; "
+                 "vuoto senza quote."),
         "Quote %": st.column_config.NumberColumn(
             "Quote %", format="%.1f%%",
             help="Probabilità dell'esito secondo le quote dei bookmaker."),
@@ -5247,11 +5288,47 @@ ETICHETTA_PROVA_QUOTE_BET365 = "Prova con le quote bet365"
 #: Quando ``cerca_proposta_multipla`` non trova niente nel periodo scelto.
 FRASE_NESSUNA_COMBINAZIONE = "Nessuna combinazione fra quota 2 e 3 in questo periodo."
 
+#: La riga sotto il titolo, a dire cosa sono i riquadri: la combinazione piu'
+#: probabile per arrivare a quota 2-3, non la somma dei pronostici delle
+#: partite. Per arrivarci si gioca a volte un esito diverso da quello che la
+#: partita dice, e la scheda lo scrive (fra parentesi accanto alla sigla e
+#: nella colonna «Pronostico partita») invece di lasciarlo intuire.
+FRASE_RIQUADRI_MULTIPLA = ("La combinazione più probabile per arrivare a quota 2-3. "
+                           "Per arrivarci a volte si gioca un esito diverso dal "
+                           "pronostico della partita.")
+
+#: Il pronostico «vero» della partita accanto alla sigla giocata: «X2
+#: (pronostico: —)», «1X (pronostico: 1)». Si aggiunge solo quando la sigla e'
+#: un'altra cosa: se coincidono non si scrive niente.
+ETICHETTA_PRONOSTICO_PARTITA = "pronostico: "
+
+#: La colonna di «Le più probabili» con il pronostico della partita (lo stesso
+#: numero che nei riquadri sta fra parentesi).
+COLONNA_PRONOSTICO_PARTITA = "Pronostico partita"
+
+
+def sigla_giocata_con_pronostico(sigla, pronostico):
+    """La sigla giocata e, se e' un'altra cosa, il pronostico della partita.
+
+    «X2 (pronostico: 1)» dice due cose: che cosa si gioca e che cosa dice la
+    partita (la stessa regola della scheda Partite, ``esito_ammesso``: l'esito
+    piu' probabile solo se arriva a ``SOGLIA_TOPMIX_MERCATO``, altrimenti il
+    trattino). Nessuna parentesi quando la sigla e' gia' il pronostico («1» e
+    «1»), e nessuna parentesi vuota quando il pronostico non c'e' (partita
+    senza quote): il silenzio, li', e' piu' onesto di un «pronostico: » senza
+    numero.
+    """
+    sigla = str(sigla or "").strip()
+    pronostico = str(pronostico or "").strip()
+    if not pronostico or pronostico == sigla:
+        return sigla
+    return f"{sigla} ({ETICHETTA_PRONOSTICO_PARTITA}{pronostico})"
+
 #: La chiave della tabella «Le più probabili» (selezione della riga compresa).
 CHIAVE_TABELLA_PIU_PROBABILI = "multiple_tabella_probabili"
 
 
-def riquadri_multiple(prop, adesso=None):
+def riquadri_multiple(prop, adesso=None, pronostici=None):
     """I riquadri delle proposte, uno per numero di partite, dai numeri GIA'
     calcolati di ``lg.cerca_proposta_multipla`` (nessun ricalcolo).
 
@@ -5262,6 +5339,11 @@ def riquadri_multiple(prop, adesso=None):
     ``quota`` (quota totale, virgola italiana) e ``riesce`` (probabilità
     combinata in percentuale intera). Un numero di partite senza proposta non
     ha riquadro: la lista salta il buco, non lo riempie.
+
+    ``pronostici`` e' la mappa ``{match_id: pronostico}`` di
+    ``pronostici_dalle_quote``: quando la sigla giocata NON e' il pronostico
+    della partita, la sigla si allunga con «(pronostico: 1)» (o «—»). Senza la
+    mappa non si aggiunge niente: nessun pronostico inventato.
     """
     per_k = (prop or {}).get("per_k") or {}
     righe = lg.righe_riquadro_raddoppio(per_k, adesso)
@@ -5278,7 +5360,11 @@ def riquadri_multiple(prop, adesso=None):
         partite = []
         for g in item.get("giocate", []):
             lontana = lg.e_partita_provvisoria(g, adesso)
-            sigla = str(g.get("giocata") or g.get("esito") or "").strip()
+            # L'esito giocato e, se e' un altro, il pronostico della partita
+            # (stessa regola della scheda Partite): «X2 (pronostico: —)».
+            sigla = sigla_giocata_con_pronostico(
+                g.get("giocata") or g.get("esito"),
+                (pronostici or {}).get(str(g.get("match_id"))))
             partite.append((
                 f"{g.get('home') or '?'} - {g.get('away') or '?'}",
                 f"{sigla} · {_quando_breve(g.get('commence_time'), lontana)}",
@@ -5300,7 +5386,7 @@ def riquadri_multiple(prop, adesso=None):
     return riquadri
 
 
-def _mostra_riquadri_multiple(prop, adesso, top_mercato=None):
+def _mostra_riquadri_multiple(prop, adesso, top_mercato=None, pronostici=None):
     """I riquadri affiancati delle proposte (``st.columns(4)``, uno per
     numero di partite, ciascuno in un contenitore col bordo).
 
@@ -5308,11 +5394,17 @@ def _mostra_riquadri_multiple(prop, adesso, top_mercato=None):
     resta vuoto in mezzo. Il pulsante «Prova con le quote bet365» fa quello che
     faceva «Usa nel calcolatore»: carica la proposta in «Prova la tua giocata»
     e apre il riquadro.
+
+    Sotto il titolo, una riga sola a dire cosa sono: la combinazione piu'
+    probabile per arrivare a quota 2-3, dove a volte si gioca un esito diverso
+    dal pronostico della partita (che la scheda scrive fra parentesi). Senza
+    proposte non si dice: al loro posto c'e' la frase che non ce ne sono.
     """
-    riquadri = riquadri_multiple(prop, adesso)
+    riquadri = riquadri_multiple(prop, adesso, pronostici=pronostici)
     if not riquadri:
         st.info(FRASE_NESSUNA_COMBINAZIONE)
         return
+    st.caption(FRASE_RIQUADRI_MULTIPLA)
     colonne = st.columns(4)
     for posto, r in enumerate(riquadri):
         with colonne[posto]:
@@ -5331,7 +5423,7 @@ def _mostra_riquadri_multiple(prop, adesso, top_mercato=None):
 
 
 def tabella_piu_probabili(in_periodo, quota_min, adesso=None, stato_confronto=None,
-                          mappa_modello_1x2=None):
+                          mappa_modello_1x2=None, pronostici=None):
     """Le righe di «Le più probabili»: una per partita, le sei colonne comuni.
 
     La riga di ogni partita e' la giocata con la probabilità più alta fra quelle
@@ -5341,19 +5433,35 @@ def tabella_piu_probabili(in_periodo, quota_min, adesso=None, stato_confronto=No
     «Partita» senza testo aggiunto, «Pronostico» con la sola sigla, «Quote %»
     numero, «Modello %» testo (vuoto dove il modello non ha una lettura),
     «Quota» stimata. L'ordine lo mette ``tabella_pronostici_visibile``.
+
+    Con ``pronostici`` (la mappa di ``pronostici_dalle_quote``) ogni riga
+    porta anche ``COLONNA_PRONOSTICO_PARTITA``: il pronostico della partita con
+    la STESSA regola della scheda Partite, che la tabella mostra in una colonna
+    come i riquadri lo mostrano fra parentesi. Senza la mappa la colonna non
+    nasce: meglio niente che un pronostico inventato.
     """
-    return [riga_pronostico_da_giocata(g, adesso, stato_confronto, mappa_modello_1x2)
-            for g in lg.migliori_giocate_per_partita(in_periodo or [], quota_min)]
+    righe = []
+    for g in lg.migliori_giocate_per_partita(in_periodo or [], quota_min):
+        riga = riga_pronostico_da_giocata(g, adesso, stato_confronto,
+                                          mappa_modello_1x2)
+        if pronostici is not None:
+            riga[COLONNA_PRONOSTICO_PARTITA] = str(
+                (pronostici or {}).get(str(g.get("match_id"))) or "")
+        righe.append(riga)
+    return righe
 
 
 def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
-                          mappa_modello_1x2=None):
+                          mappa_modello_1x2=None, pronostici=None):
     """«Le più probabili»: il filtro «Paga almeno» e UNA tabella, tutte le
     righe (scorrevole), il clic sulla riga apre la scheda della partita.
 
     Niente filtro per campionato, niente «Mostra altre», niente fila di
     pulsanti «Scheda»: la tabella e' la stessa delle schede Pronostici e
-    Pareggi, e come li' la riga dei ⏳ compare sotto solo se serve.
+    Pareggi, e come li' la riga dei ⏳ compare sotto solo se serve. In piu' la
+    colonna «Pronostico partita» (``pronostici``): la giocata migliore di una
+    partita non e' detto che sia il pronostico di quella partita, e la
+    tabella lo dice come lo dicono i riquadri.
     """
     st.markdown("##### Le più probabili")
     col_q, _resto = st.columns([1, 3])
@@ -5362,7 +5470,7 @@ def _mostra_piu_probabili(in_periodo, adesso, stato_confronto=None,
                                 index=1, key="lg_paga_almeno")
     quota_min = float(paga_lbl.replace(",", "."))
     righe = tabella_piu_probabili(in_periodo, quota_min, adesso, stato_confronto,
-                                  mappa_modello_1x2)
+                                  mappa_modello_1x2, pronostici=pronostici)
     if not righe:
         st.info(f"Nessuna giocata paga almeno {paga_lbl} volte la puntata in questo "
                 "periodo: prova ad abbassare «Paga almeno».")
@@ -6843,6 +6951,10 @@ with tab_multiple:
     # UNA ricerca sola (``cerca_proposta_multipla``, invariata): i riquadri in
     # vista e la tabella «Per raddoppiare» dei Dettagli leggono la stessa.
     proposta = lg.cerca_proposta_multipla(in_periodo) if in_periodo else {"per_k": {}}
+    # Il pronostico di ogni partita (stessa regola della scheda Partite), letto
+    # una volta dal file delle quote: i riquadri lo mettono fra parentesi
+    # accanto alla sigla giocata e «Le più probabili» in una colonna.
+    pronostici = pronostici_dalle_quote(payload_quote)
 
     _mostra_testa_multiple(payload_quote, adesso)
     if not payload_quote:
@@ -6851,9 +6963,11 @@ with tab_multiple:
         st.info("Nessuna quota disponibile: file delle quote assente o non valido.")
     elif not _mostra_periodo_vuoto_multiple(res_lista.get("giocate", []), in_periodo,
                                             adesso):
-        _mostra_riquadri_multiple(proposta, adesso, righe_quote)
+        _mostra_riquadri_multiple(proposta, adesso, righe_quote,
+                                  pronostici=pronostici)
         _mostra_piu_probabili(in_periodo, adesso, stato_confronto=stato_confronto,
-                              mappa_modello_1x2=mappa_modello_1x2)
+                              mappa_modello_1x2=mappa_modello_1x2,
+                              pronostici=pronostici)
     calcolatore_multipla(righe_quote, adesso, gambe_pre=in_periodo)
     _mostra_dettagli_giocate(res_lista, in_periodo, proposta, stato_quote, adesso,
                              righe=righe_quote)
