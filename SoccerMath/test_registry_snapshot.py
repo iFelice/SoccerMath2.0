@@ -24,6 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
+import config  # noqa: E402,F401  prima importazione fuori dagli ambienti finti
 import registry_snapshot as snap  # noqa: E402
 import registry_store as rs  # noqa: E402
 
