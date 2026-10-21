@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import html.parser
 import os
+import re
 import sys
 import unittest
 
@@ -355,6 +356,119 @@ class TestTema(unittest.TestCase):
                 self.assertIn(classe, html)
 
 
+def css_della_tabella(html: str) -> str:
+    """Il blocco ``<style>`` della pagina, con i commenti tolti."""
+    testo = html or ""
+    inizio, fine = testo.find("<style>"), testo.find("</style>")
+    if inizio < 0 or fine < 0:
+        return ""
+    corpo = testo[inizio + len("<style>"):fine]
+    return re.sub(r"/\*.*?\*/", "", corpo, flags=re.S)
+
+
+def _regole(css: str) -> list:
+    """Le coppie (selettore, dichiarazioni) del foglio, nell'ordine scritto."""
+    uscite = []
+    for blocco in (css or "").split("}"):
+        if "{" not in blocco:
+            continue
+        selettore, dichiarazioni = blocco.split("{", 1)
+        uscite.append((" ".join(selettore.split()),
+                       {" ".join(d.split(":", 1)[0].split()): d.split(":", 1)[1].strip()
+                        for d in dichiarazioni.split(";") if ":" in d}))
+    return uscite
+
+
+def dichiarazioni(css: str, selettore: str) -> dict:
+    """Le dichiarazioni di UNA regola (selettore scritto come nel foglio)."""
+    for sel, decl in _regole(css):
+        if sel == selettore:
+            return decl
+    raise AssertionError(f"regola {selettore!r} non trovata fra "
+                         f"{[s for s, _d in _regole(css)]}")
+
+
+def _px(valore: str) -> float:
+    """«170px» -> 170.0 (errore esplicito se l'unita' non e' px)."""
+    testo = str(valore).strip()
+    if not testo.endswith("px"):
+        raise AssertionError(f"larghezza in px attesa, trovato {valore!r}")
+    return float(testo[:-2])
+
+
+def specificita(selettore: str) -> tuple:
+    """La specificita' CSS (id, classi, elementi) di un selettore semplice."""
+    selettore = selettore.strip()
+    ids = len(re.findall(r"#[\w-]+", selettore))
+    classi = len(re.findall(r"\.[\w-]+", selettore))
+    elementi = len(re.findall(r"(^|[\s>+~])[a-zA-Z][\w-]*", selettore))
+    return (ids, classi, elementi)
+
+
+class TestCssDellaTabella(unittest.TestCase):
+    """Le larghezze del foglio di stile: la barra deve VEDERSI.
+
+    Dentro Streamlit la cella 1/X/2 era larga 90px e la percentuale ne
+    prendeva 50: alla traccia restavano ~30px, e la barra diventava un
+    pallino. Le regole qui sotto sono quelle corrette a mano su Streamlit
+    1.66 (tema chiaro e scuro) e ora sono fissate dal test.
+    """
+
+    def setUp(self):
+        self.css = css_della_tabella(sgr.html_tabella_partite([_riga()]))
+
+    def test_colonne_numeriche_larghe_170(self):
+        for selettore in (".sg-th-num", ".sg-td-num"):
+            with self.subTest(selettore=selettore):
+                self.assertEqual(170.0, _px(dichiarazioni(self.css, selettore)["width"]))
+
+    def test_la_traccia_ha_una_larghezza_minima(self):
+        decl = dichiarazioni(self.css, ".sg-traccia-cella")
+        self.assertEqual("70px", decl["min-width"],
+                         "senza minimo la traccia si schiaccia a zero")
+        self.assertEqual("10px", decl["height"])
+
+    def test_nella_cella_170_la_barra_ha_spazio(self):
+        """La somma dei pezzi ci sta: 46 (valore) + 8 (gap) + 70 (traccia) <= 154.
+
+        154 = 170 - 16 di padding orizzontale (8 a sinistra, 8 a destra):
+        se questa somma sfonda, la traccia si accorcia e la barra torna un
+        pallino.
+        """
+        cella = _px(dichiarazioni(self.css, ".sg-td-num")["width"])
+        # ``padding`` e' lo scorciatoio CSS: 1 valore = tutti i lati, 2 =
+        # verticale/orizzontale, altrimenti il secondo e' il lato sinistro.
+        padding = dichiarazioni(self.css, ".sg-td")["padding"].split()
+        orizzontale = 2 * _px(padding[1] if len(padding) > 1 else padding[0])
+        valore = _px(dichiarazioni(self.css, ".sg-valore-cella")["flex"].split()[2])
+        gap = _px(dichiarazioni(self.css, ".sg-cella-barra")["gap"])
+        traccia = _px(dichiarazioni(self.css, ".sg-traccia-cella")["min-width"])
+        self.assertEqual(46.0, valore, "la percentuale a destra occupa 46px")
+        self.assertLessEqual(valore + gap + traccia, cella - orizzontale,
+                             f"{valore} + {gap} + {traccia} deve stare in "
+                             f"{cella} - {orizzontale}")
+
+    def test_i_bordi_di_streamlit_sono_spenti(self):
+        """th e td senza bordi: in tabella restano solo le righe di .sg-tr."""
+        self.assertEqual("0", dichiarazioni(self.css, ".sg-tabella th, .sg-tabella td")["border"])
+        self.assertEqual("1px solid var(--sg-bordo)",
+                         dichiarazioni(self.css, ".sg-tr")["border-bottom"])
+        self.assertEqual("0", dichiarazioni(self.css, ".sg-tr:last-child")["border-bottom"])
+
+    def test_il_filo_dell_intestazione_resiste_alla_regola_dei_bordi(self):
+        """`.sg-tabella .sg-th` e' piu' specifico di `.sg-tabella th`.
+
+        La regola che spegne i bordi di Streamlit vale anche per i ``th``:
+        il filo sotto l'intestazione resta solo se il suo selettore pesa di
+        piu'. Il test confronta la specificita' invece di fidarsi dell'ordine.
+        """
+        self.assertEqual("1px solid var(--sg-bordo)",
+                         dichiarazioni(self.css, ".sg-tabella .sg-th")["border-bottom"])
+        self.assertGreater(specificita(".sg-tabella .sg-th"),
+                           specificita(".sg-tabella th"),
+                           "il filo dell'intestazione deve vincere sul border: 0")
+
+
 class TestSelettoreDellaScheda(unittest.TestCase):
     """Le due funzioni pure del selettore: le voci e la riga scelta.
 
@@ -391,6 +505,63 @@ class TestSelettoreDellaScheda(unittest.TestCase):
         self.assertIsNone(app_mod.riga_scelta_partita(righe, "Milan - Napoli"))
         self.assertIsNone(app_mod.riga_scelta_partita(righe, None))
         self.assertIsNone(app_mod.riga_scelta_partita([], "Inter - Roma"))
+
+    def test_il_pulsante_apri_si_allinea_in_basso_col_selettore(self):
+        """``st.columns([4, 1], vertical_alignment="bottom")`` e chi va dove.
+
+        Il selettore ha l'etichetta SOPRA il campo, quindi la sua colonna e'
+        piu' alta: con l'allineamento in alto (il default) il pulsante «Apri»
+        resterebbe piu' su del campo. Le colonne si allineano in basso, e qui
+        si controlla la chiamata vera (argomenti compresi) e l'ordine di
+        disegno: selettore nella prima colonna, pulsante nella seconda.
+        """
+        import app as app_mod
+        from unittest import mock
+
+        def _colonne():
+            ordine = []
+            colonne = [mock.MagicMock(), mock.MagicMock()]
+            for i, colonna in enumerate(colonne):
+                colonna.__enter__.side_effect = (lambda i: lambda *a: ordine.append(f"entra {i}"))(i)
+                colonna.__exit__.side_effect = (lambda i: lambda *a: ordine.append(f"esce {i}"))(i)
+            return ordine, colonne
+
+        riga = _riga(partita="Inter - Roma")
+        riga["scheda"] = {"lega": "Serie A", "casa": "Inter", "trasferta": "Roma",
+                          "kickoff_utc": "2026-10-10T18:45:00Z", "giornata": 8}
+
+        def _con(premuto):
+            ordine, colonne = _colonne()
+            with mock.patch.object(app_mod.st, "columns", return_value=colonne) as chiamate, \
+                    mock.patch.object(app_mod.st, "selectbox",
+                                      side_effect=lambda *a, **k: (ordine.append("selectbox"), "Inter - Roma")[1]), \
+                    mock.patch.object(app_mod.st, "button",
+                                      side_effect=lambda *a, **k: (ordine.append("button"), premuto)[1]), \
+                    mock.patch.object(app_mod, "apri_scheda_partita") as apri:
+                app_mod._scegli_e_apri_partita([riga])
+            return ordine, chiamate, apri
+
+        ordine, chiamate, apri = _con(premuto=False)
+        chiamate.assert_called_once_with([4, 1], vertical_alignment="bottom")
+        self.assertEqual(["entra 0", "selectbox", "esce 0",
+                          "entra 1", "button", "esce 1"], ordine,
+                         "il selettore sta nella prima colonna, «Apri» nella seconda")
+        apri.assert_not_called()
+
+        # Il pulsante premuto apre la scheda della partita scelta, con gli
+        # stessi cinque dati di prima (lega, casa, trasferta, orario, giornata).
+        _ordine, _chiamate, apri = _con(premuto=True)
+        apri.assert_called_once_with("Serie A", "Inter", "Roma",
+                                     "2026-10-10T18:45:00Z", 8)
+
+    def test_senza_partite_niente_selettore_ne_pulsante(self):
+        import app as app_mod
+        from unittest import mock
+        with mock.patch.object(app_mod.st, "columns") as colonne, \
+                mock.patch.object(app_mod.st, "button") as bottone:
+            app_mod._scegli_e_apri_partita([])
+        colonne.assert_not_called()
+        bottone.assert_not_called()
 
     def test_la_riga_scelta_porta_con_se_la_richiesta_della_scheda(self):
         """Il pulsante apre la partita della riga: lega, casa, trasferta, quando."""

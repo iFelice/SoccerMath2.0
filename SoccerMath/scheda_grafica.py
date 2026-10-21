@@ -51,7 +51,11 @@ REGOLE
   colori della scheda partita (1 blu, X grigio, 2 arancione); il
   pronostico e' una pastiglia del colore dell'esito, un trattino grigio
   quando nessun esito arriva alla soglia. Le partite gia' giocate
-  stanno come prima: il risultato al posto delle probabilita'.
+  stanno come prima: il risultato al posto delle probabilita'. Le celle
+  1/X/2 sono larghe 170px con una traccia minima di 70px (a 90px la
+  barra si riduceva a un pallino) e i bordi che Streamlit mette su
+  ``th``/``td`` sono spenti: in tabella restano solo le righe di
+  ``.sg-tr`` e il filo sotto l'intestazione.
 
 Il modulo non importa Streamlit: e' usabile da app, test e script.
 Importa ``market_odds`` solo per la costante della soglia del
@@ -271,19 +275,27 @@ def _stile(p: Dict[str, str]) -> str:
 .sg-tabella-partite {{ background: var(--sg-sfondo); border: 1px solid var(--sg-bordo);
   border-radius: 12px; padding: 6px 10px 10px 10px; overflow-x: auto; }}
 .sg-tabella {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-.sg-th {{ text-align: left; font-size: 12px; text-transform: uppercase;
+/* Streamlit disegna i suoi bordi su th/td delle tabelle dentro il markdown:
+   qui si spengono, cosi' in tabella restano SOLO le righe orizzontali di
+   .sg-tr (e il filo sotto l'intestazione, che sta su .sg-tabella .sg-th:
+   piu' specifico di questa regola, quindi vince). */
+.sg-tabella th, .sg-tabella td {{ border: 0; }}
+.sg-tabella .sg-th {{ text-align: left; font-size: 12px; text-transform: uppercase;
   letter-spacing: 0.04em; color: var(--sg-attenuato); font-weight: 700;
   padding: 8px 8px 6px 8px; border-bottom: 1px solid var(--sg-bordo);
   white-space: nowrap; }}
-.sg-th-num {{ width: 90px; }}
+/* 170px, non 90: la cella porta una barra (min 70px) E la percentuale a
+   destra (46px): con 90px la traccia si schiacciava fino a diventare un
+   pallino. */
+.sg-th-num {{ width: 170px; }}
 .sg-tr {{ border-bottom: 1px solid var(--sg-bordo); }}
 .sg-tr:last-child {{ border-bottom: 0; }}
 .sg-td {{ padding: 8px; vertical-align: middle; color: var(--sg-testo); }}
 .sg-td-quando {{ white-space: nowrap; color: var(--sg-attenuato); }}
 .sg-td-partita {{ font-weight: 600; }}
-.sg-td-num {{ width: 90px; }}
+.sg-td-num {{ width: 170px; }}
 .sg-cella-barra {{ display: flex; align-items: center; gap: 8px; }}
-.sg-traccia-cella {{ flex: 1 1 auto; height: 10px; }}
+.sg-traccia-cella {{ flex: 1 1 auto; min-width: 70px; height: 10px; }}
 .sg-valore-cella {{ flex: 0 0 46px; text-align: right; font-variant-numeric: tabular-nums; }}
 .sg-cella-vuota {{ display: block; height: 10px; }}
 .sg-pastiglia {{ display: inline-block; min-width: 22px; text-align: center;
