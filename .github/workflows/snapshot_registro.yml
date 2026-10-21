@@ -115,6 +115,7 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
         run: |
+          mkdir -p "$SNAP_OUT"
           set -o pipefail
           set +e
           python SoccerMath/registry_backend_status.py --json "$SNAP_OUT/stato.json" --mostra 3 \
