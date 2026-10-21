@@ -7,6 +7,9 @@ restituisce STRINGHE HTML per le cinque sezioni della scheda: le
 probabilita' 1/X/2 (barre), la classifica delle due squadre (riquadri
 affiancati), la forma (ultime 5 partite), i gol (casa/trasferta e
 stagione) e, in fondo, precedenti in stagione e dati mancanti.
+Con ``html_tabella_partite`` costruisce anche la TABELLA DELLA GIORNATA
+della scheda «🏟️ Partite»: le stesse classi ``sg`` e le stesse due
+palette (chiara e scura) della scheda partita.
 Nessuna chiamata a Streamlit, nessuna rete, nessun calcolo nuovo: i numeri
 sono quelli che la scheda porta gia' (quote, modello, totals, distanze di
 classifica, forma, gol), qui diventano solo HTML.
@@ -42,6 +45,13 @@ REGOLE
   Over 2,5 e entrambe a segno in percentuale (sotto le 5 partite
   stagionali resta il conteggio "N su M", la stessa regola di
   ``scheda_partita.conteggio_in_parole``).
+* La tabella della giornata ha sette colonne (Quando, Partita, 1, X, 2,
+  Pronostico, Risultato). Nelle celle 1/X/2 una barra orizzontale con la
+  percentuale a destra, una cifra decimale e la virgola italiana, con i
+  colori della scheda partita (1 blu, X grigio, 2 arancione); il
+  pronostico e' una pastiglia del colore dell'esito, un trattino grigio
+  quando nessun esito arriva alla soglia. Le partite gia' giocate
+  stanno come prima: il risultato al posto delle probabilita'.
 
 Il modulo non importa Streamlit: e' usabile da app, test e script.
 Importa ``market_odds`` solo per la costante della soglia del
@@ -258,6 +268,30 @@ def _stile(p: Dict[str, str]) -> str:
 .sg-piccolo {{ font-size: 13px; }}
 .sg-piccolo h4 {{ margin: 10px 0 4px 0; font-size: 13px; }}
 .sg-attenuato {{ color: var(--sg-attenuato); }}
+.sg-tabella-partite {{ background: var(--sg-sfondo); border: 1px solid var(--sg-bordo);
+  border-radius: 12px; padding: 6px 10px 10px 10px; overflow-x: auto; }}
+.sg-tabella {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+.sg-th {{ text-align: left; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--sg-attenuato); font-weight: 700;
+  padding: 8px 8px 6px 8px; border-bottom: 1px solid var(--sg-bordo);
+  white-space: nowrap; }}
+.sg-th-num {{ width: 90px; }}
+.sg-tr {{ border-bottom: 1px solid var(--sg-bordo); }}
+.sg-tr:last-child {{ border-bottom: 0; }}
+.sg-td {{ padding: 8px; vertical-align: middle; color: var(--sg-testo); }}
+.sg-td-quando {{ white-space: nowrap; color: var(--sg-attenuato); }}
+.sg-td-partita {{ font-weight: 600; }}
+.sg-td-num {{ width: 90px; }}
+.sg-cella-barra {{ display: flex; align-items: center; gap: 8px; }}
+.sg-traccia-cella {{ flex: 1 1 auto; height: 10px; }}
+.sg-valore-cella {{ flex: 0 0 46px; text-align: right; font-variant-numeric: tabular-nums; }}
+.sg-cella-vuota {{ display: block; height: 10px; }}
+.sg-pastiglia {{ display: inline-block; min-width: 22px; text-align: center;
+  border-radius: 999px; padding: 2px 10px; color: #ffffff; font-weight: 700;
+  font-size: 13px; }}
+.sg-pastiglia-vuota {{ background: var(--sg-etichetta); color: var(--sg-attenuato);
+  border: 1px solid var(--sg-bordo); }}
+.sg-risultato {{ font-weight: 800; font-variant-numeric: tabular-nums; }}
 </style>"""
 
 
@@ -657,3 +691,147 @@ def html_scheda(scheda: Dict[str, Any], tema: str = "chiaro") -> str:
         _html_precedenti(scheda),
         "</div>",
     ])
+
+
+# ---------------------------------------------------------------------------
+# 6. La tabella della giornata (scheda «🏟️ Partite»)
+# ---------------------------------------------------------------------------
+#: Le colonne della tabella, nell'ordine in cui si leggono. E' l'unica
+#: definizione: ``app.COLONNE_PARTITE`` la rilegge da qui.
+COLONNE_TABELLA_PARTITE = ("Quando", "Partita", "1", "X", "2", "Pronostico", "Risultato")
+
+#: Le tre colonne delle probabilita', nell'ordine in cui stanno in tabella.
+ESITI_TABELLA = ESITI
+
+#: Il trattino della cella «Pronostico» quando nessun esito arriva alla
+#: soglia del Top Mix (la scelta e' gia' di ``market_odds.esito_ammesso``).
+TRATTINO_PRONOSTICO = "—"
+
+FRASE_NESSUNA_PARTITA = "Nessuna partita in questa giornata."
+
+
+def _percentuale_cella(valore: Any) -> Optional[float]:
+    """Il numero di una cella 1/X/2 (0-100), o ``None`` se la cella e' vuota.
+
+    Accetta quello che la riga porta davvero: un numero (0-100, come lo lascia
+    ``app.riga_tabella_partita``) oppure il testo gia' formattato («33,4%») —
+    la stessa forma che la tabella mostrava prima di essere HTML. Una cella
+    vuota, un ``None`` o una scritta non numerica restano ``None``: nessuno
+    zero inventato dove la quota non c'e'.
+    """
+    if isinstance(valore, str):
+        testo = valore.strip().replace("%", "").replace(",", ".").strip()
+        if not testo:
+            return None
+        try:
+            v = float(testo)
+        except ValueError:
+            return None
+    else:
+        v = _numero(valore)
+        if v is None:
+            return None
+    return min(100.0, max(0.0, v))
+
+
+def _larghezza_barra(pct: Optional[float]) -> str:
+    """La larghezza CSS della barra: ``33.4`` (una cifra, punto decimale).
+
+    Il CSS vuole il punto: la virgola resta nel testo della percentuale, che
+    e' quello che si legge. Cella vuota: larghezza zero (la barra non si vede).
+    """
+    return f"{pct:.1f}" if pct is not None else "0.0"
+
+
+def _cella_probabilita(esito: str, valore: Any) -> str:
+    """La cella 1/X/2: barra colorata e percentuale a destra (una cifra, virgola).
+
+    Senza numero la cella resta VUOTA (nessuna barra a zero, nessun «n/d»):
+    succede alle partite senza quote e a quelle gia' giocate, dove il risultato
+    prende il posto delle probabilita'.
+    """
+    pct = _percentuale_cella(valore)
+    if pct is None:
+        return ('<td class="sg-td sg-td-num">'
+                '<span class="sg-cella-vuota"></span></td>')
+    return (
+        '<td class="sg-td sg-td-num">'
+        '<div class="sg-cella-barra">'
+        f'<div class="sg-traccia sg-traccia-cella">'
+        f'<div class="sg-riempimento" style="width:{_larghezza_barra(pct)}%;'
+        f'background:{COLORI_ESITI[esito]}"></div></div>'
+        f'<span class="sg-valore-cella">{_fmt_percentuale(pct)}</span>'
+        '</div></td>')
+
+
+def _cella_pronostico(pronostico: Any) -> str:
+    """La cella «Pronostico»: pastiglia del colore dell'esito, o trattino grigio.
+
+    * «1», «X», «2» (la scelta del Top Mix): pastiglia del colore dell'esito,
+      lo stesso colore della barra in scheda partita;
+    * «—» (nessun esito arriva alla soglia): trattino grigio;
+    * vuoto (partita senza quote o gia' giocata): cella vuota, nessuna
+      pastiglia inventata.
+    """
+    sigla = str(pronostico or "").strip()
+    if sigla in COLORI_ESITI:
+        return ('<td class="sg-td sg-td-pronostico">'
+                f'<span class="sg-pastiglia" style="background:{COLORI_ESITI[sigla]}">'
+                f'{_esc(sigla)}</span></td>')
+    if not sigla:
+        return '<td class="sg-td sg-td-pronostico"></td>'
+    return ('<td class="sg-td sg-td-pronostico">'
+            f'<span class="sg-pastiglia sg-pastiglia-vuota">'
+            f'{_esc(TRATTINO_PRONOSTICO)}</span></td>')
+
+
+def html_tabella_partite(righe: List[Dict[str, Any]], tema: str = "chiaro") -> str:
+    """La tabella della giornata come stringa HTML (funzione PURA).
+
+    Riceve le righe gia' preparate dalla scheda Partite (``app.riga_tabella_
+    partita``: le stesse che prima finivano nel DataFrame) e restituisce una
+    ``<table>`` con le stesse classi ``sg`` e la palette del tema scelto —
+    chiaro o scuro — cosi' la tabella e la scheda partita hanno un aspetto solo.
+
+    Colonne: Quando, Partita, 1, X, 2, Pronostico, Risultato.
+
+    * «1», «X» e «2»: una barra orizzontale col colore dell'esito (blu, grigio,
+      arancione, gli stessi di ``COLORI_ESITI``) e la percentuale a destra, UNA
+      cifra decimale con la virgola italiana. Cella vuota (nessuna barra)
+      quando il numero non c'e'.
+    * «Pronostico»: pastiglia del colore dell'esito, trattino grigio quando
+      nessun esito arriva alla soglia, cella vuota senza quote.
+    * «Risultato»: il risultato delle partite gia' giocate, che li' prende il
+      posto delle probabilita' (le stesse righe di prima).
+    * Ogni testo che arriva dai dati passa da ``_esc``: un nome con ``<`` o
+      ``&`` si legge come testo, mai come un tag.
+    """
+    righe = [r for r in (righe or []) if isinstance(r, dict)]
+    intestazione = "".join(
+        f'<th class="sg-th{" sg-th-num" if c in ESITI_TABELLA else ""}">{_esc(c)}</th>'
+        for c in COLONNE_TABELLA_PARTITE)
+    pezzi = [_stile(palette_di(tema)),
+             '<div class="sg sg-tabella-partite">']
+    if not righe:
+        pezzi.append(f'<p class="sg-attenuato">{_esc(FRASE_NESSUNA_PARTITA)}</p>')
+        pezzi.append("</div>")
+        return "\n".join(pezzi)
+    pezzi.append('<table class="sg-tabella">')
+    pezzi.append(f'<thead><tr>{intestazione}</tr></thead>')
+    pezzi.append("<tbody>")
+    for r in righe:
+        celle = [
+            f'<td class="sg-td sg-td-quando">{_esc(r.get("Quando"))}</td>',
+            f'<td class="sg-td sg-td-partita">{_esc(r.get("Partita"))}</td>',
+            _cella_probabilita("1", r.get("1")),
+            _cella_probabilita("X", r.get("X")),
+            _cella_probabilita("2", r.get("2")),
+            _cella_pronostico(r.get("Pronostico")),
+            f'<td class="sg-td sg-td-risultato">'
+            f'<span class="sg-risultato">{_esc(r.get("Risultato"))}</span></td>',
+        ]
+        pezzi.append('<tr class="sg-tr">' + "".join(celle) + "</tr>")
+    pezzi.append("</tbody>")
+    pezzi.append("</table>")
+    pezzi.append("</div>")
+    return "\n".join(pezzi)

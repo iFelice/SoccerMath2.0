@@ -955,16 +955,26 @@ class TestRighePartiteCalendariFootballData(unittest.TestCase):
                                 "la copertura deve toccare tutte le partite con quote")
 
     def test_quota_mancante_cella_vuota_e_mai_none(self):
+        """La tabella HTML della giornata: celle vuote dove la quota non c'e'.
+
+        La tabella della scheda Partite e' la stringa di
+        ``scheda_grafica.html_tabella_partite`` (non piu' un DataFrame): qui si
+        rilegge come tabella e si controllano le stesse cose di prima — nessuna
+        cella «None»/«nan», le percentuali all'italiana, la partita senza
+        evento con le tre celle vuote.
+        """
         import app as app_mod
         import pandas as pd
+        import scheda_grafica as sgr
+        from test_html_tabella_partite import dataframe_da_html
         partite, _attese = self._giornata_con_nomi_lunghi()
         righe = sp.righe_partite_giornata(partite, self.snap, ADESSO)
         match = {"status": "SCHEDULED", "score": {"fullTime": {}}}
-        tabella, _ordinate = app_mod.tabella_partite_giornata(
-            [app_mod.riga_tabella_partita(r, match, ADESSO) for r in righe])
+        tabella = dataframe_da_html(sgr.html_tabella_partite(
+            [app_mod.riga_tabella_partita(r, match, ADESSO) for r in righe]))
         self.assertGreaterEqual(len(tabella), 91)
-        # La partita senza evento: tre celle di TESTO vuote (mai NaN/None, che
-        # una NumberColumn renderebbe come «None»).
+        # La partita senza evento: tre celle vuote (mai NaN/None: la cella
+        # senza numero e' un vuoto, non la scritta «None»).
         ultima = tabella.iloc[-1]
         for esito in ("1", "X", "2"):
             self.assertEqual("", ultima[esito],
@@ -977,7 +987,6 @@ class TestRighePartiteCalendariFootballData(unittest.TestCase):
                 self.assertNotIn(testo.strip().lower(), ("nan", "none", "nat"),
                                  f"colonna {colonna!r}: cella {testo!r} rende un non-numero")
         # Le righe con le quote hanno la percentuale formattata all'italiana.
-        import re as _re
         for esito in ("1", "X", "2"):
             piene = [v for v in tabella[esito].tolist() if v]
             self.assertTrue(piene)

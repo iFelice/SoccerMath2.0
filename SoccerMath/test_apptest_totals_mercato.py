@@ -134,6 +134,19 @@ class TestAppTotals(_BaseQuoteFinte):
         self.assertNotIn('Modello %', df.columns)
 
     def test_05_righe_1x2_identiche_alla_presentazione_b837823(self):
+        """La riga 1X2 e' quella di ``b837823``, con due differenze dichiarate.
+
+        Il confronto e' con la funzione del commit ``b837823`` (la
+        presentazione da cui la tabella e' nata): stessi valori, chiave per
+        chiave. Le differenze volute sono due, e il test le scrive invece di
+        saltarle, cosi' una terza — o il ritorno di una di queste — lo fa
+        fallire:
+
+        * «Modello %» non c'e' piu': il modello sta nella scheda partita e nei
+          Dettagli, non nelle tabelle in vista;
+        * ci sono due chiavi di servizio, ``solo_ou`` e ``_prob_ou``: non sono
+          colonne, le legge l'ordinamento delle righe che hanno solo i gol.
+        """
         import ast
         import subprocess
         import app as A
@@ -150,12 +163,24 @@ class TestAppTotals(_BaseQuoteFinte):
         ns = dict(A.__dict__)
         exec(compile(ast.Module(body=[node], type_ignores=[]), '<base>', 'exec'), ns)
         rows, _ = A.righe_pronostici_dalle_quote(self.payload, self.ADESSO)
+        tolte = {"Modello %"}                       # la colonna uscita da qui
+        aggiunte = {"solo_ou", "_prob_ou"}           # chiavi di servizio
+        viste = 0
         for row in rows:
             if row.get('solo_ou'):
                 continue
             before = ns[node.name](row, self.ADESSO)
             after = A.riga_pronostico_da_mercato(row, self.ADESSO)
-            self.assertEqual(before, {k: after[k] for k in before})
+            viste += 1
+            with self.subTest(partita=after["Partita"]):
+                self.assertEqual((set(before) - set(after), set(after) - set(before)),
+                                 (tolte, aggiunte),
+                                 "le sole differenze sono «Modello %» (via) e "
+                                 "le due chiavi di servizio (dentro)")
+                comuni = [k for k in before if k not in tolte]
+                self.assertEqual({k: before[k] for k in comuni},
+                                 {k: after[k] for k in comuni})
+        self.assertGreater(viste, 0, "nessuna riga 1X2 da confrontare")
 
     def test_06_frasi_topmix_e_ou_filtrate_per_origine(self):
         import app as A

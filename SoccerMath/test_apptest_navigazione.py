@@ -483,6 +483,7 @@ class TestSchedeLettura(_BaseAppTest):
         entrasse, la percentuale sarebbe 33%. I numeri si contano a mano qui,
         non si rileggono dalla funzione che li produce.
         """
+        import app as app_mod
         concluse, stagione = self._concluse_della_stagione()
         self.assertEqual(2, len(concluse), "le concluse della stagione in corso")
         n = len(concluse)
@@ -608,7 +609,17 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertNotIn("SINCRONIZZA", testo_partite)
         self.assertFalse([b for b in self.at.button
                           if (b.key or "").startswith("partite_scheda_")],
-                         "i pulsanti «Scheda» non esistono piu': si clicca la riga")
+                         "i pulsanti «Scheda» per riga non esistono piu': "
+                         "la tabella della giornata e' HTML e la scheda si "
+                         "apre dal selettore «Apri la scheda» + «Apri»")
+        import app as app_mod
+        self.assertEqual([app_mod.CHIAVE_SCEGLI_PARTITA],
+                         [sb.key for sb in self.at.selectbox
+                          if (sb.key or "") == app_mod.CHIAVE_SCEGLI_PARTITA],
+                         "il selettore «Apri la scheda» c'e', uno solo")
+        self.assertEqual(1, len([b for b in self.at.button
+                                 if (b.key or "") == app_mod.CHIAVE_APRI_PARTITA]),
+                         "un solo pulsante «Apri»")
         # E le altre schede non si spostano: il loro contenuto e' lo stesso.
         self.assertIn("Le più probabili",
                       " \n".join(_testi_della_tab(self.at, SCHEDA_MULTIPLE)[0]))

@@ -177,18 +177,19 @@ class _BaseScheda(_BaseAppTest):
 
     @classmethod
     def _tabella_giornata(cls, at):
-        """Il DataFrame della giornata: l'unica tabella della scheda Partite."""
-        import app as app_mod
-        chiave = app_mod.chiave_tabella_corrente(app_mod.CHIAVE_TABELLA_PARTITE,
-                                                 at.session_state)
-        tabelle = [e for e in _elementi_della_tab(at, SCHEDA_PARTITE, "dataframe")
-                   if str(getattr(e, "key", "") or "") == chiave]
-        if len(tabelle) != 1:
-            raise AssertionError(f"una sola tabella nella scheda Partite, "
-                                 f"trovate {len(tabelle)} (chiave {chiave})")
-        df = tabelle[0].value
-        if hasattr(df, "data"):
-            df = df.data
+        """Il DataFrame della giornata: la tabella HTML, letta come tabella.
+
+        La tabella della scheda Partite non e' piu' un ``st.dataframe``: e' la
+        stringa HTML di ``scheda_grafica.html_tabella_partite``. Qui si rilegge
+        con ``test_html_tabella_partite.tabella_giornata``, che ne ricava le
+        sette colonne e il testo delle celle (le celle vuote restano stringhe
+        vuote): i controlli sotto restano gli stessi di prima.
+        """
+        from test_html_tabella_partite import tabella_giornata
+        df = tabella_giornata(at, SCHEDA_PARTITE)
+        if df.empty:
+            raise AssertionError("la scheda Partite non disegna la tabella "
+                                 "della giornata")
         return df
 
     @classmethod
@@ -202,20 +203,20 @@ class _BaseScheda(_BaseAppTest):
         raise AssertionError(f"nessuna riga {atteso!r} in {list(df['Partita'])}")
 
     @classmethod
-    def _seleziona_riga(cls, at, indice: int):
-        """Il clic sulla riga: la selezione della tabella (come nelle altre schede).
+    def _apri_riga(cls, at, indice: int):
+        """Apre la scheda della partita della riga ``indice``.
 
-        La selezione va impostata sulla chiave con cui la tabella e' disegnata
-        in questo momento (``chiave_tabella_corrente``): ogni riga cliccata alza
-        la versione della chiave, e il clic successivo usa la chiave nuova.
+        Il clic sulla riga non c'e' piu': la tabella e' HTML. Il gesto e' il
+        selettore «Apri la scheda» (la voce con lo stesso nome che la cella
+        «Partita» mostra) e il pulsante «Apri» accanto. Il nome si legge dalla
+        tabella, non dalla fixture: e' quello che l'utente sceglie.
         """
-        import app as app_mod
-        chiave = app_mod.chiave_tabella_corrente(app_mod.CHIAVE_TABELLA_PARTITE,
-                                                 at.session_state)
-        at.session_state[chiave] = {
-            "selection": {"rows": [indice], "columns": [], "cells": []}}
-        at.run(timeout=900)
-        cls.eccezioni(at, f"selezione della riga {indice}")
+        from test_html_tabella_partite import apri_scheda
+        df = cls._tabella_giornata(at)
+        etichetta = str(df.iloc[int(indice)]["Partita"])
+        apri_scheda(at, etichetta)
+        cls.eccezioni(at, f"apertura della riga {indice} ({etichetta})")
+        return etichetta
 
     @staticmethod
     def _testo_riquadro(at, titolo: str = None) -> str:
@@ -346,9 +347,24 @@ class TestSchedaPartitaAppTest(_BaseScheda):
                           for m in calendario},
                          {str(p) for p in df["Partita"].tolist()},
                          "le righe sono le partite del calendario, «Casa - Trasferta»")
-        # I pulsanti «Scheda» non esistono piu': si clicca la riga.
+        # La riga non si clicca piu' (la tabella e' HTML): sopra la tabella ci
+        # sono il selettore «Apri la scheda» e UN solo pulsante «Apri».
+        from test_html_tabella_partite import pulsante_apri, selettore_scheda
         self.assertEqual([], [b for b in self.at.button
                               if (b.key or "").startswith("partite_scheda_")])
+        self.assertEqual("Apri", pulsante_apri(self.at).label.strip())
+        self.assertEqual([str(p) for p in df["Partita"].tolist()],
+                         [str(o) for o in selettore_scheda(self.at).options],
+                         "il selettore elenca le partite della giornata, "
+                         "nello stesso ordine della tabella")
+        self.assertEqual(str(df.iloc[0]["Partita"]),
+                         str(selettore_scheda(self.at).value),
+                         "all'apertura e' scelta la prima partita della tabella")
+        # Nella scheda Partite non c'e' piu' nessuna tabella-widget: la
+        # giornata e' solo HTML.
+        self.assertEqual([], [e for e in _elementi_della_tab(
+            self.at, SCHEDA_PARTITE, "dataframe")],
+            "la tabella della giornata non e' piu' un dataframe")
         # «Quando»: lo stesso formato delle altre schede, con il marcatore ⏳
         # sulle partite che giocano fra piu' di tre giorni.
         for quando in df["Quando"].tolist():
@@ -470,9 +486,9 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         fuori, _ = self._testo_giornata(self.at)
         self.assertIn("SERIE A - GIORNATA 9", "\n".join(fuori))
 
-    # -- 3. il clic sulla riga della giornata -------------------------------
+    # -- 3. dal selettore «Apri la scheda» ---------------------------------
     def test_03_la_riga_apre_la_scheda_della_partita_giusta(self):
-        """Selezionare la riga N apre la scheda della partita della riga N."""
+        """Scegliere la partita della riga N e premere «Apri» apre quella scheda."""
         self._carica_giornata(self.at, RENDER_VERTICE[0])
         df = self._tabella_giornata(self.at)
         self.assertGreaterEqual(len(df), 4, "la giornata ha abbastanza partite")
@@ -484,8 +500,7 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         # classifica): e' la stessa scheda che apre la scheda Multiple.
         for indice in sorted({0, i, len(df) - 1}):
             with self.subTest(riga=int(indice)):
-                self._seleziona_riga(self.at, int(indice))
-                atteso = str(df.iloc[indice]["Partita"])
+                atteso = self._apri_riga(self.at, int(indice))
                 testo = self._testo_riquadro(self.at, atteso)
                 self.assertIn(f"### {atteso}", testo,
                               "il riquadro e' quello della partita della riga")
@@ -505,7 +520,7 @@ class TestSchedaPartitaAppTest(_BaseScheda):
         if not self.render_out:
             self.skipTest("SCHEDA_RENDER_OUT non impostata: nessun file da scrivere")
         self._carica_giornata(self.at, RENDER_BASSA[0])
-        self._seleziona_riga(self.at, self._indice_riga(self.at, *RENDER_BASSA[1:]))
+        self._apri_riga(self.at, self._indice_riga(self.at, *RENDER_BASSA[1:]))
         testo = self._testo_riquadro(self.at, _titolo_atteso(*RENDER_BASSA[1:]))
         self.assertIn(f"### {_titolo_atteso(*RENDER_BASSA[1:])}", testo)
         self.assertIn("Classifica", testo)

@@ -3542,9 +3542,17 @@ tab_strumenti = _schede[5] if len(_schede) > 5 else None
 # giornata la sceglie il selettore in testa e la tabella mostra quella.
 CHIAVE_CAMPIONATO_PARTITE = "partite_campionato"
 CHIAVE_GIORNATA_PARTITE = "partite_giornata"
-CHIAVE_TABELLA_PARTITE = "partite_tabella_giornata"
-COLONNE_PARTITE = ["Quando", "Partita", "1", "X", "2", "Pronostico", "Risultato"]
-ESITI_PARTITE = ("1", "X", "2")
+# La tabella della giornata non e' piu' un ``st.dataframe``: e' HTML, costruito
+# da ``scheda_grafica.html_tabella_partite`` con le stesse classi ``sg`` della
+# scheda partita. Le colonne sono quelle del modulo che la disegna.
+COLONNE_PARTITE = list(sgr.COLONNE_TABELLA_PARTITE)
+ESITI_PARTITE = sgr.ESITI_TABELLA
+# Il clic sulla riga non c'e' piu': la scheda partita si apre dal selettore
+# «Apri la scheda» e dal pulsante «Apri» accanto.
+CHIAVE_SCEGLI_PARTITA = "partite_apri_scheda"
+CHIAVE_APRI_PARTITA = "partite_apri"
+ETICHETTA_SCEGLI_PARTITA = "Apri la scheda"
+ETICHETTA_APRI_PARTITA = "Apri"
 
 
 def risultato_in_colonna(match):
@@ -3618,7 +3626,8 @@ def riga_tabella_partita(riga, match, adesso=None):
     partita gia' giocata non dicono piu' niente, e tenerle in vista accanto al
     risultato farebbe leggere un pronostico su un fatto gia' avvenuto. Le due
     chiavi ``provvisoria`` e ``scheda`` non finiscono in tabella: la prima serve
-    alla riga del ⏳ sotto la tabella, la seconda al clic sulla riga.
+    alla riga del ⏳ sotto la tabella, la seconda al selettore «Apri la
+    scheda» (la tabella e' HTML: la riga non si clicca piu').
     """
     riferimento = riga.get("utcDate")
     lontana = lg.e_partita_provvisoria({"commence_time": riferimento}, adesso)
@@ -3640,73 +3649,63 @@ def riga_tabella_partita(riga, match, adesso=None):
     }
 
 
-def percentuale_con_simbolo(valore) -> str:
-    """«56,3%»: percentuale a UNA cifra decimale, virgola italiana.
+def opzioni_scheda_partita(righe) -> list:
+    """Le voci del selettore «Apri la scheda»: le partite della giornata.
 
-    Stringa vuota quando il numero non c'e': e' il formato delle colonne
-    1/X/2 della scheda Partite, che sono ``TextColumn`` proprio perche' una
-    ``NumberColumn`` con un valore mancante (NaN) finisce a schermo come
-    «None». Nessuno zero inventato al posto di un dato assente.
+    Una voce per riga, nell'ordine della tabella (l'orario del calendario), con
+    lo stesso nome che la riga mostra («Casa - Trasferta»). Le righe senza un
+    nome utilizzabile restano fuori: senza partita non c'e' nessuna scheda da
+    aprire.
     """
-    v = percento_decimale(valore)
-    if v is None:
-        return ""
-    return f"{v:.1f}%".replace(".", ",")
+    fuori = []
+    for r in righe or []:
+        if not isinstance(r, dict):
+            continue
+        nome = cella_di_testo(r.get("Partita")).strip()
+        if nome:
+            fuori.append(nome)
+    return fuori
 
 
-def tabella_partite_giornata(righe):
-    """Il DataFrame della giornata e le righe nello STESSO ordine.
+def riga_scelta_partita(righe, etichetta):
+    """La riga del selettore ``etichetta`` (``None`` se non c'e' piu').
 
-    Sette colonne nell'ordine ``COLONNE_PARTITE``. «1», «X» e «2» sono TESTO
-    gia' formattato («56,3%», una cifra decimale, virgola italiana; stringa
-    vuota se la quota manca) e le altre quattro sono TESTO con stringa vuota
-    dove il dato manca: nessuna cella di questa tabella puo' rendere un
-    "None", un "nan" o un "NaT". Le tre colonne NON sono numeriche di
-    proposito: le partite gia' giocate non hanno 1/X/2, e una ``NumberColumn``
-    con il valore mancante scriverebbe «None»; il prezzo e' che l'ordinamento
-    al clic e' alfabetico, ma la tabella e' gia' in ordine di calendario (per
-    orario) e l'indice della riga cliccata resta quello della tabella.
+    Il confronto e' sul nome mostrato; se due partite hanno lo stesso nome
+    (succede solo in un calendario sbagliato) vince la prima, come sceglierebbe
+    chi guarda la tabella dall'alto.
     """
-    sorgente = [r for r in (righe or []) if isinstance(r, dict)]
-    df = pd.DataFrame(sorgente, columns=COLONNE_PARTITE)
-    for colonna in ESITI_PARTITE:
-        df[colonna] = df[colonna].map(percentuale_con_simbolo)
-    for colonna in ("Quando", "Partita", "Pronostico", "Risultato"):
-        df[colonna] = df[colonna].map(cella_di_testo)
-    return df, sorgente
+    if etichetta is None:
+        return None
+    for r in righe or []:
+        if isinstance(r, dict) and cella_di_testo(r.get("Partita")).strip() == etichetta:
+            return r
+    return None
 
 
-def _config_colonne_partite():
-    """Le colonne della tabella della giornata, con i loro suggeritori."""
-    return {
-        "Quando": st.column_config.TextColumn(
-            "Quando",
-            help="Giorno, data e ora italiana del fischio d'inizio. ⏳ = la "
-                 "partita gioca fra più di 3 giorni."),
-        "Partita": st.column_config.TextColumn(
-            "Partita", help="Squadra di casa e squadra in trasferta."),
-        "1": st.column_config.TextColumn(
-            "1", help="Vittoria della squadra di casa: probabilità secondo le "
-            "quote dei bookmaker, una cifra decimale. Vuota senza quote."),
-        "X": st.column_config.TextColumn(
-            "X", help="Pareggio: probabilità secondo le quote dei bookmaker, "
-            "una cifra decimale. Vuota senza quote."),
-        "2": st.column_config.TextColumn(
-            "2", help="Vittoria della squadra in trasferta: probabilità "
-            "secondo le quote dei bookmaker, una cifra decimale. Vuota senza "
-            "quote."),
-        "Pronostico": st.column_config.TextColumn(
-            "Pronostico",
-            help="Lo stesso pronostico del Top Mix: l'esito più probabile "
-                 "secondo le quote (1 in casa, X pareggio, 2 in trasferta), "
-                 "ma solo quando la sua probabilità arriva al "
-                 f"{SOGLIA_TOPMIX_MERCATO:.0%}; sotto quella soglia la cella "
-                 "mostra «—» e la colonna resta vuota senza quote."),
-        "Risultato": st.column_config.TextColumn(
-            "Risultato",
-            help="Il risultato finale delle partite già giocate: al posto delle "
-                 "probabilità, che su una partita conclusa non dicono più niente."),
-    }
+def _scegli_e_apri_partita(righe):
+    """Il selettore «Apri la scheda» e il pulsante «Apri» sopra la tabella.
+
+    Il clic sulla riga della tabella non c'e' piu' (la tabella e' HTML, non un
+    widget): la scheda partita si apre da qui, con la STESSA strada di prima —
+    ``apri_scheda_partita`` scrive la richiesta e il riquadro si apre in coda
+    al disegno (``_mostra_scheda_richiesta``). Nessuna scrittura e nessuna rete
+    in piu': il pulsante apre la scheda della partita scelta.
+    """
+    opzioni = opzioni_scheda_partita(righe)
+    if not opzioni:
+        return
+    colonna_scelta, colonna_apri = st.columns([4, 1], vertical_alignment="bottom")
+    with colonna_scelta:
+        scelta = st.selectbox(ETICHETTA_SCEGLI_PARTITA, opzioni,
+                              key=CHIAVE_SCEGLI_PARTITA)
+    with colonna_apri:
+        apri = st.button(ETICHETTA_APRI_PARTITA, key=CHIAVE_APRI_PARTITA)
+    if not apri:
+        return
+    richiesta = (riga_scelta_partita(righe, scelta) or {}).get("scheda") or {}
+    apri_scheda_partita(richiesta.get("lega"), richiesta.get("casa"),
+                        richiesta.get("trasferta"), richiesta.get("kickoff_utc"),
+                        richiesta.get("giornata"))
 
 
 class _ErroreCalendario(Exception):
@@ -3897,11 +3896,14 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
                    "del Top Mix, che compare solo quando l'esito arriva al "
                    f"{market_odds.SOGLIA_TOPMIX_MERCATO:.0%} (altrimenti un trattino). "
                    "Delle partite già giocate si legge il risultato. "
-                   "Clic sulla riga: la scheda della partita.")
-        # --- LA TABELLA DELLA GIORNATA (la scheda si apre dal clic) ---------
+                   "Per la scheda della partita: scegli la partita qui sotto e "
+                   "premi «Apri».")
+        # --- LA TABELLA DELLA GIORNATA (HTML; la scheda si apre da «Apri») ---
         # Le partite sono quelle del calendario (football-data, come oggi); le
         # probabilita' arrivano dal file delle quote, abbinate per nome
-        # canonico e per lega. Nessun numero e' ricalcolato qui.
+        # canonico e per lega. Nessun numero e' ricalcolato qui: la tabella e'
+        # ``scheda_grafica.html_tabella_partite``, la stessa grafica della
+        # scheda partita (classi ``sg`` e tema chiaro/scuro).
         _adesso_partite = market_odds._adesso_utc()
         _payload_partite = market_odds.carica_quote_live()
         righe_giornata = sp.righe_partite_giornata(
@@ -3913,17 +3915,14 @@ def _mostra_scheda_partite(camp_barra, engine_barra):
         if not righe_giornata:
             st.info("Nessuna partita in questa giornata.")
         else:
-            df_partite, righe_ordinate = tabella_partite_giornata(
-                [riga_tabella_partita(r, m, _adesso_partite)
-                 for r, m in zip(righe_giornata, matches)])
-            # PRIMA del disegno: la selezione pendente diventa richiesta di
-            # scheda e la tabella si disegna con la chiave nuova, senza spunte.
-            chiave_partite = chiave_tabella_pulita(CHIAVE_TABELLA_PARTITE,
-                                                   righe_ordinate)
-            st.dataframe(
-                df_partite, width="stretch", height=420, hide_index=True,
-                on_select="rerun", selection_mode="single-row",
-                key=chiave_partite, column_config=_config_colonne_partite())
+            righe_ordinate = [riga_tabella_partita(r, m, _adesso_partite)
+                              for r, m in zip(righe_giornata, matches)]
+            # Il selettore e il pulsante stanno SOPRA la tabella: la riga non
+            # si clicca piu' (la tabella e' HTML, non un widget selezionabile).
+            _scegli_e_apri_partita(righe_ordinate)
+            st.markdown(sgr.html_tabella_partite(righe_ordinate,
+                                                 tema=_tema_scheda_grafica()),
+                        unsafe_allow_html=True)
             if any(r.get("provvisoria") for r in righe_ordinate):
                 st.caption(FRASE_QUOTE_ANCORA_PROVVISORIE)
         # --- «DETTAGLI»: l'analisi del modello di oggi, INVARIATA, in fondo ---

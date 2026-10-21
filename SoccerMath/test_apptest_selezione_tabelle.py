@@ -2,15 +2,18 @@
 
 COSA VERIFICA (commessa «spunta blu che resta»)
 -----------------------------------------------
-Clic su una riga di una tabella cliccabile (le QUATTRO: «🏟️ Partite»,
-«⚽ Pronostici», «🟰 Pareggi», «🎯 Multiple — Le più probabili»):
+Clic su una riga di una tabella cliccabile («⚽ Pronostici», «🟰 Pareggi»,
+«🎯 Multiple — Le più probabili»; la scheda «🏟️ Partite» ha invece il
+selettore «Apri la scheda» + «Apri», perche' la sua tabella e' HTML):
 
 * (a) la scheda della partita si apre UNA volta;
 * (b) nello stesso disegno la tabella è già senza righe selezionate: la
   spunta blu non resta, e quando il riquadro si chiude con la X (che non fa
   un nuovo disegno) la pagina resta com'è, tabella pulita;
 * (c) selezionando di nuovo la STESSA riga la scheda si riapre;
-* (d) tutto questo per ognuna delle tabelle cliccabili.
+* (d) tutto questo per ognuna delle tabelle cliccabili;
+* (e) la scheda Partite (test_01), con il gesto nuovo: stesso contratto —
+  si apre una volta, la richiesta si consuma, la stessa partita si riapre.
 
 Meccanismo in prova (``app.chiave_tabella_pulita``): PRIMA di disegnare la
 tabella si legge la selezione da ``st.session_state[chiave]``; se c'è una
@@ -172,10 +175,67 @@ class TestSpuntaNonRimane(_BaseQuoteFinte):
                          f"{chiave_base}: la stessa riga cliccata due volte riapre la scheda")
 
     # -------------------------------------------------------------- (d) x 4
-    def test_01_partite_la_spunta_non_rimane(self):
+    def test_01_partite_il_selettore_apre_una_volta_e_non_resta(self):
+        """La scheda Partite non ha piu' una riga da cliccare: ha «Apri».
+
+        La tabella della giornata e' HTML (``scheda_grafica``), quindi non e'
+        un widget selezionabile e non puo' restare con la spunta blu: al suo
+        posto ci sono il selettore «Apri la scheda» e il pulsante «Apri».
+        Qui si verifica lo stesso contratto di prima, sul gesto nuovo:
+
+        * (a) la scheda scelta si apre UNA volta sola;
+        * (b) la richiesta si consuma nello stesso disegno: la pagina non tiene
+          nessuna selezione e un disegno senza clic non riapre niente;
+        * (c) scegliere di nuovo la STESSA partita e premere «Apri» la riapre.
+        """
         import app as app_mod
-        self._verifica_spunta(app_mod.CHIAVE_TABELLA_PARTITE, SCHEDA_PARTITE,
-                              "Genoa", "Fiorentina")
+        from test_html_tabella_partite import (apri_scheda, pulsante_apri,
+                                               selettore_scheda,
+                                               tabella_giornata)
+        # Nessuna tabella-widget nella scheda Partite: niente spunta possibile.
+        self.assertEqual([], [e for e in _elementi_della_tab(
+            self.at, SCHEDA_PARTITE, "dataframe")],
+            "la tabella della giornata non e' piu' un dataframe")
+        df = tabella_giornata(self.at, SCHEDA_PARTITE)
+        atteso = _titolo_atteso("Genoa", "Fiorentina")
+        self.assertIn(atteso, [str(p) for p in df["Partita"].tolist()],
+                      "la partita del fixture e' nella giornata")
+        selettore = selettore_scheda(self.at)
+        self.assertEqual([str(p) for p in df["Partita"].tolist()],
+                         [str(o) for o in selettore.options],
+                         "il selettore elenca le partite della tabella")
+        self.assertEqual("Apri", pulsante_apri(self.at).label.strip())
+        # --- (a) la scelta + «Apri»: la scheda si apre, UNA volta ----------
+        apri_scheda(self.at, atteso)
+        self.eccezioni(self.at, "apertura della scheda Partite")
+        titoli = self._titoli_scheda()
+        self.assertEqual(1, titoli.count("### " + atteso),
+                         f"la scheda di {atteso} si apre "
+                         f"{titoli.count('### ' + atteso)} volte")
+        # --- (b) la richiesta e' consumata: nulla resta in sessione ---------
+        self.assertIsNone(
+            self.at.session_state.get(app_mod.SCHEDA_PARTITA_APERTA_CHIAVE),
+            "la richiesta della scheda si consuma nello stesso disegno")
+        # ...e nessuna chiave della scheda Partite porta una selezione: la
+        # tabella HTML non ne ha una da portare.
+        selezioni = {k: v for k, v in dict(self.at.session_state).items()
+                     if str(k).startswith("partite_tabella")
+                     and isinstance(v, dict) and "selection" in v}
+        self.assertEqual({}, selezioni,
+                         "la scheda Partite non lascia selezioni in sessione")
+        # Un disegno senza clic non riapre la scheda: non c'e' niente da
+        # consumare due volte.
+        self.at.run(timeout=900)
+        self.eccezioni(self.at, "disegno senza clic")
+        titoli = self._titoli_scheda()
+        self.assertEqual(0, titoli.count("### " + atteso),
+                         "la scheda non si riapre da sola: la richiesta e' finita")
+        # --- (c) la stessa partita, di nuovo: la scheda si riapre ----------
+        apri_scheda(self.at, atteso)
+        self.eccezioni(self.at, "seconda apertura della stessa partita")
+        titoli = self._titoli_scheda()
+        self.assertEqual(1, titoli.count("### " + atteso),
+                         "la stessa partita aperta due volte riapre la scheda")
 
     def test_02_pareggi_la_spunta_non_rimane(self):
         # La prima riga dei pareggi: la scheda mostra solo le X sopra il 30%

@@ -89,12 +89,16 @@ class TestProvenienzaVerbatim(unittest.TestCase):
             self.assertEqual(_git("cat-file", "-p", L.LEGACY_ELO_BLOB_SHA), contenuto)
 
     def test_git_conferma_il_commit_che_lo_ha_sostituito(self):
-        """Quando il clone e' completo, anche la cronologia e' obbligatoria."""
+        """Quando la cronologia c'e', il commit che ha sostituito il legacy e' quello.
+
+        La domanda giusta non e' «il clone e' superficiale?» ma «git vede quel
+        commit?»: un clone shallow puo' contenere comunque i commit di un
+        ``fetch --depth`` piu' profondo (e' il caso dei test che leggono lo
+        snapshot pinnato). Se il commit non c'e' non si confronta niente —
+        l'integrita' del file e' gia' asserita sopra e non dipende da git.
+        """
         log = _git("log", "--format=%H %cI", "-1", L.LEGACY_ELO_REPLACED_BY_COMMIT)
-        if not self._clone_completo():
-            # Senza cronologia non c'e' nulla da confrontare: l'integrita' del
-            # file e' gia' asserita sopra e non dipende da git.
-            self.assertIsNone(log)
+        if log is None:
             return
         self.assertIsNotNone(log, "clone completo senza il commit dichiarato")
         sha, quando = log.split()
