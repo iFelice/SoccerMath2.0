@@ -20,8 +20,9 @@ Cosa verifica, in parole povere:
   preme «📝 Registra le giocate della giornata»;
 * quel pulsante scrive, e un secondo clic sullo stesso turno di quote non
   aggiunge righe doppie;
-* se il confronto col modello non riesce, la caption lo dice una volta
-  («Modello %: non disponibile»), le celle restano vuote e i riquadri delle
+* se il confronto col modello non riesce non si perde niente in vista: le
+  tabelle del periodo non hanno piu' «Modello %» (sta nella scheda partita e nei
+  Dettagli), quindi non c'e' nessuna cella da riempire e i riquadri delle
   proposte restano dove sono;
 * la scheda «📒 Com'è andata» apre con il riepilogo in parole, i cui numeri
   tornano con quelli contati a mano sulle stesse righe, e il controllo dei
@@ -399,14 +400,15 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertEqual([], [e for e in _elementi_della_tab(
             self.at, SCHEDA_PAREGGI, "button") if "Calcola" in (e.label or "")])
 
-    def test_04_colonna_modello_percento_presente(self):
-        """La vista mostra «Modello %» (probabilità del modello per lo stesso
-        esito); il segnale «d'accordo» esce da TUTTA la parte in vista —
-        colonna e conteggi nella caption — e resta solo nei Dettagli (campo
-        nei dati, tabella tecnica)."""
+    def test_04_la_vista_non_ha_piu_la_colonna_modello(self):
+        """«Modello %» esce dalle tabelle in vista: resta nella scheda partita e
+        nei Dettagli tecnici. Il segnale «d'accordo» resta fuori da TUTTA la
+        parte in vista — colonna e conteggi nella caption — e vive solo nei
+        Dettagli (campo nei dati, tabella tecnica)."""
         fuori, dentro = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
-        self.assertIn("Modello %", testo)
+        self.assertNotIn("Modello %", testo,
+                         "la tabella in vista ha cinque colonne: niente «Modello %»")
         self.assertIn("Quote %", testo)
         self.assertNotIn("d'accordo", testo.lower(),
                          "«d'accordo» (colonna o conteggio) non sta piu' in vista")
@@ -566,9 +568,10 @@ class TestScrittureSoloSuClick(_BaseAppTest):
                              "una scrittura per clic, anche il secondo")
 
     def test_05_se_il_modello_non_risponde_il_resto_resta_in_piedi(self):
-        """Giro del modello NON disponibile: le celle di «Modello %» restano
-        vuote (numeri, non parole) e la caption lo dice UNA volta («Modello %:
-        non disponibile»); i riquadri delle proposte restano dove sono. Lo stato lo
+        """Giro del modello NON disponibile: le tabelle in vista restano in piedi
+        (non hanno piu' la colonna «Modello %», non c'e' nessuna cella da
+        riempire) e i riquadri delle proposte restano dove sono; nessuna caption
+        parla dello stato del modello. Lo stato lo
         scriviamo direttamente in session (AppTest esegue lo script in un
         namespace separato: la funzione del giro non e' intercettabile dal
         ``import app`` dei test; la transizione in_calcolo -> fallito e'
@@ -577,7 +580,7 @@ class TestScrittureSoloSuClick(_BaseAppTest):
         self.chiamate_registro.clear()
         self._st.cache_data.clear()
         # Stato del confronto FALLITO + nessun dato del giro: le tabelle in
-        # vista devono restare in piedi, con le celle di «Modello %» vuote.
+        # vista devono restare in piedi (la colonna «Modello %» non c'e' piu').
         self.at.session_state["confronto_modello_stato"] = "non_disponibile"
         self.at.session_state["confronto_modello_righe"] = []
         self.at.session_state["confronto_modello_errore"] = "RuntimeError: giro giu'"

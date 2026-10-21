@@ -76,9 +76,10 @@ def _raccogli_da_df(df_el):
         return parti
     # val e' un oggetto Arrow/DataFrame serializzato: in testing e' un
     # pandas.DataFrame (o uno Styler): proviamo a normalizzare. Le colonne
-    # numeriche con celle vuote (``None``/NaN: da «Modello %» non pronto)
-    # vanno svuotate PRIMA di ``astype(str)``, altrimenti resta un float
-    # ``nan`` e il join delle celle esplode a metà tabella.
+    # numeriche con celle vuote (NaN: la «Quote %» delle righe solo gol, che la
+    # ProgressColumn mostra vuota) vanno svuotate PRIMA di ``astype(str)``,
+    # altrimenti resta un float ``nan`` e il join delle celle esplode a metà
+    # tabella.
     try:
         import pandas as _pd
         if hasattr(val, "data"):
@@ -215,7 +216,8 @@ def _testi_della_tab(at, scheda=SCHEDA_MULTIPLE):
 # «d'accordo» e' entrata in lista con la correzione alla PR #66: il segnale
 # resta solo nei Dettagli (tabella tecnica) e la caption della sezione
 # «Le scelte più sicure secondo le quote» dice solo quante partite sono in
-# tabella e, se il giro del modello non e' pronto, lo stato di «Modello %».
+# tabella. «Modello %» non e' piu' una colonna delle tabelle del periodo (sta
+# nella scheda partita e nei Dettagli), quindi nemmeno il suo stato si nomina.
 # ---------------------------------------------------------------------------
 
 PAROLE_VIETATE = [

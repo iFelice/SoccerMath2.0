@@ -7,6 +7,8 @@ senza scelta 1X2. Nessuna chiamata reale o scrittura al registro di produzione.
 import copy
 import json
 import sys
+
+import pandas as pd
 from datetime import timedelta
 from pathlib import Path
 
@@ -51,9 +53,12 @@ class TestAppTotals(_BaseQuoteFinte):
         self.assertEqual(4, sum(bool(v) for v in df['Gol']))
         solo = df[df['Partita'].str.startswith('Hamburger SV')].iloc[0]
         self.assertEqual('—', solo['Pronostico'])
-        self.assertEqual('n/d', solo['Modello %'])
+        self.assertNotIn('Modello %', df.columns,
+                         'la tabella del periodo non ha piu la colonna Modello %')
         self.assertEqual('', solo['Insieme %'])
-        self.assertEqual('', solo['Quote %'])
+        # Righe solo gol: «Quote %» e' un valore MANCANTE (NaN), non una
+        # stringa vuota — la ProgressColumn disegna la cella vuota.
+        self.assertTrue(pd.isna(solo['Quote %']))
         self.assertEqual('', solo['Quota'])
         self.assertTrue(solo['Gol'].startswith('Over 2,5'))
         ou = [r for r in self.registro.vivo if r.get('selector_version') == T.TOTALS_VERSION]
@@ -118,11 +123,14 @@ class TestAppTotals(_BaseQuoteFinte):
         df, ordered = A.tabella_pronostici_visibile(normalized)
         self.assertEqual([one['home'], 'Solo OU alto', 'Solo OU basso'],
                          [r['Partita'].split(' - ')[0] for r in ordered])
-        self.assertEqual(['', ''], df['Quote %'].tolist()[1:])
+        # Le due righe solo gol non hanno una probabilita' 1X2: «Quote %» e'
+        # NaN, e la colonna resta NUMERICA (ProgressColumn, ordinamento per
+        # valore) invece di convertirsi a testo.
+        self.assertTrue(pd.api.types.is_numeric_dtype(df['Quote %']))
+        self.assertTrue(df['Quote %'].iloc[1:].isna().all())
         self.assertEqual(['', ''], df['Quota'].tolist()[1:])
         self.assertEqual(['—', '—'], df['Pronostico'].tolist()[1:])
-        self.assertEqual(['n/d', 'n/d'], df['Modello %'].tolist()[1:])
-        self.assertTrue(all(isinstance(v, str) for v in df['Quote %'].tolist()[1:]))
+        self.assertNotIn('Modello %', df.columns)
 
     def test_05_righe_1x2_identiche_alla_presentazione_b837823(self):
         import ast

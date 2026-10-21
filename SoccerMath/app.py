@@ -3427,8 +3427,8 @@ def _contenuto_scheda_partita(richiesta):
     scheda = sp.costruisci_scheda(
         lega, casa, trasferta, kickoff_utc=richiesta.get("kickoff_utc"),
         payload_quote=market_odds.carica_quote_live(),
-        # La stessa mappa della colonna "Modello %" in vista: in session_state
-        # stanno le LETTURE del giro del modello, la terna per partita si
+        # La stessa terna 1X2 del modello che la scheda partita mostra: in
+        # session_state stanno le LETTURE del giro, la terna per partita si
         # ricava con la funzione di sempre (sola lettura, nessun ricalcolo).
         modello_1x2=prob_modello_1x2_per_partita(
             st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE)),
@@ -4135,9 +4135,9 @@ def tabella_top_mix_mercato(righe):
 def percento_decimale(valore):
     """Probabilita' -> percentuale con UNA cifra decimale come NUMERO (float).
 
-    Serve alla colonna "Quote %" (e a "Modello %" quando il modello ha un
-    numero): il valore resta numerico nel DataFrame cosi' l'ordinamento al
-    clic sull'intestazione e' numerico, non alfabetico. Accetta sia la
+    Serve alla colonna "Quote %": il valore resta numerico nel DataFrame
+    cosi' l'ordinamento al clic sull'intestazione e' numerico, non
+    alfabetico, e la ``ProgressColumn`` lo disegna come barra. Accetta sia la
     frazione 0-1 sia la percentuale gia' in 0-100 (le probabilita' di queste
     tabelle sono sempre >= 55% oppure assenti, quindi il confine a 1.0 non e'
     ambiguo). ``None`` se non c'e' un numero: la cella resta vuota, nessuno
@@ -4159,12 +4159,14 @@ def percento_decimale(valore):
 # ---------------------------------------------------------------------------
 # Le tabelle «del periodo» di Pronostici e Pareggi: una costruzione sola
 # ---------------------------------------------------------------------------
-# Stesse sei colonne per tutte e due (commessa presentazione, punto 2): Quando,
-# Partita, Pronostico, Quote %, Modello %, Quota. Le righe arrivano da due fonti
+# Stesse cinque colonne per tutte e due (commessa presentazione, punto 2): Quando,
+# Partita, Pronostico, Quote %, Quota. Le righe arrivano da due fonti
 # diverse - le scelte del selettore ``topmix_mercato_v4`` per i pronostici, la
 # lista dei pareggi per i pareggi - e qui vengono lette e allineate: nessun
 # numero viene ricalcolato e nessun testo si aggiunge dentro la colonna Partita.
-COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"]
+# «Modello %» NON e' una colonna di queste tabelle: la probabilita' del modello
+# sta nella scheda partita e nei Dettagli tecnici.
+COLONNE_PRONOSTICI = ["Quando", "Partita", "Pronostico", "Quote %", "Quota"]
 
 # Il marcatore delle partite lontane (calcio d'inizio oltre 3 giorni) e la riga
 # unica che lo spiega sotto la tabella.
@@ -4239,11 +4241,12 @@ def frase_quote_vecchie(generato_il) -> str:
 def percentuale_in_colonna(valore, nd=""):
     """Un numero di percentuale come TESTO con la virgola italiana: 66,0.
 
-    «Modello %» non e' una colonna numerica proprio per questo: una
-    ``NumberColumn`` col valore mancante si porta dietro un ``NaN`` che a
-    schermo non si vede ma nel testo reso si'. Una ``TextColumn`` con stringa
-    vuota e' una cella vuota e basta, dentro e fuori dallo schermo. Nessun
-    numero inventato: ``nd`` (vuoto di default) per tutto cio' che numero non e'.
+    Serve alle colonne DI TESTO che restano (la tabella di «Com'è andata» e
+    quella delle Giocate): una ``NumberColumn`` col valore mancante si porta
+    dietro un ``NaN`` che a schermo non si vede ma nel testo reso si'. Una
+    ``TextColumn`` con stringa vuota e' una cella vuota e basta, dentro e fuori
+    dallo schermo. Nessun numero inventato: ``nd`` (vuoto di default) per tutto
+    cio' che numero non e'.
     """
     if valore is None or isinstance(valore, bool):
         return nd
@@ -4346,11 +4349,15 @@ def riga_pronostico_da_mercato(riga, adesso=None, stato_confronto=None,
     """Una riga della tabella di «Pronostici»: la scelta del mercato in colonna.
 
     Lettura, non calcolo: la probabilita' e' quella del selettore
-    (``prob``/``prob_val``), il numero di «Modello %» e' quello del confronto
-    (``numero_modello_percento``, che per le doppie chance somma la terna 1X2) e
-    la «Quota» e' la stima bet365 della stessa probabilita'. Le due chiavi
-    ``provvisoria`` e ``scheda`` non finiscono in tabella: servono una alla riga
-    del ⏳ sotto la tabella e l'altra al clic sulla riga.
+    (``prob``/``prob_val``) e la «Quota» e' la stima bet365 della stessa
+    probabilita'. Le due chiavi ``provvisoria`` e ``scheda`` non finiscono in
+    tabella: servono una alla riga del ⏳ sotto la tabella e l'altra al clic
+    sulla riga. Una riga senza 1X2 (solo gol) porta ``None`` in «Quote %»: il
+    DataFrame ne fa un ``NaN`` e la cella resta vuota, senza inventare un numero.
+
+    ``stato_confronto`` e ``mappa_modello_1x2`` restano nella firma per i
+    chiamanti che li passano gia': la tabella in vista non ha piu' la colonna
+    «Modello %» (il modello sta nella scheda partita e nei Dettagli tecnici).
     """
     riferimento = (riga.get("kickoff_utc") or riga.get("utcDate")
                    or riga.get("commence_time"))
@@ -4364,9 +4371,7 @@ def riga_pronostico_da_mercato(riga, adesso=None, stato_confronto=None,
         "Quando": _quando_breve(riferimento, lontana),
         "Partita": f"{riga.get('home') or '?'} - {riga.get('away') or '?'}",
         "Pronostico": "—" if riga.get("solo_ou") else str(riga.get("esito") or "").strip(),
-        "Quote %": "" if riga.get("solo_ou") else percento_decimale(probabilita),
-        "Modello %": ("n/d" if riga.get("solo_ou") else percentuale_in_colonna(
-            numero_modello_percento(riga, stato_confronto, mappa_modello_1x2))),
+        "Quote %": None if riga.get("solo_ou") else percento_decimale(probabilita),
         "Quota": "" if riga.get("solo_ou") else quota_in_colonna(
             quota_b365_stimata(probabilita, riga.get("league") or riga.get("lega"))),
         "solo_ou": bool(riga.get("solo_ou")),
@@ -4383,7 +4388,10 @@ def riga_pronostico_da_giocata(giocata, adesso=None, stato_confronto=None,
 
     «Quote %» e' la probabilita' di mercato di quell'esito (``probabilita``/
     ``prob_percentuale`` della lista giocate) e «Quota» la stima bet365 che la
-    lista ha gia' calcolato: la scheda legge, non rimoltiplica niente.
+    lista ha gia' calcolato: la scheda legge, non rimoltiplica niente. Nessuna
+    colonna «Modello %»: il modello sta nella scheda partita e nei Dettagli
+    tecnici, e ``stato_confronto``/``mappa_modello_1x2`` restano nella firma
+    solo per i chiamanti che li passano gia'.
     """
     lontana = lg.e_partita_provvisoria(giocata, adesso)
     probabilita = giocata.get("probabilita")
@@ -4394,8 +4402,6 @@ def riga_pronostico_da_giocata(giocata, adesso=None, stato_confronto=None,
         "Partita": f"{giocata.get('home') or '?'} - {giocata.get('away') or '?'}",
         "Pronostico": str(giocata.get("giocata") or giocata.get("esito") or "").strip(),
         "Quote %": percento_decimale(probabilita),
-        "Modello %": percentuale_in_colonna(
-            numero_modello_percento(giocata, stato_confronto, mappa_modello_1x2)),
         "Quota": quota_in_colonna(_quota_in_colonna(giocata.get("quota_b365_stimata"))),
         "provvisoria": bool(lontana),
         "scheda": _righe_partita_da_giocata(giocata),
@@ -4405,15 +4411,15 @@ def riga_pronostico_da_giocata(giocata, adesso=None, stato_confronto=None,
 def tabella_pronostici_visibile(righe):
     """Il DataFrame delle tabelle «del periodo» e le righe nello stesso ordine.
 
-    Sei colonne nell'ordine ``COLONNE_PRONOSTICI``. «Quote %» resta NUMERO
-    (``pd.to_numeric``) finche' OGNI riga ha un numero: e' quella per cui la
-    tabella e' ordinata e il clic sulla sua intestazione deve ordinare per
-    valore. Se c'e' anche una sola riga senza 1X2 (solo O/U) o una quota
-    mancante, l'intera colonna diventa TESTO (una cifra decimale, virgola
-    italiana, stringa vuota dove il numero manca): cosi' nessuna cella di
-    nessuna tabella puo' rendere un "NaN" o un "None". «Modello %» e «Quota»
-    sono sempre TESTO gia' formattato. Ordine predefinito: «Quote %»
-    decrescente, stabile (a parita' resta l'ordine della fonte).
+    Cinque colonne nell'ordine ``COLONNE_PRONOSTICI``. «Quote %» e' SEMPRE
+    NUMERO (``pd.to_numeric``): e' quella per cui la tabella e' ordinata, il
+    clic sulla sua intestazione ordina per valore e la ``ProgressColumn`` la
+    disegna come barra. Una riga senza 1X2 (solo O/U) porta ``None`` in
+    «Quote %»: qui diventa ``NaN``, e la ProgressColumn mostra la cella vuota
+    (verificato su Streamlit 1.66) — mai la scritta «None», mai una stringa
+    vuota dentro una colonna numerica. «Quota» e' testo gia' formattato.
+    Ordine predefinito: «Quote %» decrescente, stabile (a parita' resta
+    l'ordine della fonte), righe solo gol in fondo.
 
     Ritorna ``(df, righe_ordinate)``: la seconda lista e' quella normalizzata
     nello STESSO ordine del DataFrame, e serve al clic sulla riga - che indica la
@@ -4429,6 +4435,9 @@ def tabella_pronostici_visibile(righe):
     if any("Gol" in r for r in sorgente):
         colonne += ["Gol", "Insieme %"]
     df = pd.DataFrame(sorgente, columns=colonne)
+    # «Quote %» resta NUMERICA in ogni caso: nessuna conversione a testo e
+    # nessun ripiego su TextColumn quando una riga non ha il numero. Il valore
+    # mancante e' NaN (cella vuota nella ProgressColumn), non una stringa.
     df["Quote %"] = pd.to_numeric(df["Quote %"], errors="coerce")
     for colonna in (c for c in colonne if c != "Quote %"):
         df[colonna] = df[colonna].map(cella_di_testo)
@@ -4439,16 +4448,6 @@ def tabella_pronostici_visibile(righe):
     df["_prob_ou"] = [r.get("_prob_ou", 0) for r in sorgente]
     df = df.sort_values(["Quote %", "_prob_ou"], ascending=False,
                         na_position="last", kind="mergesort").drop(columns="_prob_ou")
-    solo_ou = [bool(sorgente[i].get("solo_ou")) for i in df.index]
-    mancanti = df["Quote %"].isna().any()
-    if any(solo_ou) or mancanti:
-        # Arrow non supporta una colonna mista float/stringa: quando c'e' una
-        # riga senza 1X2 (solo O/U) o una quota mancante, TUTTA la colonna
-        # diventa testo. Una cella senza numero e' una stringa vuota — mai
-        # "nan" (che e' quello che ``f"{float('nan'):.1f}"`` scriverebbe).
-        df["Quote %"] = [
-            "" if solo or pd.isna(value) else f"{value:.1f}".replace(".", ",")
-            for solo, value in zip(solo_ou, df["Quote %"])]
     return df.reset_index(drop=True), [sorgente[i] for i in df.index]
 
 
@@ -4528,13 +4527,18 @@ def chiave_tabella_pulita(chiave_base, righe_ordinate):
 
 
 def _config_colonne_pronostici():
-    """Le colonne delle tabelle «del periodo»: un numero e cinque di testo.
+    """Le colonne delle tabelle «del periodo»: una barra e il resto di testo.
 
-    «Quote %» e' numerica con una cifra decimale (e' quella per cui si ordina);
-    «Modello %» e «Quota» sono testo gia' formattato — una cifra e due cifre
-    decimali con la virgola italiana, e stringa vuota dove manca il numero —
-    cosi' non compare mai un "NaN" né un "None". I suggeritori dicono cosa legge
-    la colonna, perche' il segno da solo (1, X, 2) non basta a chi non gioca.
+    «Quote %» e' una ``ProgressColumn`` numerica (0-100, passo 0,1): la barra
+    dice a colpo d'occhio quanto e' probabile l'esito e ``format="localized"``
+    scrive il numero con la virgola italiana. Dove il numero non c'e' (righe
+    solo gol) la cella e' VUOTA: la colonna resta numerica e il valore e' un
+    ``NaN``, non una stringa vuota — verificato su Streamlit 1.66, e
+    l'ordinamento al clic resta per valore. «Quota» e' testo gia' formattato
+    (due decimali con la virgola, stringa vuota dove manca). «Modello %» NON e'
+    piu' una colonna di queste tabelle: la probabilita' del modello sta nella
+    scheda partita e nei Dettagli tecnici. I suggeritori dicono cosa legge la
+    colonna, perche' il segno da solo (1, X, 2) non basta a chi non gioca.
     """
     return {
         "Quando": st.column_config.TextColumn(
@@ -4554,16 +4558,9 @@ def _config_colonne_pronostici():
                  "pareggio, 2 in trasferta — lo stesso della scheda «🏟️ "
                  "Partite». «—» quando nessun esito e' abbastanza probabile; "
                  "vuoto senza quote."),
-        "Quote %": st.column_config.NumberColumn(
-            "Quote %", format="%.1f%%",
+        "Quote %": st.column_config.ProgressColumn(
+            "Quote %", format="localized", min_value=0, max_value=100, step=0.1,
             help="Probabilità dell'esito secondo le quote dei bookmaker."),
-        # Le due colonne che possono restare senza numero sono DI TESTO: cosi'
-        # la cella vuota e' vuota davvero, senza "NaN" scritti nella tabella.
-        "Modello %": st.column_config.TextColumn(
-            "Modello %",
-            help="Probabilità dello stesso esito secondo il nostro modello "
-                 "(Drago), in percentuale. Vuota dove il modello non ha una "
-                 "lettura per quell'esito."),
         "Quota": st.column_config.TextColumn(
             "Quota", help="Quota bet365 stimata: quante volte paga la puntata."),
     }
@@ -4580,7 +4577,7 @@ def _altezza_tabella_periodo(n_righe: int, altezza_max: int = 420) -> int:
 
 
 def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
-    """La tabella in vista: sei colonne, il clic sulla riga, la riga dei ⏳.
+    """La tabella in vista: cinque colonne, il clic sulla riga, la riga dei ⏳.
 
     Sotto la tabella UNA sola riga sulle quote provvisorie, e solo se almeno una
     riga riguarda una partita oltre i 3 giorni: il marcatore da solo non sarebbe
@@ -4591,12 +4588,10 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     # tabella si disegna con la chiave nuova, senza spunte (chiave_tabella_pulita).
     chiave_corrente = chiave_tabella_pulita(chiave_widget, righe_ordinate)
     config_colonne = _config_colonne_pronostici()
-    # La colonna e' numerica solo quando tutte le righe hanno un numero; appena
-    # una cella e' vuota (solo O/U, quota mancante) e' testo, e la
-    # configurazione deve seguire il dtype VERO: una NumberColumn su celle ""
-    # riporterebbe a schermo il valore mancante come «None».
-    if not pd.api.types.is_numeric_dtype(df["Quote %"]):
-        config_colonne["Quote %"] = st.column_config.TextColumn("Quote %")
+    # «Quote %» e' sempre numerica (``tabella_pronostici_visibile``): la
+    # ProgressColumn disegna la barra dove il numero c'e' e lascia vuota la
+    # cella dove non c'e' (``NaN`` sulle righe solo gol), senza bisogno di
+    # ripiegare su una TextColumn.
     # Altezza in base al numero di righe (righe piu' intestazione per 35,
     # piu' 3 per i bordi, cioe' len(df) * 35 + 38), massimo 420: con 5 partite
     # non restano 6 righe vuote. Con 1 riga l'altezza e' 73, non 70 (verificato
@@ -4616,10 +4611,9 @@ def caption_scelte_secondo_le_quote(n_righe, nascoste=0):
     Due fatti e nient'altro: quante partite sono in tabella e, con l'interruttore
     del periodo spento, quante ne restano fuori perche' giocano dopo il lunedì.
     Nessuna indicazione su DOVE stia l'interruttore — sta sopra le schede, si
-    vede da qualsiasi scheda — e nessuna frase sullo stato di «Modello %»: la
-    colonna e' vuota dove il modello non ha una lettura e il suo suggeritore lo
-    dice, ripeterlo in una caption significherebbe parlare di una colonna senza
-    numeri. Nessun conteggio del segnale "d'accordo" in vista: e' un dettaglio
+    vede da qualsiasi scheda — e nessuna frase sul modello: la tabella in vista
+    non ha piu' la colonna «Modello %» (sta nella scheda partita e nei Dettagli
+    tecnici). Nessun conteggio del segnale "d'accordo" in vista: e' un dettaglio
     del riquadro chiuso.
     """
     frase = f"{n_righe} partite in tabella."
@@ -4634,8 +4628,8 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
     """La tabella delle scelte del mercato (``topmix_mercato_v4``) nel periodo.
 
     Sta nella scheda «⚽ Pronostici», dopo il clic: le righe sono quelle del giro
-    che il pulsante ha appena registrato, mostrate con le sei colonne comuni alla
-    scheda Pareggi (Quando, Partita, Pronostico, Quote %, Modello %, Quota) e
+    che il pulsante ha appena registrato, mostrate con le cinque colonne comuni
+    alla scheda Pareggi (Quando, Partita, Pronostico, Quote %, Quota) e
     ordinate per «Quote %» decrescente. Il contenuto tecnico di un tempo (fonte ed
     eta' delle quote riga per riga, quota del bookmaker, segnale "d'accordo") NON
     e' sparito: sta nel riquadro chiuso "Dettagli" della scheda Multiple. Le
@@ -4644,20 +4638,19 @@ def _mostra_tabella_top_mix_mercato(righe, quote_meta=None, adesso=None,
     esplicitamente, invece di mostrare una tabella vuota che sembrerebbe "nessuna
     partita probabile".
 
-    ``stato_confronto`` alimenta lo stato di «Modello %» nella caption (una volta
-    sola, non nelle celle); ``mappa_modello_1x2`` alimenta la colonna "Modello %":
-    la tabella non aspetta il giro del modello, quindi mentre quello gira le celle
-    restano vuote e le righe tutte li'. ``chiave_widget`` e' la chiave della
-    tabella, che e' anche il canale del clic sulla riga (scheda partita).
+    ``stato_confronto`` e ``mappa_modello_1x2`` restano nella firma per il
+    chiamante che li passa gia': la tabella in vista non ha piu' la colonna
+    «Modello %» (il modello sta nella scheda partita e nei Dettagli tecnici), e
+    le righe si disegnano senza aspettare il giro del modello. ``chiave_widget``
+    e' la chiave della tabella, che e' anche il canale del clic sulla riga
+    (scheda partita).
     """
     st.markdown("##### 🌟 Le scelte più sicure secondo le quote")
     st.caption("Le probabilità vengono dalle quote dei bookmaker, che in media "
                "sbagliano meno di qualunque modello. La scelta (1/X/2) è quella con la "
-               "probabilità più alta, e compare se supera il **55%**; accanto c'è la "
-               "probabilità che il nostro modello dà allo stesso esito («Modello %»; per "
-               "le doppie chance è la somma delle due probabilità 1X2). "
-               "Gol: O/U 2,5 dal mercato solo da 67%; Modello % per i gol: n/d "
-               "(non ancora validato). Insieme % viene dalla griglia congiunta.")
+               "probabilità più alta, e compare se supera il **55%**. "
+               "Gol: O/U 2,5 dal mercato solo da 67%. "
+               "Insieme % viene dalla griglia congiunta.")
     meta = quote_meta if isinstance(quote_meta, dict) else {}
     stato = meta.get("stato")
     if stato == STATO_OK:
@@ -4875,7 +4868,7 @@ CONFRONTO_RIGHE_CHIAVE = "confronto_modello_righe"
 CONFRONTO_ERRORE_CHIAVE = "confronto_modello_errore"
 CONFRONTO_SPINNER = "Confronto con il nostro modello…"
 # Letture di mercato del giro del modello (terna 1X2 del Drago per partita):
-# alimenta la colonna "Modello %" delle tabelle in vista. Sola lettura.
+# alimentano la scheda partita. Sola lettura.
 CONFRONTO_MODELLO_1X2_CHIAVE = "confronto_modello_1x2"
 
 
@@ -4903,8 +4896,9 @@ def prob_modello_1x2_per_partita(letture):
     ogni partita con una terna di quote valida portano in ``per_esito`` la
     probabilita' del modello per OGNI esito 1/X/2 (percentuale, arrotondata
     come nel Registro). E' la terna COMPLETA del modello sullo stesso giro di
-    calcolo delle righe in tabella: da qui nasce anche "Modello %" delle
-    doppie chance (somma delle due probabilita' 1X2). Una partita che il giro
+    calcolo delle righe in tabella: da qui nasce anche il "Modello %" delle
+    doppie chance (somma delle due probabilita' 1X2), che la scheda partita e i
+    Dettagli tecnici mostrano. Una partita che il giro
     non copre (nomi non riconosciuti, modello assente) non genera chiavi
     inventate: semplicemente non c'e'.
     """
@@ -4949,7 +4943,10 @@ def prob_modello_esito(esito, terna):
 
 
 def numero_modello_percento(riga, stato, mappa_1x2):
-    """Numero della colonna "Modello %" per UNA riga in vista (o ``None``).
+    """Numero del "Modello %" per UNA riga (o ``None``).
+
+    Lo usano le tabelle che mostrano ancora la colonna (Giocate, Com'è andata)
+    e la scheda partita; le tabelle del periodo non ce l'hanno piu'.
 
     * calcolo non ancora terminato, fallito, partita non coperta dal giro
       del modello, oppure modello senza numero per quella partita ->
@@ -4957,10 +4954,9 @@ def numero_modello_percento(riga, stato, mappa_1x2):
       nessuno zero inventato, nessun "NaN" nel testo reso;
     * calcolo pronto -> percento del modello per lo STESSO esito della riga
       (doppie chance: somma delle due probabilita' 1X2), numero con una
-      cifra decimale: il numero esce da qui e la tabella lo mette in testo con
-      la virgola (:func:`percentuale_in_colonna`), perche' una colonna che puo'
-      restare senza numero non deve rendere "NaN". L'ordinamento della tabella
-      resta quello di «Quote %».
+      cifra decimale: dove la tabella lo mostra come testo (``Giocate``,
+      ``Com'è andata``) passa da :func:`percentuale_in_colonna`, perche' una
+      colonna che puo' restare senza numero non deve rendere "NaN".
     """
     if stato != "pronto":
         return None
@@ -5001,8 +4997,8 @@ def concludi_confronto_modello():
                 fetch_and_calc_top_mix()
         st.session_state[CONFRONTO_RIGHE_CHIAVE] = top_mercato
         # La terna 1X2 del modello per partita (canale "letture", sola lettura):
-        # da qui nasce la colonna "Modello %" in vista, incluse le doppie
-        # chance (somma delle due probabilita' 1X2). Nessuna scrittura.
+        # da qui nasce il "Modello %" della scheda partita, doppie chance
+        # comprese (somma delle due probabilita' 1X2). Nessuna scrittura.
         st.session_state[CONFRONTO_MODELLO_1X2_CHIAVE] = letture
         st.session_state[CONFRONTO_STATO_CHIAVE] = "pronto"
     except Exception as e:
@@ -5499,15 +5495,17 @@ def _mostra_riquadri_multiple(prop, adesso, top_mercato=None, pronostici=None):
 
 def tabella_piu_probabili(in_periodo, quota_min, adesso=None, stato_confronto=None,
                           mappa_modello_1x2=None, pronostici=None):
-    """Le righe di «Le più probabili»: una per partita, le sei colonne comuni.
+    """Le righe di «Le più probabili»: una per partita, le cinque colonne comuni.
 
     La riga di ogni partita e' la giocata con la probabilità più alta fra quelle
     che pagano almeno ``quota_min`` (``lg.migliori_giocate_per_partita``, gli
     stessi numeri della lista giocate), letta con ``riga_pronostico_da_giocata``
     come nelle schede Pronostici e Pareggi: «Quando» con ⏳ oltre i 3 giorni,
     «Partita» senza testo aggiunto, «Pronostico» con la sola sigla, «Quote %»
-    numero, «Modello %» testo (vuoto dove il modello non ha una lettura),
-    «Quota» stimata. L'ordine lo mette ``tabella_pronostici_visibile``.
+    numero (barra), «Quota» stimata. L'ordine lo mette
+    ``tabella_pronostici_visibile``. Nessuna colonna «Modello %»: il modello
+    sta nella scheda partita e nei Dettagli tecnici, e ``stato_confronto``/
+    ``mappa_modello_1x2`` restano nella firma per i chiamanti di sempre.
 
     Con ``pronostici`` (la mappa di ``pronostici_dalle_quote``) ogni riga
     porta anche ``COLONNA_PRONOSTICO_PARTITA``: il pronostico della partita con
@@ -5828,9 +5826,10 @@ def stato_confronto_in_lettura():
     """``(stato, terna per partita)`` del confronto col modello, SENZA avviarlo.
 
     Le schede che non hanno pulsanti non possono mettersi a girare il modello:
-    leggono quello che c'e' in ``session_state``. Se il giro non e' finito le celle
-    «Modello %» restano vuote — esattamente quello che fanno gia' nella scheda
-    Multiple mentre il confronto lavora (e come le dice ``numero_modello_percento``).
+    leggono quello che c'e' in ``session_state``. Serve alla scheda partita (la
+    terna 1X2 del modello per l'esito), non alle tabelle in vista: quelle non
+    hanno piu' la colonna «Modello %». Se il giro non e' finito la mappa e'
+    vuota e ``numero_modello_percento`` non inventa niente.
     """
     return (st.session_state.get(CONFRONTO_STATO_CHIAVE),
             prob_modello_1x2_per_partita(st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE)))
@@ -5970,8 +5969,10 @@ def _scheda_pareggi():
 
     Nessun pulsante e nessuna scrittura: la lista viene dallo STESSO calcolo della
     scheda Multiple (``lista_giocate.calcola_lista_giocate`` sul file delle quote),
-    filtrata per periodo e poi da ``pareggi_da_mostrare``, e «Modello %» legge il
-    giro del modello in sola lettura. La riga sopra la tabella dice due cose:
+    filtrata per periodo e poi da ``pareggi_da_mostrare``. La tabella e' quella
+    comune alle schede Pronostici e Multiple: nessuna colonna «Modello %», che
+    sta nella scheda partita e nei Dettagli tecnici. La riga sopra la tabella
+    dice due cose:
     quanto vale un pareggio (anche il piu' probabile esce circa una volta su tre,
     per questo la scheda non e' una promessa ma una graduatoria) e da che
     probabilita' in su una partita vi entra. Se non ne resta nessuna, la scheda
@@ -6993,9 +6994,10 @@ with tab_multiple:
     # modello: e' gia' in pagina al primo disegno. La tabella delle scelte del
     # mercato e il pulsante che le registra non stanno qui: sono la scheda
     # «⚽ Pronostici». Il confronto con il modello parte da solo in coda alla
-    # scheda, in SOLA LETTURA (stessa cache di prima); finche' non finisce la
-    # colonna «Modello %» resta vuota, e se non riesce lo dicono i Dettagli
-    # lasciando in piedi tutto il resto.
+    # scheda, in SOLA LETTURA (stessa cache di prima): alimenta la scheda
+    # partita e i Dettagli, non le tabelle in vista (che la colonna «Modello %»
+    # non ce l'hanno piu'). Se non riesce lo dicono i Dettagli, lasciando in
+    # piedi tutto il resto.
     # NESSUNA scrittura avviene qui o a ogni rerun: registro di mercato,
     # registro ombra e proposte della settimana si scrivono SOLO al clic di
     # «📝 Calcola i pronostici della giornata».
@@ -7019,7 +7021,7 @@ with tab_multiple:
     # vero parte in coda alla scheda, quando il resto e' gia' disegnato.
     stato_confronto = avvia_confronto_modello()
     # Terna 1X2 del modello per partita (sola lettura, stesso giro del
-    # confronto): alimenta la colonna «Modello %» della tabella in vista.
+    # confronto): la usa la scheda partita che si apre dal clic sulla riga.
     mappa_modello_1x2 = prob_modello_1x2_per_partita(
         st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE))
 

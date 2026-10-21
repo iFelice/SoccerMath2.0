@@ -21,12 +21,14 @@ Cosa prova, sul VERO ``app.py``:
   registrazione» e l'invito a premere: nessun numero, nessuna tabella, nessun
   riquadro chiuso (punto 2);
 * il click calcola la giornata sulle quote del file, la registra nel Registro e
-  lascia in vista UNA tabella con le sei colonne promesse (Quando, Partita,
-  Pronostico, Quote %, Modello %, Quota), ordinate per «Quote %» decrescente,
-  con la «Quota» = stima bet365 di QUELLA riga; «Modello %» e «Quota» sono testo
-  formattato (virgola italiana) e la loro cella vuota e' una stringa vuota, non
-  un "NaN" né un "None" — e la caption dice solo quante partite sono in tabella
-  e quante restano nei prossimi giorni (punti 2 e 4);
+  lascia in vista UNA tabella con le cinque colonne promesse (Quando, Partita,
+  Pronostico, Quote %, Quota), ordinate per «Quote %» decrescente, con la
+  «Quota» = stima bet365 di QUELLA riga; «Quote %» e' NUMERICA (una
+  ``ProgressColumn``) e la cella senza numero — le righe solo gol — e' un valore
+  mancante, mostrato vuoto, mai la scritta "NaN"/"None"; «Modello %» non e' una
+  colonna di questa tabella (sta nella scheda partita e nei Dettagli) — e la
+  caption dice solo quante partite sono in tabella e quante restano nei
+  prossimi giorni (punti 2 e 4);
 * l'interruttore del periodo e' UN widget solo, e sta SOPRA la barra delle
   schede: lo leggono Pronostici, Pareggi e Multiple e nessuno dei tre testi
   rimanda a un'altra scheda per cercarlo. Cambiare periodo vuol dire chiedere
@@ -61,6 +63,8 @@ import sys
 import tempfile
 import time
 import unittest
+
+import pandas as pd
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -90,8 +94,9 @@ from test_apptest_topmix_presentazione import (  # noqa: E402
 )
 from test_apptest_scheda_partita import _titolo_atteso  # noqa: E402
 
-#: Le sei colonne promesse, nell'ordine.
-COLONNE = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"]
+#: Le cinque colonne promesse, nell'ordine (niente «Modello %»: sta nella
+#: scheda partita e nei Dettagli tecnici).
+COLONNE = ["Quando", "Partita", "Pronostico", "Quote %", "Quota"]
 
 ETICHETTA_CALCOLA = "Calcola i pronostici della giornata"
 ETICHETTA_VECCHIO = "Registra le giocate della giornata"
@@ -428,8 +433,9 @@ class _BaseQuoteFinte(unittest.TestCase):
 
         Lo stato si scrive direttamente in sessione perche' AppTest esegue lo
         script in un namespace separato (stessa strada di
-        ``test_apptest_navigazione``): le celle di «Modello %» restano vuote e
-        deve bastare la caption dello stato."""
+        ``test_apptest_navigazione``): il giro del modello non c'e', e le
+        tabelle in vista devono restare in piedi lo stesso — non hanno piu' la
+        colonna «Modello %», quindi nessuna cella da riempire."""
         at.session_state["confronto_modello_stato"] = "non_disponibile"
         at.session_state["confronto_modello_righe"] = []
         at.session_state["confronto_modello_errore"] = "RuntimeError: giro giù"
@@ -465,11 +471,17 @@ class _BaseQuoteFinte(unittest.TestCase):
 
         Si guarda il DataFrame RESO (dtype e celle), perche' e' li' che un
         ``NaN`` numerico ricompare quando qualcuno trascrive la tabella o la
-        legge da AppTest: le colonne che possono mancare di un numero sono di
-        TESTO, con stringa vuota.
+        legge da AppTest. L'unico valore mancante ammesso e' quello di
+        «Quote %» sulle righe SENZA 1X2 (solo gol): la colonna resta numerica,
+        la cella e' vuota a schermo, e qui si verifica che sia davvero un
+        ``NaN`` e non la scritta «None»/«nan» finita in una cella.
         """
         for colonna in df.columns:
             for cella in df[colonna]:
+                if pd.isna(cella):
+                    self.assertEqual("Quote %", colonna,
+                                     f"valore mancante in {colonna!r}: solo «Quote %» puo'")
+                    continue
                 test = str(cella).strip().lower()
                 self.assertNotIn(test, ("nan", "none", "nat"),
                                  f"cella di {colonna!r} che rende {test!r}")
@@ -569,7 +581,7 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertIn("Anche il pareggio più probabile esce circa 1 volta su 3.",
                       self._testo(self.at, SCHEDA_PAREGGI))
         df = self._df(self.at, SCHEDA_PAREGGI)
-        self.assertEqual(COLONNE, list(df.columns), "le sei colonne promesse")
+        self.assertEqual(COLONNE, list(df.columns), "le cinque colonne promesse")
         self.assertEqual(len(attesi), len(df), "una riga per ogni pareggio mostrato")
         self.assertEqual(["X"] * len(df), list(df["Pronostico"]),
                          "la scheda Pareggi non mostra altri esiti")
@@ -607,6 +619,9 @@ class TestSchedaPronostici(_BaseQuoteFinte):
 
         df = self._df(self.at, SCHEDA_PRONOSTICI)
         self.assertEqual(COLONNE + ["Gol", "Insieme %"], list(df.columns))
+        self.assertNotIn("Modello %", df.columns,
+                         "la probabilita' del modello sta nella scheda partita "
+                         "e nei Dettagli tecnici")
         self.assertEqual(len(in_periodo), len(df))
         self.assertEqual(["Roma - Lecce", "Genoa - Fiorentina", "Napoli - Venezia"],
                          list(df["Partita"]), "la tabella e' l'elenco delle scelte")
@@ -619,10 +634,11 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                   for _mid, casa, trasferta, _p, kickoff in self.partite}
         self.assertEqual([_quando_italiano(calcio[p]) for p in df["Partita"]],
                          list(df["Quando"]), "data e ora italiane nella colonna stretta")
-        # «Modello %» e «Quota» sono TESTO formattato: qui il giro del modello
-        # non c'e', quindi le tre celle sono tre stringhe vuote. Non un NaN, non
-        # un "n/d", non una colonna numerica che si trascrive "nan".
-        self.assertEqual(["", "", ""], list(df["Modello %"]), list(df["Modello %"]))
+        # «Quote %» e' numerica e porta la probabilita' di ogni riga; «Quota» e'
+        # testo formattato. Nessuna colonna «Modello %» da riempire.
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
+        self.assertEqual([66.0, 60.0, 58.0],
+                         [round(float(v), 1) for v in df["Quote %"]])
         self._nessun_non_numero(df)
         # ...e vale anche per la tabella dei pareggi, che di righe senza lettura
         # del modello ne ha di mestiere.
@@ -812,11 +828,11 @@ class TestSchedaPronostici(_BaseQuoteFinte):
 
         Le celle si guardano tre volte, perche' i tre lettori sono tre posti
         diversi dove il non-numero ricomparirebbe: le frasi della scheda, le
-        celle come il browser le riceve (``_raccogli_da_df``) e la trascrizione
-        ``to_string`` della tabella, che e' quella di chi copia o stampa la
-        vista. Il fixture non ha il giro del modello: TUTTE le righe sono senza
-        lettura, e questo e' esattamente il caso che la commessa chiede di
-        provare (una riga con «Modello %» vuoto non deve scrivere niente).
+        celle come il browser le riceve (``_raccogli_da_df``, che svuota i
+        valori mancanti come fa la ProgressColumn) e la trascrizione
+        ``to_string``, che e' quella di chi copia o stampa la vista (li' il
+        ``NaN`` di «Quote %» si vede, ed e' ammesso SOLO sulla riga senza 1X2:
+        e' il valore mancante chiesto, non una scritta).
         """
         from test_apptest_topmix_presentazione import _raccogli_da_df
         if not _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"):
@@ -830,6 +846,14 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                     pezzi += [str(c) for c in _raccogli_da_df(el)]
                     df = getattr(el, "value", None)
                     if df is not None and hasattr(df, "to_string"):
+                        if "Quote %" in df.columns:
+                            # I NaN di «Quote %» sono le righe solo gol: si
+                            # tolgono dalla trascrizione, dopo aver controllato
+                            # che stiano solo li'.
+                            for _i, riga in df[df["Quote %"].isna()].iterrows():
+                                self.assertEqual("—", str(riga.get("Pronostico", "")),
+                                                 f"{scheda}: NaN fuori dalle righe solo gol")
+                            df = df.drop(columns=["Quote %"])
                         pezzi.append(df.to_string(index=False))
                 self.assertTrue(pezzi, f"{scheda}: nessuna cosa resa da controllare")
                 testo = " \n".join(pezzi)
@@ -839,12 +863,15 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                 self.assertNotIn("n/d", testo.replace("Modello % per i gol: n/d", ""),
                                  "n/d ammesso solo per O/U")
                 self.assertNotIn("Non disponibile", testo)
-        # e la prova non deve essere vuota: almeno una riga senza modello, qui e
-        # nella tabella dei pareggi, dev'esserci per davvero.
+        # e la prova non deve essere vuota: nessuna delle due tabelle ha
+        # «Modello %» e «Quote %» e' numerica, senza buchi (in questo fixture
+        # ogni riga ha la sua scelta 1X2; le righe solo gol, con il NaN
+        # voluto, le prova ``test_apptest_totals_mercato``).
         for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI):
             df = self._df(self.at, scheda)
-            vuote = sum(1 for v in df["Modello %"] if str(v) == "")
-            self.assertGreaterEqual(vuote, 1, f"{scheda}: nessuna cella vuota da provare")
+            self.assertNotIn("Modello %", df.columns, scheda)
+            self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]), scheda)
+            self.assertFalse(df["Quote %"].isna().any(), scheda)
 
     # -- 14. la vista tecnica del Top Mix sta nei Dettagli dei Pronostici ---
     def test_14_la_vista_tecnica_del_top_mix_sta_nei_dettagli_dei_pronostici(self):

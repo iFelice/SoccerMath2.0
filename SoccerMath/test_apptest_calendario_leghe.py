@@ -375,7 +375,10 @@ class TestTabelleERegistro(_BaseQuoteFinte):
         self._premi_click(self.at, ETICHETTA_CALCOLA)
         self._controlla_tabelle("dopo il calcolo dei pronostici")
         # Righe solo O/U, anche senza la probabilita' congiunta: nessuna cella
-        # puo' diventare NaN/None.
+        # puo' diventare NaN/None, tranne la «Quote %» di queste righe. Li' il
+        # valore mancante e' voluto: la colonna resta numerica (ProgressColumn)
+        # e la cella e' vuota a schermo — mai la scritta «None»/«nan».
+        import pandas as pd
         from audit.totals_snapshot_fixture import payload_snapshot
         snapshot = payload_snapshot()
         righe_ou, _ = app_mod.righe_pronostici_dalle_quote(snapshot, self.ADESSO)
@@ -384,11 +387,20 @@ class TestTabelleERegistro(_BaseQuoteFinte):
         for r in normalizzate:
             r.pop("totals", None)          # O/U senza congiunta
         df_ou, _ = app_mod.tabella_pronostici_visibile([
-            dict(r, solo_ou=True, Quote="") for r in normalizzate])
+            dict(r, solo_ou=True) for r in normalizzate])
         self.assertTrue(any(df_ou["Pronostico"] == "—"))
+        self.assertTrue(pd.api.types.is_numeric_dtype(df_ou["Quote %"]),
+                        "«Quote %» resta numerica anche con le righe solo gol")
+        self.assertEqual("—", df_ou["Pronostico"].iloc[-1])
+        self.assertTrue(pd.isna(df_ou["Quote %"].iloc[-1]),
+                        "riga solo gol: «Quote %» mancante (NaN), non stringa vuota")
         for colonna in df_ou.columns:
             for cella in df_ou[colonna].tolist():
-                self.assertFalse(__import__("pandas").isna(cella),
+                if pd.isna(cella):
+                    self.assertEqual("Quote %", colonna,
+                                     f"O/U senza congiunta: valore mancante in {colonna!r}")
+                    continue
+                self.assertFalse(pd.isna(cella),
                                  f"O/U senza congiunta: {colonna}={cella!r}")
 
     def test_02_pulsante_controlla_i_risultati_in_cima(self):

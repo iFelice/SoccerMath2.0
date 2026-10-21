@@ -240,7 +240,9 @@ class TestLaColonnaPronosticoPartita(unittest.TestCase):
                                                pronostici=pronostici)
         df, ordinate = prod_app.tabella_pronostici_visibile(righe)
         self.assertEqual(["Quando", "Partita", "Pronostico", "Pronostico partita",
-                          "Quote %", "Modello %", "Quota"], list(df.columns))
+                          "Quote %", "Quota"], list(df.columns))
+        self.assertNotIn("Modello %", df.columns,
+                         "«Modello %» sta nella scheda partita e nei Dettagli")
         per_partita = dict(zip(df["Partita"], df["Pronostico partita"]))
         self.assertEqual({"Genoa - Fiorentina": "1", "Roma - Lecce": "1",
                           "Bologna - Monza": ""}, per_partita)
@@ -263,7 +265,7 @@ class TestLaColonnaPronosticoPartita(unittest.TestCase):
                          .iloc[0]["Pronostico partita"])
 
     def test_senza_pronostici_la_colonna_non_nasce(self):
-        """Le altre tabelle (Pronostici, Pareggi) restano di sei colonne."""
+        """Le altre tabelle (Pronostici, Pareggi) restano di cinque colonne."""
         righe = prod_app.tabella_piu_probabili(self._giocate(), 1.0, self.ADESSO)
         df, _ = prod_app.tabella_pronostici_visibile(righe)
         self.assertEqual(prod_app.COLONNE_PRONOSTICI, list(df.columns))
@@ -324,7 +326,7 @@ class TestNellaSchedaVera(_BaseQuoteFinte):
         pronostici = prod_app.pronostici_dalle_quote(self.payload)
         df = self._df_probabili(self.at)
         self.assertEqual(["Quando", "Partita", "Pronostico", "Pronostico partita",
-                          "Quote %", "Modello %", "Quota"], list(df.columns))
+                          "Quote %", "Quota"], list(df.columns))
         self.assertTrue(len(df), "la tabella ha le sue righe")
         for _i, riga in df.iterrows():
             with self.subTest(partita=riga["Partita"]):
@@ -352,7 +354,7 @@ class TestNellaSchedaVera(_BaseQuoteFinte):
                 self.assertIsNone(re.search(parola, testo, re.IGNORECASE),
                                   f"parola vietata nella scheda Multiple: {parola!r}")
 
-    def test_05_le_altre_schede_restano_di_sei_colonne(self):
+    def test_05_le_altre_schede_restano_di_cinque_colonne(self):
         """La colonna nuova sta solo in «Le più probabili»: Pronostici e
         Pareggi non cambiano (il confronto con «⚽ Pronostici» dopo il click)."""
         self._premi_click(self.at, "Calcola i pronostici della giornata")
