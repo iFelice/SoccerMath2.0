@@ -369,11 +369,14 @@ st.markdown("""
         }
     }
 
-    /* Banner: aspect-ratio evita margini negativi pericolosi */
+    /* Banner: altezza fissa (180px) e immagine INTERA e centrata.
+       Niente aspect-ratio ne' max-height: con l'aspect-ratio della vecchia
+       versione il riquadro cresceva fino a 600px in verticale e, dentro
+       Safari, spingeva il contenuto con margini negativi. Con height fissa
+       e background-size contain l'immagine ci sta tutta, senza tagli. */
     .safari-safe-banner { 
         width: 100%; 
-        aspect-ratio: 1056 / 2496;
-        max-height: 600px;
+        height: 180px;
         background-image: url('https://github.com/iFelice/SoccerMath2.0/blob/main/SoccerMath/images/Banner%20soccermath2.0.png?raw=true'); 
         background-size: contain;
         background-repeat: no-repeat;
