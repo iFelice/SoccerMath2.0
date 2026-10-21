@@ -4569,6 +4569,16 @@ def _config_colonne_pronostici():
     }
 
 
+def _altezza_tabella_periodo(n_righe: int, altezza_max: int = 420) -> int:
+    """Altezza per ``st.dataframe`` in base al numero di righe.
+
+    Circa 35 px a riga piu' intestazione, piu' 3 per i bordi: ``n * 35 + 38``,
+    massimo ``altezza_max`` (420). Con 1 riga 73 (non 70), con 5 righe 213,
+    con 11 o 20 righe 420. Verificato su Streamlit 1.66.
+    """
+    return min(altezza_max, n_righe * 35 + 38)
+
+
 def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     """La tabella in vista: sei colonne, il clic sulla riga, la riga dei ⏳.
 
@@ -4587,9 +4597,11 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     # riporterebbe a schermo il valore mancante come «None».
     if not pd.api.types.is_numeric_dtype(df["Quote %"]):
         config_colonne["Quote %"] = st.column_config.TextColumn("Quote %")
-    # Altezza in base al numero di righe (circa 35 px a riga piu' intestazione),
-    # massimo 420: con 5 partite non restano 6 righe vuote.
-    altezza_eff = min(altezza, len(df) * 35 + 35)
+    # Altezza in base al numero di righe (righe piu' intestazione per 35,
+    # piu' 3 per i bordi, cioe' len(df) * 35 + 38), massimo 420: con 5 partite
+    # non restano 6 righe vuote. Con 1 riga l'altezza e' 73, non 70 (verificato
+    # su Streamlit 1.66: senza i 3 px la tabella esce tagliata sotto).
+    altezza_eff = _altezza_tabella_periodo(len(df), altezza)
     st.dataframe(df, width="stretch", height=altezza_eff, hide_index=True,
                  on_select="rerun", selection_mode="single-row",
                  key=chiave_corrente,
@@ -5437,6 +5449,18 @@ def riquadri_multiple(prop, adesso=None, pronostici=None):
     return riquadri
 
 
+def nome_riquadro_multiple(nome: str) -> str:
+    """Il nome della partita come va scritto in ``st.markdown`` nei riquadri.
+
+    «1. FC Koln - FC Schalke 04» inizia con un numero e un punto: Markdown lo
+    legge come prima voce di un elenco numerato, e a schermo il nome diventa
+    l'inizio di una lista. Qui si scrive ``1\\.`` (punto protetto): il testo
+    mostrato resta IDENTICO — «1. FC Koln - FC Schalke 04» — e non e' piu' una
+    lista. I nomi che non iniziano con «numero.» tornano com'erano.
+    """
+    return re.sub(r"^(\d+)\.", r"\1\\.", nome)
+
+
 def _mostra_riquadri_multiple(prop, adesso, top_mercato=None, pronostici=None):
     """I riquadri affiancati delle proposte (``st.columns(4)``, uno per
     numero di partite, ciascuno in un contenitore col bordo).
@@ -5462,7 +5486,7 @@ def _mostra_riquadri_multiple(prop, adesso, top_mercato=None, pronostici=None):
             with st.container(border=True):
                 st.markdown(f"##### {r['titolo']}")
                 for nome, sotto in r["partite"]:
-                    st.markdown(re.sub(r"^(\d+)\.", r"\1\.", nome))
+                    st.markdown(nome_riquadro_multiple(nome))
                     st.caption(sotto)
                 c_q, c_p = st.columns(2)
                 c_q.metric("Quota", r["quota"])
