@@ -6695,23 +6695,80 @@ def tabella_gol_mercato_tecnica(righe):
     return pd.DataFrame(righe_tec, columns=COLONNE_GOL_MERCATO_TECNICA)
 
 
-def sintesi_gol_mercato(righe) -> str:
-    """Riga di riepilogo sopra la tabella «⚽ Gol — mercato» nel Registro."""
-    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
-    concluse = [r for r in records if cella_di_testo(r.get("esito")) in ("✅", "❌")]
+def riepilogo_giocate_concluse(giocate) -> dict:
+    """I numeri del riepilogo, da righe GIA' nel Registro (funzione pura).
+
+    Stesse righe e stessi filtri delle due sintesi in parole
+    (``_sintesi_registro_mercato`` e ``sintesi_gol_mercato``): sono «concluse»
+    solo le righe con esito ✅/❌, «riuscite» quelle ✅, e le «attese» sono la
+    media delle probabilita' della PRIMA registrazione sulle STESSE righe
+    (``prob_di_registrazione`` con ``REGISTRAZIONE_PRIMA``: ``prob_mercato_prima``
+    e, dove il campo manca — tutte le righe dello snapshot nel repo — il
+    ripiego dichiarato su ``prob_sicuro``, che nel Registro e' in PERCENTUALE).
+    Nessuna regola nuova: non si ricalcola nessuna probabilita', non si cambia
+    filtro e non si inventa un numero dove la riga non ne ha uno.
+
+    Ritorna un dizionario con:
+
+    * ``concluse`` / ``riuscite``: i due conteggi (interi);
+    * ``percentuale_riuscite``: ``int(round(100 * riuscite / concluse))``, la
+      stessa percentuale intera che le due sintesi scrivono fra parentesi;
+    * ``attese``: ``int(round(100 * media))`` delle probabilita' leggibili, la
+      stessa che le due sintesi scrivono come «Quote: N%»; ``None`` quando
+      nessuna riga ha una probabilita' leggibile;
+    * ``scarto``: ``percentuale_riuscite - attese`` in punti percentuali
+      (negativo = meno riuscite di quanto il mercato si aspettava), ``None``
+      quando manca ``attese``;
+    * ``senza_probabilita``: quante concluse sono rimaste fuori dalla media
+      (le sintesi lo dicono in coda: «N senza probabilità leggibile»).
+
+    Con zero giocate concluse i conteggi sono 0 e i tre numeri derivati sono
+    ``None``: nessuna divisione per zero e nessuno 0% inventato.
+    """
+    records = giocate.to_dict("records") if hasattr(giocate, "to_dict") else list(giocate or [])
+    concluse = [r for r in records
+                if isinstance(r, dict) and cella_di_testo(r.get("esito")) in ("✅", "❌")]
     n = len(concluse)
     if n == 0:
-        return "Gol: nessuna giocata conclusa finora."
+        return {"concluse": 0, "riuscite": 0, "percentuale_riuscite": None,
+                "attese": None, "scarto": None, "senza_probabilita": 0}
     m = sum(1 for r in concluse if cella_di_testo(r.get("esito")) == "✅")
-    x_cento = int(round(100.0 * m / n))
+    percentuale = int(round(100.0 * m / n))
     prime = []
+    senza_probabilita = 0
     for r in concluse:
         p, _ricostruita = prob_di_registrazione(r, REGISTRAZIONE_PRIMA)
-        if p is not None:
+        if p is None:
+            senza_probabilita += 1
+        else:
             prime.append(float(p))
-    testo_quote = (f"Quote: {int(round(100.0 * sum(prime) / len(prime)))}%"
-                   if prime else "Quote: n/d")
-    return f"Gol: finora {n} giocate concluse, {m} riuscite ({x_cento}%). {testo_quote}."
+    attese = int(round(100.0 * sum(prime) / len(prime))) if prime else None
+    return {
+        "concluse": n,
+        "riuscite": m,
+        "percentuale_riuscite": percentuale,
+        "attese": attese,
+        "scarto": (percentuale - attese) if attese is not None else None,
+        "senza_probabilita": senza_probabilita,
+    }
+
+
+def sintesi_gol_mercato(righe) -> str:
+    """Riga di riepilogo sopra la tabella «⚽ Gol — mercato» nel Registro.
+
+    I numeri sono quelli di ``riepilogo_giocate_concluse`` (stesse righe,
+    stesso filtro ✅/❌, stessa media delle probabilita' della prima
+    registrazione): qui si scrivono soltanto in una frase.
+    """
+    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
+    riepilogo = riepilogo_giocate_concluse(records)
+    if riepilogo["concluse"] == 0:
+        return "Gol: nessuna giocata conclusa finora."
+    testo_quote = (f"Quote: {riepilogo['attese']}%" if riepilogo["attese"] is not None
+                   else "Quote: n/d")
+    return (f"Gol: finora {riepilogo['concluse']} giocate concluse, "
+            f"{riepilogo['riuscite']} riuscite ({riepilogo['percentuale_riuscite']}%). "
+            f"{testo_quote}.")
 
 
 def _sintesi_registro_mercato(righe) -> tuple:
@@ -6737,28 +6794,29 @@ def _sintesi_registro_mercato(righe) -> tuple:
     Quota mancante su una riga vinta: la riga non conta nel netto (resa n/d,
     non inventata) e la dizione lo dichiara in coda con "quota n/d".
 
+    I quattro numeri (concluse, riuscite, percentuale, attese) NON si contano
+    qui: escono da ``riepilogo_giocate_concluse``, la stessa funzione pura che
+    serve a ``sintesi_gol_mercato`` — cosi' le due sintesi e i riquadri non
+    possono dare numeri diversi sulle stesse righe.
+
     Ritorna ``(riga1, riga2)``; ``(None, None)`` se non c'e' nessuna giocata
     conclusa.
     """
-    esiti = righe["esito"].tolist() if "esito" in righe.columns else []
-    quote = righe[QUOTA_MERCATO_PRIMA_FIELD].tolist() if QUOTA_MERCATO_PRIMA_FIELD in righe.columns else [None] * len(esiti)
-    record = righe.to_dict("records") if hasattr(righe, "to_dict") else [{}] * len(esiti)
-    concluse = [(e, q) for e, q in zip(esiti, quote) if e in ("✅", "❌")]
-    concluse_records = [r for r, e in zip(record, esiti) if e in ("✅", "❌")]
-    n = len(concluse)
+    record = righe.to_dict("records") if hasattr(righe, "to_dict") else []
+    # Gli stessi quattro numeri delle altre sintesi, da UNA funzione pura:
+    # conteggi, percentuale intera e media delle probabilita' della prima
+    # registrazione sulle stesse righe.
+    riepilogo = riepilogo_giocate_concluse(record)
+    n = riepilogo["concluse"]
     if n == 0:
         return None, None
-    m = sum(1 for e, _q in concluse if e == "✅")
-    x_cento = int(round(100.0 * m / n))
-    # Y: media delle probabilita' della PRIMA registrazione sulle stesse righe.
-    prime = []
-    senza_prima_prob = 0
-    for r in concluse_records:
-        p, _ricostruita = prob_di_registrazione(r, REGISTRAZIONE_PRIMA)
-        if p is None:
-            senza_prima_prob += 1
-        else:
-            prime.append(float(p))
+    m = riepilogo["riuscite"]
+    x_cento = riepilogo["percentuale_riuscite"]
+    senza_prima_prob = riepilogo["senza_probabilita"]
+    concluse_records = [r for r in record
+                        if cella_di_testo(r.get("esito")) in ("✅", "❌")]
+    concluse = [(cella_di_testo(r.get("esito")), r.get(QUOTA_MERCATO_PRIMA_FIELD))
+                for r in concluse_records]
     modello = []
     for r in concluse_records:
         try:
@@ -6767,8 +6825,8 @@ def _sintesi_registro_mercato(righe) -> tuple:
             continue
         if math.isfinite(v) and v > 0:
             modello.append(v if v > 1.0 else v * 100.0)
-    testo_quote = (f"Quote: {int(round(100.0 * sum(prime) / len(prime)))}%"
-                   if prime else "Quote: n/d")
+    testo_quote = (f"Quote: {riepilogo['attese']}%" if riepilogo["attese"] is not None
+                   else "Quote: n/d")
     testo_modello = (f"Modello: {int(round(sum(modello) / len(modello)))}%"
                      if modello else "Modello: n/d")
     coda_y = (f" ({senza_prima_prob} senza probabilità leggibile alla prima "
