@@ -340,5 +340,117 @@ class TestRighePerFamiglia(unittest.TestCase):
         self.assertEqual(([], []), app.righe_per_famiglia(None))
 
 
+
+# ---------------------------------------------------------------------------
+# La stagione del Registro: UN calcolo solo per il filtro e per i riquadri
+# ---------------------------------------------------------------------------
+
+class TestStagioneDelRegistro(unittest.TestCase):
+    """La stagione si ricava dalla DATA, come fa il filtro «Stagione»."""
+
+    def test_stagione_dalla_data_italiana(self):
+        self.assertEqual("2026/2027",
+                         app.stagione_di_registro({"data": "15/10/2026 20:45"}))
+        self.assertEqual("2025/2026",
+                         app.stagione_di_registro({"data": "15/10/2025 20:45"}))
+        # La stagione comincia il 1° luglio (season_calendar): giugno e' ancora
+        # quella di prima.
+        self.assertEqual("2025/2026",
+                         app.stagione_di_registro({"data": "30/06/2026 20:45"}))
+        self.assertEqual("2026/2027",
+                         app.stagione_di_registro({"data": "01/07/2026 20:45"}))
+
+    def test_stagione_dalla_data_gia_datetime(self):
+        """La colonna «data» della tabella e' un datetime: stesso risultato."""
+        from datetime import datetime
+        self.assertEqual("2026/2027",
+                         app.stagione_di_registro({"data": datetime(2026, 10, 15, 20, 45)}))
+
+    def test_data_mancante_e_sconosciuta(self):
+        for riga in ({"data": ""}, {}, None, {"data": "Data N/D"}):
+            with self.subTest(riga=riga):
+                self.assertEqual("Sconosciuta", app.stagione_di_registro(riga))
+
+    def test_stagioni_registro_dalla_piu_recente(self):
+        righe = [{"data": "15/10/2025 20:45"}, {"data": "15/10/2026 20:45"},
+                 {"data": "16/10/2026 18:00"}]
+        self.assertEqual(["2026/2027", "2025/2026"], app.stagioni_registro(righe))
+        self.assertEqual(["2026/2027", "2025/2026"], app.stagioni_registro(pd.DataFrame(righe)))
+
+    def test_stagione_predefinita_e_la_piu_recente(self):
+        righe = [{"data": "15/10/2025 20:45"}, {"data": "15/10/2026 20:45"}]
+        self.assertEqual("2026/2027", app.stagione_predefinita_registro(righe))
+        self.assertIsNone(app.stagione_predefinita_registro([]),
+                          "senza righe non c'e' nessuna stagione da scegliere")
+
+    def test_righe_stagione_in_corso(self):
+        vecchia = {"data": "15/10/2025 20:45", "esito": "❌"}
+        nuove = [{"data": "15/10/2026 20:45", "esito": "✅"},
+                 {"data": "16/10/2026 18:00", "esito": "⏳"}]
+        tenute, stagione = app.righe_stagione_in_corso(nuove + [vecchia])
+        self.assertEqual("2026/2027", stagione)
+        self.assertEqual(nuove, tenute, "la stagione passata resta fuori")
+        self.assertEqual(([], None), app.righe_stagione_in_corso([]))
+
+    def test_etichetta_stagione(self):
+        for grezza, attesa in (("2026/2027", "2026-27"), ("2026/27", "2026-27"),
+                               ("26/27", "2026-27"), ("", ""), (None, "")):
+            with self.subTest(stagione=grezza):
+                self.assertEqual(attesa, app.etichetta_stagione(grezza))
+
+    def test_il_riquadro_scrive_la_stagione_nell_aiuto(self):
+        riepilogo = app.riepilogo_giocate_concluse([_giocata("✅", 0.60)])
+        self.assertIn("Stagione 2026-27.",
+                       app.riquadro_registro(riepilogo, "2026/2027")["help"])
+        self.assertNotIn("Stagione", app.riquadro_registro(riepilogo)["help"],
+                         "senza stagione (filtro Tutti) l'aiuto non la nomina")
+        # Anche quando non c'e' nessun numero la stagione si dice: «n/d» di
+        # quale stagione, altrimenti, non si saprebbe.
+        vuoto = app.riepilogo_giocate_concluse([])
+        self.assertIn("Stagione 2025-26.",
+                      app.riquadro_registro(vuoto, "2025/2026")["help"])
+
+
+class TestMediaDelModello(unittest.TestCase):
+    """«Modello: N%.» nei Dettagli: lo stesso testo che era nella frase."""
+
+    def _riga(self, esito, modello):
+        riga = {"esito": esito, "mercato_standard": "1",
+                "selector_version": pr.SELECTOR_VERSION_CURRENT}
+        if modello is not None:
+            riga[pr.PROB_MODELLO_PRIMA_FIELD] = modello
+        return riga
+
+    def test_media_delle_concluse(self):
+        concluse = [self._riga("✅", 63.0), self._riga("❌", 51.0)]
+        self.assertEqual("Modello: 57%", app.media_modello_concluse(concluse))
+
+    def test_nessuna_lettura_del_modello(self):
+        self.assertEqual("Modello: n/d",
+                         app.media_modello_concluse([self._riga("✅", None)]))
+
+    def test_frazione_e_percentuale_danno_la_stessa_media(self):
+        self.assertEqual("Modello: 60%",
+                         app.media_modello_concluse([self._riga("✅", 0.6),
+                                                     self._riga("❌", 60.0)]))
+
+    def test_la_riga_nei_dettagli(self):
+        righe = [self._riga("✅", 63.0), self._riga("❌", 51.0),
+                 self._riga("⏳", 90.0)]
+        self.assertEqual("Modello: 57%.", app.testo_modello_registro(righe),
+                         "solo le concluse entrano nella media")
+        self.assertEqual("Modello: 57%.", app.testo_modello_registro(pd.DataFrame(righe)))
+
+    def test_niente_riga_senza_concluse(self):
+        self.assertIsNone(app.testo_modello_registro([self._riga("⏳", 90.0)]))
+        self.assertIsNone(app.testo_modello_registro([]))
+
+    def test_la_sintesi_dice_lo_stesso_numero(self):
+        righe = [self._riga("✅", 63.0), self._riga("❌", 51.0)]
+        riga1, _ = app._sintesi_registro_mercato(pd.DataFrame(righe))
+        self.assertIn(app.media_modello_concluse(righe) + ".", riga1)
+        self.assertIn("Modello: 57%.", riga1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -129,9 +129,10 @@ class _BaseAppTest(unittest.TestCase):
         (cls.tmp / "live_odds.json").write_text(json.dumps(cls.snap), encoding="utf-8")
 
         # --- Registro visibile: righe di mercato con esiti noti -------------
-        # Due concluse (1 ✅ / 1 ❌) e una ancora da giocare. I numeri del
-        # riquadri del bilancio vengono ricontati A MANO nel test, non riletti
-        # dalla funzione che li produce.
+        # Due concluse (1 ✅ / 1 ❌) e una ancora da giocare, tutte della
+        # stagione in corso, piu' una conclusa in un'altra stagione (aggiunta
+        # sotto). I numeri dei riquadri del bilancio vengono ricontati A MANO
+        # nel test, non riletti dalla funzione che li produce.
         cls.adesso_reale = datetime.now(timezone.utc)
         cls.prima_prob = {7101: 0.625, 7102: 0.58, 7103: 0.60}
         cls.esiti_seed = {7101: "✅", 7102: "❌", 7103: "⏳"}
@@ -165,6 +166,37 @@ class _BaseAppTest(unittest.TestCase):
                 pr.ACCORDO_MODELLO_PRIMA_FIELD: True,
                 pr.QUOTE_LIVE_ISTANTE_PRIMA_FIELD: "2026-10-16T10:00:00Z",
             })
+        # Una giocata CONCLUSASI in un'ALTRA stagione (data dell'autunno 2025):
+        # serve alla regola unica dei riquadri — in Pronostici e in Registro si
+        # contano solo le giocate della stagione in corso, la stessa che il
+        # filtro «Stagione» della scheda Registro sceglie da solo. Senza quella
+        # riga i due numeri sarebbero uguali per caso.
+        cls.riga_stagione_passata = {
+            "match_id": 7104, "home": "CasaVecchia", "away": "OspiteVecchio",
+            "campionato": "Serie A", "giornata": 8,
+            "data": "15/10/2025 20:45",
+            "pronostico_sicuro": "1 - Top Mix", "mercato_standard": "1",
+            "top3": [], "prob_sicuro": 50.0, "risultati_attesi": "",
+            "risultato_reale": "0-2", "esito": "❌", "tipo": "Top Mix",
+            "stagione": "2025/2026", "salvato_il": "15/10/2025 09:30",
+            "origin": pr.ORIGIN_TOP_MIX,
+            "selector_version": pr.SELECTOR_VERSION_MERCATO_V3,
+            "model_variant": pr.MODEL_VARIANT_CURRENT,
+            "model_version": pr.MODEL_VERSION_CURRENT,
+            "rank": 4, "kickoff_utc": "2025-10-15T18:45:00Z",
+            "calculation_id": "fixture7104",
+            pr.PROB_MERCATO_FIELD: 0.50,
+            pr.QUOTA_MERCATO_FIELD: round(1.06 / 0.50, 4),
+            pr.MERCATO_FONTE_FIELD: "pinnacle", pr.MERCATO_N_LIBRI_FIELD: 1,
+            pr.ACCORDO_MODELLO_FIELD: True, pr.PROB_MODELLO_FIELD: 63.0,
+            pr.QUOTE_LIVE_ISTANTE_FIELD: "2025-10-15T10:00:00Z",
+            pr.PROB_MERCATO_PRIMA_FIELD: 0.50,
+            pr.QUOTA_MERCATO_PRIMA_FIELD: round(1.06 / 0.50, 4),
+            pr.PROB_MODELLO_PRIMA_FIELD: 63.0,
+            pr.ACCORDO_MODELLO_PRIMA_FIELD: True,
+            pr.QUOTE_LIVE_ISTANTE_PRIMA_FIELD: "2025-10-15T10:00:00Z",
+        }
+        righe.append(cls.riga_stagione_passata)
         (cls.tmp / "predictions.json").write_text(
             json.dumps({"data": righe}), encoding="utf-8")
         cls.seed_mercato = righe
@@ -427,15 +459,32 @@ class TestSchedeLettura(_BaseAppTest):
         # click: la legge test_apptest_scheda_pronostici.
         self.assertNotIn("partite in tabella", testo)
 
+    def _concluse_della_stagione(self):
+        """Le giocate concluse della stagione predefinita (e la stagione).
+
+        La stagione si ricava dalla DATA, come fa la scheda Registro: le tre
+        righe del fixture hanno la data dell'autunno 2026, quella aggiunta a
+        parte l'autunno 2025, quindi la stagione in corso e' la piu' recente.
+        """
+        import app as app_mod
+        stagione = app_mod.stagione_predefinita_registro(self.seed_mercato)
+        ids = [r["match_id"] for r in self.seed_mercato
+               if app_mod.stagione_di_registro(r) == stagione]
+        concluse = [m for m in ids if self.esiti_seed.get(m) in ("✅", "❌")]
+        return concluse, stagione
+
     def test_05_andata_riquadri_coi_conti_fatti_a_mano(self):
         """I numeri dei riquadri in testa sono quelli delle righe del fixture.
 
-        Due giocate concluse (1 ✅, 1 ❌): 50% di riuscite; le quote della
-        PRIMA registrazione sulle stesse righe davano (62,5 + 58,0)/2 = 60,25
-        -> 60%, quindi lo scarto e' 50 - 60 = -10 punti. I numeri si contano a
-        mano qui, non si rileggono dalla funzione che li produce.
+        Due giocate concluse (1 ✅, 1 ❌) della stagione in corso: 50% di
+        riuscite; le quote della PRIMA registrazione sulle stesse righe davano
+        (62,5 + 58,0)/2 = 60,25 -> 60%, quindi lo scarto e' 50 - 60 = -10
+        punti. La giocata della stagione passata (❌, 50%) resta FUORI: se
+        entrasse, la percentuale sarebbe 33%. I numeri si contano a mano qui,
+        non si rileggono dalla funzione che li produce.
         """
-        concluse = [m for m, e in self.esiti_seed.items() if e in ("✅", "❌")]
+        concluse, stagione = self._concluse_della_stagione()
+        self.assertEqual(2, len(concluse), "le concluse della stagione in corso")
         n = len(concluse)
         m = sum(1 for x in concluse if self.esiti_seed[x] == "✅")
         x_cento = int(round(100.0 * m / n))
@@ -456,12 +505,49 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertEqual("n/d", gol.value)
         self.assertFalse(gol.delta)
         self.assertEqual(DELTA_SPENTO, _colore_delta(gol), "senza delta niente colore")
+        self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}", riquadro.help,
+                      "l'aiuto dice a quale stagione si riferiscono i numeri")
+        # La stagione passata non entra: se entrasse, la percentuale sarebbe
+        # 33% (1 ✅ su 3 concluse) e lo scarto -25 punti.
+        self.assertNotEqual("33%", riquadro.value)
         # La frase di prima non c'e' piu': gli stessi numeri, due volte nella
         # stessa scheda, erano il difetto da togliere.
         fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
         testo = " \n".join(fuori)
         self.assertNotIn("giocate concluse", testo)
         self.assertNotIn("Gol: finora", testo)
+        # La media del modello: non sta piu' nella frase (i riquadri non la
+        # mostrano, il delta e' lo scarto sulle attese del mercato) ma nei
+        # Dettagli, su una riga a se', con lo stesso testo di prima.
+        _, dentro = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+        self.assertIn("Modello: 63%.", " \n".join(dentro))
+        self.assertNotIn("Modello: 63%", testo, "e non in vista")
+
+    def test_05b_scheda_pronostici_e_scheda_registro_stessa_stagione(self):
+        """Regola unica: i due riquadri del Registro danno gli STESSI numeri
+        nelle due schede, con i filtri predefiniti (stagione in corso).
+
+        In Pronostici i riquadri leggono il Registro intero filtrato solo per
+        stagione; in Registro leggono le righe dopo i filtri, che partono con
+        «Stagione» sulla stagione in corso. Con righe di due stagioni i valori
+        devono coincidere: se una delle due schede contasse tutta la storia,
+        qui si vedrebbero 33% contro 50%.
+        """
+        import app as app_mod
+        registro = _riquadri_della_tab(self.at, SCHEDA_REGISTRO)
+        pronostici = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        _, stagione = self._concluse_della_stagione()
+        etichetta = app_mod.etichetta_stagione(stagione)
+        for nome in ("Registro 1X2", "Registro gol"):
+            with self.subTest(riquadro=nome):
+                self.assertIn(nome, pronostici)
+                self.assertEqual(registro[nome].value, pronostici[nome].value,
+                                 "stessa etichetta, stesso numero nelle due schede")
+                self.assertEqual(registro[nome].delta, pronostici[nome].delta)
+                self.assertEqual(registro[nome].help, pronostici[nome].help)
+                self.assertIn(f"Stagione {etichetta}", pronostici[nome].help)
+        self.assertEqual("50%", pronostici["Registro 1X2"].value)
+        self.assertEqual("-10 punti sulle attese", pronostici["Registro 1X2"].delta)
 
     def test_06_andata_proposte_settimanali(self):
         """K e J lette dal registro ombra: 2 proposte, 1 riuscita."""

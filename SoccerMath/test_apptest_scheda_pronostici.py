@@ -569,7 +569,12 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         # righe del Registro (una sola giocata conclusa nel fixture: 61% di
         # mercato alla prima registrazione -> 100% di riuscite, +39 punti).
         import app as app_mod
-        attesi = app_mod.riquadri_giocate(None, [self.riga_seed], [])
+        # I due riquadri del Registro leggono SOLO le righe della stagione
+        # predefinita (in questa scheda la stessa della scheda Registro):
+        # l'aiuto dei riquadri la dichiara.
+        stagione = app_mod.stagione_predefinita_registro([self.riga_seed])
+        self.assertTrue(stagione, "la riga del fixture ha una data: una stagione c'e'")
+        attesi = app_mod.riquadri_giocate(None, [self.riga_seed], [], stagione=stagione)
         riquadri = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
         self.assertEqual([r["label"] for r in attesi], list(riquadri),
                          "prima del click ci sono SOLO i due riquadri del Registro")
@@ -582,6 +587,11 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                 self.assertTrue(_con_bordo(elemento))
         self.assertEqual("100%", riquadri["Registro 1X2"].value)
         self.assertEqual("+39 punti sulle attese", riquadri["Registro 1X2"].delta)
+        self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}",
+                      riquadri["Registro 1X2"].help,
+                      "l'aiuto dichiara la stagione a cui si riferiscono i numeri")
+        self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}",
+                      riquadri["Registro gol"].help)
         self.assertEqual(DELTA_VERDE, _colore_delta(riquadri["Registro 1X2"]),
                          "sopra le attese il delta e' verde (delta_color normal)")
         self.assertEqual("n/d", riquadri["Registro gol"].value)
@@ -857,6 +867,66 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                              "la legenda del marcatore sta sotto la tabella, una volta")
         finally:
             self._toggle(self.at, app_mod.CHIAVE_PROSSIMI_GIORNI, False)
+            self.at.run(timeout=900)
+
+    # -- 15. la stagione dei due riquadri del Registro ---------------------
+    def test_15_riquadri_del_registro_stessa_stagione_nelle_due_schede(self):
+        """Regola unica: «Registro 1X2» e «Registro gol» danno lo STESSO numero
+        in Pronostici e in Registro, con i filtri predefiniti.
+
+        Nel Registro si contano le righe filtrate (il filtro «Stagione» parte
+        sulla stagione in corso); in Pronostici si contano le righe del
+        Registro filtrate per la stagione predefinita — stessa funzione
+        (``app.stagione_predefinita_registro``), nessuna regola ricopiata. Il
+        fixture ha una giocata conclusa nella stagione in corso (✅, 61% di
+        mercato) e qui se ne aggiunge una conclusa nella stagione passata
+        (❌, 50%): se una delle due schede contasse tutta la storia, i numeri
+        divergerebbero (33% contro 100%) e il test lo vedrebbe.
+        """
+        import copy
+        import app as app_mod
+        import prediction_registry as pr
+        seed = copy.deepcopy(self.registro.vivo)
+        passata = dict(self.riga_seed)
+        passata.update({
+            "match_id": 7999, "home": "Vecchia", "away": "Passata",
+            "data": "15/10/2025 20:45", "stagione": "2025/2026",
+            "kickoff_utc": "2025-10-15T18:45:00Z",
+            "risultato_reale": "0-2", "esito": "❌",
+            "calculation_id": "fixture7999",
+            "prob_sicuro": 50.0,
+            pr.PROB_MERCATO_FIELD: 0.50, pr.QUOTA_MERCATO_FIELD: 2.12,
+            pr.PROB_MERCATO_PRIMA_FIELD: 0.50, pr.QUOTA_MERCATO_PRIMA_FIELD: 2.12,
+        })
+        try:
+            self.registro.vivo[:] = seed + [passata]
+            self.at.run(timeout=900)
+            self.eccezioni(self.at, "registro con due stagioni")
+            stagione = app_mod.stagione_predefinita_registro(seed + [passata])
+            self.assertEqual("2026/2027", stagione,
+                             "la stagione in corso e' quella piu' recente")
+            registro = _riquadri_della_tab(self.at, SCHEDA_REGISTRO)
+            pronostici = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+            for nome in ("Registro 1X2", "Registro gol"):
+                with self.subTest(riquadro=nome):
+                    self.assertIn(nome, registro)
+                    self.assertIn(nome, pronostici)
+                    self.assertEqual(registro[nome].value, pronostici[nome].value,
+                                     "stessa etichetta, stesso numero nelle due schede")
+                    self.assertEqual(registro[nome].delta, pronostici[nome].delta)
+                    self.assertEqual(registro[nome].help, pronostici[nome].help,
+                                     "e stesso suggerimento, stagione compresa")
+                    self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}",
+                                  pronostici[nome].help)
+            # La sola giocata conclusa della stagione in corso e' quella ✅ al
+            # 61%: 100% di riuscite, +39 punti sulle attese. Con la stagione
+            # passata dentro sarebbe 50% e -11 punti (e l'aiuto direbbe che le
+            # giocate sono 2, non 1).
+            self.assertEqual("100%", pronostici["Registro 1X2"].value)
+            self.assertEqual("+39 punti sulle attese", pronostici["Registro 1X2"].delta)
+            self.assertIn("1 riuscite su 1 concluse", pronostici["Registro 1X2"].help)
+        finally:
+            self.registro.vivo[:] = seed
             self.at.run(timeout=900)
 
     # -- 13. zero "NaN" e zero "None" nel testo reso ----------------------

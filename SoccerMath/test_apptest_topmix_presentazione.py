@@ -756,6 +756,10 @@ class TestPresentazioneTopMix(unittest.TestCase):
         # Il conto in euro e' un conto, non una descrizione: sta nei Dettagli.
         testo_dettagli = " \n".join(dentro_tab5)
         self.assertIn("Su 100 giocate da 1 €", testo_dettagli)
+        # La media del modello (era nella frase in testa) ora e' una riga a se'
+        # nei Dettagli, con lo stesso testo: (63,0 + 51,0)/2 = 57%.
+        self.assertIn("Modello: 57%.", testo_dettagli)
+        self.assertNotIn("Modello: 57%", testo, "in vista resta solo nei riquadri")
         self.assertIn("19,50 € in meno", testo_dettagli)
         self.assertNotIn("Su 100 giocate da 1 €", testo,
                          "il conto in euro sta nei Dettagli, non in apertura")

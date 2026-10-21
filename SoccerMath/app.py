@@ -172,6 +172,10 @@ from prediction_registry import (
     FAMIGLIA_SELETTORE_MODELLO,
     FAMIGLIA_SELETTORE_MERCATO,
     famiglia_selettore,
+    # Normalizzazione delle etichette di stagione («2026/2027», «2026/27»,
+    # «26/27» -> «2026/2027»): serve all'aiuto dei riquadri del Registro, che
+    # scrive la stagione a cui si riferiscono i numeri.
+    normalize_season,
 )
 from models.legacy_elo import predict_elo_probs_legacy
 
@@ -5835,6 +5839,87 @@ def stato_confronto_in_lettura():
             prob_modello_1x2_per_partita(st.session_state.get(CONFRONTO_MODELLO_1X2_CHIAVE)))
 
 
+# ---------------------------------------------------------------------------
+# La stagione del Registro: UN solo calcolo, per il filtro e per i riquadri
+# ---------------------------------------------------------------------------
+#: Il valore del filtro «Stagione» che non filtra niente.
+FILTRO_STAGIONE_TUTTE = "Tutti"
+
+
+def stagione_di_registro(riga) -> str:
+    """La stagione di una riga del Registro, dalla sua DATA (funzione pura).
+
+    Il Registro non legge un campo «stagione» scritto nella riga: la ricava
+    dalla data con ``calcola_stagione_calcolo`` (confine di stagione unico,
+    1° luglio). Qui si fa la stessa cosa, con la stessa funzione, con in piu'
+    il caso della data gia' convertita in ``datetime`` (la colonna ``data``
+    della tabella): senza quel ramo ogni riga finirebbe in «Sconosciuta».
+    """
+    dato = riga.get("data") if isinstance(riga, dict) else riga
+    if isinstance(dato, datetime):
+        return season_label(season_start_year_of(dato))
+    return calcola_stagione_calcolo(dato)
+
+
+def stagioni_registro(preds) -> list:
+    """Le stagioni presenti nel Registro, dalla piu' recente (funzione pura).
+
+    E' l'elenco delle opzioni del filtro «Stagione» della scheda Registro:
+    ``["Tutti"] + stagioni_registro(preds)``. L'ordine e' quello di sempre
+    (ordinamento inverso delle etichette), quindi la prima e' la stagione in
+    corso quando c'e', ed e' anche il valore predefinito del filtro.
+    """
+    records = preds.to_dict("records") if hasattr(preds, "to_dict") else list(preds or [])
+    return sorted({stagione_di_registro(r) for r in records if isinstance(r, dict)},
+                  reverse=True)
+
+
+def stagione_predefinita_registro(preds):
+    """Il valore predefinito del filtro «Stagione» della scheda Registro.
+
+    E' la prima delle stagioni presenti (la piu' recente), ``None`` quando il
+    Registro e' vuoto. Una funzione sola: la scheda Registro la usa per
+    l'indice del ``selectbox`` e la scheda Pronostici per scegliere le righe
+    dei suoi due riquadri del Registro, senza ricopiare la regola.
+    """
+    stagioni = stagioni_registro(preds)
+    return stagioni[0] if stagioni else None
+
+
+def etichetta_stagione(stagione) -> str:
+    """``"2026/2027"`` -> ``"2026-27"``: la stagione come si legge nell'aiuto.
+
+    Accetta le forme che si trovano nei dati (``2026/2027``, ``2026/27``,
+    ``26/27``): la normalizzazione e' quella di ``normalize_season``, qui si
+    cambia solo il separatore e si tengono due cifre per l'anno finale.
+    """
+    testo = cella_di_testo(stagione).strip()
+    if not testo:
+        return ""
+    normalizzata = normalize_season(testo) or testo
+    if "/" not in normalizzata:
+        return normalizzata.replace("/", "-")
+    inizio, fine = normalizzata.split("/", 1)
+    return f"{inizio}-{fine[-2:]}"
+
+
+def righe_stagione_in_corso(preds) -> tuple:
+    """``(righe della stagione predefinita, stagione)`` del Registro.
+
+    Stesse righe che la scheda Registro mostra con i filtri predefiniti per
+    quanto riguarda la stagione: si tiene solo la stagione predefinita del
+    suo filtro (``stagione_predefinita_registro``). Serve ai due riquadri del
+    Registro nella scheda Pronostici, che devono dare gli stessi numeri della
+    scheda Registro — stessa etichetta, stesso numero.
+    """
+    records = preds.to_dict("records") if hasattr(preds, "to_dict") else list(preds or [])
+    stagione = stagione_predefinita_registro(records)
+    if stagione is None:
+        return [], None
+    return [r for r in records
+            if isinstance(r, dict) and stagione_di_registro(r) == stagione], stagione
+
+
 def righe_pronostici_in_tabella(righe, adesso=None) -> list:
     """Le righe che la tabella dei Pronostici mostra davvero, nel periodo scelto.
 
@@ -5870,15 +5955,19 @@ def _scheda_pronostici():
     st.caption(ultima_registrazione_mercato(registrate))
     st.caption(ultima_registrazione_ou(registrate))
     risultato = pronostici_in_sessione()
-    # Le righe del Registro divise per famiglia (le stesse due maschere della
-    # scheda Com'è andata): i due riquadri del Registro parlano delle stesse
-    # giocate che lì finiscono nelle due tabelle.
-    registrate_mercato, registrate_gol = righe_per_famiglia(registrate)
+    # Le righe del Registro della STAGIONE IN CORSO (lo stesso valore
+    # predefinito del filtro «Stagione» della scheda Com'è andata), divise per
+    # famiglia con le stesse due maschere: i due riquadri del Registro danno
+    # cosi' gli stessi numeri della scheda Registro aperta con i filtri
+    # predefiniti — stessa etichetta, stesso numero.
+    registrate_stagione, stagione_riquadri = righe_stagione_in_corso(registrate)
+    registrate_mercato, registrate_gol = righe_per_famiglia(registrate_stagione)
     # Prima del clic non c'e' nessuna tabella da contare: i due riquadri dei
     # Pronostici non si disegnano (``None``), non si inventa uno zero.
     righe_tabella = (None if risultato is None
                      else righe_pronostici_in_tabella(risultato.get("righe") or []))
-    _mostra_riquadri_giocate(righe_tabella, registrate_mercato, registrate_gol)
+    _mostra_riquadri_giocate(righe_tabella, registrate_mercato, registrate_gol,
+                             stagione=stagione_riquadri)
     if risultato is None:
         st.info("Premi il pulsante per calcolare i pronostici della giornata.")
         return
@@ -6845,7 +6934,7 @@ def conta_pronostici(righe) -> dict:
     return {"1x2": uno_x_due, "gol": gol}
 
 
-def riquadro_registro(riepilogo) -> dict:
+def riquadro_registro(riepilogo, stagione=None) -> dict:
     """Il riquadro «Registro …» da ``riepilogo_giocate_concluse``.
 
     Valore: la percentuale INTERA delle riuscite (es. «76%», lo stesso numero
@@ -6856,20 +6945,26 @@ def riquadro_registro(riepilogo) -> dict:
     chi disegna (``delta_color="normal"``) — perche' e' presentazione.
 
     Il suggerimento dice i due conteggi da cui nasce la percentuale («M
-    riuscite su N concluse») e come sono fatte le attese: la media delle
-    probabilita' di mercato della PRIMA registrazione sulle STESSE giocate,
-    quindi il confronto e' alla pari. Le giocate senza probabilita' leggibile
-    restano fuori dalla media e il suggerimento lo dichiara.
+    riuscite su N concluse»), la STAGIONE a cui i numeri si riferiscono
+    («stagione 2026-27»: stessa etichetta in entrambe le schede, quindi due
+    numeri diversi non possono nascondersi dietro la stessa parola) e come
+    sono fatte le attese: la media delle probabilita' di mercato della PRIMA
+    registrazione sulle STESSE giocate, quindi il confronto e' alla pari. Le
+    giocate senza probabilita' leggibile restano fuori dalla media e il
+    suggerimento lo dichiara. ``stagione`` a ``None`` (filtro «Tutti») non
+    scrive niente.
 
     Zero giocate concluse: valore «n/d», nessun delta e nessun numero
     inventato (``riepilogo_giocate_concluse`` torna 0 e ``None``).
     """
     riepilogo = riepilogo or {}
+    stagione_txt = etichetta_stagione(stagione) if stagione else ""
+    coda_stagione = f" Stagione {stagione_txt}." if stagione_txt else ""
     concluse = int(riepilogo.get("concluse") or 0)
     if concluse == 0:
         return {"value": RIQUADRO_SENZA_NUMERO, "delta": None,
-                "help": "Nessuna giocata conclusa finora: il numero arriva con il "
-                        "primo risultato."}
+                "help": ("Nessuna giocata conclusa finora: il numero arriva con il "
+                         f"primo risultato.{coda_stagione}")}
     riuscite = int(riepilogo.get("riuscite") or 0)
     senza = int(riepilogo.get("senza_probabilita") or 0)
     attese = riepilogo.get("attese")
@@ -6885,7 +6980,7 @@ def riquadro_registro(riepilogo) -> dict:
     return {
         "value": f"{int(riepilogo.get('percentuale_riuscite'))}%",
         "delta": None if scarto is None else f"{int(scarto):+d} punti sulle attese",
-        "help": aiuto + ".",
+        "help": aiuto + "." + coda_stagione,
     }
 
 
@@ -6912,7 +7007,7 @@ def righe_per_famiglia(giocate) -> tuple:
 
 
 def riquadri_giocate(righe_pronostici=None, righe_registro=None,
-                     righe_registro_gol=None) -> list:
+                     righe_registro_gol=None, stagione=None) -> list:
     """I riquadri da disegnare, nell'ordine di ``ETICHETTE_RIQUADRI_GIOCATE``.
 
     ``righe_pronostici`` a ``None`` vuol dire «la tabella dei Pronostici non
@@ -6920,6 +7015,10 @@ def riquadri_giocate(righe_pronostici=None, righe_registro=None,
     Pronostici non esistono e restano i due del Registro, che si leggono
     sempre. Con una lista — anche vuota — i quattro ci sono tutti: una tabella
     senza righe mostra 0, non un riquadro che sparisce.
+
+    ``stagione`` e' la stagione delle righe del Registro (``2026/2027``): va
+    nel suggerimento dei due riquadri del Registro, cosi' la stessa etichetta
+    dichiara sempre a quale stagione si riferisce il numero.
 
     Ritorna una lista di dizionari ``{"label", "value", "delta", "help"}``:
     nessun disegno qui, cosi' i numeri si possono provare senza AppTest.
@@ -6938,12 +7037,12 @@ def riquadri_giocate(righe_pronostici=None, righe_registro=None,
     for etichetta, righe in ((ETICHETTE_RIQUADRI_GIOCATE[2], righe_registro),
                              (ETICHETTE_RIQUADRI_GIOCATE[3], righe_registro_gol)):
         riquadri.append({"label": etichetta,
-                         **riquadro_registro(riepilogo_giocate_concluse(righe))})
+                         **riquadro_registro(riepilogo_giocate_concluse(righe), stagione)})
     return riquadri
 
 
 def _mostra_riquadri_giocate(righe_pronostici=None, righe_registro=None,
-                             righe_registro_gol=None):
+                             righe_registro_gol=None, stagione=None):
     """Disegna i riquadri di ``riquadri_giocate``, uno per colonna, col bordo.
 
     ``st.metric(..., border=True)``: i numeri stanno in un riquadro che si legge
@@ -6952,7 +7051,8 @@ def _mostra_riquadri_giocate(righe_pronostici=None, righe_registro=None,
     suggerimento e' quello di ``riquadro_registro``: la stessa frase per la
     scheda Pronostici e per la scheda Registro.
     """
-    riquadri = riquadri_giocate(righe_pronostici, righe_registro, righe_registro_gol)
+    riquadri = riquadri_giocate(righe_pronostici, righe_registro, righe_registro_gol,
+                                stagione)
     if not riquadri:
         return
     for colonna, r in zip(st.columns(len(riquadri)), riquadri):
@@ -6963,6 +7063,46 @@ def _mostra_riquadri_giocate(righe_pronostici=None, righe_registro=None,
                 extra["delta_color"] = "normal"
             st.metric(r["label"], r["value"], help=r.get("help") or None,
                       border=True, **extra)
+
+
+def media_modello_concluse(concluse_records) -> str:
+    """«Modello: N%» sulle giocate concluse, o «Modello: n/d» (funzione pura).
+
+    E' la media della probabilita' del modello alla PRIMA registrazione sulle
+    righe ✅/❌ — lo stesso numero che la vecchia frase in testa alla scheda
+    Registro scriveva dopo «Quote:» e che ora sta su una riga a sé nei
+    Dettagli. Nessun ricalcolo: si leggono i campi della riga; le righe senza
+    una lettura del modello restano fuori dalla media e, se non ce n'e'
+    nessuna, il testo e' «n/d» (mai uno 0% inventato).
+    """
+    modello = []
+    for r in concluse_records or []:
+        if not isinstance(r, dict):
+            continue
+        try:
+            v = float(r.get(PROB_MODELLO_PRIMA_FIELD))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(v) and v > 0:
+            modello.append(v if v > 1.0 else v * 100.0)
+    return (f"Modello: {int(round(sum(modello) / len(modello)))}%"
+            if modello else "Modello: n/d")
+
+
+def testo_modello_registro(righe):
+    """La riga «Modello: N%.» dei Dettagli della scheda Registro.
+
+    ``None`` quando non c'e' nessuna giocata conclusa: in quel caso la scheda
+    non ha nessun numero da dare e nemmeno la riga sui soldi (``_sintesi_
+    registro_mercato`` torna ``(None, None)``). Altrimenti e' lo stesso testo
+    di prima — «Modello: 57%.» oppure «Modello: n/d.» — ora su una riga sua.
+    """
+    records = righe.to_dict("records") if hasattr(righe, "to_dict") else list(righe or [])
+    concluse = [r for r in records
+                if isinstance(r, dict) and cella_di_testo(r.get("esito")) in ("✅", "❌")]
+    if not concluse:
+        return None
+    return media_modello_concluse(concluse) + "."
 
 
 def _sintesi_registro_mercato(righe) -> tuple:
@@ -7014,18 +7154,11 @@ def _sintesi_registro_mercato(righe) -> tuple:
                         if cella_di_testo(r.get("esito")) in ("✅", "❌")]
     concluse = [(cella_di_testo(r.get("esito")), r.get(QUOTA_MERCATO_PRIMA_FIELD))
                 for r in concluse_records]
-    modello = []
-    for r in concluse_records:
-        try:
-            v = float(r.get(PROB_MODELLO_PRIMA_FIELD))
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(v) and v > 0:
-            modello.append(v if v > 1.0 else v * 100.0)
     testo_quote = (f"Quote: {riepilogo['attese']}%" if riepilogo["attese"] is not None
                    else "Quote: n/d")
-    testo_modello = (f"Modello: {int(round(sum(modello) / len(modello)))}%"
-                     if modello else "Modello: n/d")
+    # La media del modello, da UNA funzione pura: la stessa riga che i Dettagli
+    # mostrano a parte (``testo_modello_registro``).
+    testo_modello = media_modello_concluse(concluse_records)
     coda_y = (f" ({senza_prima_prob} senza probabilità leggibile alla prima "
               f"registrazione, fuori dalla media)" if senza_prima_prob else "")
     riga1 = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento}%). "
@@ -7121,6 +7254,11 @@ def _mostra_registro_mercato(righe, altezza=420):
 def _mostra_dettagli_mercato(righe, altezza=420):
     """La tabella tecnica della famiglia Mercato (dentro il riquadro Dettagli).
 
+    In testa: il conto in euro del riepilogo (riga 2) e, su una riga a se', la
+    media del modello sulle giocate concluse («Modello: N%.» / «Modello:
+    n/d.»): quel numero non entra nei riquadri — il delta del riquadro e' lo
+    scarto sulle attese del mercato — e vive qui, dove sta il resto dei conti.
+
     La colonna "Stato" dice se il valore mostrato e' anche una scelta oggi in
     tabella: dopo il rinfresco delle righe in attesa una riga puo' leggere 0,52
     senza essere mai stata cancellata dal Registro, e senza quel contrassegno
@@ -7137,6 +7275,13 @@ def _mostra_dettagli_mercato(righe, altezza=420):
     _riga1, riga2 = _sintesi_registro_mercato(righe)
     if riga2:
         st.caption(riga2)
+    # La media del modello sulle giocate concluse: era nella frase in testa
+    # alla scheda, che ora e' sostituita dai riquadri (dove il numero non
+    # entra: il delta e' lo scarto sulle attese del mercato). Sta qui, su una
+    # riga a se', con lo stesso testo di prima.
+    testo_modello = testo_modello_registro(righe)
+    if testo_modello:
+        st.caption(testo_modello)
     # Prepara le colonne per il modello e l'accordo
     df = righe.copy()
     if "prob_modello" in df.columns:
@@ -7641,15 +7786,22 @@ with tab_registro:
             origini_opzioni = sorted(set(df_preds["origine"].tolist()) | {tipo_for_origin(ORIGIN_MERCATO_OU)})
             filter_origine = st.selectbox("Origine", ["Tutti"] + origini_opzioni, index=0)
         with f_col4:
-            stagioni_reali = sorted(df_preds['stagione'].unique().tolist(), reverse=True)
-            default_stagione_idx = 1 if len(stagioni_reali) > 0 else 0
-            filter_stagione = st.selectbox("Stagione", ["Tutti"] + stagioni_reali, index=default_stagione_idx)
+            # Le opzioni e il valore predefinito vengono da ``stagioni_registro``
+            # / ``stagione_predefinita_registro``: la stessa regola che i due
+            # riquadri del Registro nella scheda Pronostici usano per scegliere
+            # le righe. Una sola definizione, due schede.
+            stagioni_reali = stagioni_registro(preds)
+            opzioni_stagione = [FILTRO_STAGIONE_TUTTE] + stagioni_reali
+            default_stagione_idx = opzioni_stagione.index(
+                stagione_predefinita_registro(preds) or FILTRO_STAGIONE_TUTTE)
+            filter_stagione = st.selectbox("Stagione", opzioni_stagione, index=default_stagione_idx)
             
         if filter_camp != "Tutti": df_preds = df_preds[df_preds["campionato"] == filter_camp]
         if filter_status == "In Attesa (⏳)": df_preds = df_preds[df_preds["esito"].isin(["⏳", None, ""])]
         elif filter_status == "Vinte (✅)": df_preds = df_preds[df_preds["esito"] == "✅"]
         elif filter_status == "Perse (❌)": df_preds = df_preds[df_preds["esito"] == "❌"]
-        if filter_stagione != "Tutti": df_preds = df_preds[df_preds["stagione"] == filter_stagione]
+        if filter_stagione != FILTRO_STAGIONE_TUTTE:
+            df_preds = df_preds[df_preds["stagione"] == filter_stagione]
         if filter_origine != "Tutti": df_preds = df_preds[df_preds["origine"] == filter_origine]
         # Nessun filtro sulla variante: le due tabelle dell'archivio sono gia'
         # una per motore, e nessuna riga viene nascosta da un filtro in piu'.
@@ -7685,7 +7837,9 @@ with tab_registro:
         # filtri) delle tabelle qui sotto. Le due frasi «Finora N giocate
         # concluse…» e «Gol: finora…» non ci sono piu': ripetevano gli stessi
         # conteggi accanto ai riquadri.
-        _mostra_riquadri_giocate(None, df_mercato, totals_records)
+        _mostra_riquadri_giocate(
+            None, df_mercato, totals_records,
+            stagione=(None if filter_stagione == FILTRO_STAGIONE_TUTTE else filter_stagione))
         mostra_sezione_gol = (
             maschera_totals.any()
             or filter_origine == tipo_for_origin(ORIGIN_MERCATO_OU)
