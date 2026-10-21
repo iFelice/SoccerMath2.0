@@ -4587,7 +4587,10 @@ def _mostra_tabella_periodo(righe, chiave_widget, altezza=420):
     # riporterebbe a schermo il valore mancante come «None».
     if not pd.api.types.is_numeric_dtype(df["Quote %"]):
         config_colonne["Quote %"] = st.column_config.TextColumn("Quote %")
-    st.dataframe(df, width="stretch", height=altezza, hide_index=True,
+    # Altezza in base al numero di righe (circa 35 px a riga piu' intestazione),
+    # massimo 420: con 5 partite non restano 6 righe vuote.
+    altezza_eff = min(altezza, len(df) * 35 + 35)
+    st.dataframe(df, width="stretch", height=altezza_eff, hide_index=True,
                  on_select="rerun", selection_mode="single-row",
                  key=chiave_corrente,
                  column_config=config_colonne)
@@ -5459,7 +5462,7 @@ def _mostra_riquadri_multiple(prop, adesso, top_mercato=None, pronostici=None):
             with st.container(border=True):
                 st.markdown(f"##### {r['titolo']}")
                 for nome, sotto in r["partite"]:
-                    st.markdown(nome)
+                    st.markdown(re.sub(r"^(\d+)\.", r"\1\.", nome))
                     st.caption(sotto)
                 c_q, c_p = st.columns(2)
                 c_q.metric("Quota", r["quota"])

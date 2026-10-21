@@ -81,7 +81,7 @@ class TestProbabilitaGrafica(unittest.TestCase):
                 self.assertIn(larghezza, self.html)
 
     def test_riga_modello_piccola_e_grigia(self):
-        self.assertIn("Modello: 1 31 X 27 2 42", self.html)
+        self.assertIn("Modello: 1 31,0 X 27,0 2 42,0", self.html)
         self.assertIn("sg-modello", self.html)
 
     def test_modello_assente_nessuna_riga(self):

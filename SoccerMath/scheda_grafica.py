@@ -23,8 +23,8 @@ REGOLE
 * Un dato che non c'e' non diventa mai la scritta ``None``/``nan``:
   o la riga non si mostra (le probabilita' del modello, solo se
   disponibili), o si scrive ``n/d``.
-* La riga del modello mostra le percentuali come interi
-  (``Modello: 1 31 X 27 2 42``), come nell'esempio della scheda.
+* La riga del modello mostra le percentuali sempre con una cifra
+  decimale (``Modello: 1 31,0 X 27,0 2 42,0``), come nell'esempio della scheda.
 * Il pronostico e' quello della scheda (``scheda["pronostico"]``, la
   stessa regola del Top Mix): la sigla se c'e', altrimenti il trattino
   con la nota che nessun esito arriva alla soglia, costruita dalla
@@ -173,17 +173,15 @@ def _fmt_percentuale(pct: Optional[float]) -> str:
 
 
 def _fmt_modello(valore: Any) -> str:
-    """Percentuale del modello come intero se e' intera: 31.0 -> "31".
+    """Percentuale del modello con una cifra decimale e la virgola italiana: 35 -> "35,0".
 
     I valori del modello nella scheda sono GIA' percentuali (0-100, come
     li legge ``scheda_partita.numero_percentuale_modello``): qui non si
-    riscalano, si scrivono senza decimali inutili (31, non 31,0).
+    riscalano, si scrivono sempre con una cifra decimale (35,0, non 35).
     """
     v = _numero(valore)
     if v is None:
         return "n/d"
-    if abs(v - round(v)) < 1e-9:
-        return str(int(round(v)))
     return f"{v:.1f}".replace(".", ",")
 
 
