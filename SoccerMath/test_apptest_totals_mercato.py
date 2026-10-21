@@ -16,6 +16,7 @@ sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve
 from test_apptest_scheda_pronostici import (
     FixtureQuoteFinte, _BaseQuoteFinte, ETICHETTA_CALCOLA, SCHEDA_PRONOSTICI, SCHEDA_REGISTRO,
 )
+from test_apptest_topmix_presentazione import _riquadro_della_tab
 from audit.totals_snapshot_fixture import payload_snapshot
 import market_odds as M
 import totals_mercato as T
@@ -274,9 +275,13 @@ class TestAppTotals(_BaseQuoteFinte):
         from test_totals_correzioni import campione
         from test_apptest_topmix_presentazione import _testi_della_tab
         _, base_ou = campione()
-        # Senza voci concluse nello snapshot iniziale:
-        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
-        self.assertIn('Gol: nessuna giocata conclusa finora.', ' \n'.join(fuori))
+        # Senza voci concluse nello snapshot iniziale il riquadro del gol dice
+        # «n/d» e non ha delta: nessuno 0% inventato.
+        gol = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, 'Registro gol')
+        self.assertEqual('n/d', gol.value)
+        self.assertFalse(gol.delta)
+        # La frase in parole resta la forma di controllo dei riquadri: qui non
+        # si disegna piu' in scheda, ma deve dire gli stessi numeri.
         self.assertEqual('Gol: nessuna giocata conclusa finora.', A.sintesi_gol_mercato([]))
         # Registro di prova con 10 voci O/U: 8 riuscite e 2 fallite.
         dieci_voci = [
@@ -305,8 +310,16 @@ class TestAppTotals(_BaseQuoteFinte):
             self.at.run(timeout=900)
             self.eccezioni(self.at, 'riepilogo 10 voci O/U')
             fuori_dopo, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
-            self.assertIn('Gol: finora 10 giocate concluse, 8 riuscite (80%). Quote: 72%.',
-                          ' \n'.join(fuori_dopo))
+            # Il riquadro del gol legge le stesse righe della tabella: 8 su 10
+            # sono l'80%; le attese (probabilita' della prima registrazione,
+            # 0,72 su tutte e dieci) sono il 72%, quindi lo scarto e' +8 punti.
+            gol_dopo = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, 'Registro gol')
+            self.assertEqual('80%', gol_dopo.value)
+            self.assertEqual('+8 punti sulle attese', gol_dopo.delta)
+            self.assertIn('8 riuscite su 10 concluse', gol_dopo.help)
+            # La frase non si disegna piu' in scheda (gli stessi numeri stanno
+            # nel riquadro) e non deve comparire nemmeno nel testo reso.
+            self.assertNotIn('Gol: finora', ' \n'.join(fuori_dopo))
             df_gol = self._df(self.at, SCHEDA_REGISTRO, 0)
             self.assertEqual(10, len(df_gol))
         finally:

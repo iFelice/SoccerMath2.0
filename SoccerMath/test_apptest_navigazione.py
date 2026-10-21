@@ -24,10 +24,10 @@ Cosa verifica, in parole povere:
   tabelle del periodo non hanno piu' «Modello %» (sta nella scheda partita e nei
   Dettagli), quindi non c'e' nessuna cella da riempire e i riquadri delle
   proposte restano dove sono;
-* la scheda «📒 Com'è andata» apre con il riepilogo in parole, i cui numeri
-  tornano con quelli contati a mano sulle stesse righe, e il controllo dei
-  risultati parte DA SOLO una volta per sessione (e non parte se nessuna
-  partita e' finita da almeno tre ore).
+* la scheda «📒 Com'è andata» apre con i due riquadri del bilancio (percentuale
+  di riuscite e scarto sulle attese), i cui numeri tornano con quelli contati a
+  mano sulle stesse righe, e il controllo dei risultati parte DA SOLO una volta
+  per sessione (e non parte se nessuna partita e' finita da almeno tre ore).
 
 Due sole istanze di AppTest (una in sola lettura, una per le scritture): ogni
 esecuzione dell'app costa decine di secondi.
@@ -62,7 +62,13 @@ from test_apptest_topmix_presentazione import (  # noqa: E402
     SCHEDA_PRONOSTICI,
     SCHEDA_REGISTRO,
     SCHEDA_STRUMENTI,
+    DELTA_ROSSO,
+    DELTA_SPENTO,
+    _colore_delta,
+    _con_bordo,
     _elementi_della_tab,
+    _riquadri_della_tab,
+    _riquadro_della_tab,
     _testo_blocco,
     _testi_della_tab,
 )
@@ -124,7 +130,7 @@ class _BaseAppTest(unittest.TestCase):
 
         # --- Registro visibile: righe di mercato con esiti noti -------------
         # Due concluse (1 ✅ / 1 ❌) e una ancora da giocare. I numeri del
-        # riepilogo in parole vengono ricontati A MANO nel test, non riletti
+        # riquadri del bilancio vengono ricontati A MANO nel test, non riletti
         # dalla funzione che li produce.
         cls.adesso_reale = datetime.now(timezone.utc)
         cls.prima_prob = {7101: 0.625, 7102: 0.58, 7103: 0.60}
@@ -353,9 +359,10 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertTrue(dentro, "i Dettagli devono contenere qualcosa")
 
     def test_03b_pronostici_prima_del_clic_e_un_pulsante_solo(self):
-        """Punto 2: la scheda si apre sul pulsante, sulla riga dell'ultima
-        registrazione e sull'invito. Nessun numero, nessuna tabella, niente che
-        aspetti il giro del modello."""
+        """Punto 2: la scheda si apre sul pulsante, sulle due righe dell'ultima
+        registrazione e sull'invito, con i SOLI due riquadri del Registro
+        (percentuale di riuscite e scarto sulle attese). Nessun conteggio dei
+        Pronostici, nessuna tabella, niente che aspetti il giro del modello."""
         import app as app_mod
         fuori, dentro = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
         testo = " \n".join(fuori)
@@ -369,6 +376,10 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertEqual([], _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"),
                          "prima del click non c'e' nessuna tabella")
         self.assertEqual([], dentro, "e nessun riquadro chiuso")
+        # I riquadri in vista sono due, quelli del Registro: senza la tabella
+        # non c'e' nessun conteggio dei Pronostici da mostrare.
+        riquadri = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        self.assertEqual(["Registro 1X2", "Registro gol"], list(riquadri))
         for parola in ("Quote %", "Modello %", "Le scelte più sicure"):
             with self.subTest(parola=parola):
                 self.assertNotIn(parola, testo)
@@ -416,17 +427,41 @@ class TestSchedeLettura(_BaseAppTest):
         # click: la legge test_apptest_scheda_pronostici.
         self.assertNotIn("partite in tabella", testo)
 
-    def test_05_andata_riepilogo_torna_con_i_conti_fatti_a_mano(self):
-        """I numeri della frase in testa sono quelli delle righe del fixture."""
+    def test_05_andata_riquadri_coi_conti_fatti_a_mano(self):
+        """I numeri dei riquadri in testa sono quelli delle righe del fixture.
+
+        Due giocate concluse (1 ✅, 1 ❌): 50% di riuscite; le quote della
+        PRIMA registrazione sulle stesse righe davano (62,5 + 58,0)/2 = 60,25
+        -> 60%, quindi lo scarto e' 50 - 60 = -10 punti. I numeri si contano a
+        mano qui, non si rileggono dalla funzione che li produce.
+        """
         concluse = [m for m, e in self.esiti_seed.items() if e in ("✅", "❌")]
         n = len(concluse)
         m = sum(1 for x in concluse if self.esiti_seed[x] == "✅")
         x_cento = int(round(100.0 * m / n))
         y_cento = int(round(100.0 * sum(self.prima_prob[x] for x in concluse) / n))
-        attesa = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento}%). "
-                  f"Quote: {y_cento}%. Modello: 63%.")
+        riquadro = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, "Registro 1X2")
+        self.assertEqual(f"{x_cento}%", riquadro.value)
+        self.assertEqual(f"{x_cento - y_cento:+d} punti sulle attese", riquadro.delta,
+                         "lo scarto porta il segno: sotto le attese e' negativo")
+        self.assertIn(f"{m} riuscite su {n} concluse", riquadro.help)
+        self.assertIn("media delle probabilità di mercato della prima registrazione",
+                      riquadro.help)
+        self.assertTrue(_con_bordo(riquadro), "i riquadri sono disegnati col bordo")
+        self.assertEqual(DELTA_ROSSO, _colore_delta(riquadro),
+                         "sotto le attese il delta e' rosso (delta_color normal)")
+        # Il gol non ha nessuna giocata conclusa nel fixture: «n/d» e nessun
+        # delta, non uno 0% inventato.
+        gol = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, "Registro gol")
+        self.assertEqual("n/d", gol.value)
+        self.assertFalse(gol.delta)
+        self.assertEqual(DELTA_SPENTO, _colore_delta(gol), "senza delta niente colore")
+        # La frase di prima non c'e' piu': gli stessi numeri, due volte nella
+        # stessa scheda, erano il difetto da togliere.
         fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
-        self.assertIn(attesa, " \n".join(fuori))
+        testo = " \n".join(fuori)
+        self.assertNotIn("giocate concluse", testo)
+        self.assertNotIn("Gol: finora", testo)
 
     def test_06_andata_proposte_settimanali(self):
         """K e J lette dal registro ombra: 2 proposte, 1 riuscita."""

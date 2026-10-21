@@ -89,7 +89,11 @@ from test_apptest_topmix_presentazione import (  # noqa: E402
     SCHEDA_PAREGGI,
     SCHEDA_PRONOSTICI,
     SCHEDA_REGISTRO,
+    DELTA_VERDE,
+    _colore_delta,
+    _con_bordo,
     _elementi_della_tab,
+    _riquadri_della_tab,
     _testi_della_tab,
 )
 from test_apptest_scheda_partita import _titolo_atteso  # noqa: E402
@@ -535,7 +539,7 @@ class TestSchedaPronostici(_BaseQuoteFinte):
     """Le schede nuove: un solo AppTest, i metodi nell'ordine dei numeri."""
 
     # -- 1. prima del click -------------------------------------------------
-    def test_01_prima_del_click_la_scheda_non_mostra_numeri(self):
+    def test_01_prima_del_click_solo_i_due_riquadri_del_registro(self):
         testo = self._testo(self.at, SCHEDA_PRONOSTICI)
         self.assertIn(ETICHETTA_CALCOLA, testo)
         # La riga cita la data SCRITTA dal Registro (``salvato_il``), non un
@@ -560,6 +564,30 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         for parola in ("Quote %", "Modello %", "Quando", "Le scelte più sicure"):
             with self.subTest(parola=parola):
                 self.assertNotIn(parola, testo)
+        # I due riquadri del Registro si leggono SEMPRE, anche prima del click:
+        # sono gli stessi numeri della scheda Com'è andata, calcolati sulle
+        # righe del Registro (una sola giocata conclusa nel fixture: 61% di
+        # mercato alla prima registrazione -> 100% di riuscite, +39 punti).
+        import app as app_mod
+        attesi = app_mod.riquadri_giocate(None, [self.riga_seed], [])
+        riquadri = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        self.assertEqual([r["label"] for r in attesi], list(riquadri),
+                         "prima del click ci sono SOLO i due riquadri del Registro")
+        for atteso in attesi:
+            with self.subTest(riquadro=atteso["label"]):
+                elemento = riquadri[atteso["label"]]
+                self.assertEqual(atteso["value"], elemento.value)
+                self.assertEqual(atteso["delta"] or "", elemento.delta or "")
+                self.assertEqual(atteso["help"], elemento.help)
+                self.assertTrue(_con_bordo(elemento))
+        self.assertEqual("100%", riquadri["Registro 1X2"].value)
+        self.assertEqual("+39 punti sulle attese", riquadri["Registro 1X2"].delta)
+        self.assertEqual(DELTA_VERDE, _colore_delta(riquadri["Registro 1X2"]),
+                         "sopra le attese il delta e' verde (delta_color normal)")
+        self.assertEqual("n/d", riquadri["Registro gol"].value)
+        self.assertNotIn("Pronostici 1X2", riquadri,
+                         "prima del click la tabella non c'e': niente conteggio")
+        self.assertNotIn("Pronostici gol", riquadri)
         self.assertEqual([], self.scritture, "aprire la pagina non scrive il Registro")
         self.assertEqual([], self.registro.scritture,
                          f"nessuna scrittura nel registro: {self.registro.chiamate}")
@@ -643,6 +671,18 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         # ...e vale anche per la tabella dei pareggi, che di righe senza lettura
         # del modello ne ha di mestiere.
         self._nessun_non_numero(self._df(self.at, SCHEDA_PAREGGI))
+        # I QUATTRO riquadri, nell'ordine dichiarato, dopo il click: i due dei
+        # Pronostici contano le righe della tabella mostrata (3 nel periodo,
+        # 1X2 e gol non si escludono), i due del Registro sono quelli di prima.
+        riquadri = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        self.assertEqual(list(app_mod.ETICHETTE_RIQUADRI_GIOCATE), list(riquadri))
+        self.assertEqual(str(len(df)), riquadri["Pronostici 1X2"].value,
+                         "una riga 1X2 per riga in tabella")
+        self.assertEqual(str(sum(bool(v) for v in df["Gol"])),
+                         riquadri["Pronostici gol"].value,
+                         "solo le righe che portano davvero un pronostico gol")
+        self.assertTrue(riquadri["Registro 1X2"].value.endswith("%"))
+        self.assertTrue(_con_bordo(riquadri["Registro gol"]))
         uniche = self._uniche(self.at, SCHEDA_PRONOSTICI)
         testo = " \n".join(uniche)
         self.assertIn("3 partite in tabella.", testo)
@@ -860,7 +900,17 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                 self.assertEqual([], self.NON_NUMERO.findall(testo),
                                  f"non-numero nel testo reso di {scheda}: "
                                  f"{testo[:240]!r}")
-                self.assertNotIn("n/d", testo.replace("Modello % per i gol: n/d", ""),
+                # «n/d» e' ammesso SOLO nel riquadro del Registro gol, quando
+                # non c'e' nessuna giocata conclusa: e' il valore dichiarato di
+                # un numero che non esiste, non una cella vuota travestita. Il
+                # testo dei riquadri si toglie prima di guardare le tabelle.
+                senza_riquadri = testo
+                for riquadro in _riquadri_della_tab(self.at, scheda).values():
+                    for pezzo in (riquadro.label, riquadro.value, riquadro.delta,
+                                  riquadro.help):
+                        if pezzo:
+                            senza_riquadri = senza_riquadri.replace(str(pezzo), "")
+                self.assertNotIn("n/d", senza_riquadri.replace("Modello % per i gol: n/d", ""),
                                  "n/d ammesso solo per O/U")
                 self.assertNotIn("Non disponibile", testo)
         # e la prova non deve essere vuota: nessuna delle due tabelle ha

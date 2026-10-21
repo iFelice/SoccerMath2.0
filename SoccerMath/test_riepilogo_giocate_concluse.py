@@ -183,5 +183,162 @@ class TestLeDueSintesiDiconoGliStessiNumeri(unittest.TestCase):
         self.assertIn(f"Quote: {riepilogo['attese']}%", frase)
 
 
+
+# ---------------------------------------------------------------------------
+# I riquadri a schermo: le etichette, i valori, il delta e il suggerimento
+# ---------------------------------------------------------------------------
+
+def _riga_pronostico(esito="1", solo_ou=False, gol="Over", prob=0.66):
+    """Una riga della tabella dei Pronostici, come la lascia il selettore.
+
+    ``solo_ou`` marca le partite senza 1X2 (in tabella «Pronostico» porta «—»);
+    ``gol`` e' la scelta dei ``totals`` (``None`` quando la partita non ne ha
+    una) — la stessa che ``celle_totals`` scrive nella colonna «Gol».
+    """
+    riga = {"esito": esito, "solo_ou": solo_ou, "prob": prob, "prob_val": prob * 100}
+    if gol is not None:
+        riga["totals"] = {"pronostico": gol, "p_over": 0.66, "p_under": 0.34}
+    else:
+        riga["totals"] = {"pronostico": "", "p_over": 0.55, "p_under": 0.45}
+    return riga
+
+
+class TestContaPronostici(unittest.TestCase):
+    """Quante righe della tabella hanno un 1X2 e quante un gol."""
+
+    def test_riga_con_entrambi_i_pronostici(self):
+        self.assertEqual({"1x2": 1, "gol": 1},
+                         app.conta_pronostici([_riga_pronostico()]))
+
+    def test_riga_solo_gol_non_conta_come_1x2(self):
+        conteggi = app.conta_pronostici([_riga_pronostico(esito="—", solo_ou=True)])
+        self.assertEqual(0, conteggi["1x2"], "una riga solo gol non ha un 1X2")
+        self.assertEqual(1, conteggi["gol"])
+
+    def test_riga_senza_pronostico_gol(self):
+        riga = _riga_pronostico(gol=None)
+        self.assertEqual({"1x2": 1, "gol": 0}, app.conta_pronostici([riga]))
+
+    def test_esito_non_leggibile_non_conta(self):
+        conteggi = app.conta_pronostici([_riga_pronostico(esito=""), _riga_pronostico(esito=None)])
+        self.assertEqual(0, conteggi["1x2"])
+
+    def test_lista_vuota_e_dataframe(self):
+        self.assertEqual({"1x2": 0, "gol": 0}, app.conta_pronostici([]))
+        self.assertEqual({"1x2": 0, "gol": 0}, app.conta_pronostici(None))
+        df = pd.DataFrame([_riga_pronostico(), _riga_pronostico(esito="X")])
+        self.assertEqual({"1x2": 2, "gol": 2}, app.conta_pronostici(df))
+
+    def test_una_riga_non_dizionario_non_rompe(self):
+        self.assertEqual({"1x2": 1, "gol": 0},
+                         app.conta_pronostici([None, _riga_pronostico(gol=None)]))
+
+
+class TestRiquadroDelRegistro(unittest.TestCase):
+    """Valore, delta e suggerimento di un riquadro del Registro."""
+
+    def test_caso_a_mano(self):
+        riquadro = app.riquadro_registro(app.riepilogo_giocate_concluse(
+            [_giocata("✅", 0.60), _giocata("✅", 0.70), _giocata("❌", 0.80)]))
+        self.assertEqual("67%", riquadro["value"])
+        self.assertEqual("-3 punti sulle attese", riquadro["delta"],
+                         "sotto le attese il segno e' meno")
+        self.assertIn("2 riuscite su 3 concluse", riquadro["help"])
+        self.assertIn("media delle probabilità di mercato della prima registrazione",
+                      riquadro["help"])
+
+    def test_delta_con_il_segno_quando_si_va_meglio(self):
+        riquadro = app.riquadro_registro(app.riepilogo_giocate_concluse(
+            [_giocata("✅", 0.60), _giocata("✅", 0.80)]))
+        self.assertEqual("100%", riquadro["value"])
+        self.assertEqual("+30 punti sulle attese", riquadro["delta"])
+
+    def test_zero_concluse_nessun_numero_e_nessun_delta(self):
+        riquadro = app.riquadro_registro(app.riepilogo_giocate_concluse(
+            [_giocata("⏳", 0.70)]))
+        self.assertEqual("n/d", riquadro["value"])
+        self.assertIsNone(riquadro["delta"])
+        self.assertIn("Nessuna giocata conclusa finora", riquadro["help"])
+
+    def test_senza_probabilita_leggibile_niente_scarto(self):
+        riga = {"esito": "✅", "mercato_standard": "1",
+                "selector_version": pr.SELECTOR_VERSION_CURRENT}
+        riquadro = app.riquadro_registro(app.riepilogo_giocate_concluse([riga]))
+        self.assertEqual("100%", riquadro["value"])
+        self.assertIsNone(riquadro["delta"], "senza attese non c'e' uno scarto")
+        self.assertIn("non c'è uno scarto da mostrare", riquadro["help"])
+
+    def test_le_concluse_fuori_dalla_media_si_dichiarano(self):
+        senza = {"esito": "❌", "mercato_standard": "1",
+                 "selector_version": pr.SELECTOR_VERSION_CURRENT}
+        riquadro = app.riquadro_registro(app.riepilogo_giocate_concluse(
+            [_giocata("✅", 0.60), senza]))
+        self.assertEqual("50%", riquadro["value"])
+        self.assertEqual("-10 punti sulle attese", riquadro["delta"])
+        self.assertIn("1 concluse senza probabilità leggibile", riquadro["help"])
+
+    def test_nessun_numero_ripetuto_per_estensione(self):
+        """Il valore e il delta non ripetono il conteggio del suggerimento."""
+        riquadro = app.riquadro_registro(app.riepilogo_giocate_concluse(
+            [_giocata("✅", 0.60), _giocata("❌", 0.80)]))
+        self.assertNotIn("2", riquadro["value"])
+        self.assertNotIn("concluse", riquadro["delta"])
+        self.assertIn("1 riuscite su 2 concluse", riquadro["help"])
+
+
+class TestRiquadriGiocate(unittest.TestCase):
+    """L'ordine e le etichette dei quattro riquadri sono UNO solo."""
+
+    def test_ordine_ed_etichette_con_la_tabella(self):
+        riquadri = app.riquadri_giocate([_riga_pronostico()],
+                                        [_giocata("✅", 0.60)], [])
+        self.assertEqual(["Pronostici 1X2", "Pronostici gol",
+                          "Registro 1X2", "Registro gol"],
+                         [r["label"] for r in riquadri])
+        self.assertEqual(app.ETICHETTE_RIQUADRI_GIOCATE,
+                         tuple(r["label"] for r in riquadri))
+        self.assertEqual("1", riquadri[0]["value"])
+        self.assertEqual("1", riquadri[1]["value"])
+        self.assertEqual("100%", riquadri[2]["value"])
+        self.assertEqual("n/d", riquadri[3]["value"])
+
+    def test_senza_la_tabella_restano_i_due_del_registro(self):
+        riquadri = app.riquadri_giocate(None, [_giocata("✅", 0.60)], [])
+        self.assertEqual(["Registro 1X2", "Registro gol"],
+                         [r["label"] for r in riquadri])
+
+    def test_tabella_vuota_mostra_zero_non_sparisce(self):
+        riquadri = app.riquadri_giocate([], [], [])
+        self.assertEqual(4, len(riquadri))
+        self.assertEqual("0", riquadri[0]["value"])
+        self.assertEqual("0", riquadri[1]["value"])
+        self.assertEqual("n/d", riquadri[2]["value"])
+
+    def test_i_riquadri_del_registro_leggono_la_funzione_pura(self):
+        righe = [_giocata("✅", 0.50), _giocata("❌", 0.70)]
+        riepilogo = app.riepilogo_giocate_concluse(righe)
+        riquadri = app.riquadri_giocate(None, righe, righe)
+        for riquadro in riquadri:
+            self.assertEqual(f"{riepilogo['percentuale_riuscite']}%", riquadro["value"])
+            self.assertEqual(f"{riepilogo['scarto']:+d} punti sulle attese",
+                             riquadro["delta"])
+
+
+class TestRighePerFamiglia(unittest.TestCase):
+    """Le due famiglie del Registro, divise con la funzione della vista."""
+
+    def test_mercato_e_gol_e_il_modello_fuori(self):
+        mercato = _giocata("✅", 0.60)
+        gol = dict(_giocata("❌", 0.70), selector_version="totals_mercato_v1")
+        modello = {"esito": "✅", "prob_sicuro": 50.0}   # nessuna versione: modello
+        fuori_mercato, fuori_gol = app.righe_per_famiglia([mercato, gol, modello])
+        self.assertEqual([mercato], fuori_mercato)
+        self.assertEqual([gol], fuori_gol)
+
+    def test_lista_vuota(self):
+        self.assertEqual(([], []), app.righe_per_famiglia([]))
+        self.assertEqual(([], []), app.righe_per_famiglia(None))
+
+
 if __name__ == "__main__":
     unittest.main()
