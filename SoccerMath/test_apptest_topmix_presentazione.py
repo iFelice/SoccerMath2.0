@@ -76,9 +76,10 @@ def _raccogli_da_df(df_el):
         return parti
     # val e' un oggetto Arrow/DataFrame serializzato: in testing e' un
     # pandas.DataFrame (o uno Styler): proviamo a normalizzare. Le colonne
-    # numeriche con celle vuote (``None``/NaN: da «Modello %» non pronto)
-    # vanno svuotate PRIMA di ``astype(str)``, altrimenti resta un float
-    # ``nan`` e il join delle celle esplode a metà tabella.
+    # numeriche con celle vuote (NaN: la «Quote %» delle righe solo gol, che la
+    # ProgressColumn mostra vuota) vanno svuotate PRIMA di ``astype(str)``,
+    # altrimenti resta un float ``nan`` e il join delle celle esplode a metà
+    # tabella.
     try:
         import pandas as _pd
         if hasattr(val, "data"):
@@ -210,12 +211,51 @@ def _testi_della_tab(at, scheda=SCHEDA_MULTIPLE):
     return fuori, dentro
 
 
+def _riquadri_della_tab(at, scheda=SCHEDA_MULTIPLE):
+    """I riquadri ``st.metric`` della scheda: ``{etichetta: elemento}``.
+
+    L'ordine del dizionario e' quello in cui i riquadri sono disegnati (le
+    schede li mettono in ``st.columns``, ma AppTest li rende come elementi
+    normali). Le metriche che stanno nei «Dettagli» chiusi hanno etichette
+    proprie («Totale», «Vinte», ...) e non si confondono con i quattro
+    riquadri del bilancio.
+    """
+    return {m.label: m for m in _elementi_della_tab(at, scheda, "metric")}
+
+
+def _riquadro_della_tab(at, scheda, etichetta):
+    """Il riquadro con quell'etichetta; errore esplicito (con l'elenco) se manca."""
+    riquadri = _riquadri_della_tab(at, scheda)
+    if etichetta not in riquadri:
+        raise AssertionError(f"{scheda}: riquadro {etichetta!r} non disegnato "
+                             f"(ci sono: {list(riquadri)})")
+    return riquadri[etichetta]
+
+
+def _con_bordo(riquadro):
+    """Il riquadro e' disegnato con ``border=True`` (``st.metric`` lo salva nel proto)."""
+    proto = getattr(riquadro, "proto", None)
+    return bool(getattr(proto, "show_border", False))
+
+
+#: I colori del delta nel proto di ``st.metric``: 0 rosso, 1 verde, 2 spento
+#: (nessun delta). Con ``delta_color="normal"`` un delta positivo e' verde e
+#: uno negativo rosso; verificato su Streamlit 1.66.
+DELTA_ROSSO, DELTA_VERDE, DELTA_SPENTO = 0, 1, 2
+
+
+def _colore_delta(riquadro):
+    """Il colore con cui il browser disegna il delta del riquadro."""
+    return getattr(getattr(riquadro, "proto", None), "color", None)
+
+
 # ---------------------------------------------------------------------------
 # Parole vietate (punto 6): fuori dai riquadri chiusi non devono comparire.
 # «d'accordo» e' entrata in lista con la correzione alla PR #66: il segnale
 # resta solo nei Dettagli (tabella tecnica) e la caption della sezione
 # «Le scelte più sicure secondo le quote» dice solo quante partite sono in
-# tabella e, se il giro del modello non e' pronto, lo stato di «Modello %».
+# tabella. «Modello %» non e' piu' una colonna delle tabelle del periodo (sta
+# nella scheda partita e nei Dettagli), quindi nemmeno il suo stato si nomina.
 # ---------------------------------------------------------------------------
 
 PAROLE_VIETATE = [
@@ -275,7 +315,8 @@ class TestPresentazioneTopMix(unittest.TestCase):
         (cls.tmp / "live_odds.json").write_text(json.dumps(cls.snap), encoding="utf-8")
         # Punto 5b: due righe CONCLUSE della famiglia mercato nel Registro, cosi'
         # la sezione "Com'è andata: le scelte secondo le quote" (tab5) ha il
-        # bilancio in parole da verificare ("Finora N giocate concluse...").
+        # bilancio da verificare nei due riquadri (percentuale di riuscite e
+        # scarto sulle attese: i numeri si contano a mano nel test).
         import prediction_registry as pr
         _riga_mercato = {
             "match_id": 7001, "home": "Inter", "away": "Roma",
@@ -681,8 +722,8 @@ class TestPresentazioneTopMix(unittest.TestCase):
 
     def test_09_registro_mercato_in_parole_bilancio_e_niente_gergo(self):
         """Tab5, famiglia mercato: titolo «Com'è andata: le scelte secondo le
-        quote», bilancio in parole sopra la tabella, e nessuna parola vietata
-        nel testo visibile (il tecnico resta nel suo «Dettagli» chiuso)."""
+        quote», i due riquadri del bilancio sopra le tabelle, e nessuna parola
+        vietata nel testo visibile (il tecnico resta nel suo «Dettagli»)."""
         fuori_tab5, dentro_tab5 = _testi_della_tab(self.at, SCHEDA_REGISTRO)
         i0 = next((i for i, t in enumerate(fuori_tab5)
                    if "Com'è andata: le scelte secondo le quote" in t), None)
@@ -692,14 +733,33 @@ class TestPresentazioneTopMix(unittest.TestCase):
                    if "Registro ombra" in fuori_tab5[i]), len(fuori_tab5))
         sezione = fuori_tab5[i0:i1]
         testo = " \n".join(sezione)
-        # Riepilogo del fixture: 2 righe concluse (1 ✅ e 1 ❌) -> 50 su 100;
-        # le quote, alla PRIMA registrazione sulle stesse righe, davano
-        # (62,5 + 58,0)/2 = 60,25 -> "60 su 100".
-        self.assertIn("Finora 2 giocate concluse, 1 riuscite (50%)", testo)
-        self.assertIn("Quote: 60%. Modello: 57%.", testo)
+        # Riepilogo del fixture: 2 righe concluse (1 ✅ e 1 ❌) -> 50%; le
+        # quote, alla PRIMA registrazione sulle stesse righe, davano
+        # (62,5 + 58,0)/2 = 60,25 -> 60%, quindi lo scarto e' -10 punti.
+        riquadro = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, "Registro 1X2")
+        self.assertEqual("50%", riquadro.value)
+        self.assertEqual("-10 punti sulle attese", riquadro.delta)
+        self.assertIn("1 riuscite su 2 concluse", riquadro.help)
+        gol = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, "Registro gol")
+        self.assertEqual("n/d", gol.value)
+        self.assertFalse(gol.delta, "senza concluse non c'e' nessuno scarto")
+        # I riquadri stanno SOPRA la tabella del mercato (e sotto il titolo
+        # della scheda): i numeri si leggono una volta sola, prima delle righe.
+        i_riquadro = next((i for i, t in enumerate(fuori_tab5)
+                           if t.strip() == "Registro 1X2"), None)
+        self.assertIsNotNone(i_riquadro, "il riquadro «Registro 1X2» non c'e': "
+                                         + " | ".join(fuori_tab5[:40])[:600])
+        self.assertLess(i_riquadro, i0, "i riquadri stanno sopra le tabelle")
+        # La frase di prima non c'e' piu': gli stessi numeri accanto ai
+        # riquadri erano il difetto da togliere.
+        self.assertNotIn("Finora 2 giocate concluse", " \n".join(fuori_tab5))
         # Il conto in euro e' un conto, non una descrizione: sta nei Dettagli.
         testo_dettagli = " \n".join(dentro_tab5)
         self.assertIn("Su 100 giocate da 1 €", testo_dettagli)
+        # La media del modello (era nella frase in testa) ora e' una riga a se'
+        # nei Dettagli, con lo stesso testo: (63,0 + 51,0)/2 = 57%.
+        self.assertIn("Modello: 57%.", testo_dettagli)
+        self.assertNotIn("Modello: 57%", testo, "in vista resta solo nei riquadri")
         self.assertIn("19,50 € in meno", testo_dettagli)
         self.assertNotIn("Su 100 giocate da 1 €", testo,
                          "il conto in euro sta nei Dettagli, non in apertura")

@@ -21,12 +21,14 @@ Cosa prova, sul VERO ``app.py``:
   registrazione» e l'invito a premere: nessun numero, nessuna tabella, nessun
   riquadro chiuso (punto 2);
 * il click calcola la giornata sulle quote del file, la registra nel Registro e
-  lascia in vista UNA tabella con le sei colonne promesse (Quando, Partita,
-  Pronostico, Quote %, Modello %, Quota), ordinate per «Quote %» decrescente,
-  con la «Quota» = stima bet365 di QUELLA riga; «Modello %» e «Quota» sono testo
-  formattato (virgola italiana) e la loro cella vuota e' una stringa vuota, non
-  un "NaN" né un "None" — e la caption dice solo quante partite sono in tabella
-  e quante restano nei prossimi giorni (punti 2 e 4);
+  lascia in vista UNA tabella con le cinque colonne promesse (Quando, Partita,
+  Pronostico, Quote %, Quota), ordinate per «Quote %» decrescente, con la
+  «Quota» = stima bet365 di QUELLA riga; «Quote %» e' NUMERICA (una
+  ``ProgressColumn``) e la cella senza numero — le righe solo gol — e' un valore
+  mancante, mostrato vuoto, mai la scritta "NaN"/"None"; «Modello %» non e' una
+  colonna di questa tabella (sta nella scheda partita e nei Dettagli) — e la
+  caption dice solo quante partite sono in tabella e quante restano nei
+  prossimi giorni (punti 2 e 4);
 * l'interruttore del periodo e' UN widget solo, e sta SOPRA la barra delle
   schede: lo leggono Pronostici, Pareggi e Multiple e nessuno dei tre testi
   rimanda a un'altra scheda per cercarlo. Cambiare periodo vuol dire chiedere
@@ -61,6 +63,8 @@ import sys
 import tempfile
 import time
 import unittest
+
+import pandas as pd
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -85,13 +89,18 @@ from test_apptest_topmix_presentazione import (  # noqa: E402
     SCHEDA_PAREGGI,
     SCHEDA_PRONOSTICI,
     SCHEDA_REGISTRO,
+    DELTA_VERDE,
+    _colore_delta,
+    _con_bordo,
     _elementi_della_tab,
+    _riquadri_della_tab,
     _testi_della_tab,
 )
 from test_apptest_scheda_partita import _titolo_atteso  # noqa: E402
 
-#: Le sei colonne promesse, nell'ordine.
-COLONNE = ["Quando", "Partita", "Pronostico", "Quote %", "Modello %", "Quota"]
+#: Le cinque colonne promesse, nell'ordine (niente «Modello %»: sta nella
+#: scheda partita e nei Dettagli tecnici).
+COLONNE = ["Quando", "Partita", "Pronostico", "Quote %", "Quota"]
 
 ETICHETTA_CALCOLA = "Calcola i pronostici della giornata"
 ETICHETTA_VECCHIO = "Registra le giocate della giornata"
@@ -428,8 +437,9 @@ class _BaseQuoteFinte(unittest.TestCase):
 
         Lo stato si scrive direttamente in sessione perche' AppTest esegue lo
         script in un namespace separato (stessa strada di
-        ``test_apptest_navigazione``): le celle di «Modello %» restano vuote e
-        deve bastare la caption dello stato."""
+        ``test_apptest_navigazione``): il giro del modello non c'e', e le
+        tabelle in vista devono restare in piedi lo stesso — non hanno piu' la
+        colonna «Modello %», quindi nessuna cella da riempire."""
         at.session_state["confronto_modello_stato"] = "non_disponibile"
         at.session_state["confronto_modello_righe"] = []
         at.session_state["confronto_modello_errore"] = "RuntimeError: giro giù"
@@ -465,11 +475,17 @@ class _BaseQuoteFinte(unittest.TestCase):
 
         Si guarda il DataFrame RESO (dtype e celle), perche' e' li' che un
         ``NaN`` numerico ricompare quando qualcuno trascrive la tabella o la
-        legge da AppTest: le colonne che possono mancare di un numero sono di
-        TESTO, con stringa vuota.
+        legge da AppTest. L'unico valore mancante ammesso e' quello di
+        «Quote %» sulle righe SENZA 1X2 (solo gol): la colonna resta numerica,
+        la cella e' vuota a schermo, e qui si verifica che sia davvero un
+        ``NaN`` e non la scritta «None»/«nan» finita in una cella.
         """
         for colonna in df.columns:
             for cella in df[colonna]:
+                if pd.isna(cella):
+                    self.assertEqual("Quote %", colonna,
+                                     f"valore mancante in {colonna!r}: solo «Quote %» puo'")
+                    continue
                 test = str(cella).strip().lower()
                 self.assertNotIn(test, ("nan", "none", "nat"),
                                  f"cella di {colonna!r} che rende {test!r}")
@@ -523,7 +539,7 @@ class TestSchedaPronostici(_BaseQuoteFinte):
     """Le schede nuove: un solo AppTest, i metodi nell'ordine dei numeri."""
 
     # -- 1. prima del click -------------------------------------------------
-    def test_01_prima_del_click_la_scheda_non_mostra_numeri(self):
+    def test_01_prima_del_click_solo_i_due_riquadri_del_registro(self):
         testo = self._testo(self.at, SCHEDA_PRONOSTICI)
         self.assertIn(ETICHETTA_CALCOLA, testo)
         # La riga cita la data SCRITTA dal Registro (``salvato_il``), non un
@@ -548,6 +564,40 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         for parola in ("Quote %", "Modello %", "Quando", "Le scelte più sicure"):
             with self.subTest(parola=parola):
                 self.assertNotIn(parola, testo)
+        # I due riquadri del Registro si leggono SEMPRE, anche prima del click:
+        # sono gli stessi numeri della scheda Com'è andata, calcolati sulle
+        # righe del Registro (una sola giocata conclusa nel fixture: 61% di
+        # mercato alla prima registrazione -> 100% di riuscite, +39 punti).
+        import app as app_mod
+        # I due riquadri del Registro leggono SOLO le righe della stagione
+        # predefinita (in questa scheda la stessa della scheda Registro):
+        # l'aiuto dei riquadri la dichiara.
+        stagione = app_mod.stagione_predefinita_registro([self.riga_seed])
+        self.assertTrue(stagione, "la riga del fixture ha una data: una stagione c'e'")
+        attesi = app_mod.riquadri_giocate(None, [self.riga_seed], [], stagione=stagione)
+        riquadri = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        self.assertEqual([r["label"] for r in attesi], list(riquadri),
+                         "prima del click ci sono SOLO i due riquadri del Registro")
+        for atteso in attesi:
+            with self.subTest(riquadro=atteso["label"]):
+                elemento = riquadri[atteso["label"]]
+                self.assertEqual(atteso["value"], elemento.value)
+                self.assertEqual(atteso["delta"] or "", elemento.delta or "")
+                self.assertEqual(atteso["help"], elemento.help)
+                self.assertTrue(_con_bordo(elemento))
+        self.assertEqual("100%", riquadri["Registro 1X2"].value)
+        self.assertEqual("+39 punti sulle attese", riquadri["Registro 1X2"].delta)
+        self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}",
+                      riquadri["Registro 1X2"].help,
+                      "l'aiuto dichiara la stagione a cui si riferiscono i numeri")
+        self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}",
+                      riquadri["Registro gol"].help)
+        self.assertEqual(DELTA_VERDE, _colore_delta(riquadri["Registro 1X2"]),
+                         "sopra le attese il delta e' verde (delta_color normal)")
+        self.assertEqual("n/d", riquadri["Registro gol"].value)
+        self.assertNotIn("Pronostici 1X2", riquadri,
+                         "prima del click la tabella non c'e': niente conteggio")
+        self.assertNotIn("Pronostici gol", riquadri)
         self.assertEqual([], self.scritture, "aprire la pagina non scrive il Registro")
         self.assertEqual([], self.registro.scritture,
                          f"nessuna scrittura nel registro: {self.registro.chiamate}")
@@ -569,7 +619,7 @@ class TestSchedaPronostici(_BaseQuoteFinte):
         self.assertIn("Anche il pareggio più probabile esce circa 1 volta su 3.",
                       self._testo(self.at, SCHEDA_PAREGGI))
         df = self._df(self.at, SCHEDA_PAREGGI)
-        self.assertEqual(COLONNE, list(df.columns), "le sei colonne promesse")
+        self.assertEqual(COLONNE, list(df.columns), "le cinque colonne promesse")
         self.assertEqual(len(attesi), len(df), "una riga per ogni pareggio mostrato")
         self.assertEqual(["X"] * len(df), list(df["Pronostico"]),
                          "la scheda Pareggi non mostra altri esiti")
@@ -607,6 +657,9 @@ class TestSchedaPronostici(_BaseQuoteFinte):
 
         df = self._df(self.at, SCHEDA_PRONOSTICI)
         self.assertEqual(COLONNE + ["Gol", "Insieme %"], list(df.columns))
+        self.assertNotIn("Modello %", df.columns,
+                         "la probabilita' del modello sta nella scheda partita "
+                         "e nei Dettagli tecnici")
         self.assertEqual(len(in_periodo), len(df))
         self.assertEqual(["Roma - Lecce", "Genoa - Fiorentina", "Napoli - Venezia"],
                          list(df["Partita"]), "la tabella e' l'elenco delle scelte")
@@ -619,14 +672,27 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                   for _mid, casa, trasferta, _p, kickoff in self.partite}
         self.assertEqual([_quando_italiano(calcio[p]) for p in df["Partita"]],
                          list(df["Quando"]), "data e ora italiane nella colonna stretta")
-        # «Modello %» e «Quota» sono TESTO formattato: qui il giro del modello
-        # non c'e', quindi le tre celle sono tre stringhe vuote. Non un NaN, non
-        # un "n/d", non una colonna numerica che si trascrive "nan".
-        self.assertEqual(["", "", ""], list(df["Modello %"]), list(df["Modello %"]))
+        # «Quote %» e' numerica e porta la probabilita' di ogni riga; «Quota» e'
+        # testo formattato. Nessuna colonna «Modello %» da riempire.
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
+        self.assertEqual([66.0, 60.0, 58.0],
+                         [round(float(v), 1) for v in df["Quote %"]])
         self._nessun_non_numero(df)
         # ...e vale anche per la tabella dei pareggi, che di righe senza lettura
         # del modello ne ha di mestiere.
         self._nessun_non_numero(self._df(self.at, SCHEDA_PAREGGI))
+        # I QUATTRO riquadri, nell'ordine dichiarato, dopo il click: i due dei
+        # Pronostici contano le righe della tabella mostrata (3 nel periodo,
+        # 1X2 e gol non si escludono), i due del Registro sono quelli di prima.
+        riquadri = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        self.assertEqual(list(app_mod.ETICHETTE_RIQUADRI_GIOCATE), list(riquadri))
+        self.assertEqual(str(len(df)), riquadri["Pronostici 1X2"].value,
+                         "una riga 1X2 per riga in tabella")
+        self.assertEqual(str(sum(bool(v) for v in df["Gol"])),
+                         riquadri["Pronostici gol"].value,
+                         "solo le righe che portano davvero un pronostico gol")
+        self.assertTrue(riquadri["Registro 1X2"].value.endswith("%"))
+        self.assertTrue(_con_bordo(riquadri["Registro gol"]))
         uniche = self._uniche(self.at, SCHEDA_PRONOSTICI)
         testo = " \n".join(uniche)
         self.assertIn("3 partite in tabella.", testo)
@@ -803,6 +869,66 @@ class TestSchedaPronostici(_BaseQuoteFinte):
             self._toggle(self.at, app_mod.CHIAVE_PROSSIMI_GIORNI, False)
             self.at.run(timeout=900)
 
+    # -- 15. la stagione dei due riquadri del Registro ---------------------
+    def test_15_riquadri_del_registro_stessa_stagione_nelle_due_schede(self):
+        """Regola unica: «Registro 1X2» e «Registro gol» danno lo STESSO numero
+        in Pronostici e in Registro, con i filtri predefiniti.
+
+        Nel Registro si contano le righe filtrate (il filtro «Stagione» parte
+        sulla stagione in corso); in Pronostici si contano le righe del
+        Registro filtrate per la stagione predefinita — stessa funzione
+        (``app.stagione_predefinita_registro``), nessuna regola ricopiata. Il
+        fixture ha una giocata conclusa nella stagione in corso (✅, 61% di
+        mercato) e qui se ne aggiunge una conclusa nella stagione passata
+        (❌, 50%): se una delle due schede contasse tutta la storia, i numeri
+        divergerebbero (33% contro 100%) e il test lo vedrebbe.
+        """
+        import copy
+        import app as app_mod
+        import prediction_registry as pr
+        seed = copy.deepcopy(self.registro.vivo)
+        passata = dict(self.riga_seed)
+        passata.update({
+            "match_id": 7999, "home": "Vecchia", "away": "Passata",
+            "data": "15/10/2025 20:45", "stagione": "2025/2026",
+            "kickoff_utc": "2025-10-15T18:45:00Z",
+            "risultato_reale": "0-2", "esito": "❌",
+            "calculation_id": "fixture7999",
+            "prob_sicuro": 50.0,
+            pr.PROB_MERCATO_FIELD: 0.50, pr.QUOTA_MERCATO_FIELD: 2.12,
+            pr.PROB_MERCATO_PRIMA_FIELD: 0.50, pr.QUOTA_MERCATO_PRIMA_FIELD: 2.12,
+        })
+        try:
+            self.registro.vivo[:] = seed + [passata]
+            self.at.run(timeout=900)
+            self.eccezioni(self.at, "registro con due stagioni")
+            stagione = app_mod.stagione_predefinita_registro(seed + [passata])
+            self.assertEqual("2026/2027", stagione,
+                             "la stagione in corso e' quella piu' recente")
+            registro = _riquadri_della_tab(self.at, SCHEDA_REGISTRO)
+            pronostici = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+            for nome in ("Registro 1X2", "Registro gol"):
+                with self.subTest(riquadro=nome):
+                    self.assertIn(nome, registro)
+                    self.assertIn(nome, pronostici)
+                    self.assertEqual(registro[nome].value, pronostici[nome].value,
+                                     "stessa etichetta, stesso numero nelle due schede")
+                    self.assertEqual(registro[nome].delta, pronostici[nome].delta)
+                    self.assertEqual(registro[nome].help, pronostici[nome].help,
+                                     "e stesso suggerimento, stagione compresa")
+                    self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}",
+                                  pronostici[nome].help)
+            # La sola giocata conclusa della stagione in corso e' quella ✅ al
+            # 61%: 100% di riuscite, +39 punti sulle attese. Con la stagione
+            # passata dentro sarebbe 50% e -11 punti (e l'aiuto direbbe che le
+            # giocate sono 2, non 1).
+            self.assertEqual("100%", pronostici["Registro 1X2"].value)
+            self.assertEqual("+39 punti sulle attese", pronostici["Registro 1X2"].delta)
+            self.assertIn("1 riuscite su 1 concluse", pronostici["Registro 1X2"].help)
+        finally:
+            self.registro.vivo[:] = seed
+            self.at.run(timeout=900)
+
     # -- 13. zero "NaN" e zero "None" nel testo reso ----------------------
     NON_NUMERO = re.compile(r"\b(nan|none|nat)\b", re.IGNORECASE)
 
@@ -812,11 +938,11 @@ class TestSchedaPronostici(_BaseQuoteFinte):
 
         Le celle si guardano tre volte, perche' i tre lettori sono tre posti
         diversi dove il non-numero ricomparirebbe: le frasi della scheda, le
-        celle come il browser le riceve (``_raccogli_da_df``) e la trascrizione
-        ``to_string`` della tabella, che e' quella di chi copia o stampa la
-        vista. Il fixture non ha il giro del modello: TUTTE le righe sono senza
-        lettura, e questo e' esattamente il caso che la commessa chiede di
-        provare (una riga con «Modello %» vuoto non deve scrivere niente).
+        celle come il browser le riceve (``_raccogli_da_df``, che svuota i
+        valori mancanti come fa la ProgressColumn) e la trascrizione
+        ``to_string``, che e' quella di chi copia o stampa la vista (li' il
+        ``NaN`` di «Quote %» si vede, ed e' ammesso SOLO sulla riga senza 1X2:
+        e' il valore mancante chiesto, non una scritta).
         """
         from test_apptest_topmix_presentazione import _raccogli_da_df
         if not _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"):
@@ -830,21 +956,42 @@ class TestSchedaPronostici(_BaseQuoteFinte):
                     pezzi += [str(c) for c in _raccogli_da_df(el)]
                     df = getattr(el, "value", None)
                     if df is not None and hasattr(df, "to_string"):
+                        if "Quote %" in df.columns:
+                            # I NaN di «Quote %» sono le righe solo gol: si
+                            # tolgono dalla trascrizione, dopo aver controllato
+                            # che stiano solo li'.
+                            for _i, riga in df[df["Quote %"].isna()].iterrows():
+                                self.assertEqual("—", str(riga.get("Pronostico", "")),
+                                                 f"{scheda}: NaN fuori dalle righe solo gol")
+                            df = df.drop(columns=["Quote %"])
                         pezzi.append(df.to_string(index=False))
                 self.assertTrue(pezzi, f"{scheda}: nessuna cosa resa da controllare")
                 testo = " \n".join(pezzi)
                 self.assertEqual([], self.NON_NUMERO.findall(testo),
                                  f"non-numero nel testo reso di {scheda}: "
                                  f"{testo[:240]!r}")
-                self.assertNotIn("n/d", testo.replace("Modello % per i gol: n/d", ""),
+                # «n/d» e' ammesso SOLO nel riquadro del Registro gol, quando
+                # non c'e' nessuna giocata conclusa: e' il valore dichiarato di
+                # un numero che non esiste, non una cella vuota travestita. Il
+                # testo dei riquadri si toglie prima di guardare le tabelle.
+                senza_riquadri = testo
+                for riquadro in _riquadri_della_tab(self.at, scheda).values():
+                    for pezzo in (riquadro.label, riquadro.value, riquadro.delta,
+                                  riquadro.help):
+                        if pezzo:
+                            senza_riquadri = senza_riquadri.replace(str(pezzo), "")
+                self.assertNotIn("n/d", senza_riquadri.replace("Modello % per i gol: n/d", ""),
                                  "n/d ammesso solo per O/U")
                 self.assertNotIn("Non disponibile", testo)
-        # e la prova non deve essere vuota: almeno una riga senza modello, qui e
-        # nella tabella dei pareggi, dev'esserci per davvero.
+        # e la prova non deve essere vuota: nessuna delle due tabelle ha
+        # «Modello %» e «Quote %» e' numerica, senza buchi (in questo fixture
+        # ogni riga ha la sua scelta 1X2; le righe solo gol, con il NaN
+        # voluto, le prova ``test_apptest_totals_mercato``).
         for scheda in (SCHEDA_PRONOSTICI, SCHEDA_PAREGGI):
             df = self._df(self.at, scheda)
-            vuote = sum(1 for v in df["Modello %"] if str(v) == "")
-            self.assertGreaterEqual(vuote, 1, f"{scheda}: nessuna cella vuota da provare")
+            self.assertNotIn("Modello %", df.columns, scheda)
+            self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]), scheda)
+            self.assertFalse(df["Quote %"].isna().any(), scheda)
 
     # -- 14. la vista tecnica del Top Mix sta nei Dettagli dei Pronostici ---
     def test_14_la_vista_tecnica_del_top_mix_sta_nei_dettagli_dei_pronostici(self):

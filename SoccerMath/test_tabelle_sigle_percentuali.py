@@ -1,21 +1,24 @@
-"""REGOLA (presentazione dopo la PR #65, e dopo la rimozione degli spoiler):
-nelle tabelle IN VISTA delle schede Pronostici/Pareggi e della scheda Multiple,
-e nella tabella Mercato del Registro
+"""REGOLA (presentazione dopo la PR #65, dopo la rimozione degli spoiler e dopo
+l'uscita della colonna «Modello %»): nelle tabelle IN VISTA delle schede
+Pronostici/Pareggi e della scheda Multiple, e nella tabella Mercato del Registro
 
 * la giocata e' la SOLA sigla (1, X, 2, 1X, X2, 12): niente «Vince <squadra>»,
   «<squadra> non perde», «Non finisce in pareggio», niente sigla fra parentesi;
-* al posto di «Riesce circa» ci sono DUE colonne percentuali NUMERICHE con
-  una cifra decimale: «Quote %» (probabilita' dalle quote, come prima) e
-  «Modello %» (probabilita' del modello Drago per lo STESSO esito; per le
-  doppie chance e' la SOMMA delle due probabilita' 1X2 del modello, sullo
-  stesso snapshot del giro ``fetch_and_calc_top_mix``). Finche' il giro non
-  e' pronto o non copre la partita la cella e' VUOTA (``None``): lo stato
-  («Modello %: in calcolo» / «Modello %: non disponibile») lo dice UNA volta
-  sola la caption della sezione, non la cella;
+* al posto di «Riesce circa» c'e' «Quote %» (probabilita' dalle quote), e
+  NIENT'ALTRO: le tabelle del periodo (Pronostici, Pareggi, «Le più
+  probabili») non hanno piu' la colonna «Modello %». La probabilita' del
+  modello Drago resta nella scheda partita e nei Dettagli tecnici, e le sue
+  funzioni (``numero_modello_percento``, ``prob_modello_esito``) restano
+  provate qui sotto: e' la REGOLA che non si e' persa, non la colonna;
+* «Quote %» e' SEMPRE NUMERICA nel DataFrame e diventa una
+  ``st.column_config.ProgressColumn`` (0-100, passo 0,1, ``format="localized"``):
+  l'ordinamento al clic e' numerico e la barra si legge a colpo d'occhio. Dove
+  il numero non c'e' (righe solo gol) il valore e' ``NaN`` — la cella vuota,
+  non una stringa vuota e non un ripiego su TextColumn (verificato su
+  Streamlit 1.66);
 * la colonna «Il nostro modello è d'accordo» esce dalla vista: il campo resta
   nei dati, nel Registro e nei Dettagli (nessuna logica cambia);
-* l'ordine predefinito e' «Quote %» DECRESCENTE e la colonna «Quote %» resta
-  NUMERICA nel DataFrame (l'ordinamento al clic e' numerico, non alfabetico).
+* l'ordine predefinito e' «Quote %» DECRESCENTE, con le righe solo gol in fondo.
 
 Nessuna asserzione numerica dei test precedenti cambia: qui si provano le
 funzioni di presentazione (pure), i numeri passano intatti.
@@ -56,6 +59,18 @@ def _riga_mercato(prob=0.675, esito="1", home="Inter", away="Roma",
     }
 
 
+def _riga_solo_gol(home="Hamburger SV", away="Bayern Munich"):
+    """Una riga che esiste SOLO per i gol (nessuna scelta 1X2): «Quote %» manca.
+
+    E' la riga che prima faceva diventare di testo tutta la colonna: adesso il
+    suo «Quote %» e' ``None`` nella riga e ``NaN`` nel DataFrame.
+    """
+    riga = _riga_mercato(prob=0.62, esito="", home=home, away=away)
+    riga.update({"solo_ou": True, "esito": "", "mercato_standard": "",
+                 "totals": {"pronostico": "Over", "p_over": 0.62, "p_under": 0.38}})
+    return riga
+
+
 def _terna_snapshot():
     """La terna 1X2 del modello per UNA partita, come dal giro del modello.
 
@@ -89,20 +104,23 @@ def _tabella_periodo(righe, adesso=None, stato_confronto=None, mappa_modello_1x2
 class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
     """«Le scelte più sicure secondo le quote»: la tabella della scheda Pronostici.
 
-    Le colonne del punto 2 della commessa schede: Quando, Partita, Pronostico,
-    Quote %, Modello %, Quota. «Campionato» esce dalla vista (la lega non e' una
-    colonna, e dentro «Partita» non c'e' altra scritta che le due squadre), la
-    sigla si chiama «Pronostico» e la quota bet365 stimata torna in tabella.
-    I numeri restano quelli di prima: qui cambia come si leggono, non cosa si
-    calcola.
+    Le colonne del punto 2 della commessa schede, senza «Modello %»: Quando,
+    Partita, Pronostico, Quote %, Quota. «Campionato» esce dalla vista (la lega
+    non e' una colonna, e dentro «Partita» non c'e' altra scritta che le due
+    squadre), la sigla si chiama «Pronostico» e la quota bet365 stimata torna in
+    tabella. I numeri restano quelli di prima: qui cambia come si leggono, non
+    cosa si calcola.
     """
 
     def test_colonne_sigla_e_niente_accordo(self):
         righe = [_riga_mercato(prob=0.66, esito="1"), _riga_mercato(prob=0.58, esito="X",
                                                                     home="Milan", away="Lazio")]
         df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2={})
-        self.assertEqual(["Quando", "Partita", "Pronostico", "Quote %", "Modello %",
+        self.assertEqual(["Quando", "Partita", "Pronostico", "Quote %",
                           "Quota", "Gol", "Insieme %"], list(df.columns))
+        self.assertNotIn("Modello %", df.columns,
+                         "la probabilita' del modello sta nella scheda partita e "
+                         "nei Dettagli tecnici, non in questa tabella")
         self.assertNotIn("Riesce circa", df.columns)
         self.assertNotIn("Campionato", df.columns,
                          "il campionato non e' una colonna: la vista e' asciutta")
@@ -151,61 +169,88 @@ class TestTabellaScelteSecondoLeQuote(unittest.TestCase):
                          "l'ordine predefinito e' «Quote %» decrescente")
         self.assertEqual([71.0, 64.9, 58.0], valori, "una cifra decimale")
 
-    def test_modello_percento_non_pronto_cella_vuota(self):
-        """Niente stato scritto nella cella: la cella e' una stringa vuota.
+    def test_nessuna_colonna_modello_nella_vista(self):
+        """«Modello %» esce dalla tabella, anche col giro del modello PRONTO.
 
-        «Modello %» e' DI TESTO proprio per questo: una colonna numerica con il
-        valore mancante si porta appresso un NaN che nel testo reso (e in
-        qualunque ``to_string``) compare. Qui non deve comparire NESSUNA delle
-        tre scritte vietate, e non c'e' nemmeno da nasconderle.
+        La probabilita' del modello resta nella scheda partita e nei Dettagli
+        tecnici: qui non c'e' la colonna, in nessuno stato del confronto.
         """
+        mappa = app.prob_modello_1x2_per_partita(_terna_snapshot())
         righe = [_riga_mercato(esito="1")]
-        for stato in (None, "in_calcolo", "non_disponibile"):
-            df = _tabella_periodo(righe, stato_confronto=stato)
-            self.assertEqual([""], df["Modello %"].tolist(),
-                             f"cella vuota con stato {stato!r}: mai «None», «nan» o «n/d»")
-        # giro pronto ma partita non coperta -> cella vuota (niente inventato)
-        df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2={})
-        self.assertEqual([""], df["Modello %"].tolist())
+        for stato, m in ((None, None), ("in_calcolo", None),
+                         ("non_disponibile", None), ("pronto", {}),
+                         ("pronto", mappa)):
+            with self.subTest(stato=stato):
+                df = _tabella_periodo(righe, stato_confronto=stato, mappa_modello_1x2=m)
+                self.assertNotIn("Modello %", df.columns)
+                self.assertEqual(list(app.COLONNE_PRONOSTICI)[:5], list(df.columns)[:5])
+
+    def test_quote_percento_numerica_anche_con_una_riga_senza_numero(self):
+        """La riga solo gol non fa diventare la colonna di testo: e' ``NaN``.
+
+        E' la richiesta della ProgressColumn: la colonna resta numerica (barra,
+        ordinamento per valore) e la cella senza numero e' un valore mancante,
+        non una stringa vuota e non una TextColumn di ripiego.
+        """
+        righe = [_riga_mercato(prob=0.66, esito="1", home="Inter", away="Roma"),
+                 _riga_solo_gol(home="Hamburger SV", away="Bayern Munich")]
+        df = _tabella_periodo(righe)
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]),
+                        "«Quote %» resta numerica anche con una riga solo gol")
+        self.assertEqual([66.0], [v for v in df["Quote %"] if not pd.isna(v)],
+                         "la riga con 1X2 tiene il suo numero, una cifra decimale")
+        self.assertEqual("Hamburger SV - Bayern Munich", df["Partita"].tolist()[-1],
+                         "la riga solo gol va in fondo (NaN in coda)")
+        self.assertTrue(pd.isna(df["Quote %"].iloc[-1]),
+                        "riga solo gol: NaN, non una stringa vuota")
+        # e nessuna cella di testo rende un non-numero scritto: in «Quote %» il
+        # NaN e' il valore mancante voluto (la ProgressColumn lo disegna come
+        # cella vuota), non una scritta.
         for colonna in df.columns:
             for cella in df[colonna]:
+                if pd.isna(cella):
+                    self.assertEqual("Quote %", colonna,
+                                     f"{colonna}: un valore mancante qui sarebbe «None»")
+                    continue
                 self.assertNotIn(str(cella).strip().lower(), ("nan", "none", "nat"),
-                                 "nessuna cella di nessuna tabella rende un non-numero")
+                                 f"{colonna}: nessuna cella rende un non-numero")
 
-    def test_modello_percento_pronto_il_numero_del_selettore(self):
-        righe = [_riga_mercato(prob=0.675, esito="1", prob_modello_val=63.0)]
-        mappa = app.prob_modello_1x2_per_partita(_terna_snapshot())
-        df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2=mappa)
-        self.assertEqual(["41,2"], df["Modello %"].tolist(),
-                         "l'esito 1 della riga legge la STESSA terna dello snapshot, "
-                         "scritta con la virgola italiana")
+    def test_config_quote_percento_e_una_progress_column(self):
+        """La colonna in vista e' una barra 0-100, non un numero o un testo."""
+        config = app._config_colonne_pronostici()
+        self.assertNotIn("Modello %", config,
+                         "«Modello %» non e' piu' una colonna di queste tabelle")
+        quote = config["Quote %"]
+        self.assertEqual("progress", quote["type_config"]["type"])
+        self.assertEqual(0, quote["type_config"]["min_value"])
+        self.assertEqual(100, quote["type_config"]["max_value"])
+        self.assertEqual(0.1, quote["type_config"]["step"])
+        self.assertEqual("localized", quote["type_config"]["format"])
+        # «Quota» resta testo gia' formattato (due decimali con la virgola).
+        self.assertEqual("text", config["Quota"]["type_config"]["type"])
 
-    def test_modello_percento_testo_con_la_virgola_italiana(self):
-        """«Modello %» e' testo formattato con UNA cifra decimale e la virgola.
+    def test_mostra_tabella_periodo_non_ripiega_su_textcolumn(self):
+        """``_mostra_tabella_periodo`` passa la config cosi' com'e'.
 
-        L'ordinamento della tabella e' quello richiesto, «Quote %» decrescente
-        (colonna numerica); le celle di «Modello %» si leggono come si leggono a
-        schermo: "85,4" e "9,5", non 85.4 e non "n/d".
+        Il vecchio ripiego (colonna non numerica -> TextColumn) e' uscito: il
+        DataFrame e' numerico per costruzione e la barra resta una barra.
         """
-        letture = [
-            {"home": "Inter", "away": "Roma", "per_esito": {
-                "1": {"prob_modello": 85.4}, "X": {"prob_modello": 9.5},
-                "2": {"prob_modello": 5.1}}},
-            {"home": "Milan", "away": "Lazio", "per_esito": {
-                "1": {"prob_modello": 9.5}, "X": {"prob_modello": 25.0},
-                "2": {"prob_modello": 65.5}}},
-        ]
-        mappa = app.prob_modello_1x2_per_partita(letture)
-        righe = [_riga_mercato(prob=0.60, esito="1", home="Inter", away="Roma"),
-                 _riga_mercato(prob=0.56, esito="1", home="Milan", away="Lazio")]
-        df = _tabella_periodo(righe, stato_confronto="pronto", mappa_modello_1x2=mappa)
-        self.assertFalse(pd.api.types.is_numeric_dtype(df["Modello %"]),
-                         "«Modello %» non e' numerica: e' testo gia' formattato")
-        self.assertEqual(["85,4", "9,5"], df["Modello %"].tolist(),
-                         "una cifra decimale, virgola italiana, nell'ordine della tabella")
-        # l'ordine predefinito resta «Quote %» decrescente, che e' numerica
+        from unittest import mock
+        righe = app.tabella_piu_probabili(
+            [{"match_id": "1", "partita": "Inter vs Roma", "home": "Inter",
+              "away": "Roma", "lega": "Serie A", "giocata": "1", "esito": "1",
+              "probabilita": 0.66, "quota_b365_stimata": 1.45,
+              "commence_time": "2026-10-17T18:45:00Z"}], 1.0)
+        finto_st = mock.MagicMock()
+        # ``column_config`` VERO: la configurazione disegnata deve essere quella
+        # di Streamlit, non un doppio che accetta qualunque attributo.
+        finto_st.column_config = app.st.column_config
+        with mock.patch.object(app, "st", finto_st):
+            app._mostra_tabella_periodo(righe, "chiave_finta")
+        config = finto_st.dataframe.call_args.kwargs["column_config"]
+        self.assertEqual("progress", config["Quote %"]["type_config"]["type"])
+        df = finto_st.dataframe.call_args.args[0]
         self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
-        self.assertEqual([60.0, 56.0], df["Quote %"].tolist())
 
     def test_quota_colonna_testo_con_due_decimali(self):
         """«Quota» e' la stima bet365 della probabilita' di mercato, non il prezzo
@@ -323,13 +368,14 @@ class TestModelloDoppiaChanceSomma(unittest.TestCase):
 
 
 class TestLePiuProbabili(unittest.TestCase):
-    """Le righe di «Le più probabili»: sigla, due percentuali, ordine decrescente.
+    """Le righe di «Le più probabili»: sigla, una percentuale, ordine decrescente.
 
     Da questa PR la tabella e' quella delle schede Pronostici e Pareggi
     (``tabella_piu_probabili`` -> ``riga_pronostico_da_giocata`` ->
-    ``tabella_pronostici_visibile``): sei colonne, «Pronostico» al posto di
-    «Giocata», «Quota» al posto di «Paga circa». I NUMERI attesi sono gli stessi
-    di prima: 71,2 e 67,5 in «Quote %», «68,7» e cella vuota in «Modello %».
+    ``tabella_pronostici_visibile``): cinque colonne (piu' «Pronostico partita»
+    quando c'e'), «Pronostico» al posto di «Giocata», «Quota» al posto di «Paga
+    circa». I NUMERI attesi sono gli stessi di prima: 71,2 e 67,5 in «Quote %»,
+    numerica; nessuna colonna «Modello %».
     """
 
     def _tabella(self, **kw):
@@ -351,6 +397,7 @@ class TestLePiuProbabili(unittest.TestCase):
         mappa = app.prob_modello_1x2_per_partita(_terna_snapshot())
         df = self._tabella(adesso=None, stato_confronto="pronto", mappa_modello_1x2=mappa)
         self.assertEqual(app.COLONNE_PRONOSTICI, list(df.columns))
+        self.assertNotIn("Modello %", df.columns)
         self.assertEqual(["1", "1X"], df["Pronostico"].tolist(),
                          "la sigla secca, anche per le doppie chance, in ordine decrescente")
         # «Partita» senza testo aggiunto, «Quota» con la virgola italiana.
@@ -359,19 +406,19 @@ class TestLePiuProbabili(unittest.TestCase):
         self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
         self.assertEqual([71.2, 67.5], df["Quote %"].tolist(),
                          "ordine «Quote %» decrescente, una cifra decimale")
-        # la doppia chance 1X di Inter-Roma somma le due probabilita' 1X2
-        # della STESSA terna snapshot: 41,2 + 27,5; Milan-Lazio non e' nel giro
-        # del modello -> cella VUOTA (stringa vuota, non un NaN: la colonna e'
-        # di testo proprio per questo)
-        self.assertEqual(["", "68,7"], df["Modello %"].tolist())
 
-    def test_modello_non_pronto_cella_vuota(self):
-        """Giro non pronto o partita non coperta: due celle vuote, non "None"."""
-        for stato in (None, "in_calcolo", "non_disponibile"):
-            df = self._tabella(stato_confronto=stato)
-            self.assertEqual([""] * 2, df["Modello %"].tolist())
-        df = self._tabella(stato_confronto="pronto", mappa_modello_1x2={})
-        self.assertEqual([""] * 2, df["Modello %"].tolist())
+    def test_quote_percento_tutte_numeriche(self):
+        """Una giocata 1X2 per riga: nessun valore mancante, colonna numerica.
+
+        Le righe solo gol (con ``NaN`` in «Quote %») le porta la tabella della
+        scheda Pronostici/Pareggi, provata sopra; qui si verifica che la stessa
+        colonna resti numerica anche in «Le più probabili».
+        """
+        df = self._tabella()
+        self.assertTrue(pd.api.types.is_numeric_dtype(df["Quote %"]))
+        self.assertFalse(df["Quote %"].isna().any(),
+                         "ogni giocata 1X2 ha la sua probabilita'")
+        self.assertEqual([71.2, 67.5], df["Quote %"].tolist())
 
     def test_una_riga_per_partita_sopra_la_quota_minima(self):
         """«Paga almeno» filtra come prima (``lg.migliori_giocate_per_partita``):

@@ -35,6 +35,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
@@ -68,35 +69,69 @@ class TestProvenienzaVerbatim(unittest.TestCase):
     def _clone_completo(self) -> bool:
         return (_git("rev-parse", "--is-shallow-repository") or "").strip() == "false"
 
+    def _oggetto_visibile(self, *args) -> bool:
+        """git vede l'oggetto/il commit chiesto?
+
+        E' la domanda che conta davvero, al posto di «il clone e'
+        superficiale?»: la stessa regola vale per tutti i controlli git di
+        questa classe.
+
+        * git lo vede: si confronta;
+        * non lo vede e il clone e' SUPERFICIALE: non c'e' niente da
+          confrontare, il test torna (l'integrita' del file e' gia' asserita
+          sopra e non dipende da git);
+        * non lo vede e il clone e' COMPLETO: il test FALLISCE. Un clone
+          completo senza quell'oggetto vuol dire che il repository non e'
+          quello che questi test descrivono, e un ``return`` silenzioso lo
+          nasconderebbe.
+        """
+        if _git(*args) is not None:
+            return True
+        if self._clone_completo():
+            self.fail("clone completo senza l'oggetto dichiarato: " + " ".join(args))
+        return False
+
     def test_git_conferma_che_e_il_file_pre_fix(self):
         """Il legacy e' VERBATIM, e questo non dipende dal clone.
 
         L'hash git del file lo ricalcola ``legacy_elo.git_blob_sha`` in Python:
         se e' uguale al blob dichiarato, il file non e' cambiato di un byte.
         Il confronto con l'oggetto nello store di git e' una seconda conferma
-        sullo stesso file: in un clone completo e' OBBLIGATORIO, in un clone
-        superficiale non puo' essere eseguito e non e' un test che si salta.
+        sullo stesso file, con la regola di ``_oggetto_visibile``: si fa
+        quando git vede il commit, e in un clone completo che non lo vede il
+        test fallisce invece di passare in silenzio.
         """
         with open(LEGACY_PATH, encoding="utf-8") as f:
             contenuto = f.read()
         self.assertEqual(L.git_blob_sha(LEGACY_PATH), L.LEGACY_ELO_BLOB_SHA)
         self.assertTrue(L.legacy_engine_is_verbatim())
-        if self._clone_completo():
+        if self._oggetto_visibile("rev-parse",
+                                  f"{L.LEGACY_ELO_SOURCE_COMMIT}:{L.LEGACY_ELO_SOURCE_PATH}"):
             atteso = _git("rev-parse",
                           f"{L.LEGACY_ELO_SOURCE_COMMIT}:{L.LEGACY_ELO_SOURCE_PATH}")
-            self.assertIsNotNone(atteso, "clone completo senza l'oggetto dichiarato")
             self.assertEqual(atteso.strip(), L.LEGACY_ELO_BLOB_SHA)
             self.assertEqual(_git("cat-file", "-p", L.LEGACY_ELO_BLOB_SHA), contenuto)
 
     def test_git_conferma_il_commit_che_lo_ha_sostituito(self):
-        """Quando il clone e' completo, anche la cronologia e' obbligatoria."""
+        """Il commit che ha sostituito il legacy e' quello dichiarato.
+
+        La regola, nei due versi (``_oggetto_visibile``):
+
+        * git non vede il commit e il clone e' SUPERFICIALE: non c'e' niente da
+          confrontare, il test torna;
+        * git non vede il commit e il clone e' COMPLETO: il test FALLISCE. Un
+          clone completo senza quel commit vuol dire che il repository non e'
+          quello che i test descrivono; un ``return`` secco lo nasconderebbe
+          (era il difetto di prima: bastava un clone superficiale perche' il
+          controllo sparisse anche quando la cronologia c'era).
+        """
         log = _git("log", "--format=%H %cI", "-1", L.LEGACY_ELO_REPLACED_BY_COMMIT)
-        if not self._clone_completo():
-            # Senza cronologia non c'e' nulla da confrontare: l'integrita' del
-            # file e' gia' asserita sopra e non dipende da git.
-            self.assertIsNone(log)
+        if log is None:
+            self.assertFalse(
+                self._clone_completo(),
+                f"clone completo senza il commit {L.LEGACY_ELO_REPLACED_BY_COMMIT}: "
+                "il repository non e' quello che i test descrivono")
             return
-        self.assertIsNotNone(log, "clone completo senza il commit dichiarato")
         sha, quando = log.split()
         self.assertEqual(sha, L.LEGACY_ELO_REPLACED_BY_COMMIT)
         self.assertTrue(quando.startswith("2026-09-18T21:39:23"), quando)
@@ -890,3 +925,43 @@ class TestDifferenzaAttesa(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestRegolaSuiCommitGit(unittest.TestCase):
+    """La regola dei due controlli git, provata senza dipendere dal clone.
+
+    Il difetto da non ripetere: un ``return`` quando git non vede il commit
+    faceva passare il test in silenzio ANCHE con il clone completo. Qui si
+    simula ``git`` (``_git`` sostituito) e si guarda il verdetto vero:
+
+    * clone SUPERFICIALE e commit assente -> il test non solleva (non c'e'
+      niente da confrontare, e lo dichiara);
+    * clone COMPLETO e commit assente -> il test FALLISCE.
+    """
+
+    NOMI = ("test_git_conferma_che_e_il_file_pre_fix",
+            "test_git_conferma_il_commit_che_lo_ha_sostituito")
+
+    def _chiama(self, nome, superficiale: bool):
+        caso = TestProvenienzaVerbatim(nome)
+
+        def finto(*args):
+            if args[:2] == ("rev-parse", "--is-shallow-repository"):
+                return "true\n" if superficiale else "false\n"
+            return None                      # git non vede l'oggetto chiesto
+
+        modulo = sys.modules[__name__]
+        with mock.patch.object(modulo, "_git", side_effect=finto):
+            getattr(caso, nome)()
+
+    def test_clone_superficiale_senza_commit_non_fallisce(self):
+        for nome in self.NOMI:
+            with self.subTest(test=nome):
+                self._chiama(nome, superficiale=True)   # nessuna eccezione
+
+    def test_clone_completo_senza_commit_fallisce(self):
+        for nome in self.NOMI:
+            with self.subTest(test=nome):
+                with self.assertRaises(AssertionError) as errore:
+                    self._chiama(nome, superficiale=False)
+                self.assertIn("clone completo senza", str(errore.exception))

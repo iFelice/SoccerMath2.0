@@ -7,6 +7,8 @@ senza scelta 1X2. Nessuna chiamata reale o scrittura al registro di produzione.
 import copy
 import json
 import sys
+
+import pandas as pd
 from datetime import timedelta
 from pathlib import Path
 
@@ -14,6 +16,7 @@ sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve
 from test_apptest_scheda_pronostici import (
     FixtureQuoteFinte, _BaseQuoteFinte, ETICHETTA_CALCOLA, SCHEDA_PRONOSTICI, SCHEDA_REGISTRO,
 )
+from test_apptest_topmix_presentazione import _riquadro_della_tab
 from audit.totals_snapshot_fixture import payload_snapshot
 import market_odds as M
 import totals_mercato as T
@@ -51,9 +54,12 @@ class TestAppTotals(_BaseQuoteFinte):
         self.assertEqual(4, sum(bool(v) for v in df['Gol']))
         solo = df[df['Partita'].str.startswith('Hamburger SV')].iloc[0]
         self.assertEqual('—', solo['Pronostico'])
-        self.assertEqual('n/d', solo['Modello %'])
+        self.assertNotIn('Modello %', df.columns,
+                         'la tabella del periodo non ha piu la colonna Modello %')
         self.assertEqual('', solo['Insieme %'])
-        self.assertEqual('', solo['Quote %'])
+        # Righe solo gol: «Quote %» e' un valore MANCANTE (NaN), non una
+        # stringa vuota — la ProgressColumn disegna la cella vuota.
+        self.assertTrue(pd.isna(solo['Quote %']))
         self.assertEqual('', solo['Quota'])
         self.assertTrue(solo['Gol'].startswith('Over 2,5'))
         ou = [r for r in self.registro.vivo if r.get('selector_version') == T.TOTALS_VERSION]
@@ -118,13 +124,29 @@ class TestAppTotals(_BaseQuoteFinte):
         df, ordered = A.tabella_pronostici_visibile(normalized)
         self.assertEqual([one['home'], 'Solo OU alto', 'Solo OU basso'],
                          [r['Partita'].split(' - ')[0] for r in ordered])
-        self.assertEqual(['', ''], df['Quote %'].tolist()[1:])
+        # Le due righe solo gol non hanno una probabilita' 1X2: «Quote %» e'
+        # NaN, e la colonna resta NUMERICA (ProgressColumn, ordinamento per
+        # valore) invece di convertirsi a testo.
+        self.assertTrue(pd.api.types.is_numeric_dtype(df['Quote %']))
+        self.assertTrue(df['Quote %'].iloc[1:].isna().all())
         self.assertEqual(['', ''], df['Quota'].tolist()[1:])
         self.assertEqual(['—', '—'], df['Pronostico'].tolist()[1:])
-        self.assertEqual(['n/d', 'n/d'], df['Modello %'].tolist()[1:])
-        self.assertTrue(all(isinstance(v, str) for v in df['Quote %'].tolist()[1:]))
+        self.assertNotIn('Modello %', df.columns)
 
     def test_05_righe_1x2_identiche_alla_presentazione_b837823(self):
+        """La riga 1X2 e' quella di ``b837823``, con due differenze dichiarate.
+
+        Il confronto e' con la funzione del commit ``b837823`` (la
+        presentazione da cui la tabella e' nata): stessi valori, chiave per
+        chiave. Le differenze volute sono due, e il test le scrive invece di
+        saltarle, cosi' una terza — o il ritorno di una di queste — lo fa
+        fallire:
+
+        * «Modello %» non c'e' piu': il modello sta nella scheda partita e nei
+          Dettagli, non nelle tabelle in vista;
+        * ci sono due chiavi di servizio, ``solo_ou`` e ``_prob_ou``: non sono
+          colonne, le legge l'ordinamento delle righe che hanno solo i gol.
+        """
         import ast
         import subprocess
         import app as A
@@ -141,12 +163,24 @@ class TestAppTotals(_BaseQuoteFinte):
         ns = dict(A.__dict__)
         exec(compile(ast.Module(body=[node], type_ignores=[]), '<base>', 'exec'), ns)
         rows, _ = A.righe_pronostici_dalle_quote(self.payload, self.ADESSO)
+        tolte = {"Modello %"}                       # la colonna uscita da qui
+        aggiunte = {"solo_ou", "_prob_ou"}           # chiavi di servizio
+        viste = 0
         for row in rows:
             if row.get('solo_ou'):
                 continue
             before = ns[node.name](row, self.ADESSO)
             after = A.riga_pronostico_da_mercato(row, self.ADESSO)
-            self.assertEqual(before, {k: after[k] for k in before})
+            viste += 1
+            with self.subTest(partita=after["Partita"]):
+                self.assertEqual((set(before) - set(after), set(after) - set(before)),
+                                 (tolte, aggiunte),
+                                 "le sole differenze sono «Modello %» (via) e "
+                                 "le due chiavi di servizio (dentro)")
+                comuni = [k for k in before if k not in tolte]
+                self.assertEqual({k: before[k] for k in comuni},
+                                 {k: after[k] for k in comuni})
+        self.assertGreater(viste, 0, "nessuna riga 1X2 da confrontare")
 
     def test_06_frasi_topmix_e_ou_filtrate_per_origine(self):
         import app as A
@@ -266,9 +300,13 @@ class TestAppTotals(_BaseQuoteFinte):
         from test_totals_correzioni import campione
         from test_apptest_topmix_presentazione import _testi_della_tab
         _, base_ou = campione()
-        # Senza voci concluse nello snapshot iniziale:
-        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
-        self.assertIn('Gol: nessuna giocata conclusa finora.', ' \n'.join(fuori))
+        # Senza voci concluse nello snapshot iniziale il riquadro del gol dice
+        # «n/d» e non ha delta: nessuno 0% inventato.
+        gol = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, 'Registro gol')
+        self.assertEqual('n/d', gol.value)
+        self.assertFalse(gol.delta)
+        # La frase in parole resta la forma di controllo dei riquadri: qui non
+        # si disegna piu' in scheda, ma deve dire gli stessi numeri.
         self.assertEqual('Gol: nessuna giocata conclusa finora.', A.sintesi_gol_mercato([]))
         # Registro di prova con 10 voci O/U: 8 riuscite e 2 fallite.
         dieci_voci = [
@@ -297,8 +335,16 @@ class TestAppTotals(_BaseQuoteFinte):
             self.at.run(timeout=900)
             self.eccezioni(self.at, 'riepilogo 10 voci O/U')
             fuori_dopo, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
-            self.assertIn('Gol: finora 10 giocate concluse, 8 riuscite (80%). Quote: 72%.',
-                          ' \n'.join(fuori_dopo))
+            # Il riquadro del gol legge le stesse righe della tabella: 8 su 10
+            # sono l'80%; le attese (probabilita' della prima registrazione,
+            # 0,72 su tutte e dieci) sono il 72%, quindi lo scarto e' +8 punti.
+            gol_dopo = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, 'Registro gol')
+            self.assertEqual('80%', gol_dopo.value)
+            self.assertEqual('+8 punti sulle attese', gol_dopo.delta)
+            self.assertIn('8 riuscite su 10 concluse', gol_dopo.help)
+            # La frase non si disegna piu' in scheda (gli stessi numeri stanno
+            # nel riquadro) e non deve comparire nemmeno nel testo reso.
+            self.assertNotIn('Gol: finora', ' \n'.join(fuori_dopo))
             df_gol = self._df(self.at, SCHEDA_REGISTRO, 0)
             self.assertEqual(10, len(df_gol))
         finally:

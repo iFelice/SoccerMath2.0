@@ -1,16 +1,31 @@
 [theme]
 base = "light"
-primaryColor = "#0056b3"
+primaryColor = "#1d4ed8"
 backgroundColor = "#f0f2f5"
 secondaryBackgroundColor = "#ffffff"
 textColor = "#1a1d23"
+borderColor = "#dde1e8"
+dataframeBorderColor = "#dde1e8"
+dataframeHeaderBackgroundColor = "#f6f7f9"
+dataframeHeaderTextColor = "#5b6270"
+blueColor = "#2563eb"
+orangeColor = "#c96512"
+grayColor = "#7b8494"
+baseRadius = "10px"
 font = "sans serif"
 
 # Variante scura (Streamlit >= 1.50): senza questa tabella l'app resterebbe
 # sempre chiara e il toggle "Segui tema sistema" non avrebbe effetto.
 # Le opzioni non definite qui ereditano dai valori [theme] sopra.
 [theme.dark]
-primaryColor = "#66a3ff"
+primaryColor = "#4d8fdb"
 backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#fafafa"
+secondaryBackgroundColor = "#171a22"
+textColor = "#f2f3f5"
+borderColor = "#2a2f3a"
+dataframeBorderColor = "#2a2f3a"
+dataframeHeaderBackgroundColor = "#1d212b"
+dataframeHeaderTextColor = "#a7adba"
+blueColor = "#4d8fdb"
+orangeColor = "#e8913a"
+grayColor = "#8a93a6"

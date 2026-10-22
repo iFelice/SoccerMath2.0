@@ -11,8 +11,10 @@ pulsante «🔄 Controlla i risultati» in cima al Registro).
   resta con le celle vuote (stringa vuota, mai None/NaN);
 * (c) una risposta 429 simulata: messaggio leggibile e NESSUNA tabella, mai le
   partite di un'altra lega;
-* (d) la scheda aperta dal clic su una partita di Bundesliga, con la barra
-  laterale su Serie A, mostra la classifica e gli obiettivi della Bundesliga;
+* (d) la scheda aperta dal selettore «Apri la scheda» (la tabella della
+  giornata e' HTML: la riga non si clicca piu') su una partita di Bundesliga,
+  con la barra laterale su Serie A, mostra la classifica e gli obiettivi della
+  Bundesliga;
 * il pulsante «🔄 Controlla i risultati» e' il PRIMO elemento interattivo della
   scheda Registro e, dopo il clic, la tabella mostra l'esito nuovo nello stesso
   run;
@@ -47,7 +49,6 @@ from test_apptest_scheda_pronostici import (  # noqa: E402
 from test_apptest_topmix_presentazione import (  # noqa: E402
     SCHEDA_PARTITE,
     SCHEDA_REGISTRO,
-    _elementi_della_tab,
     _radice_tab,
     _testi_della_tab,
 )
@@ -201,17 +202,20 @@ class TestCalendarioDellaScheda(_BaseQuoteFinte):
 
     @classmethod
     def _tabella_partite(cls):
-        import app as app_mod
-        chiave = app_mod.chiave_tabella_corrente(app_mod.CHIAVE_TABELLA_PARTITE,
-                                                 cls.at.session_state)
-        tabelle = [e for e in _elementi_della_tab(cls.at, SCHEDA_PARTITE, "dataframe")
-                   if str(getattr(e, "key", "") or "") == chiave]
-        if len(tabelle) != 1:
-            raise AssertionError(f"una sola tabella Partite, trovate {len(tabelle)}")
-        return _df_di(tabelle[0])
+        """La tabella della giornata, letta dall'HTML (non e' piu' un dataframe).
+
+        La scheda Partite disegna la giornata con
+        ``scheda_grafica.html_tabella_partite``: ``tabella_giornata`` rilegge
+        quel blocco come DataFrame con le sette colonne, e i controlli sulle
+        celle restano gli stessi di prima (celle vuote = stringa vuota).
+        """
+        from test_html_tabella_partite import tabella_giornata
+        df = tabella_giornata(cls.at, SCHEDA_PARTITE)
+        if df.empty:
+            raise AssertionError("una sola tabella Partite, trovata nessuna")
+        return df
 
     def test_01_ogni_lega_ha_il_suo_calendario(self):
-        import app as app_mod
         import pandas as pd
         # Evidenza per il referto: se PARTITE_OUT e' impostata, il test scrive
         # le prime cinque righe della tabella di ogni lega, come le ha lette da
@@ -259,24 +263,21 @@ class TestCalendarioDellaScheda(_BaseQuoteFinte):
             del self.ERRORI_CALENDARIO["PL"]
         errori = " \n".join(str(e.value) for e in self.at.error)
         self.assertIn("429", errori)
-        chiave = app_mod.chiave_tabella_corrente(app_mod.CHIAVE_TABELLA_PARTITE,
-                                                 self.at.session_state)
-        tabelle = [e for e in _elementi_della_tab(self.at, SCHEDA_PARTITE, "dataframe")
-                   if str(getattr(e, "key", "") or "") == chiave]
-        self.assertEqual([], tabelle, "con il 429 la scheda non disegna tabelle")
         fuori, dentro = _testi_della_tab(self.at, SCHEDA_PARTITE)
+        self.assertNotIn('class="sg-tabella"', " \n".join(fuori + dentro),
+                         "con il 429 la scheda non disegna la tabella")
         testo = " \n".join(fuori + dentro)
         self.assertNotIn(_titolo("Genoa", "Fiorentina"), testo)
         self.assertNotIn(_titolo("Arsenal", "Chelsea"), testo)
         # (d) Bundesliga aperta con la barra su Serie A: classifica tedesca.
+        # La scheda si apre dal selettore «Apri la scheda» + «Apri» (la riga
+        # della tabella non si clicca piu': la tabella e' HTML).
         self._scegli_lega("Bundesliga")
         df = self._tabella_partite()
-        indice = [i for i in range(len(df))
-                  if str(df.iloc[i]["Partita"]) == _titolo("Bayern Munich", "Dortmund")][0]
-        self.at.session_state[app_mod.chiave_tabella_corrente(
-            app_mod.CHIAVE_TABELLA_PARTITE, self.at.session_state)] = {
-                "selection": {"rows": [indice], "columns": [], "cells": []}}
-        self.at.run(timeout=900)
+        attesa = _titolo("Bayern Munich", "Dortmund")
+        self.assertIn(attesa, [str(p) for p in df["Partita"].tolist()])
+        from test_html_tabella_partite import apri_scheda
+        apri_scheda(self.at, attesa)
         self.eccezioni(self.at, "scheda Bundesliga con la barra su Serie A")
         titolo = "### " + _titolo("Bayern Munich", "Dortmund")
         valori = [str(m.value) for m in self.at.markdown]
@@ -375,7 +376,10 @@ class TestTabelleERegistro(_BaseQuoteFinte):
         self._premi_click(self.at, ETICHETTA_CALCOLA)
         self._controlla_tabelle("dopo il calcolo dei pronostici")
         # Righe solo O/U, anche senza la probabilita' congiunta: nessuna cella
-        # puo' diventare NaN/None.
+        # puo' diventare NaN/None, tranne la «Quote %» di queste righe. Li' il
+        # valore mancante e' voluto: la colonna resta numerica (ProgressColumn)
+        # e la cella e' vuota a schermo — mai la scritta «None»/«nan».
+        import pandas as pd
         from audit.totals_snapshot_fixture import payload_snapshot
         snapshot = payload_snapshot()
         righe_ou, _ = app_mod.righe_pronostici_dalle_quote(snapshot, self.ADESSO)
@@ -384,11 +388,20 @@ class TestTabelleERegistro(_BaseQuoteFinte):
         for r in normalizzate:
             r.pop("totals", None)          # O/U senza congiunta
         df_ou, _ = app_mod.tabella_pronostici_visibile([
-            dict(r, solo_ou=True, Quote="") for r in normalizzate])
+            dict(r, solo_ou=True) for r in normalizzate])
         self.assertTrue(any(df_ou["Pronostico"] == "—"))
+        self.assertTrue(pd.api.types.is_numeric_dtype(df_ou["Quote %"]),
+                        "«Quote %» resta numerica anche con le righe solo gol")
+        self.assertEqual("—", df_ou["Pronostico"].iloc[-1])
+        self.assertTrue(pd.isna(df_ou["Quote %"].iloc[-1]),
+                        "riga solo gol: «Quote %» mancante (NaN), non stringa vuota")
         for colonna in df_ou.columns:
             for cella in df_ou[colonna].tolist():
-                self.assertFalse(__import__("pandas").isna(cella),
+                if pd.isna(cella):
+                    self.assertEqual("Quote %", colonna,
+                                     f"O/U senza congiunta: valore mancante in {colonna!r}")
+                    continue
+                self.assertFalse(pd.isna(cella),
                                  f"O/U senza congiunta: {colonna}={cella!r}")
 
     def test_02_pulsante_controlla_i_risultati_in_cima(self):

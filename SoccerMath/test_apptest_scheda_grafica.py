@@ -68,21 +68,23 @@ class TestSchedaGraficaAppTest(_BaseScheda):
             f"{[v[:40] for v in valori if v.startswith('###')]}")
 
     def _apri_bologna_inter(self, tema_forzato=None):
-        """Seleziona la riga Bologna-Inter e (ri)apre il riquadro.
+        """Sceglie Bologna-Inter nel selettore, preme «Apri» e legge il riquadro.
 
-        Con ``tema_forzato`` la proprieta' ``theme`` del context di
+        Il clic sulla riga non c'e' piu' (la tabella della giornata e' HTML,
+        non un widget): la scheda si apre dal selettore «Apri la scheda» e dal
+        pulsante «Apri» accanto, che chiamano la stessa ``apri_scheda_partita``
+        di prima. Con ``tema_forzato`` la proprieta' ``theme`` del context di
         Streamlit viene forzata per la durata del ridisegno che apre il
         riquadro: e' il modo di far leggere ad ``app`` un
         ``st.context.theme.type`` "light" sotto AppTest, dove il context
         del browser non esiste.
         """
-        import app as app_mod
+        from test_html_tabella_partite import pulsante_apri, selettore_scheda
+        from test_apptest_scheda_partita import _titolo_atteso
         self._carica_giornata(self.at, RENDER_VERTICE[0])
-        indice = self._indice_riga(self.at, *RENDER_VERTICE[1:])
-        chiave = app_mod.chiave_tabella_corrente(
-            app_mod.CHIAVE_TABELLA_PARTITE, self.at.session_state)
-        self.at.session_state[chiave] = {
-            "selection": {"rows": [int(indice)], "columns": [], "cells": []}}
+        selettore_scheda(self.at).set_value(
+            _titolo_atteso(*RENDER_VERTICE[1:]))
+        pulsante_apri(self.at).click()
         if tema_forzato is None:
             self.at.run(timeout=900)
         else:
@@ -94,7 +96,6 @@ class TestSchedaGraficaAppTest(_BaseScheda):
                     return_value=StreamlitTheme({"type": tema_forzato})):
                 self.at.run(timeout=900)
         self.eccezioni(self.at, f"apertura scheda (tema {tema_forzato})")
-        from test_apptest_scheda_partita import _titolo_atteso
         return self._testo_scheda(_titolo_atteso(*RENDER_VERTICE[1:]))
 
     def _controlla_cinque_sezioni(self, testo: str, palette: str,

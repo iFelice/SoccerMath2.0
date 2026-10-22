@@ -20,13 +20,14 @@ Cosa verifica, in parole povere:
   preme «📝 Registra le giocate della giornata»;
 * quel pulsante scrive, e un secondo clic sullo stesso turno di quote non
   aggiunge righe doppie;
-* se il confronto col modello non riesce, la caption lo dice una volta
-  («Modello %: non disponibile»), le celle restano vuote e i riquadri delle
+* se il confronto col modello non riesce non si perde niente in vista: le
+  tabelle del periodo non hanno piu' «Modello %» (sta nella scheda partita e nei
+  Dettagli), quindi non c'e' nessuna cella da riempire e i riquadri delle
   proposte restano dove sono;
-* la scheda «📒 Com'è andata» apre con il riepilogo in parole, i cui numeri
-  tornano con quelli contati a mano sulle stesse righe, e il controllo dei
-  risultati parte DA SOLO una volta per sessione (e non parte se nessuna
-  partita e' finita da almeno tre ore).
+* la scheda «📒 Com'è andata» apre con i due riquadri del bilancio (percentuale
+  di riuscite e scarto sulle attese), i cui numeri tornano con quelli contati a
+  mano sulle stesse righe, e il controllo dei risultati parte DA SOLO una volta
+  per sessione (e non parte se nessuna partita e' finita da almeno tre ore).
 
 Due sole istanze di AppTest (una in sola lettura, una per le scritture): ogni
 esecuzione dell'app costa decine di secondi.
@@ -61,7 +62,13 @@ from test_apptest_topmix_presentazione import (  # noqa: E402
     SCHEDA_PRONOSTICI,
     SCHEDA_REGISTRO,
     SCHEDA_STRUMENTI,
+    DELTA_ROSSO,
+    DELTA_SPENTO,
+    _colore_delta,
+    _con_bordo,
     _elementi_della_tab,
+    _riquadri_della_tab,
+    _riquadro_della_tab,
     _testo_blocco,
     _testi_della_tab,
 )
@@ -122,9 +129,10 @@ class _BaseAppTest(unittest.TestCase):
         (cls.tmp / "live_odds.json").write_text(json.dumps(cls.snap), encoding="utf-8")
 
         # --- Registro visibile: righe di mercato con esiti noti -------------
-        # Due concluse (1 ✅ / 1 ❌) e una ancora da giocare. I numeri del
-        # riepilogo in parole vengono ricontati A MANO nel test, non riletti
-        # dalla funzione che li produce.
+        # Due concluse (1 ✅ / 1 ❌) e una ancora da giocare, tutte della
+        # stagione in corso, piu' una conclusa in un'altra stagione (aggiunta
+        # sotto). I numeri dei riquadri del bilancio vengono ricontati A MANO
+        # nel test, non riletti dalla funzione che li produce.
         cls.adesso_reale = datetime.now(timezone.utc)
         cls.prima_prob = {7101: 0.625, 7102: 0.58, 7103: 0.60}
         cls.esiti_seed = {7101: "✅", 7102: "❌", 7103: "⏳"}
@@ -158,6 +166,37 @@ class _BaseAppTest(unittest.TestCase):
                 pr.ACCORDO_MODELLO_PRIMA_FIELD: True,
                 pr.QUOTE_LIVE_ISTANTE_PRIMA_FIELD: "2026-10-16T10:00:00Z",
             })
+        # Una giocata CONCLUSASI in un'ALTRA stagione (data dell'autunno 2025):
+        # serve alla regola unica dei riquadri — in Pronostici e in Registro si
+        # contano solo le giocate della stagione in corso, la stessa che il
+        # filtro «Stagione» della scheda Registro sceglie da solo. Senza quella
+        # riga i due numeri sarebbero uguali per caso.
+        cls.riga_stagione_passata = {
+            "match_id": 7104, "home": "CasaVecchia", "away": "OspiteVecchio",
+            "campionato": "Serie A", "giornata": 8,
+            "data": "15/10/2025 20:45",
+            "pronostico_sicuro": "1 - Top Mix", "mercato_standard": "1",
+            "top3": [], "prob_sicuro": 50.0, "risultati_attesi": "",
+            "risultato_reale": "0-2", "esito": "❌", "tipo": "Top Mix",
+            "stagione": "2025/2026", "salvato_il": "15/10/2025 09:30",
+            "origin": pr.ORIGIN_TOP_MIX,
+            "selector_version": pr.SELECTOR_VERSION_MERCATO_V3,
+            "model_variant": pr.MODEL_VARIANT_CURRENT,
+            "model_version": pr.MODEL_VERSION_CURRENT,
+            "rank": 4, "kickoff_utc": "2025-10-15T18:45:00Z",
+            "calculation_id": "fixture7104",
+            pr.PROB_MERCATO_FIELD: 0.50,
+            pr.QUOTA_MERCATO_FIELD: round(1.06 / 0.50, 4),
+            pr.MERCATO_FONTE_FIELD: "pinnacle", pr.MERCATO_N_LIBRI_FIELD: 1,
+            pr.ACCORDO_MODELLO_FIELD: True, pr.PROB_MODELLO_FIELD: 63.0,
+            pr.QUOTE_LIVE_ISTANTE_FIELD: "2025-10-15T10:00:00Z",
+            pr.PROB_MERCATO_PRIMA_FIELD: 0.50,
+            pr.QUOTA_MERCATO_PRIMA_FIELD: round(1.06 / 0.50, 4),
+            pr.PROB_MODELLO_PRIMA_FIELD: 63.0,
+            pr.ACCORDO_MODELLO_PRIMA_FIELD: True,
+            pr.QUOTE_LIVE_ISTANTE_PRIMA_FIELD: "2025-10-15T10:00:00Z",
+        }
+        righe.append(cls.riga_stagione_passata)
         (cls.tmp / "predictions.json").write_text(
             json.dumps({"data": righe}), encoding="utf-8")
         cls.seed_mercato = righe
@@ -352,9 +391,10 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertTrue(dentro, "i Dettagli devono contenere qualcosa")
 
     def test_03b_pronostici_prima_del_clic_e_un_pulsante_solo(self):
-        """Punto 2: la scheda si apre sul pulsante, sulla riga dell'ultima
-        registrazione e sull'invito. Nessun numero, nessuna tabella, niente che
-        aspetti il giro del modello."""
+        """Punto 2: la scheda si apre sul pulsante, sulle due righe dell'ultima
+        registrazione e sull'invito, con i SOLI due riquadri del Registro
+        (percentuale di riuscite e scarto sulle attese). Nessun conteggio dei
+        Pronostici, nessuna tabella, niente che aspetti il giro del modello."""
         import app as app_mod
         fuori, dentro = _testi_della_tab(self.at, SCHEDA_PRONOSTICI)
         testo = " \n".join(fuori)
@@ -368,6 +408,10 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertEqual([], _elementi_della_tab(self.at, SCHEDA_PRONOSTICI, "dataframe"),
                          "prima del click non c'e' nessuna tabella")
         self.assertEqual([], dentro, "e nessun riquadro chiuso")
+        # I riquadri in vista sono due, quelli del Registro: senza la tabella
+        # non c'e' nessun conteggio dei Pronostici da mostrare.
+        riquadri = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        self.assertEqual(["Registro 1X2", "Registro gol"], list(riquadri))
         for parola in ("Quote %", "Modello %", "Le scelte più sicure"):
             with self.subTest(parola=parola):
                 self.assertNotIn(parola, testo)
@@ -399,14 +443,15 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertEqual([], [e for e in _elementi_della_tab(
             self.at, SCHEDA_PAREGGI, "button") if "Calcola" in (e.label or "")])
 
-    def test_04_colonna_modello_percento_presente(self):
-        """La vista mostra «Modello %» (probabilità del modello per lo stesso
-        esito); il segnale «d'accordo» esce da TUTTA la parte in vista —
-        colonna e conteggi nella caption — e resta solo nei Dettagli (campo
-        nei dati, tabella tecnica)."""
+    def test_04_la_vista_non_ha_piu_la_colonna_modello(self):
+        """«Modello %» esce dalle tabelle in vista: resta nella scheda partita e
+        nei Dettagli tecnici. Il segnale «d'accordo» resta fuori da TUTTA la
+        parte in vista — colonna e conteggi nella caption — e vive solo nei
+        Dettagli (campo nei dati, tabella tecnica)."""
         fuori, dentro = _testi_della_tab(self.at, SCHEDA_MULTIPLE)
         testo = " \n".join(fuori)
-        self.assertIn("Modello %", testo)
+        self.assertNotIn("Modello %", testo,
+                         "la tabella in vista ha cinque colonne: niente «Modello %»")
         self.assertIn("Quote %", testo)
         self.assertNotIn("d'accordo", testo.lower(),
                          "«d'accordo» (colonna o conteggio) non sta piu' in vista")
@@ -414,17 +459,96 @@ class TestSchedeLettura(_BaseAppTest):
         # click: la legge test_apptest_scheda_pronostici.
         self.assertNotIn("partite in tabella", testo)
 
-    def test_05_andata_riepilogo_torna_con_i_conti_fatti_a_mano(self):
-        """I numeri della frase in testa sono quelli delle righe del fixture."""
-        concluse = [m for m, e in self.esiti_seed.items() if e in ("✅", "❌")]
+    def _concluse_della_stagione(self):
+        """Le giocate concluse della stagione predefinita (e la stagione).
+
+        La stagione si ricava dalla DATA, come fa la scheda Registro: le tre
+        righe del fixture hanno la data dell'autunno 2026, quella aggiunta a
+        parte l'autunno 2025, quindi la stagione in corso e' la piu' recente.
+        """
+        import app as app_mod
+        stagione = app_mod.stagione_predefinita_registro(self.seed_mercato)
+        ids = [r["match_id"] for r in self.seed_mercato
+               if app_mod.stagione_di_registro(r) == stagione]
+        concluse = [m for m in ids if self.esiti_seed.get(m) in ("✅", "❌")]
+        return concluse, stagione
+
+    def test_05_andata_riquadri_coi_conti_fatti_a_mano(self):
+        """I numeri dei riquadri in testa sono quelli delle righe del fixture.
+
+        Due giocate concluse (1 ✅, 1 ❌) della stagione in corso: 50% di
+        riuscite; le quote della PRIMA registrazione sulle stesse righe davano
+        (62,5 + 58,0)/2 = 60,25 -> 60%, quindi lo scarto e' 50 - 60 = -10
+        punti. La giocata della stagione passata (❌, 50%) resta FUORI: se
+        entrasse, la percentuale sarebbe 33%. I numeri si contano a mano qui,
+        non si rileggono dalla funzione che li produce.
+        """
+        import app as app_mod
+        concluse, stagione = self._concluse_della_stagione()
+        self.assertEqual(2, len(concluse), "le concluse della stagione in corso")
         n = len(concluse)
         m = sum(1 for x in concluse if self.esiti_seed[x] == "✅")
         x_cento = int(round(100.0 * m / n))
         y_cento = int(round(100.0 * sum(self.prima_prob[x] for x in concluse) / n))
-        attesa = (f"Finora {n} giocate concluse, {m} riuscite ({x_cento}%). "
-                  f"Quote: {y_cento}%. Modello: 63%.")
+        riquadro = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, "Registro 1X2")
+        self.assertEqual(f"{x_cento}%", riquadro.value)
+        self.assertEqual(f"{x_cento - y_cento:+d} punti sulle attese", riquadro.delta,
+                         "lo scarto porta il segno: sotto le attese e' negativo")
+        self.assertIn(f"{m} riuscite su {n} concluse", riquadro.help)
+        self.assertIn("media delle probabilità di mercato della prima registrazione",
+                      riquadro.help)
+        self.assertTrue(_con_bordo(riquadro), "i riquadri sono disegnati col bordo")
+        self.assertEqual(DELTA_ROSSO, _colore_delta(riquadro),
+                         "sotto le attese il delta e' rosso (delta_color normal)")
+        # Il gol non ha nessuna giocata conclusa nel fixture: «n/d» e nessun
+        # delta, non uno 0% inventato.
+        gol = _riquadro_della_tab(self.at, SCHEDA_REGISTRO, "Registro gol")
+        self.assertEqual("n/d", gol.value)
+        self.assertFalse(gol.delta)
+        self.assertEqual(DELTA_SPENTO, _colore_delta(gol), "senza delta niente colore")
+        self.assertIn(f"Stagione {app_mod.etichetta_stagione(stagione)}", riquadro.help,
+                      "l'aiuto dice a quale stagione si riferiscono i numeri")
+        # La stagione passata non entra: se entrasse, la percentuale sarebbe
+        # 33% (1 ✅ su 3 concluse) e lo scarto -25 punti.
+        self.assertNotEqual("33%", riquadro.value)
+        # La frase di prima non c'e' piu': gli stessi numeri, due volte nella
+        # stessa scheda, erano il difetto da togliere.
         fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
-        self.assertIn(attesa, " \n".join(fuori))
+        testo = " \n".join(fuori)
+        self.assertNotIn("giocate concluse", testo)
+        self.assertNotIn("Gol: finora", testo)
+        # La media del modello: non sta piu' nella frase (i riquadri non la
+        # mostrano, il delta e' lo scarto sulle attese del mercato) ma nei
+        # Dettagli, su una riga a se', con lo stesso testo di prima.
+        _, dentro = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+        self.assertIn("Modello: 63%.", " \n".join(dentro))
+        self.assertNotIn("Modello: 63%", testo, "e non in vista")
+
+    def test_05b_scheda_pronostici_e_scheda_registro_stessa_stagione(self):
+        """Regola unica: i due riquadri del Registro danno gli STESSI numeri
+        nelle due schede, con i filtri predefiniti (stagione in corso).
+
+        In Pronostici i riquadri leggono il Registro intero filtrato solo per
+        stagione; in Registro leggono le righe dopo i filtri, che partono con
+        «Stagione» sulla stagione in corso. Con righe di due stagioni i valori
+        devono coincidere: se una delle due schede contasse tutta la storia,
+        qui si vedrebbero 33% contro 50%.
+        """
+        import app as app_mod
+        registro = _riquadri_della_tab(self.at, SCHEDA_REGISTRO)
+        pronostici = _riquadri_della_tab(self.at, SCHEDA_PRONOSTICI)
+        _, stagione = self._concluse_della_stagione()
+        etichetta = app_mod.etichetta_stagione(stagione)
+        for nome in ("Registro 1X2", "Registro gol"):
+            with self.subTest(riquadro=nome):
+                self.assertIn(nome, pronostici)
+                self.assertEqual(registro[nome].value, pronostici[nome].value,
+                                 "stessa etichetta, stesso numero nelle due schede")
+                self.assertEqual(registro[nome].delta, pronostici[nome].delta)
+                self.assertEqual(registro[nome].help, pronostici[nome].help)
+                self.assertIn(f"Stagione {etichetta}", pronostici[nome].help)
+        self.assertEqual("50%", pronostici["Registro 1X2"].value)
+        self.assertEqual("-10 punti sulle attese", pronostici["Registro 1X2"].delta)
 
     def test_06_andata_proposte_settimanali(self):
         """K e J lette dal registro ombra: 2 proposte, 1 riuscita."""
@@ -485,7 +609,17 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertNotIn("SINCRONIZZA", testo_partite)
         self.assertFalse([b for b in self.at.button
                           if (b.key or "").startswith("partite_scheda_")],
-                         "i pulsanti «Scheda» non esistono piu': si clicca la riga")
+                         "i pulsanti «Scheda» per riga non esistono piu': "
+                         "la tabella della giornata e' HTML e la scheda si "
+                         "apre dal selettore «Apri la scheda» + «Apri»")
+        import app as app_mod
+        self.assertEqual([app_mod.CHIAVE_SCEGLI_PARTITA],
+                         [sb.key for sb in self.at.selectbox
+                          if (sb.key or "") == app_mod.CHIAVE_SCEGLI_PARTITA],
+                         "il selettore «Apri la scheda» c'e', uno solo")
+        self.assertEqual(1, len([b for b in self.at.button
+                                 if (b.key or "") == app_mod.CHIAVE_APRI_PARTITA]),
+                         "un solo pulsante «Apri»")
         # E le altre schede non si spostano: il loro contenuto e' lo stesso.
         self.assertIn("Le più probabili",
                       " \n".join(_testi_della_tab(self.at, SCHEDA_MULTIPLE)[0]))
@@ -566,9 +700,10 @@ class TestScrittureSoloSuClick(_BaseAppTest):
                              "una scrittura per clic, anche il secondo")
 
     def test_05_se_il_modello_non_risponde_il_resto_resta_in_piedi(self):
-        """Giro del modello NON disponibile: le celle di «Modello %» restano
-        vuote (numeri, non parole) e la caption lo dice UNA volta («Modello %:
-        non disponibile»); i riquadri delle proposte restano dove sono. Lo stato lo
+        """Giro del modello NON disponibile: le tabelle in vista restano in piedi
+        (non hanno piu' la colonna «Modello %», non c'e' nessuna cella da
+        riempire) e i riquadri delle proposte restano dove sono; nessuna caption
+        parla dello stato del modello. Lo stato lo
         scriviamo direttamente in session (AppTest esegue lo script in un
         namespace separato: la funzione del giro non e' intercettabile dal
         ``import app`` dei test; la transizione in_calcolo -> fallito e'
@@ -577,7 +712,7 @@ class TestScrittureSoloSuClick(_BaseAppTest):
         self.chiamate_registro.clear()
         self._st.cache_data.clear()
         # Stato del confronto FALLITO + nessun dato del giro: le tabelle in
-        # vista devono restare in piedi, con le celle di «Modello %» vuote.
+        # vista devono restare in piedi (la colonna «Modello %» non c'e' piu').
         self.at.session_state["confronto_modello_stato"] = "non_disponibile"
         self.at.session_state["confronto_modello_righe"] = []
         self.at.session_state["confronto_modello_errore"] = "RuntimeError: giro giu'"
