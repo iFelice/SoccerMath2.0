@@ -1,0 +1,112 @@
+name: Diagnosi risultati 1X2 in attesa (sola lettura)
+
+# Diagnosi del 25/10/2026: da venerdi' 23/10 le giocate 1X2 del Registro
+# restano in attesa anche a partita finita («Nessun nuovo risultato», 23 in
+# attesa), le giocate gol invece si aggiornano, e il codice dei risultati
+# non cambia dalla PR 81. Questo workflow NON modifica l'app e NON scrive
+# da nessuna parte: legge il Registro da Upstash con il solo comando
+# HGETALL e ripete, per ogni (campionato, giornata) delle righe 1X2 in
+# attesa con calcio d'inizio passato da piu' di 3 ore, la chiamata per
+# giornata che fa app._applica_esiti — una volta per gruppo, come la sua
+# cache, con 7 secondi fra una chiamata e l'altra dentro lo script
+# (sotto il limite free di football-data, 10 chiamate/minuto).
+#
+# Per ogni riga il referto (nel log del job) dice: partita, campionato,
+# giornata salvata, match_id e il suo tipo (numero o testo); per la
+# chiamata: codice HTTP, intestazione X-Requests-Available-Minute se
+# presente, e se l'id e' presente nella risposta come numero e come
+# testo (oltre all'esito della ricerca esatta di produzione). Lo script
+# stampa anche l'impronta sha256 del Registro PRIMA e DOPO le chiamate
+# (devono coincidere: nessuna scrittura) e quante chiamate farebbe un
+# giro intero di app.aggiorna_risultati_reali sui dati di oggi.
+#
+# Trigger: SOLO a mano o con un tag diagnosi-risultati-*. Nessun cron,
+# nessun pull_request, nessuna scrittura (permissions: contents read,
+# nessun artifact, nessun commit).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'diagnosi-risultati-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnosi-risultati
+  cancel-in-progress: false
+
+jobs:
+  diagnosi:
+    name: Diagnosi risultati 1X2 in attesa (sola lettura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REGISTRY_BACKEND: upstash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze (solo requests, niente Streamlit)
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Secrets necessari (senza stamparne i valori)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          mancanti=()
+          for nome in UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN FOOTBALL_DATA_API_KEY; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — la diagnosi legge il Registro da Upstash e ripete la chiamata per giornata su football-data: aggiungerli come segreti del repository."
+            exit 1
+          fi
+          echo "secret presenti (valori non letti, non stampati)."
+
+      - name: Impronta del selettore PRIMA
+        run: |
+          python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, "SoccerMath")
+          import test_versione_selettore as T
+          with open("/tmp/impronta_selettore_prima.txt", "w", encoding="utf-8") as f:
+              f.write(T.impronta_attuale() + "\n" + T.impronta_ou_attuale() + "\n")
+          print("impronta selettore PRIMA:", T.impronta_attuale())
+          print("impronta OU PRIMA:", T.impronta_ou_attuale())
+          PYEOF
+
+      - name: Diagnosi (sola lettura, nessuna scrittura)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: python SoccerMath/diagnosi_risultati.py
+
+      - name: Impronta del selettore DOPO (deve essere identica)
+        run: |
+          python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, "SoccerMath")
+          import test_versione_selettore as T
+          attuale = T.impronta_attuale() + "\n" + T.impronta_ou_attuale() + "\n"
+          print("impronta selettore DOPO:", T.impronta_attuale())
+          print("impronta OU DOPO:", T.impronta_ou_attuale())
+          with open("/tmp/impronta_selettore_prima.txt", encoding="utf-8") as f:
+              prima = f.read()
+          if attuale != prima:
+              print("::error title=impronta-selettore::l'impronta del selettore e' cambiata durante la diagnosi")
+              sys.exit(1)
+          print("impronta del selettore prima == dopo: SI")
+          PYEOF
