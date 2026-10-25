@@ -1016,11 +1016,14 @@ def _applica_esiti(preds, api_key, cache=None):
     * righe CON giornata e ``match_id`` football-data (1X2 visibili e ombra):
       la GET per giornata di sempre; se la chiamata non da' 200 o la partita
       non compare ancora nella risposta per giornata (football-data puo'
-      restare indietro di ore rispetto alla ricerca per data), la riga si cerca
-      anche con ``_partite_finite`` per (lega, giorno del kickoff), sulla
-      stessa cache ``("ou_giorno", comp, giorno)`` del ramo senza giornata,
-      abbinando prima per id football-data (come numero) e poi per coppia di
-      nomi canonici e stessa data (univoco o niente);
+      restare indietro di ore rispetto alla ricerca per data), e il suo calcio
+      d'inizio e' passato da piu' di ``ORE_MINIME_CONTROLLO_RISULTATI`` ore
+      (``righe_in_attesa_scadute``), la riga si cerca anche con
+      ``_partite_finite`` per (lega, giorno del kickoff), sulla stessa cache
+      ``("ou_giorno", comp, giorno)`` del ramo senza giornata, abbinando prima
+      per id football-data (come numero) e poi per coppia di nomi canonici e
+      stessa data (univoco o niente); le righe non ancora scadute restano in
+      attesa senza chiamate per data ne' righe nel log;
     * righe SENZA giornata o con ``match_id`` NON numerico: le voci O/U, il cui
       ``match_id`` e' l'id dell'evento The Odds API. Si cercano su
       football-data per (lega, giorno) e si abbinano per squadre e data
@@ -1091,6 +1094,8 @@ def _applica_esiti(preds, api_key, cache=None):
                 p["esito"] = "⏳"
 
     # --- Loop normale per giornata > 0 ---
+    scadute_ids = {id(p) for p in righe_in_attesa_scadute(
+        per_giornata, ore=ORE_MINIME_CONTROLLO_RISULTATI)}
     da_cercare_per_data = []
     for (camp, giornata), camp_pending in grouped.items():
         comp = LEAGUE_CODE_MAP.get(camp)
@@ -1125,18 +1130,23 @@ def _applica_esiti(preds, api_key, cache=None):
                 risultati_api = None
             cache[chiave_cache] = risultati_api
         if risultati_api is None:
-            da_cercare_per_data.extend((comp, p) for p in camp_pending)
+            da_cercare_per_data.extend(
+                (comp, p) for p in camp_pending if id(p) in scadute_ids)
             continue
         for p in camp_pending:
             mid_riga = int(p.get("match_id"))
             if mid_riga not in risultati_api:
-                da_cercare_per_data.append((comp, p))
+                if id(p) in scadute_ids:
+                    da_cercare_per_data.append((comp, p))
+                else:
+                    p["esito"] = "⏳"
                 continue
             match = risultati_api[mid_riga]
             gol = (match.get("score") or {}).get("fullTime") or {}
             gh, ga = gol.get("home"), gol.get("away")
             if gh is None or ga is None:
-                da_cercare_per_data.append((comp, p))
+                if id(p) in scadute_ids:
+                    da_cercare_per_data.append((comp, p))
                 continue
             p["risultato_reale"] = f"{gh}-{ga}"
             # Stessa tabella del ramo per match_id: nessun mercato "non graduato
@@ -1148,6 +1158,10 @@ def _applica_esiti(preds, api_key, cache=None):
     raggruppate_data = defaultdict(list)
     for comp, p in da_cercare_per_data:
         giorno = _giorno_kickoff_riga(p)
+        if giorno is None:
+            ko = _kickoff_riga_registro(p)
+            if ko is not None:
+                giorno = ko.astimezone(timezone.utc).strftime("%Y-%m-%d")
         if giorno is None:
             logging.warning(
                 f"Grading giornata {p.get('giornata')} senza estremi: {p.get('home')}-{p.get('away')} "
