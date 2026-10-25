@@ -15,10 +15,21 @@ name: Diagnosi risultati 1X2 in attesa (sola lettura)
 # giornata salvata, match_id e il suo tipo (numero o testo); per la
 # chiamata: codice HTTP, intestazione X-Requests-Available-Minute se
 # presente, e se l'id e' presente nella risposta come numero e come
-# testo (oltre all'esito della ricerca esatta di produzione). Lo script
-# stampa anche l'impronta sha256 del Registro PRIMA e DOPO le chiamate
-# (devono coincidere: nessuna scrittura) e quante chiamate farebbe un
-# giro intero di app.aggiorna_risultati_reali sui dati di oggi.
+# testo (oltre all'esito della ricerca esatta di produzione).
+#
+# Estensione (dopo la prima diagnosi: per i gruppi in attesa la risposta
+# per giornata salvata non contiene gli id delle righe pur essendo le
+# partite finite): per OGNI riga lo script fa anche GET /v4/matches/
+# {match_id} (sempre 7 secondi di pausa fra le chiamate) e stampa la
+# giornata VERA di football-data (matchday), lo stato e la data accanto
+# alla giornata salvata; conta inoltre, sul Registro gia' letto con
+# HGETALL, le righe topmix_mercato_v4 gia' concluse con giornata salvata
+# e — fra quelle con risultato gia' dato — quante dai campi risultano
+# graduate dal ramo per giornata e quante no.
+#
+# Lo script stampa anche l'impronta sha256 del Registro PRIMA e DOPO le
+# chiamate (devono coincidere: nessuna scrittura) e quante chiamate
+# farebbe un giro intero di app.aggiorna_risultati_reali sui dati di oggi.
 #
 # Trigger: SOLO a mano o con un tag diagnosi-risultati-*. Nessun cron,
 # nessun pull_request, nessuna scrittura (permissions: contents read,

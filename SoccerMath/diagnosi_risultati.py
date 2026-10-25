@@ -68,6 +68,9 @@ import registry_store as rs  # noqa: E402
 from config import LEAGUE_CODE_MAP  # noqa: E402
 from prediction_registry import (  # noqa: E402
     DATA_FIELD,
+    ESITO_PERSO,
+    ESITO_VINTO,
+    FD_MATCH_ID_FIELD,
     KICKOFF_UTC_FIELD,
     parse_datetime,
     parse_kickoff,
@@ -79,6 +82,20 @@ UTC = timezone.utc
 ORE_MINIME = 3
 PAUSA_CHIAMATE = 7.0  # secondi FRA una chiamata football-data e l'altra
 API_PER_GIORNATA = "https://api.football-data.org/v4/competitions/{comp}/matches"
+API_PER_MATCH = "https://api.football-data.org/v4/matches/{match_id}"
+
+# Contatore delle chiamate football-data di QUESTO giro di diagnosi: la pausa
+# di 7 secondi vale fra QUALSIASI due chiamate (per giornata o per match_id),
+# non solo dentro una delle due serie.
+_chiamate_fd = 0
+
+
+def _attendi_turno() -> None:
+    """Pausa di 7 secondi PRIMA di ogni chiamata dopo la prima (dentro lo script)."""
+    global _chiamate_fd
+    if _chiamate_fd > 0:
+        time.sleep(PAUSA_CHIAMATE)
+    _chiamate_fd += 1
 
 # Mercati della famiglia 1X2 (codici ``mercato_standard``, gli stessi di
 # ``prediction_registry._GRADING`` per il ramo a esito secco/doppia chance).
@@ -256,6 +273,7 @@ def chiamata_per_giornata(comp: str, giornata: Any, api_key: str) -> Dict[str, A
     esito: Dict[str, Any] = {"http": None, "x_requests_available_minute": None,
                              "errore": "", "ids_numero": [], "ids_testo": [],
                              "n_partite": 0}
+    _attendi_turno()
     try:
         r = requests.get(API_PER_GIORNATA.format(comp=comp),
                          headers={"X-Auth-Token": api_key},
@@ -277,6 +295,114 @@ def chiamata_per_giornata(comp: str, giornata: Any, api_key: str) -> Dict[str, A
     esito["ids_numero"] = [m.get("id") for m in partite]
     esito["ids_testo"] = [str(m.get("id")) for m in partite]
     return esito
+
+
+def chiamata_per_match_id(match_id: Any, api_key: str) -> Dict[str, Any]:
+    """``GET /v4/matches/{match_id}``: la giornata VERA secondo football-data.
+
+    E' la fonte indipendente dal campo salvato: ritorna ``matchday``,
+    ``status`` e ``utcDate`` della partita cosi' come li dichiara l'API per
+    il suo id. Una chiamata PER RIGA selezionata (anche a id ripetuto: la
+    richiesta e' riga per riga), sempre dietro la pausa di 7 secondi di
+    ``_attendi_turno`` condivisa con le chiamate per giornata.
+    """
+    import requests
+    esito: Dict[str, Any] = {"http": None, "x_requests_available_minute": None,
+                             "errore": "", "matchday": None, "status": None,
+                             "utcDate": None, "id_risposta": None}
+    if not match_id_numerico(match_id):
+        esito["errore"] = f"match_id {match_id!r} non numerico: chiamata diretta non possibile"
+        return esito
+    _attendi_turno()
+    try:
+        r = requests.get(API_PER_MATCH.format(match_id=str(match_id).strip()),
+                         headers={"X-Auth-Token": api_key}, timeout=15)
+    except Exception as e:  # rete: dichiarato, mai interpretato come "assente"
+        esito["errore"] = f"{type(e).__name__}: {e}"
+        return esito
+    esito["http"] = r.status_code
+    esito["x_requests_available_minute"] = r.headers.get("X-Requests-Available-Minute")
+    if r.status_code != 200:
+        return esito
+    try:
+        m = r.json() or {}
+    except Exception as e:
+        esito["errore"] = f"risposta non JSON: {e}"
+        return esito
+    esito.update({"matchday": m.get("matchday"), "status": m.get("status"),
+                  "utcDate": m.get("utcDate"), "id_risposta": m.get("id")})
+    return esito
+
+
+def ramo_grading_da_campi(riga: Dict[str, Any]) -> str:
+    """Da quale ramo di ``_applica_esiti`` risulta graduata la riga, DAI CAMPI.
+
+    * ``fd_match_id`` presente -> ``senza_giornata``: e' l'unico ramo che
+      scrive quel campo (il ``match_id`` della riga resta l'id dell'altra
+      fonte, vedi ``FD_MATCH_ID_FIELD`` in ``prediction_registry``);
+    * giornata 0 e id numerico -> ``diretta_match_id`` (il ramo speciale
+      ``giornata == 0`` di ``_applica_esiti``);
+    * giornata presente, id numerico, ``fd_match_id`` assente ->
+      ``per_giornata`` (quel ramo non scrive ``fd_match_id``: il
+      ``match_id`` e' gia' l'id football-data);
+    * altrimenti ``non_per_giornata``: la riga poteva essere instradata
+      SOLO dal ramo senza giornata (giornata assente o id non numerico).
+
+    E' un riconoscimento dai campi, non una certezza storica: una riga il
+    cui ``fd_match_id`` fosse stato ripulito a mano non sarebbe
+    distinguibile, e il referto lo dichiara.
+    """
+    if riga.get(FD_MATCH_ID_FIELD) not in (None, ""):
+        return "senza_giornata (fd_match_id presente)"
+    if riga.get("giornata") == 0 and match_id_numerico(riga.get("match_id")):
+        return "diretta_match_id (giornata 0)"
+    if riga.get("giornata") is not None and match_id_numerico(riga.get("match_id")):
+        return "per_giornata"
+    return "non_per_giornata (solo senza_giornata possibile)"
+
+
+def conta_storico_v4(righe: Sequence[Dict[str, Any]], *, adesso: datetime) -> Dict[str, Any]:
+    """Le ``topmix_mercato_v4`` gia' concluse: giornata salvata e ramo di grading.
+
+    «Gia' concluse» = calcio d'inizio leggibile e gia' passato al momento
+    della diagnosi (le righe senza orario leggibile si contano a parte, non
+    si indovina). «Risultato gia' dato» = ``risultato_reale`` presente;
+    «esito gia' dato» = ``esito`` ✅/❌. Solo conteggi sulle righe gia'
+    lette con ``HGETALL``: nessuna lettura e nessuna chiamata in piu'.
+    """
+    v4 = [r for r in righe if selector_version_of(r) == "topmix_mercato_v4"]
+    concluse, senza_orario = [], 0
+    for r in v4:
+        ko = kickoff_riga(r)
+        if ko is None:
+            senza_orario += 1
+        elif ko <= adesso:
+            concluse.append(r)
+    con_giornata = [r for r in concluse if r.get("giornata") not in (None, "")]
+    con_risultato = [r for r in concluse
+                     if r.get("risultato_reale") not in (None, "")
+                     and str(r.get("risultato_reale")).strip() != ""]
+    con_esito = [r for r in concluse if r.get("esito") in (ESITO_VINTO, ESITO_PERSO)]
+    rami_risultato: Dict[str, int] = {}
+    for r in con_risultato:
+        chiave = ramo_grading_da_campi(r)
+        rami_risultato[chiave] = rami_risultato.get(chiave, 0) + 1
+    rami_esito: Dict[str, int] = {}
+    for r in con_esito:
+        chiave = ramo_grading_da_campi(r)
+        rami_esito[chiave] = rami_esito.get(chiave, 0) + 1
+    per_giornata = sum(v for k, v in rami_risultato.items() if k == "per_giornata")
+    return {"v4_totali": len(v4), "concluse": len(concluse),
+            "senza_orario": senza_orario,
+            "con_giornata_salvata": len(con_giornata),
+            "senza_giornata_salvata": len(concluse) - len(con_giornata),
+            "giornate_salvate": sorted({str(r.get("giornata")) for r in con_giornata}),
+            "con_risultato": len(con_risultato), "con_esito": len(con_esito),
+            "ancora_in_attesa": len([r for r in concluse
+                                     if r.get("esito") in (None, "⏳")]),
+            "rami_con_risultato": rami_risultato, "rami_con_esito": rami_esito,
+            "graduate_per_giornata": per_giornata,
+            "graduate_non_per_giornata": len(con_risultato) - per_giornata}
 
 
 def main() -> int:
@@ -328,9 +454,7 @@ def main() -> int:
           f"con ~1s di chiamata, sotto il limite di 10/min)")
 
     esiti_chiamate: Dict[Tuple[Any, Any], Dict[str, Any]] = {}
-    for i, (camp, giornata) in enumerate(sorted(gruppi, key=lambda x: (str(x[0]), str(x[1])))):
-        if i > 0:
-            time.sleep(PAUSA_CHIAMATE)
+    for (camp, giornata) in sorted(gruppi, key=lambda x: (str(x[0]), str(x[1]))):
         comp = LEAGUE_CODE_MAP.get(camp)
         if not comp:
             esiti_chiamate[(camp, giornata)] = {
@@ -367,6 +491,14 @@ def main() -> int:
         if lookup:
             trovate_produzione += 1
         ko = kickoff_riga(r)
+        vera = esito_d.get("matchday")
+        if vera is None:
+            confronto = "non verificabile (chiamata diretta senza matchday)"
+        elif str(vera) == str(r.get("giornata")):
+            confronto = "COINCIDE con la salvata"
+        else:
+            confronto = "DIVERSA dalla salvata"
+            giornate_diverse += 1
         print(f"RIGA| {r.get('home')} - {r.get('away')} | campionato {r.get('campionato')} | "
               f"mercato {r.get('mercato_standard')} | calcio d'inizio "
               f"{ko.isoformat() if ko else 'illeggibile'} | giornata salvata "
@@ -377,7 +509,14 @@ def main() -> int:
               f"id presente come numero: {'SI' if come_numero else 'NO'} | "
               f"come testo: {'SI' if come_testo else 'NO'} | "
               f"ricerca di _applica_esiti (match_id originale in dict a chiavi numeriche): "
-              f"{'SI' if lookup else 'NO -> resta in attesa'}")
+              f"{'SI' if lookup else 'NO -> resta in attesa'} | "
+              f"GET /matches/{m_id}: HTTP {esito_d['http']} | "
+              f"X-Requests-Available-Minute: "
+              f"{esito_d['x_requests_available_minute'] if esito_d['x_requests_available_minute'] is not None else 'assente'} | "
+              f"giornata VERA football-data: {vera!r} ({tipo(vera)}) | {confronto} | "
+              f"stato football-data: {esito_d.get('status')} | data football-data: "
+              f"{esito_d.get('utcDate')}"
+              + (f" | errore diretta: {esito_d['errore']}" if esito_d["errore"] else ""))
 
     # 5) Quante chiamate fa UN GIRO INTERO di aggiorna_risultati_reali (oggi).
     giro = conta_chiamate_giro(vivo, ombra)
@@ -390,14 +529,16 @@ def main() -> int:
           f"dettaglio per registro: {giro['per_registro']} | cache condivisa vivo+ombra "
           f"come in produzione")
 
-    # 6) Impronta DOPO: deve essere identica alla PRIMA (nessuna scrittura).
+    # 8) Impronta DOPO: deve essere identica alla PRIMA (nessuna scrittura).
     grezzo_dopo = leggi_hash_grezzo(chiave_vivo)
     impronta_dopo = impronta_hash(grezzo_dopo)
     print(f"IMPRONTA-DOPO| sha256 {impronta_dopo}")
     identica = impronta_dopo == impronta_prima and len(grezzo_dopo) == len(grezzo_prima)
     print(f"VERIFICA| impronta prima == dopo: {'SI' if identica else 'NO'} | "
           f"righe selezionate {len(selezionate)} | trovate dalla ricerca di produzione: "
-          f"{trovate_produzione} | nessuna scrittura effettuata (solo HGETALL e GET)")
+          f"{trovate_produzione} | giornata salvata DIVERSA da quella vera "
+          f"football-data: {giornate_diverse} | chiamate football-data di questa "
+          f"diagnosi: {_chiamate_fd} | nessuna scrittura effettuata (solo HGETALL e GET)")
     if not identica:
         print("::error title=diagnosi::impronta del Registro cambiata durante la "
               "diagnosi: qualcuno/qualcosa ha scritto mentre leggevamo")
