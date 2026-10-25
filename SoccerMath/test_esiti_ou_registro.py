@@ -19,9 +19,17 @@ canonici (``resolve_team_name``, ``mapped`` su entrambi) e stessa data:
   giudica allo stesso modo;
 * (c) partita non trovata o partita doppia: la voce resta ⏳ e il motivo finisce
   nel log (nessun abbinamento inventato);
-* (d) su un registro misto, le righe 1X2 e quelle ombra si graduano ESATTAMENTE
-  come prima della modifica (confronto riga per riga con il ramo per giornata
-  com'era, e nessuna chiamata per data).
+* (d) su un registro misto, le righe 1X2 e quelle ombra trovate per giornata si
+  graduano ESATTAMENTE come prima (nessuna chiamata per data sulle righe gia'
+  trovate);
+* (e) diagnosi del 25/10/2026: la ricerca per giornata con ``status=FINISHED``
+  puo' restare indietro di ore rispetto a quella per data. Una riga del ramo
+  per giornata assente nella risposta della giornata (o la cui chiamata per
+  giornata non ha dato 200) viene cercata anche con ``_partite_finite`` sulla
+  stessa cache ``("ou_giorno", comp, giorno)``, abbinata prima per id
+  football-data (come numero) e poi per coppia di nomi canonici e stessa data,
+  senza aggiungere campi nuovi e loggando ogni chiamata fallita e ogni riga non
+  trovata.
 
 Nessuna rete e nessuna chiave: football-data e' simulato da un oggetto che
 risponde alle GET di ``app.requests``. Nessuna attesa, nessun replay, nessuna
@@ -71,9 +79,10 @@ class _Resp:
 class Rete:
     """football-data simulato: risposte per (competizione, giornata) e per (competizione, finestra)."""
 
-    def __init__(self, per_giornata=None, per_data=None):
+    def __init__(self, per_giornata=None, per_data=None, stato_giornata=None):
         self.per_giornata = per_giornata or {}
         self.per_data = per_data or {}
+        self.stato_giornata = stato_giornata or {}
         self.chiamate = []
 
     def get(self, url, headers=None, params=None, timeout=None):
@@ -81,7 +90,11 @@ class Rete:
         self.chiamate.append((url, params))
         competizione = url.rstrip("/").split("/")[-2]
         if "matchday" in params:
-            return _Resp({"matches": self.per_giornata.get((competizione, params["matchday"]), [])})
+            chiave_g = (competizione, params["matchday"])
+            stato = self.stato_giornata.get(chiave_g, 200)
+            if stato != 200:
+                return _Resp({"message": f"HTTP {stato}"}, status=stato)
+            return _Resp({"matches": self.per_giornata.get(chiave_g, [])})
         if "dateFrom" in params:
             chiave = (competizione, params["dateFrom"], params["dateTo"])
             return _Resp({"matches": self.per_data.get(chiave, [])})
@@ -357,8 +370,8 @@ class TestEsitiOU(RipristinaLogging, unittest.TestCase):
         self.assertIn("senza estremi", "\n".join(log.output))
 
 
-class TestInvarianti1X2eOmbra(unittest.TestCase):
-    """(d) su un registro misto, 1X2 e ombra si graduano come prima."""
+class TestInvarianti1X2eOmbra(RipristinaLogging, unittest.TestCase):
+    """(d) su un registro misto, 1X2 e ombra trovate per giornata si graduano come prima."""
 
     @classmethod
     def setUpClass(cls):
@@ -414,8 +427,9 @@ class TestInvarianti1X2eOmbra(unittest.TestCase):
         rete_oggi, rete_prima = Rete(per_giornata=per_giornata), Rete(per_giornata=per_giornata)
         riferimento = copy.deepcopy(registro)
         prima = istantanea(registro)
-        with mock.patch.object(app.requests, "get", side_effect=rete_oggi.get):
-            agg_oggi, pend_oggi = app._applica_esiti(registro, CHIAVE, {})
+        with self.assertLogs(level="WARNING") as log:
+            with mock.patch.object(app.requests, "get", side_effect=rete_oggi.get):
+                agg_oggi, pend_oggi = app._applica_esiti(registro, CHIAVE, {})
         with mock.patch.object(app.requests, "get", side_effect=rete_prima.get):
             agg_prima, pend_prima = _applica_esiti_prima(riferimento, CHIAVE, {})
         self.assertEqual((agg_prima, pend_prima), (agg_oggi, pend_oggi))
@@ -424,11 +438,15 @@ class TestInvarianti1X2eOmbra(unittest.TestCase):
             self.assertEqual(prima_riga["esito"], dopo["esito"], dopo["home"])
             self.assertEqual(prima_riga["risultato_reale"], dopo["risultato_reale"], dopo["home"])
             self.assertEqual(prima_riga["match_id"], dopo["match_id"])
-        # Stesse GET, stesso ordine: nessuna chiamata per (lega, giorno) in piu'.
-        self.assertEqual(rete_prima.chiamate, rete_oggi.chiamate)
-        self.assertEqual(1, len(rete_oggi.chiamate))
+        # Le 4 righe trovate per giornata (16/10 e 17/10) non generano nessuna GET per data;
+        # solo la riga 599 (18/10), assente per giornata, viene cercata anche per data e loggata.
+        self.assertEqual(rete_prima.chiamate, rete_oggi.chiamate[:1])
+        self.assertEqual(2, len(rete_oggi.chiamate))
         self.assertNotIn("dateFrom", rete_oggi.chiamate[0][1])
-        # Il campo nuovo NON compare sulle righe graduate per giornata.
+        self.assertEqual({"dateFrom": "2026-10-18", "dateTo": "2026-10-19", "status": "FINISHED"},
+                         rete_oggi.chiamate[1][1])
+        self.assertIn("Juventus-Lazio", "\n".join(log.output))
+        # Il campo nuovo NON compare sulle righe del ramo per giornata.
         for riga in registro:
             self.assertNotIn(R.FD_MATCH_ID_FIELD, riga)
         attesi = ["✅", "✅", "⏳", "✅", "❌"]     # 1 (2-0), X (1-1), assente, Over 4-2, GG 2-0
@@ -459,6 +477,239 @@ class TestInvarianti1X2eOmbra(unittest.TestCase):
         self.assertNotIn(R.FD_MATCH_ID_FIELD, visibile)
         self.assertEqual(2, len(rete.chiamate))
         stampa("(d) stesso giro: 1X2 per giornata + O/U per data", prima, istantanea(registro))
+
+
+def _voce_1x2(mid, casa, trasferta, lega, giornata, giorno, ora="15:00", mercato="1"):
+    """Voce 1X2 del Registro costruita dal codice vero (con giornata e match_id numerico)."""
+    return app.build_prediction_entry(
+        mid, casa, trasferta, lega, giornata,
+        f"{giorno[8:10]}/{giorno[5:7]}/{giorno[:4]} {ora}",
+        "Scelta 1X2 - Top Mix", [], 61.0, "",
+        mercato_standard=mercato, origin=R.ORIGIN_TOP_MIX, rank=1,
+        kickoff_utc=f"{giorno}T{ora}:00Z",
+        snapshot_sha=SHA, salvato_il=SALVATO_IL,
+    )
+
+
+def _voce_ombra(mid, casa, trasferta, lega, giornata, giorno, ora="15:00",
+                mercato="Over 2.5", codice="OVER_2.5", famiglia=R.OMBRA_FAMIGLIA_OU25):
+    """Voce ombra costruita dal codice vero (con giornata e match_id numerico)."""
+    return app.build_ombra_entry(
+        {"league": lega, "giornata": giornata, "home": casa, "away": trasferta,
+         "match_id": mid, "utcDate": f"{giorno}T{ora}:00Z",
+         "market": mercato, "mercato_standard": codice,
+         "confidence": 0.66, "poisson": 0.66, "ammessa": True,
+         "vincente_globale": True, "famiglia": famiglia, "dati_mancanti": False},
+        snapshot_sha=SHA, salvato_il=SALVATO_IL,
+    )
+
+
+class TestFallbackGiornataPerData(RipristinaLogging, unittest.TestCase):
+    """Fallback per data sulle righe con giornata quando football-data per giornata resta indietro."""
+
+    def test_1_assente_per_giornata_ma_presente_per_data_graduata(self):
+        """Riga assente nella risposta della giornata ma finita per data: graduata senza campi nuovi."""
+        # Diagnosi 25/10: SA giornata 8 restituisce 1 sola partita finita (600),
+        # mentre Como e Lazio sono gia' FINISHED nella ricerca per data.
+        como = _voce_1x2(601, "Como", "Parma", "Serie A", 8, "2026-10-25", "15:00", "1")
+        # 602 con id diverso nella risposta per data: verifica anche il secondo passo (nomi canonici + data)
+        lazio = _voce_1x2(602, "Lazio", "Genoa", "Serie A", 8, "2026-10-25", "18:00", "1")
+        voci = [como, lazio]
+        chiavi_prima = [set(v.keys()) for v in voci]
+        prima = istantanea(voci)
+
+        rete = Rete(
+            per_giornata={("SA", 8): [_partita(600, "Inter Milan", "Torino", "2026-10-25", "12:30", 2, 0)]},
+            per_data={("SA", "2026-10-25", "2026-10-26"): [
+                _partita(600, "Inter Milan", "Torino", "2026-10-25", "12:30", 2, 0),
+                _partita(601, "Como 1907", "Parma", "2026-10-25", "15:00", 2, 1),
+                _partita(9602, "SS Lazio", "Genoa CFC", "2026-10-25", "18:00", 0, 1),
+            ]},
+        )
+        with mock.patch.object(app.requests, "get", side_effect=rete.get):
+            aggiornate, pending = app._applica_esiti(voci, CHIAVE, {})
+
+        self.assertEqual((2, 2), (aggiornate, pending))
+        self.assertEqual(("✅", "2-1", 601), (como["esito"], como["risultato_reale"], como["match_id"]))
+        self.assertEqual(("❌", "0-1", 602), (lazio["esito"], lazio["risultato_reale"], lazio["match_id"]))
+        # Nessun campo nuovo aggiunto alle righe 1X2 (niente fd_match_id).
+        for voce, k_prima in zip(voci, chiavi_prima):
+            self.assertEqual(k_prima, set(voce.keys()))
+            self.assertNotIn(R.FD_MATCH_ID_FIELD, voce)
+        self.assertEqual(2, len(rete.chiamate))     # 1 per giornata + 1 per (SA, 2026-10-25)
+        stampa("(1) assente per giornata ma presente per data", prima, istantanea(voci))
+
+    def test_2_abbinamento_per_id_prima_dei_nomi(self):
+        """Prima id football-data (confrontato come numero), poi coppia di nomi canonici e stessa data."""
+        # match_id come stringa di cifre ("701") confrontato con id intero 701:
+        # nella risposta per data 701 ha nomi diversi (2-0 -> ✅), mentre 799 ha
+        # gli stessi nomi della riga (0-3 -> ❌). Deve vincere 701 per id.
+        per_id = _voce_1x2("701", "RB Leipzig", "Freiburg", "Bundesliga", 7, "2026-10-25", "14:30", "1")
+        # 888 non compare per id: cade sul secondo passo (nomi canonici + stessa data -> 799, 0-3 -> ❌).
+        per_nomi = _voce_1x2(888, "RB Leipzig", "Freiburg", "Bundesliga", 7, "2026-10-25", "14:30", "1")
+        voci = [per_id, per_nomi]
+        chiavi_prima = [set(v.keys()) for v in voci]
+
+        rete = Rete(
+            per_giornata={("BL1", 7): []},
+            per_data={("BL1", "2026-10-25", "2026-10-26"): [
+                _partita(701, "Borussia Dortmund", "Augsburg", "2026-10-25", "14:30", 2, 0),
+                _partita(799, "RB Leipzig", "SC Freiburg", "2026-10-25", "14:30", 0, 3),
+            ]},
+        )
+        with mock.patch.object(app.requests, "get", side_effect=rete.get):
+            aggiornate, pending = app._applica_esiti(voci, CHIAVE, {})
+
+        self.assertEqual((2, 2), (aggiornate, pending))
+        self.assertEqual(("✅", "2-0", "701"), (per_id["esito"], per_id["risultato_reale"], per_id["match_id"]))
+        self.assertEqual(("❌", "0-3", 888), (per_nomi["esito"], per_nomi["risultato_reale"], per_nomi["match_id"]))
+        for voce, k_prima in zip(voci, chiavi_prima):
+            self.assertEqual(k_prima, set(voce.keys()))
+            self.assertNotIn(R.FD_MATCH_ID_FIELD, voce)
+
+    def test_3_due_partite_corrispondenti_resta_in_attesa_con_riga_nel_log(self):
+        """Con due partite corrispondenti (o zero) la riga resta ⏳ e il motivo finisce nel log."""
+        doppia = _voce_1x2(901, "Como", "Parma", "Serie A", 8, "2026-10-25", "15:00", "1")
+        assente = _voce_1x2(902, "Lazio", "Genoa", "Serie A", 8, "2026-10-25", "18:00", "1")
+        voci = [doppia, assente]
+        chiavi_prima = [set(v.keys()) for v in voci]
+
+        rete = Rete(
+            per_giornata={("SA", 8): []},
+            per_data={("SA", "2026-10-25", "2026-10-26"): [
+                _partita(401, "Como", "Parma", "2026-10-25", "15:00", 2, 0),
+                _partita(402, "Como 1907", "Parma", "2026-10-25", "20:45", 0, 1),
+            ]},
+        )
+        with self.assertLogs(level="WARNING") as log:
+            with mock.patch.object(app.requests, "get", side_effect=rete.get):
+                aggiornate, pending = app._applica_esiti(voci, CHIAVE, {})
+
+        self.assertEqual((0, 2), (aggiornate, pending))
+        for voce, k_prima in zip(voci, chiavi_prima):
+            self.assertEqual("⏳", voce["esito"])
+            self.assertIsNone(voce["risultato_reale"])
+            self.assertEqual(k_prima, set(voce.keys()))
+            self.assertNotIn(R.FD_MATCH_ID_FIELD, voce)
+        testo = "\n".join(log.output)
+        self.assertIn("2 partite corrispondenti", testo)
+        self.assertIn("Como-Parma", testo)
+        self.assertIn("nessuna partita finita", testo)
+        self.assertIn("Lazio-Genoa", testo)
+
+    def test_4_chiamata_per_giornata_con_429_riga_cercata_per_data(self):
+        """Se la GET per giornata risponde 429, scrive nel log il motivo e cerca comunque per data."""
+        dortmund = _voce_1x2(710, "Borussia Dortmund", "Augsburg", "Bundesliga", 7, "2026-10-25", "14:30", "1")
+        chiavi_prima = set(dortmund.keys())
+
+        rete = Rete(
+            stato_giornata={("BL1", 7): 429},
+            per_data={("BL1", "2026-10-25", "2026-10-26"): [
+                _partita(710, "Borussia Dortmund", "Augsburg", "2026-10-25", "14:30", 3, 1),
+            ]},
+        )
+        with self.assertLogs(level="WARNING") as log:
+            with mock.patch.object(app.requests, "get", side_effect=rete.get):
+                aggiornate, pending = app._applica_esiti([dortmund], CHIAVE, {})
+
+        self.assertEqual((1, 1), (aggiornate, pending))
+        self.assertEqual(("✅", "3-1", 710),
+                         (dortmund["esito"], dortmund["risultato_reale"], dortmund["match_id"]))
+        self.assertEqual(chiavi_prima, set(dortmund.keys()))
+        self.assertNotIn(R.FD_MATCH_ID_FIELD, dortmund)
+        self.assertEqual(2, len(rete.chiamate))
+        self.assertEqual({"matchday": 7, "status": "FINISHED"}, rete.chiamate[0][1])
+        self.assertEqual({"dateFrom": "2026-10-25", "dateTo": "2026-10-26", "status": "FINISHED"},
+                         rete.chiamate[1][1])
+        self.assertIn("429", "\n".join(log.output))
+
+    def test_5_riga_trovata_per_giornata_nessuna_chiamata_in_piu(self):
+        """Riga gia' presente nella risposta per giornata: gestita come oggi, zero chiamate per data."""
+        lipsia = _voce_1x2(720, "RB Leipzig", "Freiburg", "Bundesliga", 7, "2026-10-25", "14:30", "1")
+        dortmund = _voce_1x2(721, "Borussia Dortmund", "Augsburg", "Bundesliga", 7, "2026-10-25", "16:30", "2")
+        voci = [lipsia, dortmund]
+        chiavi_prima = [set(v.keys()) for v in voci]
+
+        rete = Rete(per_giornata={("BL1", 7): [
+            _partita(720, "RB Leipzig", "Freiburg", "2026-10-25", "14:30", 3, 1),
+            _partita(721, "Borussia Dortmund", "Augsburg", "2026-10-25", "16:30", 2, 0),
+        ]})
+        with mock.patch.object(app.requests, "get", side_effect=rete.get):
+            aggiornate, pending = app._applica_esiti(voci, CHIAVE, {})
+
+        self.assertEqual((2, 2), (aggiornate, pending))
+        self.assertEqual(("✅", "3-1"), (lipsia["esito"], lipsia["risultato_reale"]))
+        self.assertEqual(("❌", "2-0"), (dortmund["esito"], dortmund["risultato_reale"]))
+        self.assertEqual(1, len(rete.chiamate))
+        self.assertNotIn("dateFrom", rete.chiamate[0][1])
+        for voce, k_prima in zip(voci, chiavi_prima):
+            self.assertEqual(k_prima, set(voce.keys()))
+            self.assertNotIn(R.FD_MATCH_ID_FIELD, voce)
+
+    def test_6_stessa_cache_fra_registro_vivo_e_ombra_conta_le_chiamate(self):
+        """Stessa cache e stessa chiave ('ou_giorno', comp, giorno) fra gol, 1X2 vivo e ombra."""
+        import registry_store as rs
+        # Nel Registro vivo:
+        # - una voce O/U su (SA, 2026-10-25) -> popola ('ou_giorno', 'SA', '2026-10-25');
+        # - una 1X2 trovata per giornata (600, SA giornata 8);
+        # - una 1X2 assente per giornata (601, SA giornata 8, stesso giorno 2026-10-25) -> riusa la cache O/U;
+        # - una 1X2 con giornata 429 (710, BL1 giornata 7, 2026-10-25) -> chiama ('ou_giorno', 'BL1', '2026-10-25').
+        ou_sa = {"match_id": "ead11223344556677889900aabbccdde", "home": "Como", "away": "Parma",
+                 "campionato": "Serie A", "giornata": None, "mercato_standard": "OVER_2.5",
+                 "esito": "⏳", "risultato_reale": None, "origin": R.ORIGIN_MERCATO_OU,
+                 R.KICKOFF_UTC_FIELD: "2026-10-25T15:00:00Z"}
+        vivo_trovata = _voce_1x2(600, "Inter Milan", "Torino", "Serie A", 8, "2026-10-25", "12:30", "1")
+        vivo_assente = _voce_1x2(601, "Como", "Parma", "Serie A", 8, "2026-10-25", "15:00", "1")
+        vivo_429 = _voce_1x2(710, "Borussia Dortmund", "Augsburg", "Bundesliga", 7, "2026-10-25", "14:30", "1")
+        vivo = [ou_sa, vivo_trovata, vivo_assente, vivo_429]
+
+        # Nel Registro ombra: stesse due giornate e stesso giorno -> zero GET aggiuntive.
+        omb_trovata = _voce_ombra(600, "Inter Milan", "Torino", "Serie A", 8, "2026-10-25", "12:30",
+                                  mercato="Over 2.5", codice="OVER_2.5", famiglia=R.OMBRA_FAMIGLIA_OU25)
+        omb_assente = _voce_ombra(601, "Como", "Parma", "Serie A", 8, "2026-10-25", "15:00",
+                                  mercato="GG", codice="GG", famiglia=R.OMBRA_FAMIGLIA_GGNG)
+        omb_429 = _voce_ombra(710, "Borussia Dortmund", "Augsburg", "Bundesliga", 7, "2026-10-25", "14:30",
+                              mercato="Under 2.5", codice="UNDER_2.5", famiglia=R.OMBRA_FAMIGLIA_OU25)
+        ombra = [omb_trovata, omb_assente, omb_429]
+
+        rete = Rete(
+            per_giornata={("SA", 8): [_partita(600, "Inter Milan", "Torino", "2026-10-25", "12:30", 2, 0)]},
+            stato_giornata={("BL1", 7): 429},
+            per_data={
+                ("SA", "2026-10-25", "2026-10-26"): [
+                    _partita(600, "Inter Milan", "Torino", "2026-10-25", "12:30", 2, 0),
+                    _partita(601, "Como", "Parma", "2026-10-25", "15:00", 2, 1),
+                ],
+                ("BL1", "2026-10-25", "2026-10-26"): [
+                    _partita(710, "Borussia Dortmund", "Augsburg", "2026-10-25", "14:30", 3, 1),
+                ],
+            },
+        )
+        salvate_vivo, salvate_ombra = [], []
+        with mock.patch.object(app, "load_predictions", return_value=vivo), \
+             mock.patch.object(app, "save_predictions", side_effect=lambda p: salvate_vivo.append(p)), \
+             mock.patch.object(rs, "load_ombra_rows", return_value=(ombra, "upstash")), \
+             mock.patch.object(rs, "save_ombra_rows",
+                               side_effect=lambda r, post=None: salvate_ombra.append(r) or {"remoto": "ok"}), \
+             mock.patch.object(app.requests, "get", side_effect=rete.get):
+            agg, pend = app.aggiorna_risultati_reali(CHIAVE)
+
+        self.assertEqual((4, 4), (agg, pend))
+        self.assertEqual(["✅", "✅", "✅", "✅"], [r["esito"] for r in vivo])
+        self.assertEqual(["❌", "✅", "❌"], [r["esito"] for r in ombra])   # Over 2-0, GG 2-1, Under 3-1
+        self.assertEqual(601, ou_sa[R.FD_MATCH_ID_FIELD])
+        for riga in [vivo_trovata, vivo_assente, vivo_429] + ombra:
+            self.assertNotIn(R.FD_MATCH_ID_FIELD, riga)
+        # Esattamente 4 GET in tutto (vivo + ombra insieme):
+        # 1) SA per data (O/U, riusata da vivo_assente e da omb_assente)
+        # 2) SA giornata 8 (riusata da omb_trovata)
+        # 3) BL1 giornata 7 -> 429 (in cache come None, non ripetuta nell'ombra)
+        # 4) BL1 per data (vivo_429, riusata da omb_429)
+        self.assertEqual(4, len(rete.chiamate), rete.chiamate)
+        self.assertEqual(1, sum(1 for u, p in rete.chiamate if "/SA/" in u and "dateFrom" in p))
+        self.assertEqual(1, sum(1 for u, p in rete.chiamate if "/SA/" in u and "matchday" in p))
+        self.assertEqual(1, sum(1 for u, p in rete.chiamate if "/BL1/" in u and "matchday" in p))
+        self.assertEqual(1, sum(1 for u, p in rete.chiamate if "/BL1/" in u and "dateFrom" in p))
 
 
 if __name__ == "__main__":
