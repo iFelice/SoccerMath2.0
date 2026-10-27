@@ -19085,11 +19085,11 @@
     "date": "2026-10-23 19:00:00",
     "home_team": "Ipswich",
     "away_team": "Nottingham Forest",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 1,
+    "home_xg": 0.856862,
+    "away_xg": 2.75509,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19097,11 +19097,11 @@
     "date": "2026-10-24 14:00:00",
     "home_team": "Arsenal",
     "away_team": "Everton",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 0,
+    "home_xg": 2.28617,
+    "away_xg": 0.721815,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19109,11 +19109,11 @@
     "date": "2026-10-24 11:30:00",
     "home_team": "Aston Villa",
     "away_team": "Manchester City",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 1,
+    "home_xg": 0.645964,
+    "away_xg": 2.28542,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19121,11 +19121,11 @@
     "date": "2026-10-24 16:30:00",
     "home_team": "Chelsea",
     "away_team": "Tottenham",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 2,
+    "home_xg": 0.460466,
+    "away_xg": 0.979641,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19133,11 +19133,11 @@
     "date": "2026-10-24 14:00:00",
     "home_team": "Coventry",
     "away_team": "Fulham",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 1,
+    "home_xg": 0.402537,
+    "away_xg": 0.572746,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19145,11 +19145,11 @@
     "date": "2026-10-25 14:00:00",
     "home_team": "Crystal Palace",
     "away_team": "Newcastle United",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 2,
+    "home_xg": 2.02904,
+    "away_xg": 1.29755,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19157,11 +19157,11 @@
     "date": "2026-10-25 14:00:00",
     "home_team": "Hull",
     "away_team": "Brentford",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 1,
+    "home_xg": 1.93749,
+    "away_xg": 1.70706,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19169,11 +19169,11 @@
     "date": "2026-10-25 14:00:00",
     "home_team": "Liverpool",
     "away_team": "Brighton",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 0,
+    "home_xg": 1.2818,
+    "away_xg": 1.31352,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19181,11 +19181,11 @@
     "date": "2026-10-25 14:00:00",
     "home_team": "Manchester United",
     "away_team": "Bournemouth",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 3,
+    "home_xg": 0.84372,
+    "away_xg": 2.56254,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -19193,11 +19193,11 @@
     "date": "2026-10-25 16:30:00",
     "home_team": "Sunderland",
     "away_team": "Leeds",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 0,
+    "home_xg": 1.02357,
+    "away_xg": 1.06511,
+    "is_result": true
   },
   {
     "season": 2026,

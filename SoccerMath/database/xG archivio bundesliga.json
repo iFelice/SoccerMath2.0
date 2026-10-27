@@ -15341,11 +15341,11 @@
     "date": "2026-10-23 18:30:00",
     "home_team": "VfB Stuttgart",
     "away_team": "Borussia M.Gladbach",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 3,
+    "home_xg": 1.97918,
+    "away_xg": 2.62544,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15353,11 +15353,11 @@
     "date": "2026-10-24 13:30:00",
     "home_team": "Augsburg",
     "away_team": "Union Berlin",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 1,
+    "home_xg": 2.02302,
+    "away_xg": 0.833279,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15365,11 +15365,11 @@
     "date": "2026-10-24 16:30:00",
     "home_team": "Borussia Dortmund",
     "away_team": "Eintracht Frankfurt",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 0,
+    "home_xg": 1.71646,
+    "away_xg": 0.850048,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15377,11 +15377,11 @@
     "date": "2026-10-24 13:30:00",
     "home_team": "FC Cologne",
     "away_team": "Schalke 04",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 0,
+    "away_goals": 0,
+    "home_xg": 1.18778,
+    "away_xg": 0.458299,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15389,11 +15389,11 @@
     "date": "2026-10-24 13:30:00",
     "home_team": "Mainz 05",
     "away_team": "Werder Bremen",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 2,
+    "away_goals": 3,
+    "home_xg": 1.86488,
+    "away_xg": 2.9473,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15401,11 +15401,11 @@
     "date": "2026-10-24 13:30:00",
     "home_team": "Paderborn",
     "away_team": "Hamburger SV",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 0,
+    "home_xg": 1.36027,
+    "away_xg": 0.41876,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15413,11 +15413,11 @@
     "date": "2026-10-24 13:30:00",
     "home_team": "RasenBallsport Leipzig",
     "away_team": "Elversberg",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 4,
+    "away_goals": 0,
+    "home_xg": 3.03237,
+    "away_xg": 0.764818,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15425,11 +15425,11 @@
     "date": "2026-10-25 16:30:00",
     "home_team": "Freiburg",
     "away_team": "Bayern Munich",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 1,
+    "away_goals": 3,
+    "home_xg": 0.825892,
+    "away_xg": 3.09477,
+    "is_result": true
   },
   {
     "season": 2026,
@@ -15437,11 +15437,11 @@
     "date": "2026-10-25 14:30:00",
     "home_team": "Hoffenheim",
     "away_team": "Bayer Leverkusen",
-    "home_goals": null,
-    "away_goals": null,
-    "home_xg": null,
-    "away_xg": null,
-    "is_result": false
+    "home_goals": 3,
+    "away_goals": 0,
+    "home_xg": 3.19382,
+    "away_xg": 0.418056,
+    "is_result": true
   },
   {
     "season": 2026,
