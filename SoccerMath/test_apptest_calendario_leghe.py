@@ -381,9 +381,16 @@ class TestTabelleERegistro(_BaseQuoteFinte):
         # e la cella e' vuota a schermo — mai la scritta «None»/«nan».
         import pandas as pd
         from audit.totals_snapshot_fixture import payload_snapshot
+        # ADESSO del fixture è dinamico (now), mentre lo snapshot è del
+        # 2026-10-16: con now=2026-10-29 gli eventi sono già scaduti e non
+        # entrerebbero in tabella. Per rendere il check indipendente dalla
+        # data reale si usa un orologio fisso prima del primo evento dello
+        # snapshot (18:45 del 16/10), come già fanno gli altri test con
+        # snapshot pinnati (ADESSO fisso 16/10 in test_scheda_partita.py).
         snapshot = payload_snapshot()
-        righe_ou, _ = app_mod.righe_pronostici_dalle_quote(snapshot, self.ADESSO)
-        normalizzate = [app_mod.riga_pronostico_da_mercato(r, self.ADESSO)
+        adesso_fisso = datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc)
+        righe_ou, _ = app_mod.righe_pronostici_dalle_quote(snapshot, adesso_fisso)
+        normalizzate = [app_mod.riga_pronostico_da_mercato(r, adesso_fisso)
                         for r in righe_ou]
         for r in normalizzate:
             r.pop("totals", None)          # O/U senza congiunta
