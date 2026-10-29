@@ -37,11 +37,22 @@ import market_odds as mo  # noqa: E402
 
 CAMP = "Serie A"
 
+# Fixture congelata alla giornata 7 (70 partite, ultima Parma-Torino 0-3 del
+# 19/10/2026) — gli stessi dati su cui i test sono stati scritti (commit
+# 87e9628, merge PR #81: Napoli 9ª era 8ª, 10 punti, 7 giocate, 31 giornate
+# rimaste ecc.). Il file live viene riscritto ogni giorno: leggere dal disco
+# rende i test flaky, quindi qui si legge la copia in test_fixtures/giornata7
+# come fanno gli altri test del progetto con snapshot pinnati (snap_test.py).
+FIXTURE_DIR = os.path.join(HERE, "test_fixtures", "giornata7")
+FIXTURE_SERIEA_CSV = os.path.join(FIXTURE_DIR, "SerieA_Live.csv")
+FIXTURE_LIVE_ODDS = os.path.join(FIXTURE_DIR, "live_odds.json")
+
 # L'evento quote del test: UN libro con terna 3.04/3.79/2.80, che de-vigata
 # (la stessa devig_proporzionale di market_odds) da' 34,6/27,8/37,6. E'
 # fissato qui, e non letto da live_odds.json, perche' quel file viene
 # riscritto ogni giorno dal workflow: le posizioni in classifica invece
-# vengono dai risultati archiviati letti con carica_risultati_stagione.
+# vengono dai risultati archiviati letti con carica_risultati_stagione dalla
+# fixture (non dal CSV live).
 EVENTO_NAPOLI_ROMA = {
     "home_team": "Napoli", "away_team": "AS Roma",
     "commence_time": "2026-10-24T16:00:00Z",
@@ -53,9 +64,9 @@ MODELLO_NAPOLI_ROMA = {("Napoli", "Roma"): {"1": 31, "X": 27, "2": 42}}
 
 
 def _scheda_napoli_roma() -> dict:
-    risultati = sp.carica_risultati_stagione(CAMP)
+    risultati = sp.carica_risultati_stagione(CAMP, percorso=FIXTURE_SERIEA_CSV)
     if risultati.empty:
-        raise unittest.SkipTest("nessun risultato archiviato di Serie A")
+        raise unittest.SkipTest("nessun risultato archiviato di Serie A (fixture giornata7)")
     return sp.costruisci_scheda(
         CAMP, "Napoli", "Roma", evento_quote=EVENTO_NAPOLI_ROMA,
         modello_1x2=MODELLO_NAPOLI_ROMA, risultati=risultati, storico_elo={})
@@ -87,7 +98,7 @@ class TestProbabilitaGrafica(unittest.TestCase):
     def test_modello_assente_nessuna_riga(self):
         scheda = sp.costruisci_scheda(
             CAMP, "Napoli", "Roma", evento_quote=EVENTO_NAPOLI_ROMA,
-            risultati=sp.carica_risultati_stagione(CAMP), storico_elo={})
+            risultati=sp.carica_risultati_stagione(CAMP, percorso=FIXTURE_SERIEA_CSV), storico_elo={})
         self.assertNotIn("Modello:", sg.html_probabilita(scheda))
 
     def test_etichette_pronostico_e_gol(self):

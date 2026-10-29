@@ -55,6 +55,15 @@ from team_aliases import clean_name  # noqa: E402
 ADESSO = datetime(2026, 10, 16, 16, 0, tzinfo=timezone.utc)
 CAMP = "Serie A"
 
+# Fixture congelata alla giornata 7 (70 partite, ultima Parma-Torino 0-3 del
+# 19/10/2026) — stessi dati su cui TestPosizioneGiornataPrecedente è stato
+# scritto (87e9628, merge PR #81: Napoli 9ª era 8ª, Roma 3ª ecc.). Il CSV live
+# viene riscritto ogni giorno, quindi il test legge la copia in
+# test_fixtures/giornata7 come gli altri test con snapshot pinnati.
+FIXTURE_DIR = os.path.join(HERE, "test_fixtures", "giornata7")
+FIXTURE_SERIEA_CSV = os.path.join(FIXTURE_DIR, "SerieA_Live.csv")
+FIXTURE_LIVE_ODDS = os.path.join(FIXTURE_DIR, "live_odds.json")
+
 
 def _righe_grezze(percorso: str) -> list:
     """Le righe del CSV cosi' come sono, lette senza pandas."""
@@ -209,9 +218,9 @@ class TestPosizioneGiornataPrecedente(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.risultati = sp.carica_risultati_stagione(CAMP)
+        cls.risultati = sp.carica_risultati_stagione(CAMP, percorso=FIXTURE_SERIEA_CSV)
         if cls.risultati.empty:
-            raise unittest.SkipTest("nessun risultato della stagione in corso")
+            raise unittest.SkipTest("nessun risultato della stagione in corso (fixture giornata7)")
         cls.classifica = sp.classifica(cls.risultati)
 
     def _riga(self, squadra: str) -> dict:
