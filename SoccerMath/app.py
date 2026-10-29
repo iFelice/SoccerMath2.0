@@ -1014,7 +1014,16 @@ def _applica_esiti(preds, api_key, cache=None):
     Due percorsi, una sola tabella di grading (``esito_mercato``):
 
     * righe CON giornata e ``match_id`` football-data (1X2 visibili e ombra):
-      la GET per giornata di sempre;
+      la GET per giornata di sempre; se la chiamata non da' 200 o la partita
+      non compare ancora nella risposta per giornata (football-data puo'
+      restare indietro di ore rispetto alla ricerca per data), e il suo calcio
+      d'inizio e' passato da piu' di ``ORE_MINIME_CONTROLLO_RISULTATI`` ore
+      (``righe_in_attesa_scadute``), la riga si cerca anche con
+      ``_partite_finite`` per (lega, giorno del kickoff), sulla stessa cache
+      ``("ou_giorno", comp, giorno)`` del ramo senza giornata, abbinando prima
+      per id football-data (come numero) e poi per coppia di nomi canonici e
+      stessa data (univoco o niente); le righe non ancora scadute restano in
+      attesa senza chiamate per data ne' righe nel log;
     * righe SENZA giornata o con ``match_id`` NON numerico: le voci O/U, il cui
       ``match_id`` e' l'id dell'evento The Odds API. Si cercano su
       football-data per (lega, giorno) e si abbinano per squadre e data
@@ -1050,6 +1059,10 @@ def _applica_esiti(preds, api_key, cache=None):
         for p in zero_day_preds:
             m_id = p.get("match_id")
             if not m_id:
+                logging.warning(
+                    f"Grading {p.get('home')}-{p.get('away')} ({camp}, giornata 0): "
+                    f"match_id mancante, resta ⏳")
+                p["esito"] = "⏳"
                 continue
             try:
                 r = requests.get(
@@ -1058,11 +1071,17 @@ def _applica_esiti(preds, api_key, cache=None):
                     timeout=10
                 )
                 if r.status_code != 200:
+                    logging.warning(f"Partita {m_id} ({camp}, giornata 0): HTTP {r.status_code}")
+                    p["esito"] = "⏳"
                     continue
                 match = r.json()
-                gh = match["score"]["fullTime"]["home"]
-                ga = match["score"]["fullTime"]["away"]
-                if gh is None:
+                gol = (match.get("score") or {}).get("fullTime") or {}
+                gh, ga = gol.get("home"), gol.get("away")
+                if gh is None or ga is None:
+                    logging.warning(
+                        f"Grading {p.get('home')}-{p.get('away')} (id={m_id}, giornata 0): "
+                        f"nessuna partita finita, resta ⏳")
+                    p["esito"] = "⏳"
                     continue
                 p["risultato_reale"] = f"{gh}-{ga}"
                 # Grading UNICO ( prediction_registry.esito_mercato ): prima il
@@ -1072,11 +1091,20 @@ def _applica_esiti(preds, api_key, cache=None):
                 aggiornate += 1
             except Exception as e:
                 logging.warning(f"Aggiornamento risultato per match_id {m_id} fallito: {e}")
+                p["esito"] = "⏳"
 
     # --- Loop normale per giornata > 0 ---
+    scadute_ids = {id(p) for p in righe_in_attesa_scadute(
+        per_giornata, ore=ORE_MINIME_CONTROLLO_RISULTATI)}
+    da_cercare_per_data = []
     for (camp, giornata), camp_pending in grouped.items():
         comp = LEAGUE_CODE_MAP.get(camp)
         if not comp:
+            for p in camp_pending:
+                logging.warning(
+                    f"Grading {p.get('home')}-{p.get('away')} (giornata {giornata}, "
+                    f"campionato={camp!r}): campionato non riconosciuto, resta ⏳")
+                p["esito"] = "⏳"
             continue
         chiave_cache = ("giornata", comp, giornata)
         if chiave_cache in cache:
@@ -1090,31 +1118,97 @@ def _applica_esiti(preds, api_key, cache=None):
                     timeout=15
                 )
                 if r.status_code != 200:
-                    cache[chiave_cache] = None
-                    continue
-                risultati_api = {m["id"]: m for m in r.json().get("matches", [])}
-                cache[chiave_cache] = risultati_api
+                    logging.warning(f"Partite {comp} giornata {giornata}: HTTP {r.status_code}")
+                    risultati_api = None
+                else:
+                    risultati_api = {int(m["id"]): m for m in (r.json().get("matches") or [])
+                                     if _match_id_numerico(m.get("id"))}
             except Exception as e:
                 # Non e' un `except: continue` muto: un fallback sul grading e'
                 # un giorno di risultati che non arriva, e va visto.
                 logging.warning(f"Aggiornamento risultati {camp} giornata {giornata} fallito: {e}")
-                cache[chiave_cache] = None
-                continue
+                risultati_api = None
+            cache[chiave_cache] = risultati_api
         if risultati_api is None:
+            da_cercare_per_data.extend(
+                (comp, p) for p in camp_pending if id(p) in scadute_ids)
             continue
         for p in camp_pending:
-            m_id = p.get("match_id")
-            if not m_id or m_id not in risultati_api:
-                p["esito"] = "⏳"
+            mid_riga = int(p.get("match_id"))
+            if mid_riga not in risultati_api:
+                if id(p) in scadute_ids:
+                    da_cercare_per_data.append((comp, p))
+                else:
+                    p["esito"] = "⏳"
                 continue
-            match = risultati_api[m_id]
-            gh = match["score"]["fullTime"]["home"]
-            ga = match["score"]["fullTime"]["away"]
-            if gh is None:
+            match = risultati_api[mid_riga]
+            gol = (match.get("score") or {}).get("fullTime") or {}
+            gh, ga = gol.get("home"), gol.get("away")
+            if gh is None or ga is None:
+                if id(p) in scadute_ids:
+                    da_cercare_per_data.append((comp, p))
                 continue
             p["risultato_reale"] = f"{gh}-{ga}"
             # Stessa tabella del ramo per match_id: nessun mercato "non graduato
             # perche' salvato da un altro percorso".
+            p["esito"] = esito_mercato(p.get("mercato_standard", ""), gh, ga) or "⏳"
+            aggiornate += 1
+
+    # --- Fallback per data sulle righe del ramo per giornata non trovate ---
+    raggruppate_data = defaultdict(list)
+    for comp, p in da_cercare_per_data:
+        giorno = _giorno_kickoff_riga(p)
+        if giorno is None:
+            ko = _kickoff_riga_registro(p)
+            if ko is not None:
+                giorno = ko.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        if giorno is None:
+            logging.warning(
+                f"Grading giornata {p.get('giornata')} senza estremi: {p.get('home')}-{p.get('away')} "
+                f"({p.get('mercato_standard')}, campionato={p.get('campionato')!r}, "
+                f"kickoff={p.get(KICKOFF_UTC_FIELD)!r}): resta ⏳")
+            p["esito"] = "⏳"
+            continue
+        raggruppate_data[(comp, giorno)].append(p)
+    for (comp, giorno), righe in raggruppate_data.items():
+        chiave_cache = ("ou_giorno", comp, giorno)
+        if chiave_cache not in cache:
+            cache[chiave_cache] = _partite_finite(comp, giorno, api_key)
+        partite = cache[chiave_cache]
+        if partite is None:
+            for p in righe:
+                p["esito"] = "⏳"
+            continue        # chiamata fallita: motivo gia' nel log, nessun esito scritto
+        for p in righe:
+            mid_riga = int(p.get("match_id"))
+            per_id = [m for m in partite
+                      if _match_id_numerico(m.get("id")) and int(m.get("id")) == mid_riga]
+            if per_id:
+                trovate = per_id
+            else:
+                coppia = _coppia_canonica(p.get("home"), p.get("away"))
+                trovate = ([] if coppia is None else
+                           [m for m in partite
+                            if str(m.get("utcDate") or "")[:10] == giorno
+                            and _coppia_canonica_partita(m) == coppia])
+            if len(trovate) != 1:
+                motivo = ("nessuna partita finita" if not trovate
+                          else f"{len(trovate)} partite corrispondenti")
+                logging.warning(
+                    f"Grading {p.get('home')}-{p.get('away')} del {giorno} "
+                    f"(giornata {p.get('giornata')}, {p.get('mercato_standard')}): {motivo}, resta ⏳")
+                p["esito"] = "⏳"
+                continue
+            match = trovate[0]
+            gol = (match.get("score") or {}).get("fullTime") or {}
+            gh, ga = gol.get("home"), gol.get("away")
+            if gh is None or ga is None:
+                logging.warning(
+                    f"Grading {p.get('home')}-{p.get('away')} del {giorno} "
+                    f"(giornata {p.get('giornata')}, {p.get('mercato_standard')}): punteggio mancante, resta ⏳")
+                p["esito"] = "⏳"
+                continue
+            p["risultato_reale"] = f"{gh}-{ga}"
             p["esito"] = esito_mercato(p.get("mercato_standard", ""), gh, ga) or "⏳"
             aggiornate += 1
     return aggiornate, len(pending)
