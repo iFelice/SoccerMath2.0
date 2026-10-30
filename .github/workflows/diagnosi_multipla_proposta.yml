@@ -1,0 +1,101 @@
+name: Diagnosi proposte settimanali multipla_proposta_v1 (sola lettura)
+
+# Diagnosi del 30/10/2026: le proposte di multipla della settimana (famiglia
+# multipla_proposta_v1 nel registro ombra sm:registro:ombra) non vengono mai
+# valutate dal grading (_applica_esiti le manda in _esiti_senza_giornata, dove
+# restano in attesa con campionato='Multi-lega', kickoff=None).
+#
+# Questo workflow NON modifica l'app e NON scrive da nessuna parte:
+#   - legge il registro ombra e il Registro vivo da Upstash con il solo comando
+#     HGETALL (PRIMA e DOPO, confrontando l'impronta sha256 di entrambi);
+#   - stampa nel log del job le risposte ai 4 punti della verifica (senza mai
+#     stampare chiavi o token);
+#   - verifica l'impronta del selettore PRIMA e DOPO (devono coincidere).
+#
+# Trigger: SOLO da tag diagnosi-multipla-*. Nessun cron, nessun pull_request,
+# nessun workflow_dispatch, nessuna scrittura (permissions: contents read,
+# nessun artifact, nessun commit).
+
+on:
+  push:
+    tags:
+      - 'diagnosi-multipla-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnosi-multipla-proposta
+  cancel-in-progress: false
+
+jobs:
+  diagnosi:
+    name: Diagnosi multipla_proposta_v1 (sola lettura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      REGISTRY_BACKEND: upstash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dipendenze (solo requests, niente Streamlit)
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Secrets necessari (senza stamparne i valori)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          mancanti=()
+          for nome in UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN; do
+            [ -n "${!nome}" ] || mancanti+=("$nome")
+          done
+          if [ ${#mancanti[@]} -gt 0 ]; then
+            echo "::error title=secret mancanti::${mancanti[*]} — la diagnosi legge il registro ombra e il Registro vivo da Upstash in sola lettura."
+            exit 1
+          fi
+          echo "secret presenti (valori non letti, non stampati)."
+
+      - name: Impronta del selettore PRIMA
+        run: |
+          python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, "SoccerMath")
+          import test_versione_selettore as T
+          with open("/tmp/impronta_selettore_prima.txt", "w", encoding="utf-8") as f:
+              f.write(T.impronta_attuale() + "\n" + T.impronta_ou_attuale() + "\n")
+          print("impronta selettore PRIMA:", T.impronta_attuale())
+          print("impronta OU PRIMA:", T.impronta_ou_attuale())
+          PYEOF
+
+      - name: Diagnosi (sola lettura, solo HGETALL, impronta registro prima e dopo)
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: python SoccerMath/diagnosi_multipla_proposta.py
+
+      - name: Impronta del selettore DOPO (deve essere identica)
+        run: |
+          python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, "SoccerMath")
+          import test_versione_selettore as T
+          attuale = T.impronta_attuale() + "\n" + T.impronta_ou_attuale() + "\n"
+          print("impronta selettore DOPO:", T.impronta_attuale())
+          print("impronta OU DOPO:", T.impronta_ou_attuale())
+          with open("/tmp/impronta_selettore_prima.txt", encoding="utf-8") as f:
+              prima = f.read()
+          if attuale != prima:
+              print("::error title=impronta-selettore::l'impronta del selettore e' cambiata durante la diagnosi")
+              sys.exit(1)
+          print("impronta del selettore prima == dopo: SI")
+          PYEOF
