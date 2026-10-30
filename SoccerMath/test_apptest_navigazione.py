@@ -112,11 +112,44 @@ class _BaseAppTest(unittest.TestCase):
         if cls.snap is None:
             raise unittest.SkipTest("Snapshot pinnato non raggiungibile (clone shallow?)")
 
+        import datetime as _dt_mod
+        import pandas  # noqa: F401 — carica le C-ext prima di patchare datetime.datetime
+        import pyarrow  # noqa: F401
+        import scipy.stats  # noqa: F401
         import config
         import market_odds
         import prediction_registry as pr
         import registry_store as rs
         import requests
+        import xg_archive
+
+        cls._patches = []
+
+        def patch(target, attr, valore):
+            cls._patches.append(mock.patch.object(target, attr, valore))
+            cls._patches[-1].start()
+
+        _real_dt = _dt_mod.datetime
+        _adesso = cls.ADESSO
+
+        class _MetaDtCongelata(type(_real_dt)):
+            def __instancecheck__(self_cls, istanza):
+                return isinstance(istanza, _real_dt)
+
+        class _DtCongelata(_real_dt, metaclass=_MetaDtCongelata):
+            __slots__ = ()
+
+            @classmethod
+            def now(cls_dt, tz=None):
+                if tz is None:
+                    return _adesso.replace(tzinfo=None)
+                return _adesso.astimezone(tz)
+
+        # Congela anche datetime.now allo stesso istante di market_odds._adesso_utc
+        # (sia per le riesecuzioni di app.py dentro AppTest sia per i moduli gia'
+        # importati come prediction_registry e xg_archive).
+        for _mod_dt in (_dt_mod, sys.modules[__name__], config, pr, xg_archive):
+            patch(_mod_dt, "datetime", _DtCongelata)
 
         cls.tmp = Path(tempfile.mkdtemp(prefix="sm_apptest_nav_"))
         for f in sorted(Path(HERE, "database").iterdir()):
@@ -210,12 +243,6 @@ class _BaseAppTest(unittest.TestCase):
             {"match_id": 8003, pr.OMBRA_FAMIGLIA_FIELD: "ou25", "esito": "✅"},
         ]
 
-        cls._patches = []
-
-        def patch(target, attr, valore):
-            cls._patches.append(mock.patch.object(target, attr, valore))
-            cls._patches[-1].start()
-
         patch(config, "DATABASE_DIR", cls.tmp)
         patch(config, "PREDICTIONS_FILE", str(cls.tmp / "predictions.json"))
         # Chiave FINTA per il calendario della scheda Partite (rete finta):
@@ -261,6 +288,7 @@ class _BaseAppTest(unittest.TestCase):
             raise unittest.SkipTest("Snapshot senza eventi")
 
         import app as app_mod
+        patch(app_mod, "datetime", _DtCongelata)
         cls._league_code = {nome: cfg.get("code")
                             for nome, cfg in getattr(app_mod, "LEAGUES_CONFIG", {}).items()}
         cls._match_by_league = {}
@@ -311,7 +339,9 @@ class _BaseAppTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        for p in getattr(cls, "_patches", []):
+        if hasattr(cls, "_st"):
+            cls._st.cache_data.clear()
+        for p in reversed(getattr(cls, "_patches", [])):
             try:
                 p.stop()
             except Exception:                                           # pragma: no cover
