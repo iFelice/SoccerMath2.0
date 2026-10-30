@@ -1228,21 +1228,294 @@ def aggiorna_risultati_reali(api_key):
     if aggiornate > 0:
         save_predictions(preds)
     try:
-        aggiorna_esiti_ombra(api_key, cache)
+        aggiorna_esiti_ombra(api_key, cache, righe_vive=preds)
     except Exception as e:
         logging.warning(f"Grading del registro ombra non riuscito (il Registro visibile e' a posto): {e}")
     return aggiornate, pending
 
 
-def aggiorna_esiti_ombra(api_key, cache=None):
+# ---------------------------------------------------------------------------
+# Valutazione delle righe multipla_proposta_v1 del registro ombra
+# ---------------------------------------------------------------------------
+# Regola: la multipla e' ✅ solo se TUTTE le gambe sono ✅; e' ❌ appena UNA
+# gamba e' ❌; resta ⏳ finche' anche una sola gamba manca. Ogni gamba porta
+# ``esito_gamba`` e ``risultato_gamba`` (cosi' si vede quale gamba l'ha fatta
+# cadere); sulla riga ``esito`` e ``risultato_reale`` vuoto: una multipla non
+# ha un punteggio suo.
+
+#: Finestra di abbinamento per nomi di una gamba, da ``salvato_il`` della multipla.
+FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI = 14
+
+
+def _gol_risultato(risultato):
+    """(casa, trasferta) interi da un risultato "H-A"; ``None`` se non interpretabile."""
+    try:
+        h, a = str(risultato).split("-")
+        return int(h.strip()), int(a.strip())
+    except (ValueError, AttributeError):
+        return None
+
+
+def _coppia_canonica_gamba(gamba):
+    """(casa, trasferta) canonici della partita di una gamba (``"Casa vs Trasferta"``)."""
+    partita = str((gamba or {}).get("partita") or "")
+    if " vs " not in partita:
+        return None
+    casa, _, trasferta = partita.partition(" vs ")
+    return _coppia_canonica(casa.strip(), trasferta.strip())
+
+
+def _istante_salvato_il_multipla(riga):
+    """L'istante di salvataggio di una riga multipla, aware UTC (o ``None``).
+
+    ``salvato_il`` e' l'ISO UTC scritto da ``build_ombra_multipla_entry``; in
+    sua assenza si ripiega sugli estremi di una riga qualunque (kickoff o data).
+    """
+    dt = lg.parse_commence_time((riga or {}).get("salvato_il"))
+    if dt is not None:
+        return dt
+    return _kickoff_riga_registro(riga)
+
+
+def _motivo_gamba_multipla(riga, gamba, motivo):
+    """La riga di log di una gamba che resta in attesa (la scrive il chiamante)."""
+    return (f"Grading multipla {(riga or {}).get('match_id')}: gamba "
+            f"{gamba.get('partita')} ({gamba.get('giocata')}): {motivo}, resta ⏳")
+
+
+def _partita_graduata_della_gamba(gamba, coppia, righe_graduate, salvato_il):
+    """La partita di una gamba fra le righe gia' graduate (ombra o Registro vivo).
+
+    Ritorna ``(riga, None)`` con l'abbinamento unico, ``(None, motivo)`` quando
+    l'abbinamento non e' unico (la gamba resta in attesa col motivo) e
+    ``(None, None)`` quando non trova niente (il chiamante prova la fonte 2).
+
+    Per ``match_id`` se la gamba lo ha (solo per id: un id e' una chiave esatta,
+    non ha bisogno di finestre); altrimenti per coppia di nomi canonici e stessa
+    lega, con calcio d'inizio entro ``FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI``
+    giorni da ``salvato_il`` della multipla.
+    """
+    mid = (gamba or {}).get("match_id")
+    if mid not in (None, ""):
+        trovate = [r for r in righe_graduate or []
+                   if r.get("match_id") is not None
+                   and str(r.get("match_id")) == str(mid)
+                   and _gol_risultato(r.get("risultato_reale")) is not None]
+        if not trovate:
+            return None, None
+        risultati = {str(r.get("risultato_reale")) for r in trovate}
+        if len(risultati) == 1:
+            return trovate[0], None
+        return None, (f"{len(trovate)} righe graduate con lo stesso match_id "
+                      f"e risultati discordi")
+    if coppia is None:
+        return None, "gamba senza match_id e con partita non abbinabile per nomi"
+    lega = str(gamba.get("lega") or "").strip()
+    trovate = []
+    for r in righe_graduate or []:
+        if str(r.get("campionato") or "").strip() != lega:
+            continue
+        if _coppia_canonica(r.get("home"), r.get("away")) != coppia:
+            continue
+        if _gol_risultato(r.get("risultato_reale")) is None:
+            continue
+        ko = _kickoff_riga_registro(r)
+        if salvato_il is None or ko is None:
+            continue          # senza finestra controllabile i nomi non si abbinano
+        if ko < salvato_il or ko > salvato_il + timedelta(days=FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI):
+            continue
+        trovate.append(r)
+    if len(trovate) == 1:
+        return trovate[0], None
+    if len(trovate) > 1:
+        return None, (f"{len(trovate)} partite graduate con gli stessi nomi nella finestra "
+                      f"di {FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI} giorni da salvato_il")
+    return None, None
+
+
+def _partite_finite_con_cache(api_key, cache):
+    """Cercatore di partite finite per (lega, giorno) sulla cache condivisa del giro.
+
+    Stessa chiave ``("ou_giorno", comp, giorno)`` del ramo senza giornata: le
+    risposte gia' raccolte per le voci O/U (Registro vivo e ombra) si riutilizzano
+    anche per le gambe delle multiple.
+    """
+    def cerca(comp, giorno):
+        chiave = ("ou_giorno", comp, giorno)
+        if chiave not in cache:
+            cache[chiave] = _partite_finite(comp, giorno, api_key)
+        return cache[chiave]
+    return cerca
+
+
+def valuta_riga_multipla(riga, righe_graduate, partite_finite=None, adesso=None):
+    """Valuta una riga ``multipla_proposta_v1`` dato le altre righe gia' graduate.
+
+    FUNZIONE PURA: nessuna rete, nessun file, nessuna scrittura di registro;
+    l'unica fonte esterna e' ``partite_finite(comp, giorno)``, iniettata dal
+    chiamante (in produzione e' ``_partite_finite_con_cache``: stessa cache e
+    stessa chiave ``("ou_giorno", comp, giorno)`` del ramo senza giornata).
+    ``riga`` viene mutata sul posto e la funzione ritorna::
+
+        {"gambe_valutate": int,   # gambe con esito_gamba scritto in QUESTA chiamata
+         "motivi": [str, ...]}    # un motivo per ogni gamba che resta in attesa
+
+    ``gambe_valutate`` dice anche QUANDO riscrivere la riga: una multipla che
+    resta in attesa non ha niente di nuovo da dire e non va riscritta (il clic
+    su una scheda e' una lettura). L'esito della riga, una volta deciso
+    (``✅``/``❌``), NON viene mai sovrascritto: le gambe ancora in attesa di
+    una multipla persa continuano a ricevere ``esito_gamba`` e
+    ``risultato_gamba``, ma la riga resta com'e'.
+
+    Fonte del risultato di ogni gamba (gia' decisa se ha ``esito_gamba``), in ordine:
+
+    1. la stessa partita gia' graduata nel registro ombra o nel Registro vivo:
+       per ``match_id`` se la gamba lo ha, altrimenti per coppia di nomi canonici
+       e stessa lega, con calcio d'inizio entro 14 giorni da ``salvato_il`` della
+       multipla, solo se l'abbinamento e' unico; l'esito della gamba si calcola
+       con ``esito_mercato`` dalla ``giocata`` e dal ``risultato_reale`` di quella
+       partita;
+    2. solo se la gamba ha ``kickoff_utc`` passato da piu' di
+       ``ORE_MINIME_CONTROLLO_RISULTATI`` ore e la fonte 1 non trova niente:
+       ``partite_finite`` per (lega, giorno), abbinando per coppia di nomi
+       canonici e stessa data, univoco o niente.
+
+    Abbinamento non unico o partita non trovata: la gamba resta in attesa e il
+    motivo finisce nei ``motivi`` (il chiamante lo scrive nel log). Una partita
+    non ancora da cercare (kickoff nel futuro o passato da meno di
+    ``ORE_MINIME_CONTROLLO_RISULTATI`` ore) non produce ne' chiamate ne' motivi.
+    """
+    if not isinstance(riga, dict):
+        return {"gambe_valutate": 0, "motivi": []}
+    now = adesso if adesso is not None else datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    gambe = [g for g in riga.get("giocate") or [] if isinstance(g, dict)]
+    salvato_il = _istante_salvato_il_multipla(riga)
+    gambe_valutate = 0
+    motivi = []
+
+    for g in gambe:
+        if g.get("esito_gamba") in ("✅", "❌"):
+            continue                     # gia' valutata: non si tocca
+        coppia = _coppia_canonica_gamba(g)
+        risultato_gamba = None
+        motivo = None
+
+        # --- fonte 1: la stessa partita gia' graduata (ombra o Registro vivo) ---
+        riga_abbinata, motivo = _partita_graduata_della_gamba(g, coppia, righe_graduate, salvato_il)
+        if riga_abbinata is not None:
+            risultato_gamba = str(riga_abbinata.get("risultato_reale"))
+
+        # --- fonte 2: partite finite per (lega, giorno), solo se il kickoff e'
+        #     passato da piu' di ORE_MINIME_CONTROLLO_RISULTATI ore e la fonte 1
+        #     non ha trovato niente ---
+        if risultato_gamba is None and motivo is None and partite_finite is not None:
+            ko = lg.parse_commence_time(g.get("kickoff_utc"))
+            if ko is None:
+                motivo = "kickoff_utc mancante o illeggibile"
+            elif (now - ko).total_seconds() <= ORE_MINIME_CONTROLLO_RISULTATI * 3600.0:
+                motivo = None       # partita non ancora da cercare: attesa in silenzio
+            else:
+                comp = LEAGUE_CODE_MAP.get(str(g.get("lega") or "").strip())
+                if comp is None:
+                    motivo = f"lega non riconosciuta ({g.get('lega')!r})"
+                elif coppia is None:
+                    motivo = "partita non abbinabile per nomi"
+                else:
+                    giorno = ko.astimezone(timezone.utc).strftime("%Y-%m-%d")
+                    partite = partite_finite(comp, giorno)
+                    if partite is None:
+                        motivo = None   # chiamata fallita: il motivo e' gia' nel log
+                    else:
+                        trovate = [m for m in partite
+                                   if str(m.get("utcDate") or "")[:10] == giorno
+                                   and _coppia_canonica_partita(m) == coppia]
+                        if len(trovate) == 1:
+                            gol = (trovate[0].get("score") or {}).get("fullTime") or {}
+                            gh, ga = gol.get("home"), gol.get("away")
+                            if gh is None or ga is None:
+                                motivo = f"partita finita del {giorno} senza punteggio"
+                            else:
+                                risultato_gamba = f"{gh}-{ga}"
+                        elif not trovate:
+                            motivo = f"nessuna partita finita per nomi e data del {giorno}"
+                        else:
+                            motivo = (f"{len(trovate)} partite corrispondenti per nomi "
+                                      f"e data del {giorno}")
+
+        if risultato_gamba is not None:
+            gh, ga = _gol_risultato(risultato_gamba)
+            esito_gamba = esito_mercato(g.get("giocata"), gh, ga)
+            if esito_gamba is None:
+                motivo = f"giocata {g.get('giocata')!r} non graduabile sul risultato {risultato_gamba}"
+            else:
+                g["risultato_gamba"] = risultato_gamba
+                g["esito_gamba"] = esito_gamba
+                gambe_valutate += 1
+
+        if g.get("esito_gamba") not in ("✅", "❌") and motivo is not None:
+            motivi.append(_motivo_gamba_multipla(riga, g, motivo))
+
+    # Esito della riga: una volta deciso (✅/❌) non si tocca mai; altrimenti
+    # tutte ✅ -> ✅, appena una ❌ -> ❌, finche' manca una gamba -> ⏳.
+    prima_esito = riga.get("esito")
+    esiti_gambe = [g.get("esito_gamba") for g in gambe]
+    if prima_esito in ("✅", "❌"):
+        esito_riga = prima_esito
+    elif esiti_gambe and all(e == "✅" for e in esiti_gambe):
+        esito_riga = "✅"
+    elif "❌" in esiti_gambe:
+        esito_riga = "❌"
+    else:
+        esito_riga = "⏳"
+    riga["esito"] = esito_riga
+    riga["risultato_reale"] = ""        # una multipla non ha un punteggio suo
+    return {"gambe_valutate": gambe_valutate, "motivi": motivi}
+
+
+def aggiorna_esiti_ombra(api_key, cache=None, righe_vive=None):
     """Grading del registro OMBRA: stesse regole delle righe normali. Ritorna ``(aggiornate, pending)``.
 
     Lettura strict: con un errore di rete non scrive nulla. Scrive solo le righe
     giudicate in questo giro (``HSET`` diff).
+
+    Le righe ``multipla_proposta_v1`` NON passano da ``_applica_esiti``: non
+    hanno ne' giornata ne' match_id football-data, e finivano nel ramo senza
+    giornata scrivendo "Grading O/U senza estremi" nel log senza mai essere
+    valutate. Si valutano con ``valuta_riga_multipla`` DOPO che le altre righe
+    ombra sono state graduate nello stesso giro, abbinando ogni gamba alle righe
+    gia' graduate (le altre righe ombra di questo giro piu' il Registro vivo,
+    ``righe_vive`` se passato dal chiamante, altrimenti riletto) e alle partite
+    finite per (lega, giorno) sulla stessa cache del ramo senza giornata. Il
+    tutto si scrive con la stessa ``save_ombra_rows``.
     """
     from registry_store import esito_scrittura, load_ombra_rows, save_ombra_rows
+    if cache is None:
+        cache = {}
     righe, _fonte = load_ombra_rows(strict=True)
-    aggiornate, pending = _applica_esiti(righe, api_key, cache)
+    multiple, altre = [], []
+    for r in righe or []:
+        if isinstance(r, dict) and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA:
+            multiple.append(r)
+        else:
+            altre.append(r)
+    aggiornate, pending = _applica_esiti(altre, api_key, cache)
+    if multiple:
+        if righe_vive is None:
+            righe_vive = load_predictions()
+        graduate = [r for r in list(altre) + list(righe_vive or [])
+                    if isinstance(r, dict) and _gol_risultato(r.get("risultato_reale")) is not None]
+        cerca_partite = _partite_finite_con_cache(api_key, cache)
+        for riga in multiple:
+            esito_val = valuta_riga_multipla(riga, graduate, partite_finite=cerca_partite)
+            for motivo in esito_val["motivi"]:
+                logging.warning(motivo)
+            # Si riscrive solo la multipla con almeno una gamba appena valutata:
+            # quella che resta in attesa non ha niente di nuovo da dire.
+            if esito_val["gambe_valutate"]:
+                aggiornate += 1
+        pending += sum(1 for r in multiple if r.get("esito") not in ("✅", "❌"))
     if aggiornate > 0:
         esito = esito_scrittura(save_ombra_rows(righe))
         if esito.get("remoto") not in ("ok", "disattivato"):

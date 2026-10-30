@@ -389,7 +389,10 @@ class TestProblema3_RegistroOmbra(unittest.TestCase):
         idx = app_src.find("def aggiorna_risultati_reali")
         self.assertGreater(idx, -1)
         snippet = app_src[idx:idx + 800]
-        self.assertIn("aggiorna_esiti_ombra(api_key, cache)", snippet)
+        # La chiamata passa anche le righe vive appena graduate (righe_vive):
+        # servono a valutare le gambe delle multiple nello stesso giro. La
+        # cache HTTP resta quella condivisa col Registro visibile.
+        self.assertIn("aggiorna_esiti_ombra(api_key, cache", snippet)
 
     def test_ombra_grading_non_fa_fallire_visibile(self):
         """Un errore del grading ombra non fa fallire il visibile."""
