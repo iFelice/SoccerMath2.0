@@ -953,13 +953,33 @@ def _motivo_fuori_finestra(istante: datetime) -> str:
             "le proposte si registrano solo da venerdì 00:00 a lunedì 23:59.")
 
 
+def kickoff_utc_da_commence_time(commence_time: Any) -> Optional[str]:
+    """Kickoff di una gamba in ISO UTC (``None`` se ``commence_time`` manca o e' illeggibile).
+
+    ``commence_time`` puo' arrivare con ``Z`` o con offset (``+02:00``): la gamba
+    salvata nel registro ombra porta sempre lo stesso formato ISO UTC, cosi' la
+    valutazione puo' ordinare e giudicare le gambe senza riparsarlo. Un valore
+    assente o non interpretabile diventa ``None``: mai un valore inventato.
+    """
+    dt = parse_commence_time(commence_time)
+    if dt is None:
+        return None
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def build_ombra_multipla_entry(
     proposta: Dict[str, Any],
     istante_utc: Optional[datetime] = None,
     snapshot_sha: Optional[str] = None,
     k: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Costruisce il record per il registro ombra (famiglia multipla_proposta_v1)."""
+    """Costruisce il record per il registro ombra (famiglia multipla_proposta_v1).
+
+    Ogni gamba porta anche ``match_id`` (quello che ``calcola_lista_giocate``
+    ha in memoria) e ``kickoff_utc`` (da ``commence_time``, ISO UTC): senza
+    questi due campi la riga non e' valutabile, perche' non si sa a quale
+    partita rimandare ne' quando si gioca (diagnosi 30/10).
+    """
     now = istante_utc or mo._adesso_utc()
     iso_now = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     settimana = settimana_gioco(now)
@@ -973,6 +993,8 @@ def build_ombra_multipla_entry(
             "probabilita": round(float(g.get("probabilita", 0.0)), 6),
             "quota_stimata": round(float(g.get("quota_stimata_effettiva") or g.get("quota_b365_stimata") or 0.0), 2),
             "sovrascritta": bool(g.get("sovrascritta", False)),
+            "match_id": g.get("match_id"),
+            "kickoff_utc": kickoff_utc_da_commence_time(g.get("commence_time")),
         })
         
     p_tot = float(proposta.get("probabilita", 0.0))
