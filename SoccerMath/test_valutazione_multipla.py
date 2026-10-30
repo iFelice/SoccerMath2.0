@@ -11,11 +11,13 @@ risultato. Da qui:
   vede quale gamba l'ha fatta cadere); sulla riga ``esito`` e
   ``risultato_reale`` vuoto: una multipla non ha un punteggio suo.
 * Fonte del risultato di ogni gamba, in ordine:
-  1. la stessa partita gia' graduata (registro ombra o Registro vivo), per
-     ``match_id`` se la gamba lo ha, altrimenti per coppia di nomi canonici e
-     stessa lega con calcio d'inizio entro 14 giorni da ``salvato_il`` della
-     multipla, solo se l'abbinamento e' unico; l'esito della gamba si calcola
-     con ``esito_mercato`` dalla ``giocata`` e dal ``risultato_reale``;
+  1. la stessa partita gia' graduata (registro ombra o Registro vivo), prima
+     per ``match_id`` e, se l'id non e' fra le righe graduate (l'id di una gamba
+     e' quello dell'evento The Odds API, le righe 1X2 del registro portano l'id
+     football-data), per coppia di nomi canonici e stessa lega con calcio
+     d'inizio entro 14 giorni da ``salvato_il`` della multipla, solo se
+     l'abbinamento e' unico; l'esito della gamba si calcola con
+     ``esito_mercato`` dalla ``giocata`` e dal ``risultato_reale``;
   2. solo se la gamba ha ``kickoff_utc`` passato da piu' di
      ``ORE_MINIME_CONTROLLO_RISULTATI`` ore e la fonte 1 non trova niente, le
      partite finite per (lega, giorno) con la stessa cache e la stessa chiave
@@ -238,6 +240,38 @@ class TestValutaRigaMultipla(RipristinaLogging, unittest.TestCase):
         gamba = riga["giocate"][0]
         self.assertEqual(("✅", "1-0"), (gamba["esito_gamba"], gamba["risultato_gamba"]))
         self.assertEqual([], spy.chiamate, "la fonte 1 basta: nessuna chiamata")
+
+    def test_match_id_odds_api_non_trovato_cade_sui_nomi_senza_chiamate(self):
+        """L'id della gamba e' The Odds API, la riga graduata (ombra) porta l'id football-data.
+
+        Per le multiple nuove l'id non combacia quasi mai: la gamba si abbina
+        per nomi canonici e lega entro 14 giorni da salvato_il, senza nessuna
+        chiamata a partite_finite.
+        """
+        gambe = [_gamba("7d3160040958fe21778fd5ee485666c3", "Como", "Parma",
+                        "Serie A", "12", "2026-10-24T15:00:00Z")]
+        riga = _riga_multipla(gambe)
+        # La STESSA partita, gia' graduata nel registro OMBRA, con l'id numerico
+        # di football-data (costruita dal codice vero, come le righe ombra reali).
+        graduata_ombra = app.build_ombra_entry(
+            {"league": "Serie A", "giornata": 8, "home": "Como", "away": "Parma",
+             "match_id": 601, "utcDate": "2026-10-24T15:00:00Z",
+             "market": "Over 2.5", "mercato_standard": "OVER_2.5",
+             "confidence": 0.66, "poisson": 0.66, "ammessa": True,
+             "vincente_globale": True, "famiglia": R.OMBRA_FAMIGLIA_OU25,
+             "dati_mancanti": False},
+            snapshot_sha=SHA, salvato_il=SALVATO_IL)
+        graduata_ombra["risultato_reale"] = "2-1"
+        graduata_ombra["esito"] = "✅"
+        spy = Fonte2Spy()
+        info = app.valuta_riga_multipla(riga, [graduata_ombra], partite_finite=spy,
+                                        adesso=ADESSO)
+        self.assertEqual({"gambe_valutate": 1, "motivi": []}, info)
+        self.assertEqual("✅", riga["esito"])
+        gamba = riga["giocate"][0]
+        self.assertEqual(("✅", "2-1"), (gamba["esito_gamba"], gamba["risultato_gamba"]))
+        self.assertEqual([], spy.chiamate,
+                         "l'id non c'e' ma i nomi si': nessuna chiamata alla fonte 2")
 
     def test_due_partite_con_gli_stessi_nomi_nella_finestra_restano_in_attesa(self):
         """Due partite graduate con gli stessi nomi entro 14 giorni: abbinamento non unico."""

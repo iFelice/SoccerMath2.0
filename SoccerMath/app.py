@@ -1290,10 +1290,12 @@ def _partita_graduata_della_gamba(gamba, coppia, righe_graduate, salvato_il):
     l'abbinamento non e' unico (la gamba resta in attesa col motivo) e
     ``(None, None)`` quando non trova niente (il chiamante prova la fonte 2).
 
-    Per ``match_id`` se la gamba lo ha (solo per id: un id e' una chiave esatta,
-    non ha bisogno di finestre); altrimenti per coppia di nomi canonici e stessa
-    lega, con calcio d'inizio entro ``FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI``
-    giorni da ``salvato_il`` della multipla.
+    Prima per ``match_id`` se la gamba lo ha (un id e' una chiave esatta); se
+    l'id non e' fra le righe graduate — l'id di una gamba e' quello dell'evento
+    The Odds API, mentre le righe 1X2 del registro (vivo e ombra) portano l'id
+    numerico di football-data, quindi quasi mai combaciano — si abbina per
+    coppia di nomi canonici e stessa lega, con calcio d'inizio entro
+    ``FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI`` giorni da ``salvato_il``.
     """
     mid = (gamba or {}).get("match_id")
     if mid not in (None, ""):
@@ -1301,15 +1303,18 @@ def _partita_graduata_della_gamba(gamba, coppia, righe_graduate, salvato_il):
                    if r.get("match_id") is not None
                    and str(r.get("match_id")) == str(mid)
                    and _gol_risultato(r.get("risultato_reale")) is not None]
-        if not trovate:
-            return None, None
-        risultati = {str(r.get("risultato_reale")) for r in trovate}
-        if len(risultati) == 1:
-            return trovate[0], None
-        return None, (f"{len(trovate)} righe graduate con lo stesso match_id "
-                      f"e risultati discordi")
+        if trovate:
+            risultati = {str(r.get("risultato_reale")) for r in trovate}
+            if len(risultati) == 1:
+                return trovate[0], None
+            return None, (f"{len(trovate)} righe graduate con lo stesso match_id "
+                          f"e risultati discordi")
+        # L'id non e' fra le righe graduate: la partita e' comunque la stessa,
+        # si prova per nomi canonici e lega entro la finestra di salvato_il.
     if coppia is None:
-        return None, "gamba senza match_id e con partita non abbinabile per nomi"
+        if mid in (None, ""):
+            return None, "gamba senza match_id e con partita non abbinabile per nomi"
+        return None, None      # resta solo la fonte 2, che abbina per nomi
     lega = str(gamba.get("lega") or "").strip()
     trovate = []
     for r in righe_graduate or []:
@@ -1370,10 +1375,12 @@ def valuta_riga_multipla(riga, righe_graduate, partite_finite=None, adesso=None)
     Fonte del risultato di ogni gamba (gia' decisa se ha ``esito_gamba``), in ordine:
 
     1. la stessa partita gia' graduata nel registro ombra o nel Registro vivo:
-       per ``match_id`` se la gamba lo ha, altrimenti per coppia di nomi canonici
-       e stessa lega, con calcio d'inizio entro 14 giorni da ``salvato_il`` della
-       multipla, solo se l'abbinamento e' unico; l'esito della gamba si calcola
-       con ``esito_mercato`` dalla ``giocata`` e dal ``risultato_reale`` di quella
+       prima per ``match_id``; se l'id non e' fra le righe graduate (l'id di una
+       gamba e' quello dell'evento The Odds API, le righe 1X2 del registro
+       portano l'id football-data), per coppia di nomi canonici e stessa lega,
+       con calcio d'inizio entro 14 giorni da ``salvato_il`` della multipla,
+       solo se l'abbinamento e' unico; l'esito della gamba si calcola con
+       ``esito_mercato`` dalla ``giocata`` e dal ``risultato_reale`` di quella
        partita;
     2. solo se la gamba ha ``kickoff_utc`` passato da piu' di
        ``ORE_MINIME_CONTROLLO_RISULTATI`` ore e la fonte 1 non trova niente:
