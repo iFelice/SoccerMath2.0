@@ -1228,21 +1228,301 @@ def aggiorna_risultati_reali(api_key):
     if aggiornate > 0:
         save_predictions(preds)
     try:
-        aggiorna_esiti_ombra(api_key, cache)
+        aggiorna_esiti_ombra(api_key, cache, righe_vive=preds)
     except Exception as e:
         logging.warning(f"Grading del registro ombra non riuscito (il Registro visibile e' a posto): {e}")
     return aggiornate, pending
 
 
-def aggiorna_esiti_ombra(api_key, cache=None):
+# ---------------------------------------------------------------------------
+# Valutazione delle righe multipla_proposta_v1 del registro ombra
+# ---------------------------------------------------------------------------
+# Regola: la multipla e' ✅ solo se TUTTE le gambe sono ✅; e' ❌ appena UNA
+# gamba e' ❌; resta ⏳ finche' anche una sola gamba manca. Ogni gamba porta
+# ``esito_gamba`` e ``risultato_gamba`` (cosi' si vede quale gamba l'ha fatta
+# cadere); sulla riga ``esito`` e ``risultato_reale`` vuoto: una multipla non
+# ha un punteggio suo.
+
+#: Finestra di abbinamento per nomi di una gamba, da ``salvato_il`` della multipla.
+FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI = 14
+
+
+def _gol_risultato(risultato):
+    """(casa, trasferta) interi da un risultato "H-A"; ``None`` se non interpretabile."""
+    try:
+        h, a = str(risultato).split("-")
+        return int(h.strip()), int(a.strip())
+    except (ValueError, AttributeError):
+        return None
+
+
+def _coppia_canonica_gamba(gamba):
+    """(casa, trasferta) canonici della partita di una gamba (``"Casa vs Trasferta"``)."""
+    partita = str((gamba or {}).get("partita") or "")
+    if " vs " not in partita:
+        return None
+    casa, _, trasferta = partita.partition(" vs ")
+    return _coppia_canonica(casa.strip(), trasferta.strip())
+
+
+def _istante_salvato_il_multipla(riga):
+    """L'istante di salvataggio di una riga multipla, aware UTC (o ``None``).
+
+    ``salvato_il`` e' l'ISO UTC scritto da ``build_ombra_multipla_entry``; in
+    sua assenza si ripiega sugli estremi di una riga qualunque (kickoff o data).
+    """
+    dt = lg.parse_commence_time((riga or {}).get("salvato_il"))
+    if dt is not None:
+        return dt
+    return _kickoff_riga_registro(riga)
+
+
+def _motivo_gamba_multipla(riga, gamba, motivo):
+    """La riga di log di una gamba che resta in attesa (la scrive il chiamante)."""
+    return (f"Grading multipla {(riga or {}).get('match_id')}: gamba "
+            f"{gamba.get('partita')} ({gamba.get('giocata')}): {motivo}, resta ⏳")
+
+
+def _partita_graduata_della_gamba(gamba, coppia, righe_graduate, salvato_il):
+    """La partita di una gamba fra le righe gia' graduate (ombra o Registro vivo).
+
+    Ritorna ``(riga, None)`` con l'abbinamento unico, ``(None, motivo)`` quando
+    l'abbinamento non e' unico (la gamba resta in attesa col motivo) e
+    ``(None, None)`` quando non trova niente (il chiamante prova la fonte 2).
+
+    Prima per ``match_id`` se la gamba lo ha (un id e' una chiave esatta); se
+    l'id non e' fra le righe graduate — l'id di una gamba e' quello dell'evento
+    The Odds API, mentre le righe 1X2 del registro (vivo e ombra) portano l'id
+    numerico di football-data, quindi quasi mai combaciano — si abbina per
+    coppia di nomi canonici e stessa lega, con calcio d'inizio entro
+    ``FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI`` giorni da ``salvato_il``.
+    """
+    mid = (gamba or {}).get("match_id")
+    if mid not in (None, ""):
+        trovate = [r for r in righe_graduate or []
+                   if r.get("match_id") is not None
+                   and str(r.get("match_id")) == str(mid)
+                   and _gol_risultato(r.get("risultato_reale")) is not None]
+        if trovate:
+            risultati = {str(r.get("risultato_reale")) for r in trovate}
+            if len(risultati) == 1:
+                return trovate[0], None
+            return None, (f"{len(trovate)} righe graduate con lo stesso match_id "
+                          f"e risultati discordi")
+        # L'id non e' fra le righe graduate: la partita e' comunque la stessa,
+        # si prova per nomi canonici e lega entro la finestra di salvato_il.
+    if coppia is None:
+        if mid in (None, ""):
+            return None, "gamba senza match_id e con partita non abbinabile per nomi"
+        return None, None      # resta solo la fonte 2, che abbina per nomi
+    lega = str(gamba.get("lega") or "").strip()
+    trovate = []
+    for r in righe_graduate or []:
+        if str(r.get("campionato") or "").strip() != lega:
+            continue
+        if _coppia_canonica(r.get("home"), r.get("away")) != coppia:
+            continue
+        if _gol_risultato(r.get("risultato_reale")) is None:
+            continue
+        ko = _kickoff_riga_registro(r)
+        if salvato_il is None or ko is None:
+            continue          # senza finestra controllabile i nomi non si abbinano
+        if ko < salvato_il or ko > salvato_il + timedelta(days=FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI):
+            continue
+        trovate.append(r)
+    if len(trovate) == 1:
+        return trovate[0], None
+    if len(trovate) > 1:
+        return None, (f"{len(trovate)} partite graduate con gli stessi nomi nella finestra "
+                      f"di {FINESTRA_ABBINAMENTO_MULTIPLA_GIORNI} giorni da salvato_il")
+    return None, None
+
+
+def _partite_finite_con_cache(api_key, cache):
+    """Cercatore di partite finite per (lega, giorno) sulla cache condivisa del giro.
+
+    Stessa chiave ``("ou_giorno", comp, giorno)`` del ramo senza giornata: le
+    risposte gia' raccolte per le voci O/U (Registro vivo e ombra) si riutilizzano
+    anche per le gambe delle multiple.
+    """
+    def cerca(comp, giorno):
+        chiave = ("ou_giorno", comp, giorno)
+        if chiave not in cache:
+            cache[chiave] = _partite_finite(comp, giorno, api_key)
+        return cache[chiave]
+    return cerca
+
+
+def valuta_riga_multipla(riga, righe_graduate, partite_finite=None, adesso=None):
+    """Valuta una riga ``multipla_proposta_v1`` dato le altre righe gia' graduate.
+
+    FUNZIONE PURA: nessuna rete, nessun file, nessuna scrittura di registro;
+    l'unica fonte esterna e' ``partite_finite(comp, giorno)``, iniettata dal
+    chiamante (in produzione e' ``_partite_finite_con_cache``: stessa cache e
+    stessa chiave ``("ou_giorno", comp, giorno)`` del ramo senza giornata).
+    ``riga`` viene mutata sul posto e la funzione ritorna::
+
+        {"gambe_valutate": int,   # gambe con esito_gamba scritto in QUESTA chiamata
+         "motivi": [str, ...]}    # un motivo per ogni gamba che resta in attesa
+
+    ``gambe_valutate`` dice anche QUANDO riscrivere la riga: una multipla che
+    resta in attesa non ha niente di nuovo da dire e non va riscritta (il clic
+    su una scheda e' una lettura). L'esito della riga, una volta deciso
+    (``✅``/``❌``), NON viene mai sovrascritto: le gambe ancora in attesa di
+    una multipla persa continuano a ricevere ``esito_gamba`` e
+    ``risultato_gamba``, ma la riga resta com'e'.
+
+    Fonte del risultato di ogni gamba (gia' decisa se ha ``esito_gamba``), in ordine:
+
+    1. la stessa partita gia' graduata nel registro ombra o nel Registro vivo:
+       prima per ``match_id``; se l'id non e' fra le righe graduate (l'id di una
+       gamba e' quello dell'evento The Odds API, le righe 1X2 del registro
+       portano l'id football-data), per coppia di nomi canonici e stessa lega,
+       con calcio d'inizio entro 14 giorni da ``salvato_il`` della multipla,
+       solo se l'abbinamento e' unico; l'esito della gamba si calcola con
+       ``esito_mercato`` dalla ``giocata`` e dal ``risultato_reale`` di quella
+       partita;
+    2. solo se la gamba ha ``kickoff_utc`` passato da piu' di
+       ``ORE_MINIME_CONTROLLO_RISULTATI`` ore e la fonte 1 non trova niente:
+       ``partite_finite`` per (lega, giorno), abbinando per coppia di nomi
+       canonici e stessa data, univoco o niente.
+
+    Abbinamento non unico o partita non trovata: la gamba resta in attesa e il
+    motivo finisce nei ``motivi`` (il chiamante lo scrive nel log). Una partita
+    non ancora da cercare (kickoff nel futuro o passato da meno di
+    ``ORE_MINIME_CONTROLLO_RISULTATI`` ore) non produce ne' chiamate ne' motivi.
+    """
+    if not isinstance(riga, dict):
+        return {"gambe_valutate": 0, "motivi": []}
+    now = adesso if adesso is not None else datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    gambe = [g for g in riga.get("giocate") or [] if isinstance(g, dict)]
+    salvato_il = _istante_salvato_il_multipla(riga)
+    gambe_valutate = 0
+    motivi = []
+
+    for g in gambe:
+        if g.get("esito_gamba") in ("✅", "❌"):
+            continue                     # gia' valutata: non si tocca
+        coppia = _coppia_canonica_gamba(g)
+        risultato_gamba = None
+        motivo = None
+
+        # --- fonte 1: la stessa partita gia' graduata (ombra o Registro vivo) ---
+        riga_abbinata, motivo = _partita_graduata_della_gamba(g, coppia, righe_graduate, salvato_il)
+        if riga_abbinata is not None:
+            risultato_gamba = str(riga_abbinata.get("risultato_reale"))
+
+        # --- fonte 2: partite finite per (lega, giorno), solo se il kickoff e'
+        #     passato da piu' di ORE_MINIME_CONTROLLO_RISULTATI ore e la fonte 1
+        #     non ha trovato niente ---
+        if risultato_gamba is None and motivo is None and partite_finite is not None:
+            ko = lg.parse_commence_time(g.get("kickoff_utc"))
+            if ko is None:
+                motivo = "kickoff_utc mancante o illeggibile"
+            elif (now - ko).total_seconds() <= ORE_MINIME_CONTROLLO_RISULTATI * 3600.0:
+                motivo = None       # partita non ancora da cercare: attesa in silenzio
+            else:
+                comp = LEAGUE_CODE_MAP.get(str(g.get("lega") or "").strip())
+                if comp is None:
+                    motivo = f"lega non riconosciuta ({g.get('lega')!r})"
+                elif coppia is None:
+                    motivo = "partita non abbinabile per nomi"
+                else:
+                    giorno = ko.astimezone(timezone.utc).strftime("%Y-%m-%d")
+                    partite = partite_finite(comp, giorno)
+                    if partite is None:
+                        motivo = None   # chiamata fallita: il motivo e' gia' nel log
+                    else:
+                        trovate = [m for m in partite
+                                   if str(m.get("utcDate") or "")[:10] == giorno
+                                   and _coppia_canonica_partita(m) == coppia]
+                        if len(trovate) == 1:
+                            gol = (trovate[0].get("score") or {}).get("fullTime") or {}
+                            gh, ga = gol.get("home"), gol.get("away")
+                            if gh is None or ga is None:
+                                motivo = f"partita finita del {giorno} senza punteggio"
+                            else:
+                                risultato_gamba = f"{gh}-{ga}"
+                        elif not trovate:
+                            motivo = f"nessuna partita finita per nomi e data del {giorno}"
+                        else:
+                            motivo = (f"{len(trovate)} partite corrispondenti per nomi "
+                                      f"e data del {giorno}")
+
+        if risultato_gamba is not None:
+            gh, ga = _gol_risultato(risultato_gamba)
+            esito_gamba = esito_mercato(g.get("giocata"), gh, ga)
+            if esito_gamba is None:
+                motivo = f"giocata {g.get('giocata')!r} non graduabile sul risultato {risultato_gamba}"
+            else:
+                g["risultato_gamba"] = risultato_gamba
+                g["esito_gamba"] = esito_gamba
+                gambe_valutate += 1
+
+        if g.get("esito_gamba") not in ("✅", "❌") and motivo is not None:
+            motivi.append(_motivo_gamba_multipla(riga, g, motivo))
+
+    # Esito della riga: una volta deciso (✅/❌) non si tocca mai; altrimenti
+    # tutte ✅ -> ✅, appena una ❌ -> ❌, finche' manca una gamba -> ⏳.
+    prima_esito = riga.get("esito")
+    esiti_gambe = [g.get("esito_gamba") for g in gambe]
+    if prima_esito in ("✅", "❌"):
+        esito_riga = prima_esito
+    elif esiti_gambe and all(e == "✅" for e in esiti_gambe):
+        esito_riga = "✅"
+    elif "❌" in esiti_gambe:
+        esito_riga = "❌"
+    else:
+        esito_riga = "⏳"
+    riga["esito"] = esito_riga
+    riga["risultato_reale"] = ""        # una multipla non ha un punteggio suo
+    return {"gambe_valutate": gambe_valutate, "motivi": motivi}
+
+
+def aggiorna_esiti_ombra(api_key, cache=None, righe_vive=None):
     """Grading del registro OMBRA: stesse regole delle righe normali. Ritorna ``(aggiornate, pending)``.
 
     Lettura strict: con un errore di rete non scrive nulla. Scrive solo le righe
     giudicate in questo giro (``HSET`` diff).
+
+    Le righe ``multipla_proposta_v1`` NON passano da ``_applica_esiti``: non
+    hanno ne' giornata ne' match_id football-data, e finivano nel ramo senza
+    giornata scrivendo "Grading O/U senza estremi" nel log senza mai essere
+    valutate. Si valutano con ``valuta_riga_multipla`` DOPO che le altre righe
+    ombra sono state graduate nello stesso giro, abbinando ogni gamba alle righe
+    gia' graduate (le altre righe ombra di questo giro piu' il Registro vivo,
+    ``righe_vive`` se passato dal chiamante, altrimenti riletto) e alle partite
+    finite per (lega, giorno) sulla stessa cache del ramo senza giornata. Il
+    tutto si scrive con la stessa ``save_ombra_rows``.
     """
     from registry_store import esito_scrittura, load_ombra_rows, save_ombra_rows
+    if cache is None:
+        cache = {}
     righe, _fonte = load_ombra_rows(strict=True)
-    aggiornate, pending = _applica_esiti(righe, api_key, cache)
+    multiple, altre = [], []
+    for r in righe or []:
+        if isinstance(r, dict) and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA:
+            multiple.append(r)
+        else:
+            altre.append(r)
+    aggiornate, pending = _applica_esiti(altre, api_key, cache)
+    if multiple:
+        if righe_vive is None:
+            righe_vive = load_predictions()
+        graduate = [r for r in list(altre) + list(righe_vive or [])
+                    if isinstance(r, dict) and _gol_risultato(r.get("risultato_reale")) is not None]
+        cerca_partite = _partite_finite_con_cache(api_key, cache)
+        for riga in multiple:
+            esito_val = valuta_riga_multipla(riga, graduate, partite_finite=cerca_partite)
+            for motivo in esito_val["motivi"]:
+                logging.warning(motivo)
+            # Si riscrive solo la multipla con almeno una gamba appena valutata:
+            # quella che resta in attesa non ha niente di nuovo da dire.
+            if esito_val["gambe_valutate"]:
+                aggiornate += 1
+        pending += sum(1 for r in multiple if r.get("esito") not in ("✅", "❌"))
     if aggiornate > 0:
         esito = esito_scrittura(save_ombra_rows(righe))
         if esito.get("remoto") not in ("ok", "disattivato"):
@@ -7768,38 +8048,227 @@ def aggiorna_risultati_automatico(preds):
     return {"aggiornate": agg, "in_attesa": tot}
 
 
-def proposte_settimanali_registrate():
-    """``(K, J, errore)`` della famiglia delle proposte settimanali.
+def proposte_multiple_registrate():
+    """Le righe ``multipla_proposta_v1`` del registro ombra, o ``(None, errore)``.
 
-    K = proposte registrate, J = quelle riuscite. Si legge il registro ombra in
-    sola lettura; se non e' leggibile torna ``(None, None, motivo)`` e la riga
-    in vista non compare (nessun numero inventato, nessun errore in pagina).
+    Sola lettura, UNA lettura per disegno (la stessa che faceva la vecchia
+    riga in vista): se il registro non e' leggibile torna ``(None, motivo)``
+    e in pagina non compare niente (nessun numero inventato, nessun errore in
+    vista: il motivo finisce nel log).
     """
     try:
         from registry_store import load_ombra_rows
         righe, _fonte = load_ombra_rows(strict=True)
     except Exception as e:
-        return None, None, f"{type(e).__name__}: {e}"[:200]
-    prop = [r for r in (righe or [])
+        return None, f"{type(e).__name__}: {e}"[:200]
+    return [r for r in (righe or [])
             if isinstance(r, dict)
-            and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA]
-    return len(prop), sum(1 for r in prop if r.get("esito") == "✅"), None
+            and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA], None
+
+
+def _k_della_proposta(riga):
+    """Il numero di partite combinate di una proposta (``None`` se non leggibile).
+
+    E' il ``k`` che ``build_ombra_multipla_entry`` scrive sempre; ``n_eventi``
+    e il numero di gambe restano come ripiego per le righe scritte a mano.
+    """
+    for campo in ("k", "n_eventi"):
+        try:
+            valore = int((riga or {}).get(campo))
+        except (TypeError, ValueError):
+            continue
+        if valore > 0:
+            return valore
+    try:
+        return int(len((riga or {}).get("giocate") or [])) or None
+    except TypeError:
+        return None
+
+
+def riepilogo_proposte_multiple(righe, k):
+    """I numeri delle proposte di UN k, da righe gia' lette (funzione pura).
+
+    Le «concluse» sono le proposte con esito ✅/❌, le «riuscite» quelle ✅ e le
+    «attese» la media di ``prob_sicuro`` delle STESSE proposte concluse, letta
+    con ``prob_di_registrazione(..., REGISTRAZIONE_PRIMA)``: la stessa strada
+    dei riquadri del bilancio (``riepilogo_giocate_concluse``). Per le multiple
+    ``prob_mercato_prima`` manca, quindi si legge ``prob_sicuro`` (in
+    PERCENTUALE, come lo scrive ``build_ombra_multipla_entry``). Nessuna regola
+    nuova: non si ricalcola nessuna probabilita' e non si inventa nessun numero.
+
+    Ritorna un dizionario con:
+
+    * ``registrate`` / ``in_attesa``: quante proposte del k ci sono in tutto e
+      quante non hanno ancora un esito (⏳ o niente);
+    * ``concluse`` / ``riuscite``: i due conteggi delle proposte giudicate;
+    * ``percentuale_riuscite``: ``int(round(100 * riuscite / concluse))``;
+    * ``attese``: ``int(round(100 * media))`` delle probabilita' leggibili,
+      ``None`` quando nessuna proposta conclusa ne ha una;
+    * ``scarto``: ``percentuale_riuscite - attese`` in punti percentuali,
+      ``None`` quando manca ``attese``;
+    * ``senza_probabilita``: quante concluse sono rimaste fuori dalla media.
+
+    Con zero proposte concluse i conteggi restano veri (``registrate`` e
+    ``in_attesa`` contano anche le ⏳) e i tre numeri derivati sono ``None``:
+    nessuna divisione per zero, nessuno 0% inventato. Le righe delle altre
+    famiglie e degli altri k non entrano.
+    """
+    proposte = [r for r in (righe or [])
+                if isinstance(r, dict)
+                and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA
+                and _k_della_proposta(r) == k]
+    concluse = [r for r in proposte if cella_di_testo(r.get("esito")) in ("✅", "❌")]
+    riuscite = sum(1 for r in concluse if cella_di_testo(r.get("esito")) == "✅")
+    riepilogo = {
+        "registrate": len(proposte),
+        "concluse": len(concluse),
+        "riuscite": riuscite,
+        "in_attesa": len(proposte) - len(concluse),
+        "percentuale_riuscite": None,
+        "attese": None,
+        "scarto": None,
+        "senza_probabilita": 0,
+    }
+    if not concluse:
+        return riepilogo
+    riepilogo["percentuale_riuscite"] = int(round(100.0 * riuscite / len(concluse)))
+    prime = []
+    for r in concluse:
+        p, _ricostruita = prob_di_registrazione(r, REGISTRAZIONE_PRIMA)
+        if p is None:
+            riepilogo["senza_probabilita"] += 1
+        else:
+            prime.append(float(p))
+    if prime:
+        riepilogo["attese"] = int(round(100.0 * sum(prime) / len(prime)))
+        riepilogo["scarto"] = riepilogo["percentuale_riuscite"] - riepilogo["attese"]
+    return riepilogo
+
+
+def riquadri_proposte_multiple(righe):
+    """I quattro riquadri delle proposte settimanali, uno per tipo (funzione pura).
+
+    Sostituiscono la vecchia riga «Le proposte settimanali registrate: K,
+    riuscite J»: un riquadro per tipo, nell'ordine di ``NOMI_MULTIPLA_PER_K``
+    (k da 1 a 4: Singola, Doppia, Tripla, Quadrupla). Nessun disegno qui, cosi'
+    i numeri si possono provare senza AppTest. Per ogni riquadro:
+
+    * ``value``: quante proposte riuscite su quante concluse («3 su 3»);
+      «n/d» quando quel tipo non ha ancora nessuna proposta conclusa;
+    * ``delta``: lo scarto in punti fra la percentuale di riuscite e le
+      attese, con il segno («+12 punti sulle attese», «-8 punti sulle
+      attese»), lo stesso testo dei riquadri del bilancio; ``None`` senza
+      concluse o senza probabilita' leggibili (non c'e' niente da confrontare);
+    * ``help``: quante proposte del tipo sono ancora in attesa e che le
+      multiple della stessa settimana condividono spesso le stesse partite:
+      i numeri dei quattro riquadri non sono indipendenti.
+    """
+    riquadri = []
+    for k in range(1, len(NOMI_MULTIPLA_PER_K) + 1):
+        riepilogo = riepilogo_proposte_multiple(righe, k)
+        riquadro = {
+            "label": NOMI_MULTIPLA_PER_K[k],
+            "value": RIQUADRO_SENZA_NUMERO,
+            "delta": None,
+            "help": (f"Proposte in attesa: {riepilogo['in_attesa']}. Le multiple "
+                     "della stessa settimana condividono spesso le stesse "
+                     "partite: i numeri non sono indipendenti."),
+        }
+        if riepilogo["concluse"]:
+            riquadro["value"] = f"{riepilogo['riuscite']} su {riepilogo['concluse']}"
+            if riepilogo["scarto"] is not None:
+                riquadro["delta"] = f"{riepilogo['scarto']:+d} punti sulle attese"
+        riquadri.append(riquadro)
+    return riquadri
+
+
+#: Colonne della tabella delle proposte, nell'ordine della commessa.
+COLONNE_TABELLA_MULTIPLE = ("Settimana", "Tipo", "Partite", "Quota",
+                            "Probabilità", "Esito")
+
+
+def _testo_gambe_proposta(riga):
+    """Le partite di una proposta con l'esito di ogni gamba, in una cella di testo.
+
+    Ogni gamba e' «partita (giocata): esito», con il risultato accanto quando
+    c'e' («Como vs Parma (12): ✅ 2-1»); le gambe ancora da valutare mostrano
+    ⏳. «n/d» quando la riga non porta le gambe (le proposte salvate prima del
+    campo ``giocate``).
+    """
+    pezzi = []
+    for g in (riga or {}).get("giocate") or []:
+        if not isinstance(g, dict):
+            continue
+        esito = cella_di_testo(g.get("esito_gamba")) or "⏳"
+        risultato = cella_di_testo(g.get("risultato_gamba"))
+        esito_testo = f"{esito} {risultato}" if risultato else esito
+        partita = cella_di_testo(g.get("partita"))
+        giocata = cella_di_testo(g.get("giocata"))
+        pezzo = f"{partita} ({giocata})" if giocata else partita
+        if pezzo:
+            pezzi.append(f"{pezzo}: {esito_testo}")
+    return "; ".join(pezzi) or "n/d"
+
+
+def tabella_proposte_multiple(proposte):
+    """La tabella delle proposte settimanali, la settimana piu' recente prima.
+
+    Una riga per proposta: settimana di gioco, tipo (il nome di
+    ``NOMI_MULTIPLA_PER_K``), le partite con l'esito di ogni gamba
+    (``_testo_gambe_proposta``), la quota totale stimata, la probabilita' in
+    percentuale e l'esito della proposta (⏳ finché la multipla non e'
+    decisa). Funzione pura: nessuna lettura, nessun disegno; i campi che la
+    riga non porta arrivano come «n/d», mai come None o nan in cella.
+    """
+    def chiave(r):
+        return (cella_di_testo(r.get("settimana")), -(_k_della_proposta(r) or 0))
+    righe_out = []
+    for r in sorted(proposte or [], key=chiave, reverse=True):
+        k = _k_della_proposta(r)
+        prob = numero_in_colonna(r.get("prob_sicuro"), 1)
+        righe_out.append({
+            "Settimana": cella_di_testo(r.get("settimana")) or "n/d",
+            "Tipo": NOMI_MULTIPLA_PER_K.get(k, "n/d"),
+            "Partite": _testo_gambe_proposta(r),
+            "Quota": numero_in_colonna(r.get("quota")) or "n/d",
+            "Probabilità": f"{prob}%" if prob else "n/d",
+            "Esito": cella_di_testo(r.get("esito")) or "⏳",
+        })
+    return pd.DataFrame(righe_out, columns=list(COLONNE_TABELLA_MULTIPLE))
 
 
 def _mostra_proposte_settimanali():
-    """La riga sulle proposte settimanali registrate in testa a Com'è andata.
+    """I quattro riquadri delle proposte settimanali e la loro tabella.
 
-    I quattro numeri del bilancio (concluse, riuscite, percentuale, attese) non
-    si scrivono piu' qui: stanno nei riquadri di ``_mostra_riquadri_giocate``,
-    sopra le tabelle, e ripeterli in una frase vorrebbe dire leggere due volte
-    lo stesso conteggio nella stessa scheda. Resta questa riga, che parla delle
-    proposte della settimana (solo se ce n'e' almeno una) e non ripete niente.
+    Al posto della vecchia riga «Le proposte settimanali registrate: K, riuscite
+    J» — due numeri soltanto, di tutte le settimane messe insieme — ci sono
+    quattro riquadri con il bordo, uno per tipo (Singola, Doppia, Tripla,
+    Quadrupla: ``riquadri_proposte_multiple``), ognuno con le riuscite sulle
+    concluse, lo scarto sulle attese e, nel suggerimento, quante sono ancora in
+    attesa. Sotto, in un riquadro chiuso, la tabella con una riga per proposta
+    (``tabella_proposte_multiple``): in apertura la scheda dice solo com'e'
+    andata, i dettagli si aprono.
+
+    Il registro ombra si legge UNA volta (la stessa lettura di prima); senza
+    proposte registrate non compare niente, come quando la riga non c'era.
     """
-    k, j, errore = proposte_settimanali_registrate()
-    if k:
-        st.caption(f"Le proposte settimanali registrate: {k}, riuscite {j}")
+    proposte, errore = proposte_multiple_registrate()
     if errore:
         logging.warning("Proposte settimanali non leggibili: %s", errore)
+    if not proposte:
+        return
+    for colonna, riquadro in zip(st.columns(len(NOMI_MULTIPLA_PER_K)),
+                                 riquadri_proposte_multiple(proposte)):
+        with colonna:
+            extra = {}
+            if riquadro.get("delta") is not None:
+                extra["delta"] = riquadro["delta"]
+                extra["delta_color"] = "normal"
+            st.metric(riquadro["label"], riquadro["value"],
+                      help=riquadro["help"], border=True, **extra)
+    with st.expander("📋 Le proposte settimanali registrate", expanded=False):
+        st.dataframe(tabella_proposte_multiple(proposte), width="stretch",
+                     hide_index=True)
 # La scheda si chiama «📒 Registro» ed e' il registro di sempre: le due tabelle
 # (le scelte del mercato e le previsioni del modello), il controllo dei risultati
 # che parte da solo e UN SOLO riquadro «🔎 Dettagli» chiuso in fondo. Contenuto

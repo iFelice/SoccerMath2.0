@@ -402,6 +402,71 @@ class TestRegistroOmbraMultipla(unittest.TestCase):
             self.assertIn(1, esito_k.get("gia_presenti_k", []))
             self.assertEqual(2, len(storage_ombra))
 
+    def test_gambe_con_match_id_e_kickoff_utc_dal_codice_vero(self):
+        # Diagnosi 30/10: le righe multipla_proposta_v1 non erano valutabili perche'
+        # le gambe non portavano ne' match_id ne' kickoff. La proposta arriva dal
+        # percorso vero (calcola_lista_giocate -> cerca_proposta_multipla): ogni
+        # gamba salvata deve portare il match_id che il calcolo ha in memoria e il
+        # kickoff in ISO UTC, anche quando la fonte lo dichiara con un offset
+        # (``+02:00``) invece che con ``Z``.
+        now = datetime(2026, 10, 16, 16, 0, tzinfo=timezone.utc)  # venerdì, finestra aperta
+        ev_a = _genera_evento_finto(match_id="m_alpha", home="Roma", away="Lazio",
+                                    commence_offset_hours=30.0, terna=(1.5, 4.0, 6.0))
+        ev_a["commence_time"] = "2026-10-17T22:00:00Z"
+        ev_b = _genera_evento_finto(match_id="m_beta", home="Inter", away="Milan",
+                                    commence_offset_hours=50.0, terna=(2.0, 3.2, 3.8))
+        ev_b["commence_time"] = "2026-10-18T20:00:00+02:00"
+        payload = _genera_payload_finto([ev_a, ev_b])
+
+        res = lg.calcola_lista_giocate(payload, adesso_utc=now)
+        self.assertEqual(2, res["n_partite_ammesse"])
+        prop = lg.cerca_proposta_multipla(res["giocate"])
+        proposta = prop["per_k"][2]
+        self.assertIsNotNone(proposta)
+        self.assertEqual(2, len(proposta["giocate"]))
+
+        entry = lg.build_ombra_multipla_entry(proposta, istante_utc=now, k=2)
+        self.assertEqual(2, len(entry["giocate"]))
+        # Kickoff atteso per partita: la Z resta, l'offset di Roma diventa UTC.
+        kickoff_attesi = {"m_alpha": "2026-10-17T22:00:00Z",
+                          "m_beta": "2026-10-18T18:00:00Z"}
+        for gamba, fonte in zip(entry["giocate"], proposta["giocate"]):
+            self.assertIn("match_id", gamba)
+            self.assertIn("kickoff_utc", gamba)
+            # match_id: quello che calcola_lista_giocate ha in memoria.
+            self.assertEqual(fonte["match_id"], gamba["match_id"])
+            self.assertIn(gamba["match_id"], kickoff_attesi)
+            self.assertEqual(kickoff_attesi[gamba["match_id"]], gamba["kickoff_utc"])
+            # Nessun altro campo cambia: i sei campi di prima restano, con gli
+            # stessi valori derivati dalla gamba scelta.
+            self.assertEqual(fonte["partita"], gamba["partita"])
+            self.assertEqual(fonte["lega"], gamba["lega"])
+            self.assertEqual(fonte["giocata"], gamba["giocata"])
+            self.assertEqual(round(fonte["probabilita"], 6), gamba["probabilita"])
+            self.assertEqual(round(fonte["quota_stimata_effettiva"], 2), gamba["quota_stimata"])
+            self.assertFalse(gamba["sovrascritta"])
+
+    def test_gamba_senza_commence_time_salva_kickoff_utc_none(self):
+        # Una proposta le cui gambe non hanno commence_time salva kickoff_utc
+        # None su ogni gamba, senza errori e senza valori inventati. Il match_id
+        # passa com'e': presente se la gamba lo porta, None altrimenti.
+        now = datetime(2026, 10, 16, 16, 0, tzinfo=timezone.utc)  # venerdì, finestra aperta
+        proposta = {
+            "k": 2, "probabilita": 0.40, "quota_totale": 2.15, "ev": -0.14,
+            "giocate": [
+                {"partita": "A vs B", "lega": "Serie A", "giocata": "1",
+                 "probabilita": 0.60, "quota_b365_stimata": 1.40, "match_id": "m1"},
+                {"partita": "C vs D", "lega": "Serie A", "giocata": "X",
+                 "probabilita": 0.66, "quota_b365_stimata": 1.53},
+            ],
+        }
+        entry = lg.build_ombra_multipla_entry(proposta, istante_utc=now, k=2)
+        self.assertEqual(2, len(entry["giocate"]))
+        self.assertEqual("m1", entry["giocate"][0]["match_id"])
+        self.assertIsNone(entry["giocate"][0]["kickoff_utc"])
+        self.assertIsNone(entry["giocate"][1]["match_id"])
+        self.assertIsNone(entry["giocate"][1]["kickoff_utc"])
+
 
 class TestGuardiaValoreAtteso(unittest.TestCase):
     """Verifica che una combinazione con sole quote stimate non possa avere EV positivo in silenzio."""
