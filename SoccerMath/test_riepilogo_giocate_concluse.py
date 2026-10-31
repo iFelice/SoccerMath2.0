@@ -17,6 +17,13 @@ il ripiego dichiarato su ``prob_sicuro``: la stessa strada delle due sintesi.
 Caso a mano richiesto: 3 giocate concluse, 2 riuscite, probabilita' 0,60 0,70
 0,80 -> riuscite 67%, attese 70%, scarto -3 punti.
 
+Dalla commessa dei riquadri delle proposte, qui si provano anche le tre
+funzioni pure delle ``multipla_proposta_v1`` (``riepilogo_proposte_multiple``,
+``riquadri_proposte_multiple`` e ``tabella_proposte_multiple``). Caso a mano
+della Doppia: 4 registrate di cui 3 concluse (2 riuscite) e 1 in attesa,
+probabilita' 0,40 su tutte le concluse -> valore «2 su 3», attese 40%,
+scarto +27 punti.
+
 Esecuzione:
     python -m pytest SoccerMath/test_riepilogo_giocate_concluse.py -v
 """
@@ -37,6 +44,7 @@ for _p in (HERE, os.path.dirname(HERE)):
 logging.getLogger("streamlit").setLevel(logging.ERROR)
 
 import app  # noqa: E402
+import lista_giocate as lg  # noqa: E402
 import prediction_registry as pr  # noqa: E402
 
 
@@ -450,6 +458,182 @@ class TestMediaDelModello(unittest.TestCase):
         riga1, _ = app._sintesi_registro_mercato(pd.DataFrame(righe))
         self.assertIn(app.media_modello_concluse(righe) + ".", riga1)
         self.assertIn("Modello: 57%.", riga1)
+
+
+# ------------------------------------------------------- proposte multiple
+def _proposta(k, esito, prob=None, settimana="2026-10-12", quota=2.15, gambe=None):
+    """Una riga ``multipla_proposta_v1`` come la salva ``build_ombra_multipla_entry``.
+
+    ``prob`` e' la probabilita' della proposta come FRAZIONE (0,40): la riga la
+    porta in ``prob_sicuro`` in PERCENTUALE, come il costruttore vero.
+    ``gambe`` a ``None`` riproduce una riga senza il campo (le proposte salvate
+    prima del campo ``giocate``).
+    """
+    riga = {pr.OMBRA_FAMIGLIA_FIELD: lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA,
+            "k": k, "esito": esito, "settimana": settimana, "quota": quota}
+    if prob is not None:
+        riga["prob_sicuro"] = prob * 100.0
+    if gambe is not None:
+        riga["giocate"] = gambe
+    return riga
+
+
+class TestRiepilogoProposteMultipleAMano(unittest.TestCase):
+    """Caso a mano: Doppia, 4 registrate (3 concluse, 2 riuscite), prob 0,40."""
+
+    def setUp(self):
+        self.righe = [_proposta(2, "✅", 0.40), _proposta(2, "✅", 0.40),
+                      _proposta(2, "❌", 0.40), _proposta(2, "⏳", 0.30)]
+        self.riepilogo = app.riepilogo_proposte_multiple(self.righe, 2)
+
+    def test_conteggi(self):
+        # 4 registrate, 3 concluse, 2 riuscite, 1 in attesa.
+        self.assertEqual(4, self.riepilogo["registrate"])
+        self.assertEqual(3, self.riepilogo["concluse"])
+        self.assertEqual(2, self.riepilogo["riuscite"])
+        self.assertEqual(1, self.riepilogo["in_attesa"])
+
+    def test_percentuale_riuscite_67(self):
+        # 2/3 = 66,67% -> 67, la stessa percentuale intera dei riquadri.
+        self.assertEqual(67, self.riepilogo["percentuale_riuscite"])
+
+    def test_attese_40(self):
+        # media di prob_sicuro delle TRE concluse: 0,40. La ⏳ (0,30) non
+        # entra: le attese sono la media delle stesse proposte concluse.
+        self.assertEqual(40, self.riepilogo["attese"])
+        self.assertEqual(0, self.riepilogo["senza_probabilita"])
+
+    def test_scarto_piu_27(self):
+        self.assertEqual(27, self.riepilogo["scarto"])
+        self.assertEqual(self.riepilogo["percentuale_riuscite"] - self.riepilogo["attese"],
+                         self.riepilogo["scarto"],
+                         "scarto = riuscite - attese, in punti percentuali")
+
+    def test_le_altre_famiglie_e_gli_altri_k_non_contano(self):
+        righe = self.righe + [
+            _proposta(1, "✅", 0.50),
+            {pr.OMBRA_FAMIGLIA_FIELD: "ou25", "k": 2, "esito": "✅", "prob_sicuro": 90.0},
+            {"esito": "✅", "k": 2, "prob_sicuro": 80.0},
+        ]
+        self.assertEqual(self.riepilogo, app.riepilogo_proposte_multiple(righe, 2))
+
+    def test_senza_concluse_zero_e_none(self):
+        riepilogo = app.riepilogo_proposte_multiple(
+            [_proposta(3, "⏳", 0.30), _proposta(3, "⏳", 0.30)], 3)
+        self.assertEqual({"registrate": 2, "concluse": 0, "riuscite": 0,
+                          "in_attesa": 2, "percentuale_riuscite": None,
+                          "attese": None, "scarto": None, "senza_probabilita": 0},
+                         riepilogo)
+
+    def test_concluse_senza_probabilita_fuori_dalla_media(self):
+        riepilogo = app.riepilogo_proposte_multiple(
+            [_proposta(4, "✅", 0.50), _proposta(4, "❌")], 4)
+        self.assertEqual(2, riepilogo["concluse"])
+        self.assertEqual(50, riepilogo["attese"], "la media e' solo su chi ce l'ha")
+        self.assertEqual(1, riepilogo["senza_probabilita"])
+
+
+class TestRiquadriProposteMultiple(unittest.TestCase):
+    """I quattro riquadri delle proposte: valore, delta, suggerimento, ordine."""
+
+    def test_caso_a_mano(self):
+        riquadri = app.riquadri_proposte_multiple(
+            [_proposta(2, "✅", 0.40), _proposta(2, "✅", 0.40),
+             _proposta(2, "❌", 0.40), _proposta(2, "⏳", 0.30)])
+        self.assertEqual(["Singola", "Doppia", "Tripla", "Quadrupla"],
+                         [r["label"] for r in riquadri])
+        self.assertEqual(tuple(app.NOMI_MULTIPLA_PER_K[k]
+                               for k in sorted(app.NOMI_MULTIPLA_PER_K)),
+                         tuple(r["label"] for r in riquadri),
+                         "l'ordine e' quello di NOMI_MULTIPLA_PER_K, k da 1 a 4")
+        doppia = riquadri[1]
+        self.assertEqual("2 su 3", doppia["value"])
+        self.assertEqual("+27 punti sulle attese", doppia["delta"])
+        self.assertIn("Proposte in attesa: 1", doppia["help"])
+        self.assertIn("non sono indipendenti", doppia["help"])
+        # Gli altri tre tipi non hanno niente di concluso: n/d, nessun delta.
+        for riquadro in (riquadri[0], riquadri[2], riquadri[3]):
+            self.assertEqual("n/d", riquadro["value"])
+            self.assertIsNone(riquadro["delta"])
+            self.assertIn("Proposte in attesa: 0", riquadro["help"])
+
+    def test_ogni_k_le_sue_righe(self):
+        righe = [_proposta(1, "✅", 0.50), _proposta(1, "❌", 0.70),
+                 _proposta(3, "⏳", 0.30), _proposta(3, "⏳", 0.30)]
+        riquadri = {r["label"]: r for r in app.riquadri_proposte_multiple(righe)}
+        self.assertEqual("1 su 2", riquadri["Singola"]["value"])
+        self.assertEqual("-10 punti sulle attese", riquadri["Singola"]["delta"])
+        self.assertEqual("n/d", riquadri["Doppia"]["value"])
+        # La Tripla ha due proposte ma nessuna conclusa: resta n/d e il
+        # suggerimento dichiara le sue due in attesa.
+        self.assertEqual("n/d", riquadri["Tripla"]["value"])
+        self.assertIsNone(riquadri["Tripla"]["delta"])
+        self.assertIn("Proposte in attesa: 2", riquadri["Tripla"]["help"])
+        self.assertEqual("n/d", riquadri["Quadrupla"]["value"])
+
+    def test_concluse_senza_probabilita_leggibile_niente_delta(self):
+        riquadro = app.riquadri_proposte_multiple([_proposta(4, "✅")])[-1]
+        self.assertEqual("1 su 1", riquadro["value"])
+        self.assertIsNone(riquadro["delta"], "senza attese non c'e' uno scarto")
+
+    def test_sotto_le_attese_il_segno_e_meno(self):
+        riquadro = app.riquadri_proposte_multiple([_proposta(1, "❌", 0.60)])[0]
+        self.assertEqual("0 su 1", riquadro["value"])
+        self.assertEqual("-60 punti sulle attese", riquadro["delta"])
+
+
+class TestTabellaProposteMultiple(unittest.TestCase):
+    """Una riga per proposta: settimana, tipo, partite, quota, probabilita', esito."""
+
+    def test_caso_a_mano(self):
+        gambe = [
+            {"partita": "Como vs Parma", "giocata": "12",
+             "esito_gamba": "✅", "risultato_gamba": "2-1"},
+            {"partita": "Roma vs Lazio", "giocata": "1",
+             "esito_gamba": "❌", "risultato_gamba": "0-1"},
+            {"partita": "Inter vs Torino", "giocata": "X"},
+        ]
+        proposte = [
+            _proposta(2, "✅", 0.40, quota=2.15, gambe=gambe),
+            _proposta(1, "⏳", 0.55, settimana="2026-10-19", quota=1.80,
+                      gambe=[{"partita": "Milan vs Napoli", "giocata": "1"}]),
+            _proposta(1, "✅", 0.60, settimana="2026-10-05", quota=1.90),
+        ]
+        df = app.tabella_proposte_multiple(proposte)
+        self.assertEqual(list(app.COLONNE_TABELLA_MULTIPLE), list(df.columns))
+        # La settimana piu' recente prima; a parita' di settimana, prima la
+        # Singola (k crescente).
+        self.assertEqual(["2026-10-19", "2026-10-12", "2026-10-05"],
+                         df["Settimana"].tolist())
+        self.assertEqual(["Singola", "Doppia", "Singola"],
+                         df["Tipo"].tolist())
+        # Le partite con l'esito di ogni gamba; la gamba senza esito mostra ⏳.
+        partite = df["Partite"].iloc[1]
+        self.assertIn("Como vs Parma (12): ✅ 2-1", partite)
+        self.assertIn("Roma vs Lazio (1): ❌ 0-1", partite)
+        self.assertIn("Inter vs Torino (X): ⏳", partite)
+        self.assertEqual("2,15", df["Quota"].iloc[1])
+        self.assertEqual("40,0%", df["Probabilità"].iloc[1])
+        self.assertEqual(["⏳", "✅", "✅"], df["Esito"].tolist())
+        # La proposta della settimana dopo e' ancora in attesa: la sua gamba
+        # unica non ha esito.
+        self.assertEqual("Milan vs Napoli (1): ⏳", df["Partite"].iloc[0])
+
+    def test_i_campi_mancanti_arrivano_come_n_d(self):
+        """Le proposte vecchie non hanno settimana, quota, probabilita' ne' gambe."""
+        df = app.tabella_proposte_multiple([{"k": 3, "esito": "❌"},
+                                            _proposta(2, "✅", 0.40,
+                                                      settimana="2026-10-12")])
+        # La settimana che non c'e' e' la stringa vuota: ordina per ultima.
+        self.assertEqual(["Doppia", "Tripla"], df["Tipo"].tolist())
+        self.assertEqual(["2026-10-12", "n/d"], df["Settimana"].tolist())
+        self.assertEqual(["n/d", "Tripla", "n/d", "n/d", "n/d", "❌"],
+                         df.iloc[1].tolist())
+
+    def test_lista_vuota_solo_intestazioni(self):
+        df = app.tabella_proposte_multiple([])
+        self.assertEqual(list(app.COLONNE_TABELLA_MULTIPLE), list(df.columns))
+        self.assertEqual(0, len(df))
 
 
 if __name__ == "__main__":

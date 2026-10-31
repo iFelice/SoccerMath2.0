@@ -581,10 +581,50 @@ class TestSchedeLettura(_BaseAppTest):
         self.assertEqual("-10 punti sulle attese", pronostici["Registro 1X2"].delta)
 
     def test_06_andata_proposte_settimanali(self):
-        """K e J lette dal registro ombra: 2 proposte, 1 riuscita."""
-        fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)
-        self.assertIn("Le proposte settimanali registrate: 2, riuscite 1",
-                      " \n".join(fuori))
+        """Quattro riquadri per tipo al posto della vecchia riga «K, riuscite J».
+
+        Nel registro ombra del fixture c'e' una Doppia ✅ e una Tripla ❌
+        (senza probabilita' e senza gambe): i riquadri contano le riuscite
+        sulle concluse di ogni tipo (n/d dove non c'e' niente di concluso), con
+        il bordo; senza probabilita' leggibili non c'e' nessuno scarto. La
+        tabella con una riga per proposta sta nel riquadro chiuso.
+        """
+        import app as app_mod
+        riquadri = _riquadri_della_tab(self.at, SCHEDA_REGISTRO)
+        for nome, valore in (("Singola", "n/d"), ("Doppia", "1 su 1"),
+                             ("Tripla", "0 su 1"), ("Quadrupla", "n/d")):
+            with self.subTest(tipo=nome):
+                self.assertIn(nome, riquadri)
+                riquadro = riquadri[nome]
+                self.assertEqual(valore, riquadro.value)
+                self.assertTrue(_con_bordo(riquadro), "il riquadro ha il bordo")
+                self.assertFalse(riquadro.delta,
+                                 "senza probabilita' leggibili non c'e' scarto")
+                self.assertIn("non sono indipendenti", riquadro.help)
+        # Il conteggio delle in attesa: la Doppia e la Tripla sono decise, gli
+        # altri due tipi non hanno niente.
+        self.assertIn("Proposte in attesa: 0", riquadri["Doppia"].help)
+        fuori, dentro = _testi_della_tab(self.at, SCHEDA_REGISTRO)
+        self.assertNotIn("Le proposte settimanali registrate: 2, riuscite 1",
+                         " \n".join(fuori), "la vecchia riga non c'e' piu'")
+        # La tabella delle proposte sta in un riquadro CHIUSO, una riga per
+        # proposta: la Doppia ✅ e la Tripla ❌ del fixture.
+        etichette = [str(e.label or "") for e in
+                     _elementi_della_tab(self.at, SCHEDA_REGISTRO, "expander")]
+        self.assertTrue(any("proposte settimanali registrate" in e.lower()
+                            for e in etichette), etichette)
+        def _colonne(t):
+            try:
+                return [str(c) for c in t.value.columns]
+            except Exception:
+                return []
+        tabella = next((t for t in _elementi_della_tab(self.at, SCHEDA_REGISTRO, "dataframe")
+                        if _colonne(t) == list(app_mod.COLONNE_TABELLA_MULTIPLE)), None)
+        self.assertIsNotNone(tabella, "la tabella delle proposte non e' stata disegnata")
+        df_proposte = tabella.value
+        self.assertEqual(["Doppia", "Tripla"], df_proposte["Tipo"].tolist())
+        self.assertEqual(["✅", "❌"], df_proposte["Esito"].tolist())
+        self.assertIn("Le proposte settimanali registrate", " \n".join(dentro))
 
     def test_07_andata_fuori_dai_dettagli_nessuna_parola_vietata(self):
         fuori, _ = _testi_della_tab(self.at, SCHEDA_REGISTRO)

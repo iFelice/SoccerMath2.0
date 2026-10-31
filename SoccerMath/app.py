@@ -8048,38 +8048,227 @@ def aggiorna_risultati_automatico(preds):
     return {"aggiornate": agg, "in_attesa": tot}
 
 
-def proposte_settimanali_registrate():
-    """``(K, J, errore)`` della famiglia delle proposte settimanali.
+def proposte_multiple_registrate():
+    """Le righe ``multipla_proposta_v1`` del registro ombra, o ``(None, errore)``.
 
-    K = proposte registrate, J = quelle riuscite. Si legge il registro ombra in
-    sola lettura; se non e' leggibile torna ``(None, None, motivo)`` e la riga
-    in vista non compare (nessun numero inventato, nessun errore in pagina).
+    Sola lettura, UNA lettura per disegno (la stessa che faceva la vecchia
+    riga in vista): se il registro non e' leggibile torna ``(None, motivo)``
+    e in pagina non compare niente (nessun numero inventato, nessun errore in
+    vista: il motivo finisce nel log).
     """
     try:
         from registry_store import load_ombra_rows
         righe, _fonte = load_ombra_rows(strict=True)
     except Exception as e:
-        return None, None, f"{type(e).__name__}: {e}"[:200]
-    prop = [r for r in (righe or [])
+        return None, f"{type(e).__name__}: {e}"[:200]
+    return [r for r in (righe or [])
             if isinstance(r, dict)
-            and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA]
-    return len(prop), sum(1 for r in prop if r.get("esito") == "✅"), None
+            and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA], None
+
+
+def _k_della_proposta(riga):
+    """Il numero di partite combinate di una proposta (``None`` se non leggibile).
+
+    E' il ``k`` che ``build_ombra_multipla_entry`` scrive sempre; ``n_eventi``
+    e il numero di gambe restano come ripiego per le righe scritte a mano.
+    """
+    for campo in ("k", "n_eventi"):
+        try:
+            valore = int((riga or {}).get(campo))
+        except (TypeError, ValueError):
+            continue
+        if valore > 0:
+            return valore
+    try:
+        return int(len((riga or {}).get("giocate") or [])) or None
+    except TypeError:
+        return None
+
+
+def riepilogo_proposte_multiple(righe, k):
+    """I numeri delle proposte di UN k, da righe gia' lette (funzione pura).
+
+    Le «concluse» sono le proposte con esito ✅/❌, le «riuscite» quelle ✅ e le
+    «attese» la media di ``prob_sicuro`` delle STESSE proposte concluse, letta
+    con ``prob_di_registrazione(..., REGISTRAZIONE_PRIMA)``: la stessa strada
+    dei riquadri del bilancio (``riepilogo_giocate_concluse``). Per le multiple
+    ``prob_mercato_prima`` manca, quindi si legge ``prob_sicuro`` (in
+    PERCENTUALE, come lo scrive ``build_ombra_multipla_entry``). Nessuna regola
+    nuova: non si ricalcola nessuna probabilita' e non si inventa nessun numero.
+
+    Ritorna un dizionario con:
+
+    * ``registrate`` / ``in_attesa``: quante proposte del k ci sono in tutto e
+      quante non hanno ancora un esito (⏳ o niente);
+    * ``concluse`` / ``riuscite``: i due conteggi delle proposte giudicate;
+    * ``percentuale_riuscite``: ``int(round(100 * riuscite / concluse))``;
+    * ``attese``: ``int(round(100 * media))`` delle probabilita' leggibili,
+      ``None`` quando nessuna proposta conclusa ne ha una;
+    * ``scarto``: ``percentuale_riuscite - attese`` in punti percentuali,
+      ``None`` quando manca ``attese``;
+    * ``senza_probabilita``: quante concluse sono rimaste fuori dalla media.
+
+    Con zero proposte concluse i conteggi restano veri (``registrate`` e
+    ``in_attesa`` contano anche le ⏳) e i tre numeri derivati sono ``None``:
+    nessuna divisione per zero, nessuno 0% inventato. Le righe delle altre
+    famiglie e degli altri k non entrano.
+    """
+    proposte = [r for r in (righe or [])
+                if isinstance(r, dict)
+                and r.get(OMBRA_FAMIGLIA_FIELD) == lg.FAMIGLIA_OMBRA_MULTIPLA_PROPOSTA
+                and _k_della_proposta(r) == k]
+    concluse = [r for r in proposte if cella_di_testo(r.get("esito")) in ("✅", "❌")]
+    riuscite = sum(1 for r in concluse if cella_di_testo(r.get("esito")) == "✅")
+    riepilogo = {
+        "registrate": len(proposte),
+        "concluse": len(concluse),
+        "riuscite": riuscite,
+        "in_attesa": len(proposte) - len(concluse),
+        "percentuale_riuscite": None,
+        "attese": None,
+        "scarto": None,
+        "senza_probabilita": 0,
+    }
+    if not concluse:
+        return riepilogo
+    riepilogo["percentuale_riuscite"] = int(round(100.0 * riuscite / len(concluse)))
+    prime = []
+    for r in concluse:
+        p, _ricostruita = prob_di_registrazione(r, REGISTRAZIONE_PRIMA)
+        if p is None:
+            riepilogo["senza_probabilita"] += 1
+        else:
+            prime.append(float(p))
+    if prime:
+        riepilogo["attese"] = int(round(100.0 * sum(prime) / len(prime)))
+        riepilogo["scarto"] = riepilogo["percentuale_riuscite"] - riepilogo["attese"]
+    return riepilogo
+
+
+def riquadri_proposte_multiple(righe):
+    """I quattro riquadri delle proposte settimanali, uno per tipo (funzione pura).
+
+    Sostituiscono la vecchia riga «Le proposte settimanali registrate: K,
+    riuscite J»: un riquadro per tipo, nell'ordine di ``NOMI_MULTIPLA_PER_K``
+    (k da 1 a 4: Singola, Doppia, Tripla, Quadrupla). Nessun disegno qui, cosi'
+    i numeri si possono provare senza AppTest. Per ogni riquadro:
+
+    * ``value``: quante proposte riuscite su quante concluse («3 su 3»);
+      «n/d» quando quel tipo non ha ancora nessuna proposta conclusa;
+    * ``delta``: lo scarto in punti fra la percentuale di riuscite e le
+      attese, con il segno («+12 punti sulle attese», «-8 punti sulle
+      attese»), lo stesso testo dei riquadri del bilancio; ``None`` senza
+      concluse o senza probabilita' leggibili (non c'e' niente da confrontare);
+    * ``help``: quante proposte del tipo sono ancora in attesa e che le
+      multiple della stessa settimana condividono spesso le stesse partite:
+      i numeri dei quattro riquadri non sono indipendenti.
+    """
+    riquadri = []
+    for k in range(1, len(NOMI_MULTIPLA_PER_K) + 1):
+        riepilogo = riepilogo_proposte_multiple(righe, k)
+        riquadro = {
+            "label": NOMI_MULTIPLA_PER_K[k],
+            "value": RIQUADRO_SENZA_NUMERO,
+            "delta": None,
+            "help": (f"Proposte in attesa: {riepilogo['in_attesa']}. Le multiple "
+                     "della stessa settimana condividono spesso le stesse "
+                     "partite: i numeri non sono indipendenti."),
+        }
+        if riepilogo["concluse"]:
+            riquadro["value"] = f"{riepilogo['riuscite']} su {riepilogo['concluse']}"
+            if riepilogo["scarto"] is not None:
+                riquadro["delta"] = f"{riepilogo['scarto']:+d} punti sulle attese"
+        riquadri.append(riquadro)
+    return riquadri
+
+
+#: Colonne della tabella delle proposte, nell'ordine della commessa.
+COLONNE_TABELLA_MULTIPLE = ("Settimana", "Tipo", "Partite", "Quota",
+                            "Probabilità", "Esito")
+
+
+def _testo_gambe_proposta(riga):
+    """Le partite di una proposta con l'esito di ogni gamba, in una cella di testo.
+
+    Ogni gamba e' «partita (giocata): esito», con il risultato accanto quando
+    c'e' («Como vs Parma (12): ✅ 2-1»); le gambe ancora da valutare mostrano
+    ⏳. «n/d» quando la riga non porta le gambe (le proposte salvate prima del
+    campo ``giocate``).
+    """
+    pezzi = []
+    for g in (riga or {}).get("giocate") or []:
+        if not isinstance(g, dict):
+            continue
+        esito = cella_di_testo(g.get("esito_gamba")) or "⏳"
+        risultato = cella_di_testo(g.get("risultato_gamba"))
+        esito_testo = f"{esito} {risultato}" if risultato else esito
+        partita = cella_di_testo(g.get("partita"))
+        giocata = cella_di_testo(g.get("giocata"))
+        pezzo = f"{partita} ({giocata})" if giocata else partita
+        if pezzo:
+            pezzi.append(f"{pezzo}: {esito_testo}")
+    return "; ".join(pezzi) or "n/d"
+
+
+def tabella_proposte_multiple(proposte):
+    """La tabella delle proposte settimanali, la settimana piu' recente prima.
+
+    Una riga per proposta: settimana di gioco, tipo (il nome di
+    ``NOMI_MULTIPLA_PER_K``), le partite con l'esito di ogni gamba
+    (``_testo_gambe_proposta``), la quota totale stimata, la probabilita' in
+    percentuale e l'esito della proposta (⏳ finché la multipla non e'
+    decisa). Funzione pura: nessuna lettura, nessun disegno; i campi che la
+    riga non porta arrivano come «n/d», mai come None o nan in cella.
+    """
+    def chiave(r):
+        return (cella_di_testo(r.get("settimana")), -(_k_della_proposta(r) or 0))
+    righe_out = []
+    for r in sorted(proposte or [], key=chiave, reverse=True):
+        k = _k_della_proposta(r)
+        prob = numero_in_colonna(r.get("prob_sicuro"), 1)
+        righe_out.append({
+            "Settimana": cella_di_testo(r.get("settimana")) or "n/d",
+            "Tipo": NOMI_MULTIPLA_PER_K.get(k, "n/d"),
+            "Partite": _testo_gambe_proposta(r),
+            "Quota": numero_in_colonna(r.get("quota")) or "n/d",
+            "Probabilità": f"{prob}%" if prob else "n/d",
+            "Esito": cella_di_testo(r.get("esito")) or "⏳",
+        })
+    return pd.DataFrame(righe_out, columns=list(COLONNE_TABELLA_MULTIPLE))
 
 
 def _mostra_proposte_settimanali():
-    """La riga sulle proposte settimanali registrate in testa a Com'è andata.
+    """I quattro riquadri delle proposte settimanali e la loro tabella.
 
-    I quattro numeri del bilancio (concluse, riuscite, percentuale, attese) non
-    si scrivono piu' qui: stanno nei riquadri di ``_mostra_riquadri_giocate``,
-    sopra le tabelle, e ripeterli in una frase vorrebbe dire leggere due volte
-    lo stesso conteggio nella stessa scheda. Resta questa riga, che parla delle
-    proposte della settimana (solo se ce n'e' almeno una) e non ripete niente.
+    Al posto della vecchia riga «Le proposte settimanali registrate: K, riuscite
+    J» — due numeri soltanto, di tutte le settimane messe insieme — ci sono
+    quattro riquadri con il bordo, uno per tipo (Singola, Doppia, Tripla,
+    Quadrupla: ``riquadri_proposte_multiple``), ognuno con le riuscite sulle
+    concluse, lo scarto sulle attese e, nel suggerimento, quante sono ancora in
+    attesa. Sotto, in un riquadro chiuso, la tabella con una riga per proposta
+    (``tabella_proposte_multiple``): in apertura la scheda dice solo com'e'
+    andata, i dettagli si aprono.
+
+    Il registro ombra si legge UNA volta (la stessa lettura di prima); senza
+    proposte registrate non compare niente, come quando la riga non c'era.
     """
-    k, j, errore = proposte_settimanali_registrate()
-    if k:
-        st.caption(f"Le proposte settimanali registrate: {k}, riuscite {j}")
+    proposte, errore = proposte_multiple_registrate()
     if errore:
         logging.warning("Proposte settimanali non leggibili: %s", errore)
+    if not proposte:
+        return
+    for colonna, riquadro in zip(st.columns(len(NOMI_MULTIPLA_PER_K)),
+                                 riquadri_proposte_multiple(proposte)):
+        with colonna:
+            extra = {}
+            if riquadro.get("delta") is not None:
+                extra["delta"] = riquadro["delta"]
+                extra["delta_color"] = "normal"
+            st.metric(riquadro["label"], riquadro["value"],
+                      help=riquadro["help"], border=True, **extra)
+    with st.expander("📋 Le proposte settimanali registrate", expanded=False):
+        st.dataframe(tabella_proposte_multiple(proposte), width="stretch",
+                     hide_index=True)
 # La scheda si chiama «📒 Registro» ed e' il registro di sempre: le due tabelle
 # (le scelte del mercato e le previsioni del modello), il controllo dei risultati
 # che parte da solo e UN SOLO riquadro «🔎 Dettagli» chiuso in fondo. Contenuto
