@@ -102,7 +102,43 @@ def _titolo_atteso(casa: str, trasferta: str) -> str:
 
 
 class _BaseScheda(_BaseAppTest):
-    """Fixture comune piu' il calendario della giornata per la scheda Partite."""
+    """Fixture comune piu' il calendario della giornata per la scheda Partite.
+
+    Nella cartella temporanea il ``SerieA_Live.csv`` NON e' il collegamento al
+    file live (che i robot riscrivono a ogni giornata): e' la COPIA CONGELATA
+    della giornata 7 di ``test_fixtures/giornata7`` (PR #85), la stessa che
+    usano ``test_scheda_partita.py`` e ``test_scheda_grafica.py``. In quella
+    classifica l'Inter e' prima, quindi la frase attesa della scheda
+    Bologna-Inter («Al comando della classifica») resta stabile.
+    """
+
+    #: 70 partite, ultima Parma-Torino 0-3 del 19/10/2026 (giornata 7).
+    FIXTURE_SERIEA_LIVE = os.path.join(HERE, "test_fixtures", "giornata7",
+                                       "SerieA_Live.csv")
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        import shutil
+        from unittest import mock
+        import config
+
+        # La fixture comune linka i CSV del database reale: si sostituisce il
+        # solo SerieA_Live.csv con la copia congelata. Nessun file del
+        # repository viene toccato: si scrive solo nella cartella temporanea.
+        destinazione = cls.tmp / "SerieA_Live.csv"
+        destinazione.unlink(missing_ok=True)
+        shutil.copy2(cls.FIXTURE_SERIEA_LIVE, destinazione)
+
+        # ``scheda_partita.percorso_live_csv`` legge il percorso assoluto
+        # salvato in LEAGUES_CONFIG all'import: va ripuntato alla copia in tmp,
+        # altrimenti la scheda leggerebbe comunque il file live di produzione.
+        # Il patch e' registrato fra quelli della fixture, quindi la tearDown
+        # della classe ripristina la config com'era.
+        ripuntato = mock.patch.dict(
+            config.LEAGUES_CONFIG["Serie A"], {"live_csv": str(destinazione)})
+        ripuntato.start()
+        cls._patches.append(ripuntato)
 
     @classmethod
     def _live_data(cls, lega: str, extra=None) -> list:
