@@ -1,0 +1,214 @@
+name: Controlli sui dati veri
+
+# I controlli del GRUPPO 2 del censimento
+# (audit/results/referto_fixture_apptest_giornata7_2026-11-02.md, voci 4, 6, 7,
+# 9, 10): quelli che leggono i file VIVI e devono continuare a farlo. Non si
+# congelano e non stanno nella suite completa (li' sono saltati con un motivo
+# esplicito): girano qui, ogni giorno, sui dati che i robot hanno appena
+# scritto.
+#
+# COSA CONTROLLA (SoccerMath/test_controlli_dati.py, SM_CONTROLLI_DATI=1):
+#   * voce 4  - roster della stagione (season_rosters.json) e date future /
+#               coppie ripetute nei *_Live.csv, con l'orologio VERO;
+#   * voce 6  - i nomi di live_odds.json sono tutti riconosciuti e tutti gli
+#               eventi entrano nell'indice delle quote;
+#   * voce 7  - le squadre dei *_Live.csv di oggi stanno nel roster, e ogni
+#               partita della fonte quote e' nel calendario di oggi;
+#   * voce 9  - l'abbinamento della prossima giornata (audit/live_odds_match.py)
+#               riproduce i conteggi dichiarati (48/43/48, per lega);
+#   * voce 10 - ogni squadra della stagione ha gli xG, e nessuna coppia reale
+#               ha NG oltre il 95%.
+#
+# SEGNALAZIONE: ogni dato col problema produce una riga
+# `::error file=...::<lega> / <file>: <nome o partita> ...`, che GitHub mostra
+# come annotazione del run; l'elenco completo sta anche nella tabella del
+# riepilogo (Step Summary). Un controllo che passa scrive `[ok] ...`.
+#
+# NON SCRIVE NIENTE: nessun commit, nessun push, nessun secret, nessuna
+# scrittura nel Registro (i test girano con pytest e con il backend del Registro
+# puntato alla memoria; nessuna funzione di scrittura viene chiamata).
+#
+# ORARIO: 11:57 UTC, cioe' DOPO
+#   * live_odds.yml       -> cron 08:17 e 10:47 UTC (il file quote e' fresco);
+#   * update_database.yml -> cron 0 */6 (il giro delle 06:00 e' concluso).
+# In piu' fa la guardia di freschezza: se live_odds.json ha piu' di 26 ore il
+# controllo lo dice esplicitamente, invece di misurare un file vecchio.
+# GitHub puo' ritardare i cron: l'orario e' nominale, non garantito.
+
+on:
+  schedule:
+    - cron: '57 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controlli-dati
+  cancel-in-progress: false
+
+jobs:
+  controlli:
+    name: Dati veri (voci 4, 6, 7, 9, 10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+      #: Sblocca i test del gruppo 2 (senza, sono saltati con un motivo).
+      SM_CONTROLLI_DATI: "1"
+      REPORT_DIR: ${{ github.workspace }}/controlli-out
+
+    steps:
+      - name: Checkout (storia completa)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Stesse dipendenze della suite completa: i controlli importano app.py.
+      - name: Dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r SoccerMath/requirements.txt -r requirements-audit.txt pytest
+
+      # Solo informativa: quali file vivi si stanno guardando e quanto sono
+      # freschi. Non decide nulla.
+      - name: Quadro dei file vivi (solo informativa)
+        shell: bash
+        run: |
+          mkdir -p "$REPORT_DIR"
+          {
+            echo "data: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "--- *_Live.csv"
+            wc -l SoccerMath/database/*_Live.csv
+            echo "--- live_odds.json"
+            python - <<'PY'
+          import json, datetime
+          d = json.load(open("SoccerMath/database/live_odds.json", encoding="utf-8"))
+          g = d.get("generato_il")
+          eta = None
+          try:
+              quando = datetime.datetime.fromisoformat(str(g).replace("Z", "+00:00"))
+              eta = (datetime.datetime.now(datetime.timezone.utc) - quando).total_seconds() / 3600
+          except Exception:
+              pass
+          print(f"generato_il={g} eta_ore={eta if eta is None else round(eta, 1)} "
+                f"eventi={d.get('n_eventi')} schema={d.get('schema')}")
+          if eta is not None and eta > 26:
+              print(f"::error file=SoccerMath/database/live_odds.json::live_odds.json ha "
+                    f"{eta:.1f} ore (soglia 26): live_odds.yml non ha riscritto le quote")
+          PY
+            echo "--- xG"
+            ls -l SoccerMath/database/xg_*.json "SoccerMath/database/xG archivio serie A.json"
+          } 2>&1 | tee "$REPORT_DIR/file-vivi.txt"
+          {
+            echo "## Controlli sui dati veri"
+            echo ""
+            echo '```'
+            cat "$REPORT_DIR/file-vivi.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Nessun `continue-on-error`, nessun `|| true`: un controllo rosso fa
+      # fallire il passo e il job (e GitHub notifica), esattamente come il
+      # cron di update_database quando un dato non torna.
+      - name: Controlli (pytest, SM_CONTROLLI_DATI=1)
+        id: controlli
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q -rfEs --tb=short -p no:cacheprovider -s \
+            --junitxml="$REPORT_DIR/controlli-junit.xml" \
+            SoccerMath/test_controlli_dati.py 2>&1 | tee "$REPORT_DIR/controlli.log"
+
+      # I test del gruppo 2 che restano nei loro file (voci 4, 6, 7, 9, 10):
+      # senza SM_CONTROLLI_DATI sarebbero saltati, qui girano.
+      - name: Controlli del gruppo 2 nei file d'origine
+        id: origine
+        shell: bash
+        env:
+          SM_CONTROLLI_DATI: "1"
+        run: |
+          set -o pipefail
+          python -m pytest -q -rfEs --tb=short -p no:cacheprovider -s \
+            --junitxml="$REPORT_DIR/gruppo2-junit.xml" \
+            SoccerMath/test_season_rosters.py::TestValidazioneETolleranza \
+            SoccerMath/test_season_rosters.py::TestControlloLiveCsv \
+            SoccerMath/test_alias_quote_live.py \
+            audit/test_live_odds_match.py audit/test_ng_regression.py \
+            2>&1 | tee "$REPORT_DIR/gruppo2.log"
+
+      - name: Riepilogo e annotazioni (sempre)
+        if: always()
+        shell: bash
+        env:
+          ESITO_CONTROLLI: ${{ steps.controlli.outcome }}
+          ESITO_ORIGINE: ${{ steps.origine.outcome }}
+        run: |
+          python - <<'PY'
+          import os, re, xml.etree.ElementTree as ET
+
+          out = os.environ["REPORT_DIR"]
+          righe_errori = []
+          for nome in ("controlli.log", "gruppo2.log", "file-vivi.txt"):
+              percorso = os.path.join(out, nome)
+              if not os.path.exists(percorso):
+                  continue
+              with open(percorso, encoding="utf-8", errors="replace") as fh:
+                  for riga in fh:
+                      if riga.startswith("::error"):
+                          righe_errori.append((nome, riga.strip()))
+                      elif riga.startswith("[ok]"):
+                          pass
+
+          casi = falliti = 0
+          elenco = []
+          for nome in ("controlli-junit.xml", "gruppo2-junit.xml"):
+              percorso = os.path.join(out, nome)
+              if not os.path.exists(percorso):
+                  continue
+              for ts in ET.parse(percorso).getroot().iter("testsuite"):
+                  casi += int(ts.get("tests", 0))
+                  falliti += int(ts.get("failures", 0)) + int(ts.get("errors", 0))
+              for tc in ET.parse(percorso).getroot().iter("testcase"):
+                  for tag in ("failure", "error"):
+                      x = tc.find(tag)
+                      if x is not None:
+                          msg = (x.get("message") or "").strip().splitlines()
+                          elenco.append((tc.get("classname"), tc.get("name"),
+                                         msg[0] if msg else "(nessun messaggio)"))
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as s:
+              s.write("\n### Esito\n\n")
+              s.write(f"- controlli (test_controlli_dati.py): **{os.environ['ESITO_CONTROLLI']}**\n")
+              s.write(f"- controlli del gruppo 2 nei file d'origine: **{os.environ['ESITO_ORIGINE']}**\n")
+              s.write(f"- casi: {casi}, falliti: {falliti}\n\n")
+              if righe_errori:
+                  s.write("### Dati da correggere\n\n| log | segnalazione |\n|---|---|\n")
+                  for nome, riga in righe_errori:
+                      s.write(f"| `{nome}` | {riga.replace('|', chr(92) + '|')[:400]} |\n")
+                  s.write("\n")
+              if elenco:
+                  s.write("### Test falliti\n\n| test | messaggio |\n|---|---|\n")
+                  for classe, nome, msg in elenco:
+                      s.write(f"| `{classe}::{nome}` | {msg.replace('|', chr(92) + '|')[:300]} |\n")
+                  s.write("\n")
+
+          print(f"controlli: casi={casi} falliti={falliti} segnalazioni={len(righe_errori)}")
+          if righe_errori:
+              for nome, riga in righe_errori:
+                  print(riga)
+          PY
+
+      - name: Report come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: controlli-dati-${{ github.run_id }}
+          path: controlli-out/
+          if-no-files-found: warn
+          retention-days: 14

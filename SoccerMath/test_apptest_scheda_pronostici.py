@@ -75,6 +75,20 @@ APP_PATH = os.path.join(HERE, "app.py")
 REPO_ROOT = os.path.dirname(HERE)
 REALE_DATABASE = os.path.join(HERE, "database")
 
+#: Database CONGELATO e orologio FERMO (voce 12 del censimento del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``).
+#: Prima questa classe leggeva i ``*_Live.csv`` reali e prendeva ``now()``
+#: vero: i conteggi del periodo («4 scelte, 3 nel periodo») dipendevano dal
+#: giorno della settimana in cui girava la suite. Ora la cartella del database
+#: e' la copia del commit 331dcd8 (2026-10-29) e l'orologio e' fermo a
+#: ``ADESSO_CONGELATO``. Nessuna asserzione e' cambiata: cambia solo da dove
+#: arrivano i dati e che ora e' "adesso".
+from test_snapshot_congelato import (  # noqa: E402
+    ADESSO_CONGELATO,
+    database_congelato,
+    orologio_fermo,
+)
+
 #: Commit base di questa PR: nel suo albero il pulsante si chiamava «Registra le
 #: giocate della giornata» e le schede erano tre. Serve al confronto del punto 5.
 BASE_MAIN = "27e482e"
@@ -328,6 +342,15 @@ class _BaseQuoteFinte(unittest.TestCase):
         except ImportError:                                     # pragma: no cover
             raise unittest.SkipTest("streamlit.testing.v1 non disponibile")
 
+        # Voce 12 del censimento: il database e' quello CONGELATO del
+        # 2026-10-29 e l'orologio e' fermo alle 22:00 UTC di quel giorno (dopo
+        # l'ultima partita della copia). Sono il `with` esterno di tutta la
+        # classe: si chiudono nel tearDownClass qui sotto.
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+
         import config
         import lista_giocate as lg
         import market_odds
@@ -335,8 +358,11 @@ class _BaseQuoteFinte(unittest.TestCase):
         import requests
         import streamlit as st
 
-        cls.ADESSO = datetime.now(timezone.utc).replace(microsecond=0)
-        # Se il giorno vero e' troppo vicino al lunedi' di gioco, la «giornata»
+        # L'istante del fixture e' l'orologio FERMO, non piu' ``now()`` vero:
+        # stessa regola di prima (se il giorno e' troppo vicino al lunedi' di
+        # gioco si sposta tutto avanti di tre giorni), stessa asserzione.
+        cls.ADESSO = ADESSO_CONGELATO
+        # Se il giorno e' troppo vicino al lunedi' di gioco, la «giornata»
         # sarebbe troppo corta per ospitare le partite del fixture: si sposta
         # l'orologio dell'app avanti di tre giorni (le partite restano nel futuro
         # reale, quindi il filtro «solo pre-partita» non le scarta).
@@ -455,6 +481,13 @@ class _BaseQuoteFinte(unittest.TestCase):
         import prediction_registry as pr
         pr.backup_prediction_file = cls._backup_originale
         shutil.rmtree(cls.tmp, ignore_errors=True)
+        # Si chiudono il database congelato e l'orologio fermo aperti in
+        # setUpClass, cosi' le altre classi tornano sui dati veri.
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
 
     # ------------------------------------------------------------------ aiuti
     @staticmethod
@@ -1160,6 +1193,15 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
             from streamlit.testing.v1 import AppTest  # noqa: F401
         except ImportError:                                     # pragma: no cover
             raise unittest.SkipTest("streamlit.testing.v1 non disponibile")
+        # Voce 12 del censimento: anche questa classe leggeva i ``*_Live.csv``
+        # veri e ``now()`` vero. Le due passate (app di adesso e app di main)
+        # devono vedere lo stesso identico fixture: database CONGELATO del
+        # 2026-10-29 e orologio fermo alle 22:00 UTC di quel giorno.
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+
         # Il file di main, con il pulsante vecchio: scritto in tempfile e cancellato in
         # tearDownClass.
         try:
@@ -1178,7 +1220,8 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
 
         # Un orologio solo per TUTTE le esecuzioni della classe: le due passate
         # devono vedere lo stesso identico fixture, o il confronto sarebbe iniquo.
-        cls.ADESSO = datetime.now(timezone.utc).replace(microsecond=0)
+        # E' l'orologio FERMO (voce 12 del censimento), non piu' ``now()`` vero.
+        cls.ADESSO = ADESSO_CONGELATO
         if lg.lunedi_gioco(cls.ADESSO) - cls.ADESSO < timedelta(hours=26):
             cls.ADESSO += timedelta(days=3)
         cls.payload = FixtureQuoteFinte.payload_quote(cls.ADESSO)
@@ -1188,6 +1231,11 @@ class TestParitaScrittureColPulsanteVecchio(unittest.TestCase):
     def tearDownClass(cls):
         if getattr(cls, "_vecchio_tmp", None) is not None:
             cls._vecchio_tmp.cleanup()
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
 
     @staticmethod
     def _normalizza(righe):

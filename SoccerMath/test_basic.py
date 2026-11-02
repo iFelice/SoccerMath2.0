@@ -13,6 +13,16 @@ from models.elo_engine import predict_elo_probs
 from models.dixon_coles import DixonColesEngine
 from app import get_full_poisson, run_historical_backtest
 
+#: Database CONGELATO e orologio FERMO (voce 2 del censimento del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``).
+#: ``run_historical_backtest`` e ``get_league_engine`` leggono TUTTI i CSV della
+#: lega, compresi i ``*_Live.csv`` che i robot riscrivono a ogni giornata: la
+#: finestra da 300 partite, la media ``poisson_ok`` e ``len(win) == 50`` erano
+#: misurate su un file che cambia da solo. Ora leggono la copia congelata del
+#: commit 331dcd8 (2026-10-29) con l'orologio fermo a ``ADESSO_CONGELATO``.
+#: Nessuna asserzione e' cambiata.
+from test_snapshot_congelato import database_congelato, orologio_fermo  # noqa: E402
+
 
 class TestCleanName(unittest.TestCase):
     def test_basic_mappings(self):
@@ -119,7 +129,25 @@ class TestLeagueDbFiles(unittest.TestCase):
 
 
 class TestLeagueEngineDedupe(unittest.TestCase):
-    """get_league_engine() non deve contare due volte le partite base + Live."""
+    """get_league_engine() non deve contare due volte le partite base + Live.
+
+    Voce 2 del censimento: database CONGELATO (commit 331dcd8) e orologio fermo.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+
+    @classmethod
+    def tearDownClass(cls):
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
 
     def test_nessuna_partita_duplicata(self):
         import pandas as pd
@@ -137,11 +165,27 @@ class TestLeagueEngineDedupe(unittest.TestCase):
 
 
 class TestHistoricalBacktest(unittest.TestCase):
-    """Copre run_historical_backtest (walk-forward Poisson vs Elo) usato nel tab BACKTEST."""
+    """Copre run_historical_backtest (walk-forward Poisson vs Elo) usato nel tab BACKTEST.
+
+    Voce 2 del censimento: i CSV letti sono quelli della copia CONGELATA del
+    database (commit 331dcd8) e l'orologio e' fermo, non i file live di oggi.
+    """
 
     @classmethod
     def setUpClass(cls):
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
         cls.df = run_historical_backtest("Serie A")
+
+    @classmethod
+    def tearDownClass(cls):
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
 
     def test_torna_un_dataframe(self):
         import pandas as pd
