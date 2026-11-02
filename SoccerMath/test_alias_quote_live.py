@@ -46,6 +46,21 @@ from team_names import resolve_team_name  # noqa: E402
 PROBE_DIR = os.path.join(REPO_ROOT, "audit", "data", "live_odds_probe")
 LIVE_ODDS_PATH = os.path.join(HERE, "database", "live_odds.json")
 
+#: Gruppo 2 del censimento (voci 6 e 7 del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``): i
+#: controlli che devono restare sui DATI VERI (``live_odds.json`` e
+#: ``*_Live.csv`` di oggi) e non si congelano. Si tolgono dalla suite completa
+#: - qui si SALTANO, dichiarandolo - e girano solo nel workflow
+#: ``.github/workflows/controlli_dati.yml`` (``SM_CONTROLLI_DATI=1``) e a mano.
+#: Gli altri test di questo file (file scritti dal test, fallback silenzioso)
+#: restano nella suite completa.
+CONTROLLI_DATI = os.environ.get("SM_CONTROLLI_DATI") == "1"
+MOTIVO_GRUPPO_2 = (
+    "gruppo 2 del censimento (controllo sui DATI VERI): non fa parte della "
+    "suite completa, gira in .github/workflows/controlli_dati.yml "
+    "(SM_CONTROLLI_DATI=1)"
+)
+
 #: I 6 nomi che la PR #50 ha dichiarato mancanti (referto §5, "Precondizione
 #: obbligatoria prima di andare in produzione").
 ALIAS_ATTESI = {
@@ -131,6 +146,7 @@ class TestAliasAggiunti(unittest.TestCase):
         for grezzo, canonico in ALIAS_ATTESI.items():
             self.assertEqual(canonico, clean_name(grezzo), grezzo)
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 7
     def test_i_canonici_degli_alias_sono_nel_calendario_corrente(self):
         canonici = nomi_canonici_stagione_corrente()
         tutti = set().union(*canonici.values())
@@ -170,6 +186,7 @@ class TestCoperturaCalendarioCorrente(unittest.TestCase):
                          "nomi della fonte quote NON riconosciuti (nessun fallback: "
                          "vanno dichiarati in team_aliases.py):\n  " + "\n  ".join(sorted(set(sconosciuti))))
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 7
     def test_ogni_partita_e_abbinata_al_calendario_corrente(self):
         """Copertura completa sulle PARTITE: entrambi i nomi nel calendario."""
         non_abbinate = []
@@ -185,6 +202,7 @@ class TestCoperturaCalendarioCorrente(unittest.TestCase):
                          "partite della fonte quote NON abbinate al calendario corrente:\n  "
                          + "\n  ".join(non_abbinate))
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 7
     def test_copertura_e_il_100_percento(self):
         """Il numero dichiarato nel riepilogo della PR: 96/96, non 'quasi'."""
         abbinate = 0
@@ -346,6 +364,7 @@ class TestCoperturaSuFileScritto(unittest.TestCase):
 class TestCoperturaFileLive(unittest.TestCase):
     """Se il workflow ha gia' scritto ``live_odds.json``, vale la stessa regola."""
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 6
     def test_copertura_completa_anche_sul_file_vivo(self):
         payload = mo.carica_quote_live(LIVE_ODDS_PATH)
         self.assertIsNotNone(payload)
@@ -418,6 +437,7 @@ class TestCoperturaCalendariFootballData(unittest.TestCase):
                          "(vanno dichiarati in team_aliases.py):\n  "
                          + "\n  ".join(sconosciuti))
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 6
     def test_ogni_nome_dei_calendari_in_cache_su_disco_e_riconosciuto(self):
         """``*_Live.csv``: i calendari della stagione che il workflow aggiorna."""
         sconosciuti = []

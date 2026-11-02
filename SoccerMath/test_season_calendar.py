@@ -18,11 +18,36 @@ import pandas as pd  # noqa: E402
 
 import config  # noqa: E402
 import season_calendar as sc  # noqa: E402
+
+#: Database CONGELATO e orologio FERMO (voce 5 del censimento del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``).
+#: ``test_calendario_reale_nessuna_partita_a_luglio`` legge TUTTI i ``*.csv``
+#: di ``DATABASE_DIR`` (compresi i Live che i robot riscrivono): con la copia
+#: congelata del commit 331dcd8 (2026-10-29) il calendario su cui si misura non
+#: cambia piu'. Nessuna asserzione e' cambiata.
+from test_snapshot_congelato import database_congelato, orologio_fermo  # noqa: E402
 from season_rollover import _season_of  # noqa: E402
 from prediction_registry import season_from_entry  # noqa: E402
 
 
 class TestSeasonCalendar(unittest.TestCase):
+    """Voce 5 del censimento: database CONGELATO e orologio FERMO."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+
+    @classmethod
+    def tearDownClass(cls):
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
+
     def test_confine_primo_luglio(self):
         self.assertEqual(sc.SEASON_START_MONTH, 7)
         self.assertEqual(sc.season_start_year(2027, 6), 2026)

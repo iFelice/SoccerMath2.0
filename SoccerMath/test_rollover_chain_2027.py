@@ -47,6 +47,16 @@ import pandas as pd  # noqa: E402
 
 import config  # noqa: E402
 import season_rollover  # noqa: E402
+
+#: Database CONGELATO e orologio FERMO (voce 11 del censimento del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``).
+#: ``setUpClass`` fa ``shutil.copytree(config.DATABASE_DIR, ...)``: copiava il
+#: database REALE, compresi i ``*_Live.csv`` che il robot riscrive ogni 6 ore e
+#: gli archivi xG che ``update_xg`` riscrive due volte a settimana, e poi
+#: asseriva su stagioni/doppioni/conteggi. Ora la copia e' quella CONGELATA del
+#: commit 331dcd8 (2026-10-29) e l'orologio e' fermo a ``ADESSO_CONGELATO``.
+#: Nessuna asserzione e' cambiata.
+from test_snapshot_congelato import database_congelato, orologio_fermo  # noqa: E402
 import update_xg  # noqa: E402
 import update_all_xg_db  # noqa: E402
 import update_all_ppda_player_db as ppda  # noqa: E402
@@ -72,15 +82,27 @@ def _fake_2027_matchday(records, season=2027, day="2027-08-21"):
 
 
 class TestRolloverChain2027(unittest.TestCase):
+    """Voce 11 del censimento: si simula il rollover sulla copia CONGELATA."""
+
     @classmethod
     def setUpClass(cls):
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
         cls._tmp = tempfile.TemporaryDirectory(prefix="rollover-2027-")
         cls.db = Path(cls._tmp.name) / "database"
+        # Copia del database CONGELATO (voce 11), non piu' di quello live.
         shutil.copytree(config.DATABASE_DIR, cls.db)
 
     @classmethod
     def tearDownClass(cls):
         cls._tmp.cleanup()
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
 
     # ------------------------------------------------------------------ 1
     def test_1_config_e_finestre_derivate_dalla_data(self):

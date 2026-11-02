@@ -63,6 +63,20 @@ if HERE not in sys.path:
 APP_PATH = os.path.join(HERE, "app.py")
 REALE_DATABASE = os.path.join(HERE, "database")
 
+#: Database CONGELATO e orologio FERMO (voce 13 del censimento del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``).
+#: Prima questa classe leggeva i ``*_Live.csv`` reali e prendeva ``now()`` vero
+#: in DUE punti (il ``setUpClass`` per kickoff/salvataggi del fixture e il
+#: ``test_a`` per decidere il periodo): due letture dell'ora che potevano
+#: cadere da parti opposte di una mezzanotte o del lunedi' di gioco. Ora la
+#: cartella del database e' la copia del commit 331dcd8 (2026-10-29) e
+#: l'orologio e' fermo a ``ADESSO_CONGELATO``. Nessuna asserzione e' cambiata.
+from test_snapshot_congelato import (  # noqa: E402
+    ADESSO_CONGELATO,
+    database_congelato,
+    orologio_fermo,
+)
+
 
 def _iso(dt):
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -101,6 +115,13 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         except ImportError:                                      # pragma: no cover
             raise unittest.SkipTest("streamlit.testing.v1 non disponibile")
 
+        # Voce 13 del censimento: database CONGELATO del 2026-10-29 e orologio
+        # fermo alle 22:00 UTC di quel giorno, per tutta la classe.
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+
         import config
         import prediction_registry as pr
         import requests
@@ -114,7 +135,8 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
                 continue
             (cls.tmp / f.name).symlink_to(f)
 
-        ora = datetime.now(timezone.utc)
+        # L'ora di riferimento e' l'orologio FERMO (voce 13), non piu' ``now()``.
+        ora = ADESSO_CONGELATO
         cls.calcio = _iso(ora + timedelta(hours=20))
         cls.istante = _iso(ora)
         # 111 e 113 sopra soglia, 112 SOTTO: e' la partita del caso di commessa.
@@ -264,6 +286,13 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         import prediction_registry as pr
         pr.backup_prediction_file = cls._backup_originale
         shutil.rmtree(cls.tmp, ignore_errors=True)
+        # Si chiudono il database congelato e l'orologio fermo aperti in
+        # setUpClass, cosi' le altre classi tornano sui dati veri.
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
 
     # ------------------------------------------------------------------ aiuti
     @classmethod
@@ -382,8 +411,10 @@ class TestAppTestCalcolaTopMix(unittest.TestCase):
         # contenuto del riquadro non cambia. Il radio «Periodo» e' diventato un
         # interruttore solo, condiviso dalle tre schede che filtrano il periodo.
         import lista_giocate as _lg
-        from datetime import datetime as _dt, timezone as _tz
-        _adesso = _dt.now(_tz.utc)
+        # Stesso istante fermo del ``setUpClass``: prima erano DUE letture di
+        # ``now()`` diverse (e il confine del lunedi' di gioco dipendeva da
+        # quale delle due si guardava).
+        _adesso = ADESSO_CONGELATO
         periodi = [t for t in self.at.toggle if (t.key or "") == "lg_periodo_prossimi"]
         self.assertEqual(1, len(periodi), "il comando del periodo c'e'")
         periodo_val = ("tutte" if bool(periodi[0].value) else "giornata")

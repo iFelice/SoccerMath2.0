@@ -64,6 +64,21 @@ FIXTURE_DIR = os.path.join(HERE, "test_fixtures", "giornata7")
 FIXTURE_SERIEA_CSV = os.path.join(FIXTURE_DIR, "SerieA_Live.csv")
 FIXTURE_LIVE_ODDS = os.path.join(FIXTURE_DIR, "live_odds.json")
 
+#: Database CONGELATO e orologio FERMO (voce 8 del censimento del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``).
+#: ``TestQuoteEAbbinamento``, ``TestSchedaCompleta``,
+#: ``TestFasceEloENonLeakage``, ``TestClassificaRiconataAMano`` e
+#: ``TestGiornateEDistanze`` chiamano ``sp.carica_risultati_stagione(lega)``
+#: SENZA percorso: leggono i ``*_Live.csv`` veri, e li abbinano allo snapshot
+#: quote pinnato del 2026-10-11 con l'orologio fermo al 16/10. Ora la cartella
+#: del database e' la copia congelata del commit 331dcd8 (2026-10-29) e
+#: l'orologio e' fermo a ``ADESSO_CONGELATO``. Nessuna asserzione e' cambiata.
+from test_snapshot_congelato import (  # noqa: E402
+    ADESSO_CONGELATO,
+    database_congelato,
+    orologio_fermo,
+)
+
 
 def _righe_grezze(percorso: str) -> list:
     """Le righe del CSV cosi' come sono, lette senza pandas."""
@@ -132,6 +147,32 @@ def _df_per_motore(risultati: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values("Date_Parsed", kind="stable").reset_index(drop=True)
 
 
+class _BaseDatabaseCongelato(unittest.TestCase):
+    """Fixture comune delle classi che leggono i risultati dal database.
+
+    Voce 8 del censimento: sotto, per la durata della classe, ``config`` punta
+    alla copia CONGELATA del database (commit 331dcd8, 2026-10-29) e l'orologio
+    e' fermo a ``ADESSO_CONGELATO``. Il ``setUpClass`` della sottoclasse deve
+    chiamare ``super().setUpClass()`` per attivarlo.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
+
+
 class _EngineDaDataFrame(EloEngine):
     """Motore Elo alimentato da un DataFrame gia' pronto (nessun file letto).
 
@@ -149,11 +190,12 @@ class _EngineDaDataFrame(EloEngine):
         return self.matches_df
 
 
-class TestClassificaRiconataAMano(unittest.TestCase):
+class TestClassificaRiconataAMano(_BaseDatabaseCongelato):
     """La classifica del modulo = conteggio indipendente, riga per riga."""
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.percorso = sp.percorso_live_csv(CAMP)
         if not cls.percorso or not os.path.exists(cls.percorso):
             raise unittest.SkipTest("CSV della stagione non trovato")
@@ -267,7 +309,7 @@ class TestPosizioneGiornataPrecedente(unittest.TestCase):
         self.assertIsNone(scheda["classifica"]["trasferta"]["pos_prec"])
 
 
-class TestGiornateEDistanze(unittest.TestCase):
+class TestGiornateEDistanze(_BaseDatabaseCongelato):
     """Giornate rimaste (38 o 34) e distanze in punti dalle posizioni."""
 
     def test_giornate_totali_dal_numero_di_squadre(self):
@@ -592,11 +634,12 @@ class TestLeHavreEAuxerreSulloSnapshotFissato(unittest.TestCase):
                                  dati["giornate_rimaste"])
 
 
-class TestFasceEloENonLeakage(unittest.TestCase):
+class TestFasceEloENonLeakage(_BaseDatabaseCongelato):
     """Forma, fasce dell'avversario e non-leakage dell'Elo."""
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.risultati = sp.carica_risultati_stagione(CAMP)
         if cls.risultati.empty:
             raise unittest.SkipTest("nessun risultato della stagione in corso")
@@ -759,11 +802,12 @@ class TestDatiInsufficienti(unittest.TestCase):
         self.assertEqual(righe, ["Le due squadre non si sono ancora affrontate in questa stagione."])
 
 
-class TestQuoteEAbbinamento(unittest.TestCase):
+class TestQuoteEAbbinamento(_BaseDatabaseCongelato):
     """Probabilita' dalle quote (snapshot pinnato) e abbinamento delle partite."""
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.snap = snap_test.snapshot_reale()
         if cls.snap is None:
             raise unittest.SkipTest("snapshot pinnato non raggiungibile (clone shallow?)")
@@ -1003,11 +1047,12 @@ class TestRighePartiteCalendariFootballData(unittest.TestCase):
                 self.assertRegex(str(v), r"^\d{1,2},\d%$")
 
 
-class TestSchedaCompleta(unittest.TestCase):
+class TestSchedaCompleta(_BaseDatabaseCongelato):
     """La scheda intera su una partita vera dello snapshot pinnato."""
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.snap = snap_test.snapshot_reale()
         if cls.snap is None:
             raise unittest.SkipTest("snapshot pinnato non raggiungibile (clone shallow?)")

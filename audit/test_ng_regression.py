@@ -65,6 +65,22 @@ LEAGUE_PREFIX = {"Serie A": "SerieA", "Premier League": "Premier",
                  "La Liga": "LaLiga", "Bundesliga": "Bundesliga", "Ligue 1": "Ligue1"}
 
 
+#: Gruppo 2 del censimento (voce 10 del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``): i
+#: controlli che devono restare sui DATI VERI. Leggono i ``*_Live.csv`` e gli
+#: archivi xG di oggi: ogni ``update_xg`` (martedi' e venerdi') e ogni
+#: ``update_database`` (ogni 6 ore) cambiano le lambda, ed e' proprio quello che
+#: si vuole continuare a misurare. Si tolgono dalla suite completa - qui si
+#: SALTANO, dichiarandolo - e girano solo nel workflow
+#: ``.github/workflows/controlli_dati.yml`` (``SM_CONTROLLI_DATI=1``).
+CONTROLLI_DATI = os.environ.get("SM_CONTROLLI_DATI") == "1"
+MOTIVO_GRUPPO_2 = (
+    "gruppo 2 del censimento (controllo sui DATI VERI): non fa parte della "
+    "suite completa, gira in .github/workflows/controlli_dati.yml "
+    "(SM_CONTROLLI_DATI=1)"
+)
+
+
 def _engine(league):
     """get_league_engine senza cache (i test alterano le fonti xG)."""
     try:
@@ -371,6 +387,7 @@ class TestEngineXGPaths(unittest.TestCase):
 # 5. Mapping nomi Understat <-> CSV/Football-Data
 # ---------------------------------------------------------------------------
 class TestNameMapping(unittest.TestCase):
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 10
     def test_current_season_teams_covered(self):
         """4) Ogni squadra della stagione in corso (Live CSV) deve essere
         raggiungibile dal file xG: la chiave prodotta da update_xg (titolo
@@ -399,6 +416,7 @@ class TestNameMapping(unittest.TestCase):
 # 6. Regressione end-to-end sul database reale
 # ---------------------------------------------------------------------------
 class TestNoExtremeNGRegression(unittest.TestCase):
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 10
     def test_all_leagues_no_extreme_ng(self):
         """Nessuna coppia di squadre reali di alcun campionato puo' produrre
         NG > 95% (prima del fix: 102/702 coppie Premier League > 95%).

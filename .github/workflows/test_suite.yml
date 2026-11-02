@@ -8,6 +8,32 @@ name: Suite test completa
 #   2. SoccerMath/test_theme_toggle.py eseguito come script: non e' un test pytest
 #      (fa asserzioni a livello di modulo e chiude con sys.exit(0)).
 #
+# I DUE GRUPPI DEL CENSIMENTO
+# (audit/results/referto_fixture_apptest_giornata7_2026-11-02.md, punto 4):
+#
+#   * GRUPPO 1 - test del codice che leggevano per sbaglio dati vivi (voci 1, 2,
+#     3, 5, 8, 11, 12, 13): restano QUI, resi indipendenti con la copia congelata
+#     SoccerMath/test_fixtures/db_congelato/2026-10-29 e con l'orologio fermo
+#     (SoccerMath/test_snapshot_congelato.py). Nessuna asserzione cambiata.
+#
+#   * GRUPPO 2 - controlli sui DATI VERI (voci 4, 6, 7, 9, 10): NON stanno qui.
+#     Devono continuare a leggere i file vivi, quindi non si congelano: girano in
+#     .github/workflows/controlli_dati.yml (SM_CONTROLLI_DATI=1), ogni giorno dopo
+#     live_odds.yml e update_database.yml. Nel loro file d'origine sono saltati con
+#     il motivo scritto (vedi il passo "Gruppo 2: elenco dei test esclusi"): la
+#     suite continua a raccoglierli, ma non li esegue. Con SM_CONTROLLI_DATI=0
+#     impostato qui sotto l'esclusione non dipende dall'ambiente del runner.
+#
+#     file/classi escluse:
+#       SoccerMath/test_season_rosters.py::TestValidazioneETolleranza
+#       SoccerMath/test_season_rosters.py::TestControlloLiveCsv
+#       SoccerMath/test_alias_quote_live.py (TestCoperturaFileLive,
+#           TestCoperturaCalendariFootballData, TestAliasAggiunti::test_i_canonici_*)
+#       audit/test_live_odds_match.py (4 test dell'abbinamento sui CSV vivi)
+#       audit/test_ng_regression.py (TestNameMapping::test_current_season_teams_covered,
+#           TestNgRange::test_all_leagues_no_extreme_ng)
+#       SoccerMath/test_controlli_dati.py (per intero: e' il file del gruppo 2)
+#
 # Sola lettura: nessun commit, nessun push, nessun secret, nessuna scrittura nel Registro.
 #
 # Trigger:
@@ -47,6 +73,9 @@ jobs:
     env:
       STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
       REPORT_DIR: ${{ github.workspace }}/suite-out
+      # Esplicito: i test del gruppo 2 restano saltati. A eseguirli e' solo
+      # .github/workflows/controlli_dati.yml, che imposta la variabile a 1.
+      SM_CONTROLLI_DATI: "0"
 
     steps:
       # fetch-depth: 0 come negli altri workflow: alcuni test leggono la storia git
@@ -132,6 +161,73 @@ jobs:
           git ls-files | grep -E '(^|/)test_[^/]*\.py$' | grep -vx 'SoccerMath/test_theme_toggle.py' > "$REPORT_DIR/file_pytest.txt"
           echo "File per pytest: $(wc -l < "$REPORT_DIR/file_pytest.txt")"
           cat "$REPORT_DIR/file_pytest.txt"
+
+      # Trasparenza: quali test la suite raccoglie ma NON esegue, e perche'.
+      # Sono quelli del gruppo 2 (dati veri) piu' i test saltati per altri motivi.
+      # Solo informativa: non decide nulla.
+      - name: "Gruppo 2 - elenco dei test esclusi (solo informativa)"
+        if: steps.salta.outputs.skip != 'true'
+        shell: bash
+        env:
+          SM_CONTROLLI_DATI: "0"
+        run: |
+          mkdir -p "$REPORT_DIR"
+          python - > "$REPORT_DIR/gruppo2-esclusi.txt" <<'PY'
+          import ast, os
+
+          FILE = [
+              "SoccerMath/test_season_rosters.py",
+              "SoccerMath/test_alias_quote_live.py",
+              "audit/test_live_odds_match.py",
+              "audit/test_ng_regression.py",
+              "SoccerMath/test_controlli_dati.py",
+          ]
+
+          def decoratori(node):
+              return [ast.unparse(d) for d in getattr(node, "decorator_list", [])]
+
+          def gruppo_2(node):
+              return any("CONTROLLI_DATI" in d for d in decoratori(node))
+
+          print("Test del gruppo 2 (dati veri) raccolti ma saltati da questa suite;")
+          print("li esegue .github/workflows/controlli_dati.yml con SM_CONTROLLI_DATI=1.")
+          print()
+          totale = 0
+          for percorso in FILE:
+              if not os.path.exists(percorso):
+                  print(f"{percorso}: ASSENTE")
+                  continue
+              with open(percorso, encoding="utf-8") as fh:
+                  albero = ast.parse(fh.read(), filename=percorso)
+              righe = []
+              classi_escluse = {n.name for n in albero.body
+                                if isinstance(n, ast.ClassDef) and gruppo_2(n)}
+              for nodo in albero.body:
+                  if isinstance(nodo, ast.ClassDef):
+                      if nodo.name in classi_escluse:
+                          righe.append((nodo.name, "(classe intera)", nodo.lineno))
+                      for figlio in nodo.body:
+                          if isinstance(figlio, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                                  and gruppo_2(figlio):
+                              righe.append((nodo.name, figlio.name, figlio.lineno))
+                  elif isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)) and gruppo_2(nodo):
+                      righe.append(("", nodo.name, nodo.lineno))
+              totale += len(righe)
+              print(f"{percorso}: {len(righe)} test esclusi")
+              for classe, nome, riga in righe:
+                  dove = f"{classe}::{nome}" if classe else nome
+                  print(f"  riga {riga:>5}  {dove}")
+          print()
+          print(f"totale esclusi: {totale}")
+          PY
+          cat "$REPORT_DIR/gruppo2-esclusi.txt"
+          {
+            echo "### Gruppo 2 escluso dalla suite (dati veri)"
+            echo ""
+            echo '```'
+            cat "$REPORT_DIR/gruppo2-esclusi.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Nessun `continue-on-error`, nessun `|| true`: un test fallito fa fallire il passo e il job.
       - name: Suite pytest (tutti i file test_*.py tracciati)

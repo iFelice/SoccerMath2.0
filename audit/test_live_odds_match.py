@@ -34,6 +34,20 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "SoccerMath"))
 import live_odds_match as LOM  # noqa: E402
 from team_aliases import clean_name  # noqa: E402
 
+#: Gruppo 2 del censimento (voce 9 del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``): i
+#: controlli che devono restare sui DATI VERI. ``build_payload`` legge i
+#: ``*_Live.csv`` di OGGI (``canonical_names``) e l'ora vera: congelarlo
+#: vorrebbe dire non misurare piu' quello che si vuole misurare. Si tolgono
+#: dalla suite completa - qui si SALTANO, dichiarandolo - e girano solo nel
+#: workflow ``.github/workflows/controlli_dati.yml`` (``SM_CONTROLLI_DATI=1``).
+CONTROLLI_DATI = os.environ.get("SM_CONTROLLI_DATI") == "1"
+MOTIVO_GRUPPO_2 = (
+    "gruppo 2 del censimento (controllo sui DATI VERI): non fa parte della "
+    "suite completa, gira in .github/workflows/controlli_dati.yml "
+    "(SM_CONTROLLI_DATI=1)"
+)
+
 SNAPSHOT = "2026-10-08"   # data dello snapshot committato (vedi test_snapshot_presente)
 # valori misurati sullo snapshot committato, DOPO i sei alias della PR delle
 # quote live. Terzina: (partite della prossima giornata, abbinate con il solo
@@ -93,6 +107,7 @@ class TestAbbinamento(unittest.TestCase):
         for lega, v in self.payload["per_lega"].items():
             self.assertTrue(v["disponibile"], lega)
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 9
     def test_partite_e_abbinamenti_per_lega(self):
         for lega, (n, ok, ok_res) in ATTESO.items():
             v = self.payload["per_lega"][lega]
@@ -100,6 +115,7 @@ class TestAbbinamento(unittest.TestCase):
             self.assertEqual(v["n_abbinate"], ok, lega)
             self.assertEqual(v["n_abbinate_resolver"], ok_res, lega)
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 9
     def test_totali(self):
         t = self.payload["totale"]
         self.assertEqual(t["n_prossima_giornata"], 48)
@@ -108,6 +124,7 @@ class TestAbbinamento(unittest.TestCase):
         self.assertAlmostEqual(t["pct_abbinate"], 43 / 48, places=12)
         self.assertAlmostEqual(t["pct_abbinate_resolver"], 1.0, places=12)
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 9
     def test_copertura_completa_col_resolver_di_produzione(self):
         """Punto 1 della commessa: TUTTE le partite del calendario corrente.
 
@@ -164,6 +181,7 @@ class TestAbbinamento(unittest.TestCase):
         chiavi = [(u["lega"], u["raw"]) for u in self.payload["nomi_non_abbinati"]]
         self.assertEqual(len(chiavi), len(set(chiavi)))
 
+    @unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)   # voce 9
     def test_prossima_giornata_dentro_la_finestra_di_produzione(self):
         for lega, v in self.payload["per_lega"].items():
             self.assertIsNotNone(v["primo_kickoff"])

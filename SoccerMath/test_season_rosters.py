@@ -49,6 +49,7 @@ if HERE not in sys.path:
 
 import config as PROD_CONFIG  # noqa: E402
 import season_calendar as SC  # noqa: E402
+
 import season_rosters as SR  # noqa: E402
 from models.elo_engine import (  # noqa: E402
     EloEngine,
@@ -57,6 +58,17 @@ from models.elo_engine import (  # noqa: E402
     season_rosters_from_matches,
 )
 import models.elo_engine as ELO_MOD  # noqa: E402
+
+#: Database CONGELATO e orologio FERMO (voce 3 del censimento del referto
+#: ``audit/results/referto_fixture_apptest_giornata7_2026-11-02.md``).
+#: ``_DBTemp`` copiava la cartella ``database`` REALE (i ``*_Live.csv`` che il
+#: robot riscrive ogni 6 ore) e ``_giornata1`` prendeva la prima giornata dal
+#: Live di oggi: le liste di promosse e i conteggi di partite erano fissi ma la
+#: fonte no. Ora la cartella copiata e' la copia congelata del commit 331dcd8
+#: (2026-10-29, la data in cui questi test sono stati aggiornati l'ultima
+#: volta) e l'orologio e' fermo a ``ADESSO_CONGELATO``. Nessuna asserzione e'
+#: cambiata.
+from test_snapshot_congelato import database_congelato, orologio_fermo  # noqa: E402
 
 LEGHE = ("Serie A", "Premier League", "La Liga", "Bundesliga", "Ligue 1")
 TAGLIE_ATTESE = {"Serie A": 20, "Premier League": 20, "La Liga": 20,
@@ -73,7 +85,7 @@ PRIMA_GIORNATA_2026 = {
 
 
 class _DBTemp:
-    """Copia del database reale in una cartella temporanea, config ripuntato.
+    """Copia del database in una cartella temporanea, config ripuntato.
 
     ``truncated_before`` (date): se dato, le righe con Date >= quella data
     vengono rimosse da tutti i CSV (simulazione pre-stagione). ``con_roster``
@@ -87,6 +99,11 @@ class _DBTemp:
 
     def __enter__(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="roster_test_"))
+        # Sorgente: ``config.DATABASE_DIR``, come sempre. Le classi del gruppo 1
+        # (voci 3 del censimento) la ripuntano alla copia CONGELATA con
+        # ``database_congelato()`` nel loro setUpClass; le classi del gruppo 2
+        # (voce 4) restano sul database VERO, perche' il loro mestiere e'
+        # controllare i dati veri.
         src = Path(PROD_CONFIG.DATABASE_DIR)
         cutoff = (pd.Timestamp(self.truncated_before)
                   if self.truncated_before is not None else None)
@@ -131,6 +148,23 @@ def _motore(lega):
 
 
 class TestFileReale(unittest.TestCase):
+    """Voci 3 del censimento: database CONGELATO e orologio FERMO."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+
+    @classmethod
+    def tearDownClass(cls):
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
+
     def test_copertura_e_taglie(self):
         tutto = SR.load_season_rosters()
         self.assertEqual(sorted(tutto), sorted(LEGHE))
@@ -246,6 +280,22 @@ class TestSimulazioneInizioStagione2026(unittest.TestCase):
     troncati, vedi ``make_elo_parity_fixture._roster_completo``): a parita' di
     partite viste, file ed esplicito devono dare gli stessi seed bit-exact.
     """
+
+    @classmethod
+    def setUpClass(cls):
+        """Voci 3 del censimento: database CONGELATO e orologio FERMO."""
+        cls._db_congelato = database_congelato()
+        cls._db_congelato.avvia()
+        cls._orologio_fermo = orologio_fermo()
+        cls._orologio_fermo.avvia()
+
+    @classmethod
+    def tearDownClass(cls):
+        for nome in ("_orologio_fermo", "_db_congelato"):
+            stato = getattr(cls, nome, None)
+            if stato is not None:
+                stato.ferma()
+                setattr(cls, nome, None)
 
     def _confronto_lega(self, lega):
         prima = PRIMA_GIORNATA_2026[lega]
@@ -419,7 +469,28 @@ class TestUpdateDbSalvaIlRoster(unittest.TestCase):
             self.assertEqual(prima, dopo, "stesso contenuto, stessi byte")
 
 
+#: Gruppo 2 del censimento (voci 4, 6, 7, 9, 10): i controlli che devono
+#: restare sui DATI VERI. Non si congelano: si tolgono dalla suite completa e
+#: girano solo nel workflow ``controlli_dati.yml`` (e a mano, con la variabile
+#: qui sotto). Il motivo per test sta nel ``skip`` della classe.
+CONTROLLI_DATI = os.environ.get("SM_CONTROLLI_DATI") == "1"
+MOTIVO_GRUPPO_2 = (
+    "gruppo 2 del censimento (controllo sui DATI VERI): non fa parte della "
+    "suite completa, gira in .github/workflows/controlli_dati.yml "
+    "(SM_CONTROLLI_DATI=1)"
+)
+
+
+@unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)
 class TestValidazioneETolleranza(unittest.TestCase):
+    """Voce 4 del censimento: controllo sui dati VERI, mai congelato.
+
+    ``test_file_reale_valido_oltre_il_termine`` chiama
+    ``SR.validate_current_rosters()`` senza orologio: e' lo stesso chiamante del
+    workflow (``python season_rosters.py --check``), deve vedere il database di
+    ADESSO. Congelarlo lo renderebbe cieco proprio su cio' che controlla.
+    """
+
     def test_taglie_e_scadenza(self):
         self.assertEqual(SR.EXPECTED_ROSTER_SIZE["Serie A"], 20)
         self.assertEqual(SR.EXPECTED_ROSTER_SIZE["Bundesliga"], 18)
@@ -532,8 +603,16 @@ class TestValidazioneETolleranza(unittest.TestCase):
                             f"atteso errore Live CSV Koln, trovati: {errori}")
 
 
+@unittest.skipUnless(CONTROLLI_DATI, MOTIVO_GRUPPO_2)
 class TestControlloLiveCsv(unittest.TestCase):
-    """I due difetti misurati su LaLiga_Live.csv (Levante-Ath Bilbao):
+    """Voce 4 del censimento: controllo sui dati VERI, mai congelato.
+
+    ``test_database_reale_senza_date_future_ne_coppie_ripetute`` e i test di
+    tolleranza guardano i ``*_Live.csv`` reali con l'orologio reale: e' la
+    sentinella che il 09/10/2026 avrebbe preso il difetto vero (Dortmund-Werder
+    con la data futura). Congelarla la spegnerebbe.
+
+    I due difetti misurati su LaLiga_Live.csv (Levante-Ath Bilbao):
     riga con data futura (21/10/2026) e coppia (HomeTeam, AwayTeam) ripetuta
     nella stessa stagione (16/09/2026 sospesa + 21/10/2026 recupero).
 
