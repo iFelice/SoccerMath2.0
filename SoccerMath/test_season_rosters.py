@@ -762,7 +762,7 @@ class TestControlloLiveCsv(unittest.TestCase):
                              "un giorno di scarto e' la tolleranza dichiarata, non un errore")
 
     def test_coppia_ripetuta_nella_stessa_stagione_e_errore(self):
-        with _DBTemp() as db:
+        with _DBTemp(truncated_before=date(2026, 11, 2)) as db:
             live = db.tmp / "LaLiga_Live.csv"
             # entrambe nel passato del "now" simulato: cosi' l'unico errore
             # possibile e' la ripetizione, non la data futura
