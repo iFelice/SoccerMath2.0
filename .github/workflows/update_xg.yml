@@ -49,6 +49,18 @@ jobs:
           # controllate su questa release (vedi REQUIRED_SOCCERDATA_VERSION)
           pip install 'soccerdata==1.9.1' pandas
 
+      - name: Diagnosi Understat (temporanea)
+        run: |
+          python - <<'E'
+          import soccerdata as sd
+          from soccerdata.understat import UNDERSTAT_URL, UNDERSTAT_HEADERS
+          u = sd.Understat(leagues="ENG-Premier League", seasons="2627", no_cache=True, no_store=True)
+          u._ensure_cookies()
+          r = u._session.get(UNDERSTAT_URL + "/getStatData", headers=UNDERSTAT_HEADERS)
+          print("STATO", r.status_code, "| TIPO", r.headers.get("content-type"), "| BYTE", len(r.content))
+          print("INIZIO", r.content[:300])
+          E
+          
       # 1 + 2: acquisizione + validazione (scrittura atomica, nessun file
       # parziale; exit code != 0 se una lega non valida).
       - name: Acquisizione archivio Understat
